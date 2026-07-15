@@ -32,10 +32,12 @@ Button::make('Connexion');
 ```bash
 cd engine
 composer install
-php -S 127.0.0.1:8090 -t public
+php -S 127.0.0.1:8090 -t public public/router.php
 ```
 
-Ouvre `http://127.0.0.1:8090/` dans un navigateur — tu dois voir l'écran `engine/app/HomePage.php` rendu et stylé, avec un bouton "Incrémenter" qui augmente réellement un compteur côté serveur (état en session PHP).
+Ouvre `http://127.0.0.1:8090/` dans un navigateur — tu dois voir l'écran `engine/app/HomePage.php` rendu et stylé, avec un bouton "Incrémenter" qui augmente réellement un compteur côté serveur (état en session PHP), et un lien "Réglages" qui navigue vers `engine/app/SettingsPage.php`.
+
+(`public/router.php` est nécessaire avec le serveur de dev PHP pour que les routes comme `/settings` soient bien résolues par `Engine\Router` tout en continuant à servir `tailwind.css` comme fichier statique.)
 
 ### Reconstruire le CSS après avoir changé des classes Tailwind
 
@@ -84,6 +86,19 @@ final class HomePage extends Screen
 
 Un clic sur `Button::make($label, action: 'increment')` soumet un POST au serveur PHP (`_action=increment`), qui appelle `onIncrement()`, sauvegarde le nouvel état en session, puis redirige (POST-redirect-GET, pas de resoumission au refresh).
 
+## Navigation multi-écrans
+
+Les routes sont déclarées dans `engine/public/index.php` :
+
+```php
+$router = new Router([
+    '/' => HomePage::class,
+    '/settings' => SettingsPage::class,
+]);
+```
+
+Le widget `Link::make($label, $href)` génère un `<a href="...">` classique — navigation par vraie requête HTTP, cohérent avec le modèle "PHP est le runtime réel" (pas de routeur JS côté client). Un chemin non déclaré renvoie une vraie 404, pas une erreur silencieuse.
+
 ## Widgets disponibles
 
 | PHP | Rend en |
@@ -94,6 +109,7 @@ Un clic sur `Button::make($label, action: 'increment')` soumet un POST au serveu
 | `Row::make([$children], $classes = '...')` | `<div class="flex flex-row ...">` |
 | `Container::make($child, $classes = '...')` | `<div>` à un seul enfant |
 | `Image::make($src, $alt = '', $classes = '...')` | `<img>` |
+| `Link::make($label, $href, $classes = '...')` | `<a href="...">` |
 
 Le paramètre `$classes` accepte n'importe quelle classe Tailwind — valeur par défaut sensée, entièrement remplaçable, comme un widget Flutter personnalisable.
 
@@ -130,7 +146,6 @@ backend/
 
 - Pas de PHP embarqué *sur* le device — c'est le plus gros chantier restant (cross-compiler PHP pour Android/iOS)
 - Pas encore d'équivalent iOS (WKWebView) — nécessite une machine macOS/Xcode, indisponible dans cet environnement
-- Pas de navigation multi-écrans
 - `Screen`/actions : un seul niveau d'action par clic, pas de paramètres passés à l'action pour l'instant
 
 ## Historique
