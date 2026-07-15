@@ -1,4 +1,3 @@
 .claude/
-/ui/transpiler/vendor/
-/ui/examples/*/.flutter/
 /backend/vendor/
+/engine/vendor/
