@@ -3,23 +3,41 @@
 namespace Transpiler;
 
 /**
- * Writes the generated Dart widget tree into an existing Flutter project's
- * lib/main.dart (the Flutter project itself is created separately via
- * `flutter create`, not by this class).
+ * Writes the generated Dart screen (stateless or stateful) into an existing
+ * Flutter project's lib/main.dart (the Flutter project itself is created
+ * separately via `flutter create`, not by this class).
+ *
+ * This class only assembles Dart source from already-rendered pieces — it
+ * has no knowledge of the PHP AST; all PHP-to-Dart translation happens
+ * upstream (DartEmitter / StatementEmitter).
  */
 final class FlutterProjectGenerator
 {
-    public function generate(string $widgetTreeDart, string $flutterProjectDir): void
-    {
+    /**
+     * @param array<int, array{name: string, dartType: string, defaultDart: string}> $stateFields
+     *        Only used when $screen->kind === 'stateful'.
+     */
+    public function generate(
+        ScreenDefinition $screen,
+        array $stateFields,
+        string $buildBodyDart,
+        string $flutterProjectDir,
+    ): void {
         $libDir = $flutterProjectDir . '/lib';
         if (!is_dir($libDir)) {
             throw new \RuntimeException("Flutter project not found at {$flutterProjectDir} (run `flutter create` first).");
         }
 
-        file_put_contents($libDir . '/main.dart', $this->buildMainDart($widgetTreeDart));
+        $screenDart = $screen->kind === 'stateful'
+            ? $this->buildStatefulScreen($screen->className, $stateFields, $buildBodyDart)
+            : $this->buildStatelessScreen($screen->className, $buildBodyDart);
+
+        $dart = $this->buildMainDart($screen->className, $screenDart);
+
+        file_put_contents($libDir . '/main.dart', $dart);
     }
 
-    private function buildMainDart(string $widgetTreeDart): string
+    private function buildMainDart(string $className, string $screenDart): string
     {
         return <<<DART
         import 'package:flutter/material.dart';
@@ -36,10 +54,57 @@ final class FlutterProjectGenerator
             return MaterialApp(
               home: Scaffold(
                 body: Center(
-                  child: {$widgetTreeDart},
+                  child: const {$className}(),
                 ),
               ),
             );
+          }
+        }
+
+        {$screenDart}
+        DART;
+    }
+
+    private function buildStatelessScreen(string $className, string $buildBodyDart): string
+    {
+        return <<<DART
+        class {$className} extends StatelessWidget {
+          const {$className}({super.key});
+
+          @override
+          Widget build(BuildContext context) {
+            return {$buildBodyDart};
+          }
+        }
+
+        DART;
+    }
+
+    /**
+     * @param array<int, array{name: string, dartType: string, defaultDart: string}> $stateFields
+     */
+    private function buildStatefulScreen(string $className, array $stateFields, string $buildBodyDart): string
+    {
+        $stateClassName = "_{$className}State";
+
+        $fieldLines = '';
+        foreach ($stateFields as $field) {
+            $fieldLines .= "  {$field['dartType']} {$field['name']} = {$field['defaultDart']};\n";
+        }
+
+        return <<<DART
+        class {$className} extends StatefulWidget {
+          const {$className}({super.key});
+
+          @override
+          State<{$className}> createState() => {$stateClassName}();
+        }
+
+        class {$stateClassName} extends State<{$className}> {
+        {$fieldLines}
+          @override
+          Widget build(BuildContext context) {
+            return {$buildBodyDart};
           }
         }
 
