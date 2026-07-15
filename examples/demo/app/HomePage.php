@@ -5,13 +5,16 @@ use Sdk\Widget;
 use Sdk\Column;
 use Sdk\Text;
 use Sdk\Button;
+use Sdk\Container;
+use Sdk\SizedBox;
 
 class HomePage extends StatelessWidget
 {
     public function build(): Widget
     {
         return Column::new([
-            Text::new('Mon application'),
+            Container::new(Text::new('Mon application'), color: '#2196F3'),
+            SizedBox::new(height: 16.0),
             Button::new('Connexion'),
         ]);
     }
