@@ -4,6 +4,7 @@
 require __DIR__ . '/../vendor/autoload.php';
 
 use Transpiler\DartEmitter;
+use Transpiler\EnvLoader;
 use Transpiler\FlutterProjectGenerator;
 use Transpiler\Parser;
 use Transpiler\PubspecDependencyWriter;
@@ -125,11 +126,13 @@ function cmdRun(string $device): void
         echo 'Synced ' . count($dependencies) . " dependencies into pubspec.yaml\n";
     }
 
+    $env = (new EnvLoader())->load($projectDir . '/.env');
+
     $statements = (new Parser())->parseFile($homePagePath);
     $screen = (new ScreenExtractor())->extract($statements);
 
     $stateFieldNames = array_map(static fn ($field) => $field->name, $screen->stateFields);
-    $emitter = new DartEmitter($stateFieldNames);
+    $emitter = new DartEmitter($stateFieldNames, array_keys($env));
 
     $stateFields = array_map(static fn ($field) => [
         'name' => $field->name,
@@ -139,7 +142,7 @@ function cmdRun(string $device): void
 
     $buildBodyDart = $emitter->emit($screen->buildReturnExpr);
 
-    (new FlutterProjectGenerator())->generate($screen, $stateFields, $buildBodyDart, $flutterDir);
+    (new FlutterProjectGenerator())->generate($screen, $stateFields, $buildBodyDart, $env, $flutterDir);
 
     echo "Generated {$flutterDir}/lib/main.dart\n";
 
