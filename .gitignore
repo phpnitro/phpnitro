@@ -1,3 +1,4 @@
 .claude/
 /transpiler/vendor/
 /examples/*/.flutter/
+/backend/vendor/
