@@ -9,6 +9,7 @@ import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 
@@ -20,7 +21,8 @@ import androidx.core.app.ActivityCompat
  *
  * Grants the runtime permissions and WebView callbacks needed for the
  * device-capability widgets (camera, microphone, geolocation) to work from
- * the pages served by engine/.
+ * the pages served by engine/, and exposes WebAppInterface as
+ * window.AndroidNative for the genuinely-native vibrate/camera path.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -30,6 +32,12 @@ class MainActivity : AppCompatActivity() {
         Manifest.permission.ACCESS_FINE_LOCATION,
     )
 
+    private lateinit var webAppInterface: WebAppInterface
+
+    private val takePicturePreview = registerForActivityResult(
+        ActivityResultContracts.TakePicturePreview(),
+    ) { bitmap -> webAppInterface.deliverPhoto(bitmap) }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,6 +45,9 @@ class MainActivity : AppCompatActivity() {
         ActivityCompat.requestPermissions(this, requestedPermissions, 0)
 
         val webView = WebView(this)
+        webAppInterface = WebAppInterface(this, webView) { takePicturePreview.launch(null) }
+        webView.addJavascriptInterface(webAppInterface, "AndroidNative")
+
         webView.settings.javaScriptEnabled = true
         webView.settings.setGeolocationEnabled(true)
         webView.webViewClient = WebViewClient()
