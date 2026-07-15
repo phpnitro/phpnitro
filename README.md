@@ -96,10 +96,15 @@ Les routes sont déclarées dans `engine/public/index.php` :
 $router = new Router([
     '/' => HomePage::class,
     '/settings' => SettingsPage::class,
+    '/product/{id}' => ProductPage::class,
 ]);
 ```
 
 Le widget `Link::make($label, $href)` génère un `<a href="...">` classique — navigation par vraie requête HTTP, cohérent avec le modèle "PHP est le runtime réel" (pas de routeur JS côté client). Un chemin non déclaré renvoie une vraie 404, pas une erreur silencieuse.
+
+### Paramètres entre pages
+
+Une route comme `/product/{id}` capture le segment dans `$this->params['id']`, accessible dans `build()` (voir `engine/app/ProductPage.php`). Chaque combinaison classe+paramètres a son propre état de session (deux visites de `/product/1` et `/product/2` ne partagent pas leur état).
 
 ## Widgets disponibles
 
@@ -135,6 +140,11 @@ Le paramètre `$classes` accepte n'importe quelle classe Tailwind — valeur par
 
 Widgets `VibrateButton`, `LocationButton`, `CameraPreview`, `MicrophoneButton` (écran `engine/app/DevicePage.php`, route `/device`) — utilisent les Web APIs standard (`navigator.vibrate`, `navigator.geolocation`, `navigator.mediaDevices.getUserMedia`) via `engine/public/device.js`. Ces APIs fonctionnent nativement dans une WebView Android/iOS pourvu que l'app hôte accorde les permissions nécessaires (voir `android/README.md`).
 
+**Est-ce "vraiment natif" (comme React Native) ?** Nuance importante :
+- La géolocation et le micro passent déjà par les vraies APIs natives Android en coulisses (Chromium délègue à `FusedLocationProvider`/le pipeline audio natif) — ce n'est pas simulé, juste médié par le moteur de la WebView.
+- Pour la caméra et le vibreur, on va plus loin : `android/.../WebAppInterface.kt` expose un pont JS↔natif (`window.AndroidNative`) qui appelle directement `Vibrator` et lance la vraie app Camera du système (`ActivityResultContracts.TakePicturePreview`) — un vrai code natif Kotlin, pas une Web API. `device.js` préfère ce pont natif quand il est disponible (donc dans notre coquille Android) et retombe sur les Web API sinon (navigateur, iOS pas encore équivalent).
+- Ce que ça ne donne *pas* encore : un flux caméra live entièrement natif avec contrôles avancés (CameraX/Camera2 complet, ISO manuel, etc.) — seulement la capture photo via l'app Camera native. Une vraie preview Camera2 custom serait une extension possible du même pont.
+
 ## Lancer le backend
 
 ```bash
@@ -147,6 +157,8 @@ php -S 127.0.0.1:8091 -t public
 curl http://127.0.0.1:8091/api/hello
 curl http://127.0.0.1:8091/api/health
 ```
+
+Avec les deux serveurs lancés (`engine/` sur 8090 et `backend/` sur 8091), la route `/api` d'`engine/` (`engine/app/ApiPage.php`) appelle réellement `backend/` en HTTP et affiche sa réponse — les deux couches PHP communiquent entre elles pour de vrai, pas juste en théorie.
 
 Structure façon Symfony :
 ```
