@@ -1,0 +1,10 @@
+{
+    "require": {
+        "nikic/php-parser": "^5.8"
+    },
+    "autoload": {
+        "psr-4": {
+            "Transpiler\\": "src/"
+        }
+    }
+}
