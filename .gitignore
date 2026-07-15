@@ -2,3 +2,6 @@
 /backend/vendor/
 /engine/vendor/
 /engine/node_modules/
+/android/.gradle/
+/android/build/
+/android/app/build/

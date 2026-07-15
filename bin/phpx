@@ -1,0 +1,193 @@
+#!/usr/bin/env php
+<?php
+
+/**
+ * phpx — CLI for the PHP+Tailwind+WebView mobile framework.
+ *
+ * Commands:
+ *   phpx make:screen <Name> [route]   Generate a new Screen and register its route
+ *   phpx serve [port]                 Serve engine/ (defaults to 8090)
+ *   phpx serve:backend [port]         Serve backend/ (defaults to 8091)
+ *   phpx new <directory>              Scaffold a new project (copy of engine/ + backend/)
+ */
+
+define('PHPX_ROOT', dirname(__DIR__));
+
+function phpxFail(string $message): never
+{
+    fwrite(STDERR, "phpx: {$message}\n");
+    exit(1);
+}
+
+function passthruOrFail(string $command): void
+{
+    passthru($command, $exitCode);
+    if ($exitCode !== 0) {
+        phpxFail("command failed ({$exitCode}): {$command}");
+    }
+}
+
+function screenClassName(string $name): string
+{
+    $className = str_replace([' ', '-', '_'], '', ucwords(preg_replace('/[\s\-_]+/', ' ', $name)));
+
+    return str_ends_with($className, 'Page') ? $className : $className . 'Page';
+}
+
+function defaultRoute(string $className): string
+{
+    $base = preg_replace('/Page$/', '', $className);
+    $kebab = strtolower(preg_replace('/(?<!^)[A-Z]/', '-$0', $base));
+
+    return $kebab === '' ? '/' : '/' . $kebab;
+}
+
+function screenTemplate(string $className): string
+{
+    return <<<PHP
+    <?php
+
+    namespace Engine\App;
+
+    use Engine\Column;
+    use Engine\Screen;
+    use Engine\Text;
+    use Engine\Widget;
+
+    final class {$className} extends Screen
+    {
+        protected function initialState(): array
+        {
+            return [];
+        }
+
+        public function build(): Widget
+        {
+            return Column::make([
+                Text::make('{$className}', 'text-2xl font-bold text-gray-900 dark:text-gray-100'),
+            ]);
+        }
+    }
+
+    PHP;
+}
+
+function registerRoute(string $indexPath, string $className, string $route): void
+{
+    $content = file_get_contents($indexPath);
+    if ($content === false) {
+        phpxFail("unable to read {$indexPath}");
+    }
+
+    $useLine = "use Engine\\App\\{$className};\n";
+    if (!str_contains($content, $useLine)) {
+        $content = str_replace("use Engine\\Router;\n", $useLine . "use Engine\\Router;\n", $content);
+    }
+
+    $routeLine = "    '{$route}' => {$className}::class,\n";
+    if (!str_contains($content, $routeLine)) {
+        $content = str_replace("\$router = new Router([\n", "\$router = new Router([\n{$routeLine}", $content);
+    }
+
+    file_put_contents($indexPath, $content);
+}
+
+function cmdMakeScreen(string $name, ?string $route): void
+{
+    $className = screenClassName($name);
+    $path = PHPX_ROOT . "/engine/app/{$className}.php";
+
+    if (is_file($path)) {
+        phpxFail("screen already exists: {$path}");
+    }
+
+    $route ??= defaultRoute($className);
+
+    file_put_contents($path, screenTemplate($className));
+    echo "Created {$path}\n";
+
+    registerRoute(PHPX_ROOT . '/engine/public/index.php', $className, $route);
+    echo "Registered route {$route} => Engine\\App\\{$className}\n";
+}
+
+function cmdServe(string $dir, int $port, ?string $router): void
+{
+    $publicDir = PHPX_ROOT . "/{$dir}/public";
+    if (!is_dir($publicDir)) {
+        phpxFail("no public/ directory found at {$publicDir}");
+    }
+
+    $command = "php -S 127.0.0.1:{$port} -t " . escapeshellarg($publicDir);
+    if ($router !== null) {
+        $command .= ' ' . escapeshellarg($publicDir . '/' . $router);
+    }
+
+    passthruOrFail($command);
+}
+
+function cmdNew(string $directory): void
+{
+    $targetDir = PHPX_ROOT . '/' . $directory;
+
+    if (is_dir($targetDir)) {
+        phpxFail("directory already exists: {$targetDir}");
+    }
+
+    mkdir($targetDir, 0777, true);
+
+    foreach (['engine', 'backend'] as $part) {
+        $source = PHPX_ROOT . '/' . $part;
+        $destination = $targetDir . '/' . $part;
+        copyDirectory($source, $destination, ['vendor', 'node_modules', '.flutter']);
+        echo "Copied {$part}/ to {$destination}\n";
+    }
+
+    echo "Project scaffolded at {$targetDir}\n";
+    echo "Next: cd {$directory}/engine && composer install && ../../bin/phpx serve\n";
+}
+
+/**
+ * @param string[] $skip Directory names to skip entirely.
+ */
+function copyDirectory(string $source, string $destination, array $skip = []): void
+{
+    if (!is_dir($source)) {
+        return;
+    }
+
+    mkdir($destination, 0777, true);
+
+    foreach (scandir($source) as $entry) {
+        if ($entry === '.' || $entry === '..' || in_array($entry, $skip, true)) {
+            continue;
+        }
+
+        $sourcePath = "{$source}/{$entry}";
+        $destinationPath = "{$destination}/{$entry}";
+
+        if (is_dir($sourcePath)) {
+            copyDirectory($sourcePath, $destinationPath, $skip);
+        } else {
+            copy($sourcePath, $destinationPath);
+        }
+    }
+}
+
+$command = $argv[1] ?? null;
+
+switch ($command) {
+    case 'make:screen':
+        cmdMakeScreen($argv[2] ?? phpxFail('usage: phpx make:screen <Name> [route]'), $argv[3] ?? null);
+        break;
+    case 'serve':
+        cmdServe('engine', (int) ($argv[2] ?? 8090), 'router.php');
+        break;
+    case 'serve:backend':
+        cmdServe('backend', (int) ($argv[2] ?? 8091), null);
+        break;
+    case 'new':
+        cmdNew($argv[2] ?? phpxFail('usage: phpx new <directory>'));
+        break;
+    default:
+        phpxFail('usage: phpx <make:screen|serve|serve:backend|new> ...');
+}
