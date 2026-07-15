@@ -2,5 +2,10 @@
     "require": {
         "symfony/http-foundation": "^8.1",
         "symfony/dotenv": "^8.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Backend\\": "src/"
+        }
     }
 }

@@ -2,6 +2,7 @@
 
 require __DIR__ . '/../vendor/autoload.php';
 
+use Backend\Controller\HelloController;
 use Symfony\Component\Dotenv\Dotenv;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -9,12 +10,11 @@ use Symfony\Component\HttpFoundation\Request;
 (new Dotenv())->loadEnv(__DIR__ . '/../.env');
 
 $request = Request::createFromGlobals();
+$controller = new HelloController();
 
 $response = match ($request->getPathInfo()) {
-    '/api/health' => new JsonResponse(['status' => 'ok']),
-    '/api/hello' => new JsonResponse([
-        'message' => 'Hello from ' . ($_ENV['APP_NAME'] ?? 'backend'),
-    ]),
+    '/api/health' => $controller->health($request),
+    '/api/hello' => $controller->hello($request),
     default => new JsonResponse(['error' => 'Not found'], 404),
 };
 
