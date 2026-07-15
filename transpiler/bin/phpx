@@ -1,0 +1,103 @@
+#!/usr/bin/env php
+<?php
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Transpiler\DartEmitter;
+use Transpiler\FlutterProjectGenerator;
+use Transpiler\Parser;
+use Transpiler\WidgetTreeExtractor;
+
+function phpxFail(string $message): never
+{
+    fwrite(STDERR, "phpx: {$message}\n");
+    exit(1);
+}
+
+function passthruOrFail(string $command): void
+{
+    passthru($command, $exitCode);
+    if ($exitCode !== 0) {
+        phpxFail("command failed ({$exitCode}): {$command}");
+    }
+}
+
+function homePageTemplate(): string
+{
+    return <<<'PHP'
+    <?php
+
+    use Sdk\StatelessWidget;
+    use Sdk\Widget;
+    use Sdk\Column;
+    use Sdk\Text;
+    use Sdk\Button;
+
+    class HomePage extends StatelessWidget
+    {
+        public function build(): Widget
+        {
+            return Column::new([
+                Text::new('Mon application'),
+                Button::new('Connexion'),
+            ]);
+        }
+    }
+
+    PHP;
+}
+
+function cmdCreate(string $name): void
+{
+    $projectDir = getcwd() . '/' . $name;
+    $appDir = $projectDir . '/app';
+
+    if (is_dir($projectDir)) {
+        phpxFail("directory already exists: {$projectDir}");
+    }
+
+    mkdir($appDir, 0777, true);
+    file_put_contents($appDir . '/HomePage.php', homePageTemplate());
+
+    echo "Created {$appDir}/HomePage.php\n";
+    echo "Running flutter create...\n";
+
+    passthruOrFail('flutter create ' . escapeshellarg($projectDir . '/.flutter'));
+
+    echo "Project created at {$projectDir}\n";
+}
+
+function cmdRun(string $device): void
+{
+    $projectDir = getcwd();
+    $homePagePath = $projectDir . '/app/HomePage.php';
+    $flutterDir = $projectDir . '/.flutter';
+
+    if (!is_file($homePagePath)) {
+        phpxFail("no app/HomePage.php found in {$projectDir}");
+    }
+
+    $statements = (new Parser())->parseFile($homePagePath);
+    $treeExpr = (new WidgetTreeExtractor())->extract($statements);
+    $dartTree = (new DartEmitter())->emit($treeExpr);
+
+    (new FlutterProjectGenerator())->generate($dartTree, $flutterDir);
+
+    echo "Generated {$flutterDir}/lib/main.dart\n";
+
+    chdir($flutterDir);
+    passthruOrFail('flutter run -d ' . escapeshellarg($device));
+}
+
+$command = $argv[1] ?? null;
+
+switch ($command) {
+    case 'create':
+        cmdCreate($argv[2] ?? phpxFail('usage: phpx create <name>'));
+        break;
+    case 'run':
+        cmdRun($argv[2] ?? phpxFail('usage: phpx run <device>'));
+        break;
+    default:
+        phpxFail('usage: phpx <create|run> ...');
+}
