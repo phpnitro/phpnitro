@@ -124,6 +124,14 @@ final class DartEmitter
             return $this->emitButton($positional, $named);
         }
 
+        if ($widget['argMode'] === 'container') {
+            return $this->emitContainer($positional, $named);
+        }
+
+        if ($widget['argMode'] === 'sizedbox') {
+            return $this->emitSizedBox($positional, $named);
+        }
+
         if (count($positional) !== 1 || $named !== []) {
             throw new \RuntimeException("{$phpClass}::new() must be called with exactly one positional argument.");
         }
@@ -170,6 +178,67 @@ final class DartEmitter
         $body = (new StatementEmitter($this))->emitBlock($closure->stmts);
 
         return "() {\n{$body}\n}";
+    }
+
+    /**
+     * @param Expr[] $positional
+     * @param array<string, Expr> $named
+     */
+    private function emitContainer(array $positional, array $named): string
+    {
+        if (count($positional) !== 1) {
+            throw new \RuntimeException('Container::new() requires exactly one positional child argument.');
+        }
+
+        $parts = [];
+
+        if (isset($named['color'])) {
+            $parts[] = "color: {$this->emitColor($named['color'])}";
+        }
+
+        $parts[] = "child: {$this->emit($positional[0])}";
+
+        return 'Container(' . implode(', ', $parts) . ')';
+    }
+
+    /**
+     * @param Expr[] $positional
+     * @param array<string, Expr> $named
+     */
+    private function emitSizedBox(array $positional, array $named): string
+    {
+        if (count($positional) > 1) {
+            throw new \RuntimeException('SizedBox::new() takes at most one positional child argument.');
+        }
+
+        $parts = [];
+
+        if (isset($named['width'])) {
+            $parts[] = "width: {$this->emit($named['width'])}";
+        }
+
+        if (isset($named['height'])) {
+            $parts[] = "height: {$this->emit($named['height'])}";
+        }
+
+        if ($positional !== []) {
+            $parts[] = "child: {$this->emit($positional[0])}";
+        }
+
+        return 'SizedBox(' . implode(', ', $parts) . ')';
+    }
+
+    private function emitColor(Expr $node): string
+    {
+        if (!$node instanceof Scalar\String_) {
+            throw new \RuntimeException('color must be a hex string literal, e.g. "#FF0000".');
+        }
+
+        if (!preg_match('/^#([0-9A-Fa-f]{6})$/', $node->value, $matches)) {
+            throw new \RuntimeException("Invalid color \"{$node->value}\"; expected format #RRGGBB.");
+        }
+
+        return "const Color(0xFF{$matches[1]})";
     }
 
     private function emitArray(Expr\Array_ $node): string
