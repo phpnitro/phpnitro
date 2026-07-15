@@ -4,6 +4,7 @@ namespace Engine\App;
 
 use Engine\Button;
 use Engine\Column;
+use Engine\Link;
 use Engine\Screen;
 use Engine\Text;
 use Engine\Widget;
@@ -26,6 +27,7 @@ final class HomePage extends Screen
             Text::make('Mon application', 'text-2xl font-bold text-gray-900'),
             Text::make('Compteur : ' . $this->state['count']),
             Button::make('Incrémenter', action: 'increment'),
+            Link::make('Réglages', '/settings'),
         ]);
     }
 }
