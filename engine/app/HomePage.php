@@ -4,12 +4,15 @@ namespace Engine\App;
 
 use Engine\BottomNavigation;
 use Engine\Button;
+use Engine\Color;
 use Engine\Column;
 use Engine\FloatingActionButton;
+use Engine\FontWeight;
 use Engine\GestureDetector;
 use Engine\Link;
 use Engine\Screen;
 use Engine\Text;
+use Engine\TextSize;
 use Engine\ThemeToggle;
 use Engine\Widget;
 
@@ -33,7 +36,7 @@ final class HomePage extends Screen
     public function build(): Widget
     {
         return Column::make([
-            Text::make('Mon application', 'text-2xl font-bold text-gray-900 dark:text-gray-100'),
+            Text::make('Mon application', size: TextSize::XL2, weight: FontWeight::BOLD, color: Color::gray(900)),
             GestureDetector::make(
                 Text::make('Compteur : ' . $this->state['count'] . ' (double-clic ou swipe)'),
                 onDoubleClick: 'increment',
