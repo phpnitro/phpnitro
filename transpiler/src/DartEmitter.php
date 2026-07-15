@@ -47,7 +47,10 @@ final class DartEmitter
         }
 
         if ($node instanceof Expr\BinaryOp\Concat) {
-            return "'\${$this->emit($node->left)}\${$this->emit($node->right)}'";
+            $left = $this->emit($node->left);
+            $right = $this->emit($node->right);
+
+            return "'\${" . $left . "}\${" . $right . "}'";
         }
 
         if ($node instanceof Expr\BinaryOp\Plus) {
