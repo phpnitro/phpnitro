@@ -52,6 +52,7 @@ $theme = $_SESSION['theme'] ?? 'light';
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= htmlspecialchars($_ENV['APP_NAME'] ?? 'PHP Engine', ENT_QUOTES) ?></title>
     <link rel="stylesheet" href="tailwind.css">
+    <script src="gestures.js" defer></script>
 </head>
 
 <body class="bg-gray-50 dark:bg-gray-900 dark:text-gray-100 min-h-screen flex items-center justify-center">
