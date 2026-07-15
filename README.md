@@ -11,6 +11,8 @@ backend/    app PHP "façon Symfony" (Controller / Service / Repository / Entity
             utilise symfony/http-foundation (Request/Response) et symfony/dotenv
 engine/     le moteur de widgets — classes PHP (Text, Button, Column...) qui se
             rendent en HTML + classes Tailwind, servies par le PHP intégré
+android/    coquille Android (WebView native) — non vérifiée dans cet environnement,
+            voir android/README.md
 ```
 
 Chaque widget est une classe PHP avec un constructeur (propriétés configurables, comme dans Flutter) et une méthode `render(): string` qui produit du HTML :
@@ -23,9 +25,9 @@ Button::make('Connexion');
 ## Prérequis
 
 - PHP ≥ 8.1 avec Composer
-- Accès internet (pour le moment : Tailwind est chargé via CDN — une version compilée/offline est prévue pour l'usage mobile réel)
+- Node.js + npm (uniquement pour reconstruire le CSS Tailwind si tu changes des classes utilitaires)
 
-## Lancer le spike du moteur de widgets
+## Lancer le moteur de widgets
 
 ```bash
 cd engine
@@ -33,9 +35,19 @@ composer install
 php -S 127.0.0.1:8090 -t public
 ```
 
-Puis ouvre `http://127.0.0.1:8090/` dans un navigateur — tu dois voir l'écran `engine/app/HomePage.php` rendu et stylé.
+Ouvre `http://127.0.0.1:8090/` dans un navigateur — tu dois voir l'écran `engine/app/HomePage.php` rendu et stylé, avec un bouton "Incrémenter" qui augmente réellement un compteur côté serveur (état en session PHP).
+
+### Reconstruire le CSS après avoir changé des classes Tailwind
+
+```bash
+cd engine
+npm install   # une seule fois
+npm run build
+```
 
 ## Écrire un écran
+
+Un écran est une classe qui étend `Screen` : elle déclare son état initial, ses actions (`onXxx`), et son `build()`.
 
 ```php
 <?php
@@ -44,30 +56,46 @@ namespace Engine\App;
 
 use Engine\Button;
 use Engine\Column;
+use Engine\Screen;
 use Engine\Text;
 use Engine\Widget;
 
-final class HomePage
+final class HomePage extends Screen
 {
+    protected function initialState(): array
+    {
+        return ['count' => 0];
+    }
+
+    protected function onIncrement(): void
+    {
+        $this->state['count']++;
+    }
+
     public function build(): Widget
     {
         return Column::make([
-            Text::make('Mon application', 'text-2xl font-bold text-gray-900'),
-            Button::make('Connexion'),
+            Text::make('Compteur : ' . $this->state['count']),
+            Button::make('Incrémenter', action: 'increment'),
         ]);
     }
 }
 ```
+
+Un clic sur `Button::make($label, action: 'increment')` soumet un POST au serveur PHP (`_action=increment`), qui appelle `onIncrement()`, sauvegarde le nouvel état en session, puis redirige (POST-redirect-GET, pas de resoumission au refresh).
 
 ## Widgets disponibles
 
 | PHP | Rend en |
 |---|---|
 | `Text::make($content, $classes = '...')` | `<p>` |
-| `Button::make($label, $classes = '...')` | `<button>` |
+| `Button::make($label, $action = null, $classes = '...')` | `<button>` (ou `<form>` si `$action` est fourni) |
 | `Column::make([$children], $classes = '...')` | `<div class="flex flex-col ...">` |
+| `Row::make([$children], $classes = '...')` | `<div class="flex flex-row ...">` |
+| `Container::make($child, $classes = '...')` | `<div>` à un seul enfant |
+| `Image::make($src, $alt = '', $classes = '...')` | `<img>` |
 
-Le deuxième argument (`$classes`) accepte n'importe quelle classe Tailwind — il a une valeur par défaut sensée mais peut être entièrement remplacé, exactement comme un `style` ou un widget Flutter personnalisable.
+Le paramètre `$classes` accepte n'importe quelle classe Tailwind — valeur par défaut sensée, entièrement remplaçable, comme un widget Flutter personnalisable.
 
 ## Lancer le backend
 
@@ -94,12 +122,16 @@ backend/
   .env                      config (chargée via symfony/dotenv)
 ```
 
-## Limites actuelles (spike)
+## Coquille Android
 
-- Tailwind chargé via CDN (nécessite internet) — une version compilée/embarquée est nécessaire avant tout usage mobile réel hors-ligne
-- Pas encore d'interactivité (clic sur `Button` ne fait rien pour l'instant) ni de gestion d'état
-- Pas encore embarqué dans une vraie WebView Android/iOS — testé pour l'instant via navigateur desktop / serveur PHP intégré
-- Pas de widgets `Row`, `Container`, `Image`, navigation multi-écrans (prochaines étapes)
+`android/` contient un projet Gradle minimal (`MainActivity` + `WebView`) pointé sur le serveur PHP. **Non vérifié dans cet environnement** (pas d'émulateur configuré, pas de Gradle installé) — voir `android/README.md` pour les instructions et la limite actuelle (pointe vers un PHP hébergé sur le réseau local, pas encore un PHP embarqué sur le device).
+
+## Limites actuelles
+
+- Pas de PHP embarqué *sur* le device — c'est le plus gros chantier restant (cross-compiler PHP pour Android/iOS)
+- Pas encore d'équivalent iOS (WKWebView) — nécessite une machine macOS/Xcode, indisponible dans cet environnement
+- Pas de navigation multi-écrans
+- `Screen`/actions : un seul niveau d'action par clic, pas de paramètres passés à l'action pour l'instant
 
 ## Historique
 
