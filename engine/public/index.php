@@ -5,6 +5,9 @@ require __DIR__ . '/../vendor/autoload.php';
 use Engine\App\HomePage;
 use Engine\App\SettingsPage;
 use Engine\Router;
+use Symfony\Component\Dotenv\Dotenv;
+
+(new Dotenv())->loadEnv(__DIR__ . '/../.env');
 
 session_start();
 
@@ -40,7 +43,7 @@ $widgetTree = $screen->build();
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>PHP Engine</title>
+    <title><?= htmlspecialchars($_ENV['APP_NAME'] ?? 'PHP Engine', ENT_QUOTES) ?></title>
     <link rel="stylesheet" href="tailwind.css">
 </head>
 

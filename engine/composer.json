@@ -4,5 +4,8 @@
             "Engine\\": "php/",
             "Engine\\App\\": "app/"
         }
+    },
+    "require": {
+        "symfony/dotenv": "^8.1"
     }
 }
