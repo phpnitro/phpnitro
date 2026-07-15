@@ -19,10 +19,11 @@ abstract class Screen
     {
         $method = 'on' . ucfirst($action);
 
-        if (method_exists($this, $method)) {
-            $this->$method();
+        if (!method_exists($this, $method)) {
+            throw new \RuntimeException("Unknown action \"{$action}\" for screen " . static::class);
         }
 
+        $this->$method();
         $_SESSION[static::class] = $this->state;
     }
 }

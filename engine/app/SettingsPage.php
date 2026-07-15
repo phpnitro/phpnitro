@@ -18,7 +18,7 @@ final class SettingsPage extends Screen
     public function build(): Widget
     {
         return Column::make([
-            Text::make('Réglages', 'text-2xl font-bold text-gray-900'),
+            Text::make('Réglages', 'text-2xl font-bold text-gray-900 dark:text-gray-100'),
             Link::make("Retour à l'accueil", '/'),
         ]);
     }

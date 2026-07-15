@@ -26,6 +26,12 @@ try {
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? null) === 'toggleTheme') {
+    $_SESSION['theme'] = ($_SESSION['theme'] ?? 'light') === 'dark' ? 'light' : 'dark';
+    header('Location: ' . $_SERVER['REQUEST_URI'], true, 303);
+    exit;
+}
+
 $screen = new $screenClass();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action'])) {
@@ -35,10 +41,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action'])) {
 }
 
 $widgetTree = $screen->build();
+$theme = $_SESSION['theme'] ?? 'light';
 
 ?>
 <!doctype html>
-<html lang="fr">
+<html lang="fr" class="<?= $theme === 'dark' ? 'dark' : '' ?>">
 
 <head>
     <meta charset="utf-8">
@@ -47,7 +54,7 @@ $widgetTree = $screen->build();
     <link rel="stylesheet" href="tailwind.css">
 </head>
 
-<body class="bg-gray-50 min-h-screen flex items-center justify-center">
+<body class="bg-gray-50 dark:bg-gray-900 dark:text-gray-100 min-h-screen flex items-center justify-center">
     <?= $widgetTree->render() ?>
 </body>
 

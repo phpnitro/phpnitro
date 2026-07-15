@@ -7,6 +7,7 @@ use Engine\Column;
 use Engine\Link;
 use Engine\Screen;
 use Engine\Text;
+use Engine\ThemeToggle;
 use Engine\Widget;
 
 final class HomePage extends Screen
@@ -24,10 +25,11 @@ final class HomePage extends Screen
     public function build(): Widget
     {
         return Column::make([
-            Text::make('Mon application', 'text-2xl font-bold text-gray-900'),
+            Text::make('Mon application', 'text-2xl font-bold text-gray-900 dark:text-gray-100'),
             Text::make('Compteur : ' . $this->state['count']),
             Button::make('Incrémenter', action: 'increment'),
             Link::make('Réglages', '/settings'),
+            ThemeToggle::make(),
         ]);
     }
 }
