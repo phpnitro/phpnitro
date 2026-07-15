@@ -29,12 +29,7 @@ final class DevicePage extends Screen
             MicrophoneButton::make(),
             CameraPreview::make(),
             Link::make("Retour à l'accueil", '/'),
-            BottomNavigation::make([
-                ['label' => 'Accueil', 'href' => '/'],
-                ['label' => 'Réglages', 'href' => '/settings'],
-                ['label' => 'Device', 'href' => '/device'],
-                ['label' => 'API', 'href' => '/api'],
-            ]),
+            BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS),
         ]);
     }
 }

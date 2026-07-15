@@ -31,12 +31,7 @@ final class ApiPage extends Screen
             Text::make('Backend PHP', 'text-2xl font-bold text-gray-900 dark:text-gray-100'),
             Text::make($message),
             Link::make("Retour à l'accueil", '/'),
-            BottomNavigation::make([
-                ['label' => 'Accueil', 'href' => '/'],
-                ['label' => 'Réglages', 'href' => '/settings'],
-                ['label' => 'Device', 'href' => '/device'],
-                ['label' => 'API', 'href' => '/api'],
-            ]),
+            BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS),
         ]);
     }
 

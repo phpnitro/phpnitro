@@ -45,12 +45,7 @@ final class HomePage extends Screen
             Link::make('Produit #42', '/product/42'),
             ThemeToggle::make(),
             FloatingActionButton::make('+', action: 'increment'),
-            BottomNavigation::make([
-                ['label' => 'Accueil', 'href' => '/'],
-                ['label' => 'Réglages', 'href' => '/settings'],
-                ['label' => 'Device', 'href' => '/device'],
-                ['label' => 'API', 'href' => '/api'],
-            ]),
+            BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS),
         ]);
     }
 }

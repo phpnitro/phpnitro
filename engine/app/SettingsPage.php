@@ -2,6 +2,7 @@
 
 namespace Engine\App;
 
+use Engine\BottomNavigation;
 use Engine\Column;
 use Engine\Link;
 use Engine\Screen;
@@ -20,6 +21,7 @@ final class SettingsPage extends Screen
         return Column::make([
             Text::make('Réglages', 'text-2xl font-bold text-gray-900 dark:text-gray-100'),
             Link::make("Retour à l'accueil", '/'),
+            BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS),
         ]);
     }
 }
