@@ -2,8 +2,10 @@
 
 namespace Engine\App;
 
+use Engine\BottomNavigation;
 use Engine\Button;
 use Engine\Column;
+use Engine\FloatingActionButton;
 use Engine\Link;
 use Engine\Screen;
 use Engine\Text;
@@ -30,6 +32,11 @@ final class HomePage extends Screen
             Button::make('Incrémenter', action: 'increment'),
             Link::make('Réglages', '/settings'),
             ThemeToggle::make(),
+            FloatingActionButton::make('+', action: 'increment'),
+            BottomNavigation::make([
+                ['label' => 'Accueil', 'href' => '/'],
+                ['label' => 'Réglages', 'href' => '/settings'],
+            ]),
         ]);
     }
 }

@@ -2,11 +2,12 @@
 
 namespace Engine;
 
-final class Button extends Widget
+final class FloatingActionButton extends Widget
 {
     use RendersAction;
 
-    private const DEFAULT_CLASSES = 'bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition-colors';
+    private const DEFAULT_CLASSES = 'fixed bottom-20 right-4 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-700 '
+        . 'text-white text-2xl leading-none flex items-center justify-center shadow-lg';
 
     public function __construct(
         private readonly string $label,
