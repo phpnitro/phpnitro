@@ -27,12 +27,23 @@ Button::make('Connexion');
 - PHP ≥ 8.1 avec Composer
 - Node.js + npm (uniquement pour reconstruire le CSS Tailwind si tu changes des classes utilitaires)
 
+## CLI (`bin/phpx`)
+
+```bash
+php bin/phpx serve             # sert engine/ sur le port 8090 (avec le router)
+php bin/phpx serve:backend     # sert backend/ sur le port 8091
+php bin/phpx make:screen About # crée engine/app/AboutPage.php + enregistre la route /about
+php bin/phpx new mon-app       # scaffold un nouveau projet (copie engine/ + backend/)
+```
+
+`make:screen` génère la classe et l'ajoute automatiquement au routeur (`engine/public/index.php`) — pas d'étape manuelle.
+
 ## Lancer le moteur de widgets
 
 ```bash
 cd engine
 composer install
-php -S 127.0.0.1:8090 -t public public/router.php
+php -S 127.0.0.1:8090 -t public public/router.php   # ou: php ../bin/phpx serve
 ```
 
 Ouvre `http://127.0.0.1:8090/` dans un navigateur — tu dois voir l'écran `engine/app/HomePage.php` rendu et stylé, avec un bouton "Incrémenter" qui augmente réellement un compteur côté serveur (état en session PHP), un lien "Réglages" (`/settings`), et un lien "Device" (`/device`) pour tester caméra/micro/localisation/vibreur.
@@ -128,6 +139,16 @@ Une route comme `/product/{id}` capture le segment dans `$this->params['id']`, a
 
 Le paramètre `$classes` accepte n'importe quelle classe Tailwind — valeur par défaut sensée, entièrement remplaçable, comme un widget Flutter personnalisable.
 
+## API de style typée (façon Flutter)
+
+En plus de `$classes` (chaîne Tailwind libre), `Text` accepte des paramètres typés qui priment sur `$classes` dès qu'au moins un est fourni :
+
+```php
+Text::make('Titre', size: TextSize::XL2, weight: FontWeight::BOLD, color: Color::gray(900));
+```
+
+`TextSize` et `FontWeight` sont des enums (`TextSize::SM|BASE|LG|XL|XL2|XL3`, `FontWeight::NORMAL|MEDIUM|SEMIBOLD|BOLD`), `Color::gray/blue/red/green(shade)` ou `Color::of('nom', shade)` pour n'importe quelle couleur Tailwind. Ce premier jet ne couvre que `Text` — même principe applicable aux autres widgets par la suite.
+
 ## Mode clair/sombre
 
 `ThemeToggle::make()` bascule le thème via une vraie requête POST (`_action=toggleTheme`, intercepté globalement dans `index.php`, stocké en session, appliqué comme classe `dark` sur `<html>`). Les widgets utilisent les variantes `dark:` de Tailwind (`text-gray-900 dark:text-gray-100`, etc.).
@@ -156,7 +177,12 @@ php -S 127.0.0.1:8091 -t public
 ```bash
 curl http://127.0.0.1:8091/api/hello
 curl http://127.0.0.1:8091/api/health
+curl http://127.0.0.1:8091/api/visits   # incrémente et retourne un compteur stocké en base réelle
 ```
+
+### Base de données
+
+`Backend\Database::connection()` (Doctrine DBAL) — SQLite par défaut (`backend/var/data.sqlite`, zéro config), ou MySQL/PostgreSQL en définissant `DATABASE_URL` dans `backend/.env` (voir les exemples commentés dans ce fichier). Même code, seul le DSN change. `VisitRepository` (`src/Repository/VisitRepository.php`) démontre un vrai cycle create-table/insert/count.
 
 Avec les deux serveurs lancés (`engine/` sur 8090 et `backend/` sur 8091), la route `/api` d'`engine/` (`engine/app/ApiPage.php`) appelle réellement `backend/` en HTTP et affiche sa réponse — les deux couches PHP communiquent entre elles pour de vrai, pas juste en théorie.
 
@@ -178,10 +204,27 @@ backend/
 
 ## Limites actuelles
 
-- Pas de PHP embarqué *sur* le device — c'est le plus gros chantier restant (cross-compiler PHP pour Android/iOS)
+- Pas de PHP embarqué *sur* le device — c'est le plus gros chantier restant (cross-compiler PHP pour Android/iOS), voir la feuille de route
 - Pas encore d'équivalent iOS (WKWebView) — nécessite une machine macOS/Xcode, indisponible dans cet environnement
-- `Screen`/actions : un seul niveau d'action par clic, pas de paramètres passés à l'action pour l'instant
+- Les actions serveur (`onXxx`) ne reçoivent pas encore de paramètres (seules les routes en reçoivent, via `{id}`)
 - Caméra/micro/localisation/vibreur : vérifiés uniquement au niveau HTML/JS (structure correcte, Web APIs standard) — jamais testés sur un vrai device/émulateur Android faute d'environnement disponible ici
+- API de style typée : implémentée seulement sur `Text` pour l'instant
+
+## Feuille de route — chantiers pas encore commencés
+
+Honnêtement scopés, pas improvisés :
+
+**PHP embarqué sur le device ("100% natif").** Le plus gros morceau. Android : cross-compiler PHP (Zend Engine) via le NDK, l'embarquer dans l'APK, le lancer en sous-processus (`php -S 127.0.0.1:<port>`) au démarrage, WebView pointée sur ce localhost — faisable, pas de blocage de principe. iOS : plus dur, Apple interdit de lancer un exécutable séparé bundlé dans l'app (pas de `fork`/subprocess arbitraire) — il faudrait lier PHP comme bibliothèque (embed SAPI) appelée en-process depuis Swift/Objective-C. Piste à explorer avant de coder : le projet open source **NativePHP** (écosystème Laravel) travaille déjà sur PHP embarqué desktop et mobile — s'appuyer dessus plutôt que tout réécrire.
+
+**Binaire du framework façon Flutter.** Deux choses différentes derrière cette demande :
+- Un exécutable `phpx` autonome (sans taper `php bin/phpx`) — atteignable rapidement via un `.phar` auto-exécutable (ex. avec `box`).
+- Un vrai `phpx build android/ios` produisant un APK/IPA installable et autonome — dépend entièrement du point précédent (PHP embarqué). Sans ça, "build" ne peut produire qu'une coquille WebView pointant vers un serveur externe, pas une vraie app autonome.
+
+**Hot reload.** Plus simple qu'il n'y paraît, et potentiellement déjà "gratuit" en partie : PHP est interprété à chaque requête, donc éditer un écran et rafraîchir la page montre déjà le changement instantanément (pas de VM à recharger comme pour Dart). Ce qui manque : que la WebView se rafraîchisse **automatiquement** quand un fichier change (petit watcher de fichiers + rechargement déclenché, façon `nodemon`/`browser-sync`). Faisable en un incrément raisonnable.
+
+**Canvas.** Se mappe directement sur l'élément HTML5 `<canvas>` (2D, voire WebGL), qui est mature et accéléré matériellement dans toutes les WebViews. Un widget `Canvas::make()->rect(...)->circle(...)` qui génère `<canvas>` + les instructions de dessin JS correspondantes est réaliste à construire.
+
+**"Rapide comme une fusée".** Point de vigilance honnête : notre modèle actuel (clic → POST → redirect → rechargement complet de page) a un coût réseau/re-rendu par interaction que Flutter (diffing en mémoire, zéro réseau) n'a pas. Piste concrète pour combler l'écart sans tout réécrire : passer des rechargements pleine page à des mises à jour partielles (le serveur renvoie juste le HTML du widget modifié, remplacé dans le DOM via `fetch`, façon htmx/Turbo) — même modèle "PHP source de vérité", juste sans le flash de rechargement complet. Aussi : le serveur de dev PHP utilisé partout dans ce README (`php -S`) est mono-thread, pas représentatif d'un vrai déploiement (PHP-FPM + opcache en production).
 
 ## Historique
 
