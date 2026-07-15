@@ -5,10 +5,14 @@ Projet Gradle minimal : une `MainActivity` qui affiche une `WebView` pointée su
 **État actuel** : ce code est écrit mais **n'a pas pu être lancé/vérifié** dans cet environnement (pas d'AVD configuré, pas de device connecté, Gradle non installé). À tester sur ta machine :
 
 ```bash
-cd engine && php -S 0.0.0.0:8090 -t public   # serveur PHP accessible depuis l'émulateur
+cd engine && php -S 0.0.0.0:8090 -t public public/router.php   # serveur PHP accessible depuis l'émulateur
 ```
 
 Puis ouvre `android/` dans Android Studio et lance sur un émulateur (Android Studio provisionnera Gradle automatiquement — il n'y a pas de `gradlew` fourni ici, faute de Gradle installé pour le générer).
+
+## Permissions et capacités device
+
+`MainActivity` demande au runtime les permissions caméra/micro/localisation et configure la `WebView` (`WebChromeClient.onPermissionRequest`, `onGeolocationPermissionsShowPrompt`, `setGeolocationEnabled`) pour que les widgets `VibrateButton`, `LocationButton`, `CameraPreview` et `MicrophoneButton` d'`engine/` fonctionnent réellement une fois lancés sur un vrai device/émulateur. **Non vérifié dans cette session** pour la même raison que le reste (pas d'émulateur disponible) — à tester en conditions réelles.
 
 ## Limite majeure actuelle
 
