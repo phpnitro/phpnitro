@@ -12,19 +12,49 @@ final class Router
     }
 
     /**
-     * @return class-string<Screen>
+     * @return array{class: class-string<Screen>, params: array<string, string>}
      */
-    public function resolve(string $path): string
+    public function resolve(string $path): array
     {
-        $path = rtrim($path, '/');
-        if ($path === '') {
-            $path = '/';
+        $pathSegments = $this->segments($path);
+
+        foreach ($this->routes as $pattern => $class) {
+            $patternSegments = $this->segments($pattern);
+
+            if (count($patternSegments) !== count($pathSegments)) {
+                continue;
+            }
+
+            $params = [];
+            $matches = true;
+
+            foreach ($patternSegments as $i => $segment) {
+                if (str_starts_with($segment, '{') && str_ends_with($segment, '}')) {
+                    $params[substr($segment, 1, -1)] = $pathSegments[$i];
+                    continue;
+                }
+
+                if ($segment !== $pathSegments[$i]) {
+                    $matches = false;
+                    break;
+                }
+            }
+
+            if ($matches) {
+                return ['class' => $class, 'params' => $params];
+            }
         }
 
-        if (!isset($this->routes[$path])) {
-            throw new \RuntimeException("No route registered for path: {$path}");
-        }
+        throw new \RuntimeException("No route registered for path: {$path}");
+    }
 
-        return $this->routes[$path];
+    /**
+     * @return string[]
+     */
+    private function segments(string $path): array
+    {
+        $trimmed = trim($path, '/');
+
+        return $trimmed === '' ? [] : explode('/', $trimmed);
     }
 }

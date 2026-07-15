@@ -6,9 +6,15 @@ abstract class Screen
 {
     protected array $state;
 
-    public function __construct()
+    private readonly string $sessionKey;
+
+    /**
+     * @param array<string, string> $params Route parameters extracted by Router (e.g. {id} in /product/{id}).
+     */
+    public function __construct(protected readonly array $params = [])
     {
-        $this->state = $_SESSION[static::class] ?? $this->initialState();
+        $this->sessionKey = static::class . ':' . implode(',', $params);
+        $this->state = $_SESSION[$this->sessionKey] ?? $this->initialState();
     }
 
     abstract protected function initialState(): array;
@@ -24,6 +30,6 @@ abstract class Screen
         }
 
         $this->$method();
-        $_SESSION[static::class] = $this->state;
+        $_SESSION[$this->sessionKey] = $this->state;
     }
 }

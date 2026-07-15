@@ -42,12 +42,14 @@ final class HomePage extends Screen
             ),
             Button::make('Incrémenter', action: 'increment'),
             Link::make('Réglages', '/settings'),
+            Link::make('Produit #42', '/product/42'),
             ThemeToggle::make(),
             FloatingActionButton::make('+', action: 'increment'),
             BottomNavigation::make([
                 ['label' => 'Accueil', 'href' => '/'],
                 ['label' => 'Réglages', 'href' => '/settings'],
                 ['label' => 'Device', 'href' => '/device'],
+                ['label' => 'API', 'href' => '/api'],
             ]),
         ]);
     }

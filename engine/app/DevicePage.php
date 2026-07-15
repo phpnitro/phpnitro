@@ -33,6 +33,7 @@ final class DevicePage extends Screen
                 ['label' => 'Accueil', 'href' => '/'],
                 ['label' => 'Réglages', 'href' => '/settings'],
                 ['label' => 'Device', 'href' => '/device'],
+                ['label' => 'API', 'href' => '/api'],
             ]),
         ]);
     }
