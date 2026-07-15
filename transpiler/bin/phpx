@@ -6,6 +6,7 @@ require __DIR__ . '/../vendor/autoload.php';
 use Transpiler\DartEmitter;
 use Transpiler\FlutterProjectGenerator;
 use Transpiler\Parser;
+use Transpiler\PubspecDependencyWriter;
 use Transpiler\ScreenExtractor;
 
 function phpxFail(string $message): never
@@ -47,6 +48,16 @@ function homePageTemplate(): string
     PHP;
 }
 
+function phpxJsonTemplate(): string
+{
+    return <<<'JSON'
+    {
+        "dependencies": {}
+    }
+
+    JSON;
+}
+
 function cmdCreate(string $name): void
 {
     $projectDir = getcwd() . '/' . $name;
@@ -58,8 +69,10 @@ function cmdCreate(string $name): void
 
     mkdir($appDir, 0777, true);
     file_put_contents($appDir . '/HomePage.php', homePageTemplate());
+    file_put_contents($projectDir . '/phpx.json', phpxJsonTemplate());
 
     echo "Created {$appDir}/HomePage.php\n";
+    echo "Created {$projectDir}/phpx.json\n";
     echo "Running flutter create...\n";
 
     $packageName = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '_', basename($name))) . '_app';
@@ -72,6 +85,30 @@ function cmdCreate(string $name): void
     echo "Project created at {$projectDir}\n";
 }
 
+/**
+ * @return array<string, string>
+ */
+function readDependencies(string $projectDir): array
+{
+    $phpxJsonPath = $projectDir . '/phpx.json';
+
+    if (!is_file($phpxJsonPath)) {
+        return [];
+    }
+
+    $config = json_decode((string) file_get_contents($phpxJsonPath), true);
+    if (!is_array($config)) {
+        phpxFail("invalid JSON in {$phpxJsonPath}");
+    }
+
+    $dependencies = $config['dependencies'] ?? [];
+    if (!is_array($dependencies)) {
+        phpxFail("'dependencies' in {$phpxJsonPath} must be an object");
+    }
+
+    return $dependencies;
+}
+
 function cmdRun(string $device): void
 {
     $projectDir = getcwd();
@@ -80,6 +117,12 @@ function cmdRun(string $device): void
 
     if (!is_file($homePagePath)) {
         phpxFail("no app/HomePage.php found in {$projectDir}");
+    }
+
+    $dependencies = readDependencies($projectDir);
+    (new PubspecDependencyWriter())->write($dependencies, $flutterDir . '/pubspec.yaml');
+    if ($dependencies !== []) {
+        echo 'Synced ' . count($dependencies) . " dependencies into pubspec.yaml\n";
     }
 
     $statements = (new Parser())->parseFile($homePagePath);
@@ -101,6 +144,7 @@ function cmdRun(string $device): void
     echo "Generated {$flutterDir}/lib/main.dart\n";
 
     chdir($flutterDir);
+    passthruOrFail('flutter pub get');
     passthruOrFail('flutter run -d ' . escapeshellarg($device));
 }
 
