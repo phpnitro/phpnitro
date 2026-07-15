@@ -4,7 +4,17 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use Engine\App\HomePage;
 
-$widgetTree = (new HomePage())->build();
+session_start();
+
+$screen = new HomePage();
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action'])) {
+    $screen->handle($_POST['_action']);
+    header('Location: ' . $_SERVER['REQUEST_URI'], true, 303);
+    exit;
+}
+
+$widgetTree = $screen->build();
 
 ?><!doctype html>
 <html lang="fr">
