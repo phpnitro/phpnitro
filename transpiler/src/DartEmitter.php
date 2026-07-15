@@ -19,9 +19,13 @@ final class DartEmitter
     /**
      * @param string[] $stateFieldNames Names of the screen's declared state
      *                                  fields, used to validate $this->x reads.
+     * @param string[] $envKeys Keys declared in the project's .env file, used
+     *                           to validate Env::get() calls.
      */
-    public function __construct(private readonly array $stateFieldNames = [])
-    {
+    public function __construct(
+        private readonly array $stateFieldNames = [],
+        private readonly array $envKeys = [],
+    ) {
     }
 
     public function emit(Expr $node): string
@@ -91,6 +95,29 @@ final class DartEmitter
         return $name;
     }
 
+    private function emitEnvGet(Expr\StaticCall $node): string
+    {
+        if (!$node->name instanceof Identifier || $node->name->toString() !== 'get') {
+            $methodName = $node->name instanceof Identifier ? $node->name->toString() : '(dynamic)';
+            throw new \RuntimeException("Unsupported static method call: Env::{$methodName}(); only Env::get() is supported.");
+        }
+
+        if (count($node->args) !== 1
+            || !$node->args[0] instanceof Arg
+            || !$node->args[0]->value instanceof Scalar\String_
+        ) {
+            throw new \RuntimeException('Env::get() requires exactly one string literal argument.');
+        }
+
+        $key = $node->args[0]->value->value;
+
+        if (!in_array($key, $this->envKeys, true)) {
+            throw new \RuntimeException("Unknown .env key: {$key} (declare it in your project's .env file).");
+        }
+
+        return 'phpxEnv[' . var_export($key, true) . ']!';
+    }
+
     private function emitStaticCall(Expr\StaticCall $node): string
     {
         if (!$node->class instanceof Name) {
@@ -98,6 +125,10 @@ final class DartEmitter
         }
 
         $phpClass = $node->class->getLast();
+
+        if ($phpClass === 'Env') {
+            return $this->emitEnvGet($node);
+        }
 
         if (!$node->name instanceof Identifier || $node->name->toString() !== 'new') {
             $methodName = $node->name instanceof Identifier ? $node->name->toString() : '(dynamic)';

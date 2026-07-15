@@ -16,17 +16,21 @@ final class FlutterProjectGenerator
     /**
      * @param array<int, array{name: string, dartType: string, defaultDart: string}> $stateFields
      *        Only used when $screen->kind === 'stateful'.
+     * @param array<string, string> $env Raw .env values, embedded at compile time as phpxEnv.
      */
     public function generate(
         ScreenDefinition $screen,
         array $stateFields,
         string $buildBodyDart,
+        array $env,
         string $flutterProjectDir,
     ): void {
         $libDir = $flutterProjectDir . '/lib';
         if (!is_dir($libDir)) {
             throw new \RuntimeException("Flutter project not found at {$flutterProjectDir} (run `flutter create` first).");
         }
+
+        $this->writeEnvFile($env, $libDir);
 
         $screenDart = $screen->kind === 'stateful'
             ? $this->buildStatefulScreen($screen->className, $stateFields, $buildBodyDart)
@@ -37,10 +41,31 @@ final class FlutterProjectGenerator
         file_put_contents($libDir . '/main.dart', $dart);
     }
 
+    /**
+     * @param array<string, string> $env
+     */
+    private function writeEnvFile(array $env, string $libDir): void
+    {
+        $lines = [];
+        foreach ($env as $key => $value) {
+            $lines[] = '  ' . var_export($key, true) . ': ' . var_export($value, true) . ',';
+        }
+
+        $body = implode("\n", $lines);
+
+        file_put_contents($libDir . '/env.g.dart', <<<DART
+        const Map<String, String> phpxEnv = {
+        {$body}
+        };
+
+        DART);
+    }
+
     private function buildMainDart(string $className, string $screenDart): string
     {
         return <<<DART
         import 'package:flutter/material.dart';
+        import 'env.g.dart';
 
         void main() {
           runApp(const MyApp());
