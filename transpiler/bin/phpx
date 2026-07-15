@@ -6,7 +6,7 @@ require __DIR__ . '/../vendor/autoload.php';
 use Transpiler\DartEmitter;
 use Transpiler\FlutterProjectGenerator;
 use Transpiler\Parser;
-use Transpiler\WidgetTreeExtractor;
+use Transpiler\ScreenExtractor;
 
 function phpxFail(string $message): never
 {
@@ -83,10 +83,20 @@ function cmdRun(string $device): void
     }
 
     $statements = (new Parser())->parseFile($homePagePath);
-    $treeExpr = (new WidgetTreeExtractor())->extract($statements);
-    $dartTree = (new DartEmitter())->emit($treeExpr);
+    $screen = (new ScreenExtractor())->extract($statements);
 
-    (new FlutterProjectGenerator())->generate($dartTree, $flutterDir);
+    $stateFieldNames = array_map(static fn ($field) => $field->name, $screen->stateFields);
+    $emitter = new DartEmitter($stateFieldNames);
+
+    $stateFields = array_map(static fn ($field) => [
+        'name' => $field->name,
+        'dartType' => $field->dartType,
+        'defaultDart' => $emitter->emit($field->default),
+    ], $screen->stateFields);
+
+    $buildBodyDart = $emitter->emit($screen->buildReturnExpr);
+
+    (new FlutterProjectGenerator())->generate($screen, $stateFields, $buildBodyDart, $flutterDir);
 
     echo "Generated {$flutterDir}/lib/main.dart\n";
 
