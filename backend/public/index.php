@@ -15,6 +15,7 @@ $controller = new HelloController();
 $response = match ($request->getPathInfo()) {
     '/api/health' => $controller->health($request),
     '/api/hello' => $controller->hello($request),
+    '/api/visits' => $controller->visits($request),
     default => new JsonResponse(['error' => 'Not found'], 404),
 };
 
