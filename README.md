@@ -35,7 +35,9 @@ composer install
 php -S 127.0.0.1:8090 -t public public/router.php
 ```
 
-Ouvre `http://127.0.0.1:8090/` dans un navigateur — tu dois voir l'écran `engine/app/HomePage.php` rendu et stylé, avec un bouton "Incrémenter" qui augmente réellement un compteur côté serveur (état en session PHP), et un lien "Réglages" qui navigue vers `engine/app/SettingsPage.php`.
+Ouvre `http://127.0.0.1:8090/` dans un navigateur — tu dois voir l'écran `engine/app/HomePage.php` rendu et stylé, avec un bouton "Incrémenter" qui augmente réellement un compteur côté serveur (état en session PHP), un lien "Réglages" (`/settings`), et un lien "Device" (`/device`) pour tester caméra/micro/localisation/vibreur.
+
+`engine/.env` (chargé via `symfony/dotenv`) contrôle par exemple `APP_NAME`, utilisé comme `<title>` de la page.
 
 (`public/router.php` est nécessaire avec le serveur de dev PHP pour que les routes comme `/settings` soient bien résolues par `Engine\Router` tout en continuant à servir `tailwind.css` comme fichier statique.)
 
@@ -110,8 +112,28 @@ Le widget `Link::make($label, $href)` génère un `<a href="...">` classique —
 | `Container::make($child, $classes = '...')` | `<div>` à un seul enfant |
 | `Image::make($src, $alt = '', $classes = '...')` | `<img>` |
 | `Link::make($label, $href, $classes = '...')` | `<a href="...">` |
+| `BottomNavigation::make([['label'=>..,'href'=>..], ...])` | `<nav>` fixée en bas d'écran |
+| `FloatingActionButton::make($label, $action = null, $classes = '...')` | bouton rond flottant (bottom-right) |
+| `GestureDetector::make($child, onDoubleClick:, onSwipeLeft:, onSwipeRight:)` | `<div>` détectant double-clic / swipe (déclenche une action serveur) |
+| `ThemeToggle::make()` | bouton bascule clair/sombre |
+| `VibrateButton::make($label, $milliseconds = 200)` | déclenche `navigator.vibrate()` |
+| `LocationButton::make($label)` | déclenche `navigator.geolocation`, affiche les coordonnées |
+| `CameraPreview::make($label)` | ouvre la caméra (`getUserMedia`) dans un `<video>` |
+| `MicrophoneButton::make($label)` | active le micro (`getUserMedia` audio) |
 
 Le paramètre `$classes` accepte n'importe quelle classe Tailwind — valeur par défaut sensée, entièrement remplaçable, comme un widget Flutter personnalisable.
+
+## Mode clair/sombre
+
+`ThemeToggle::make()` bascule le thème via une vraie requête POST (`_action=toggleTheme`, intercepté globalement dans `index.php`, stocké en session, appliqué comme classe `dark` sur `<html>`). Les widgets utilisent les variantes `dark:` de Tailwind (`text-gray-900 dark:text-gray-100`, etc.).
+
+## Gestes (double-clic, swipe)
+
+`GestureDetector` est le seul endroit du framework qui utilise du JavaScript côté client (`engine/public/gestures.js`) — nécessaire car un double-clic ou un swipe ne peut pas être détecté en HTTP pur. Le JS ne fait que déclencher la même mécanique d'action que les boutons (`fetch` POST `_action=...`), donc le serveur ne voit aucune différence entre un clic de bouton et un geste détecté.
+
+## Capacités du device (caméra, micro, localisation, vibreur)
+
+Widgets `VibrateButton`, `LocationButton`, `CameraPreview`, `MicrophoneButton` (écran `engine/app/DevicePage.php`, route `/device`) — utilisent les Web APIs standard (`navigator.vibrate`, `navigator.geolocation`, `navigator.mediaDevices.getUserMedia`) via `engine/public/device.js`. Ces APIs fonctionnent nativement dans une WebView Android/iOS pourvu que l'app hôte accorde les permissions nécessaires (voir `android/README.md`).
 
 ## Lancer le backend
 
@@ -147,6 +169,7 @@ backend/
 - Pas de PHP embarqué *sur* le device — c'est le plus gros chantier restant (cross-compiler PHP pour Android/iOS)
 - Pas encore d'équivalent iOS (WKWebView) — nécessite une machine macOS/Xcode, indisponible dans cet environnement
 - `Screen`/actions : un seul niveau d'action par clic, pas de paramètres passés à l'action pour l'instant
+- Caméra/micro/localisation/vibreur : vérifiés uniquement au niveau HTML/JS (structure correcte, Web APIs standard) — jamais testés sur un vrai device/émulateur Android faute d'environnement disponible ici
 
 ## Historique
 
