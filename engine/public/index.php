@@ -22,7 +22,7 @@ $widgetTree = $screen->build();
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>PHP Engine</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="tailwind.css">
 </head>
 <body class="bg-gray-50 min-h-screen flex items-center justify-center">
     <?= $widgetTree->render() ?>

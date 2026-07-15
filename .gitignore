@@ -1,3 +1,4 @@
 .claude/
 /backend/vendor/
 /engine/vendor/
+/engine/node_modules/
