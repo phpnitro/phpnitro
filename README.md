@@ -119,15 +119,18 @@ class HomePage extends StatefulWidget
 }
 ```
 
-## Widgets disponibles (v0.2)
+## Widgets disponibles (v0.3)
 
 | PHP | Rôle |
 |---|---|
 | `Text::new($string)` | texte |
-| `Container::new($child)` | conteneur à un enfant |
+| `Container::new($child, color: $hex = null)` | conteneur à un enfant, couleur de fond optionnelle |
 | `Column::new([$children])` | colonne verticale |
 | `Row::new([$children])` | ligne horizontale |
 | `Button::new($label, onPressed: $closure = null)` | bouton, callback optionnel |
+| `SizedBox::new($child = null, width: $w = null, height: $h = null)` | boîte à taille fixe / espacement |
+
+`color` attend une chaîne hexadécimale littérale au format `'#RRGGBB'` (ex. `'#2196F3'`).
 
 ## Ce qui est supporté dans le code PHP
 
