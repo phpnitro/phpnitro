@@ -2,6 +2,7 @@
 
 require __DIR__ . '/../vendor/autoload.php';
 
+use Engine\App\DevicePage;
 use Engine\App\HomePage;
 use Engine\App\SettingsPage;
 use Engine\Router;
@@ -14,6 +15,7 @@ session_start();
 $router = new Router([
     '/' => HomePage::class,
     '/settings' => SettingsPage::class,
+    '/device' => DevicePage::class,
 ]);
 
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
@@ -53,6 +55,7 @@ $theme = $_SESSION['theme'] ?? 'light';
     <title><?= htmlspecialchars($_ENV['APP_NAME'] ?? 'PHP Engine', ENT_QUOTES) ?></title>
     <link rel="stylesheet" href="tailwind.css">
     <script src="gestures.js" defer></script>
+    <script src="device.js" defer></script>
 </head>
 
 <body class="bg-gray-50 dark:bg-gray-900 dark:text-gray-100 min-h-screen flex items-center justify-center">

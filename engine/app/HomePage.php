@@ -47,6 +47,7 @@ final class HomePage extends Screen
             BottomNavigation::make([
                 ['label' => 'Accueil', 'href' => '/'],
                 ['label' => 'Réglages', 'href' => '/settings'],
+                ['label' => 'Device', 'href' => '/device'],
             ]),
         ]);
     }
