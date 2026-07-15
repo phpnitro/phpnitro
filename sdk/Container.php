@@ -4,7 +4,7 @@ namespace Sdk;
 
 class Container extends Widget
 {
-    public static function new(Widget $child): static
+    public static function new(Widget $child, ?string $color = null): static
     {
         return new static();
     }

@@ -11,10 +11,11 @@ final class WidgetMap
 {
     private const MAP = [
         'Text' => ['dart' => 'Text', 'argMode' => 'positional'],
-        'Container' => ['dart' => 'Container', 'argMode' => 'named', 'argName' => 'child'],
+        'Container' => ['dart' => 'Container', 'argMode' => 'container'],
         'Column' => ['dart' => 'Column', 'argMode' => 'named', 'argName' => 'children'],
         'Row' => ['dart' => 'Row', 'argMode' => 'named', 'argName' => 'children'],
         'Button' => ['dart' => 'ElevatedButton', 'argMode' => 'button'],
+        'SizedBox' => ['dart' => 'SizedBox', 'argMode' => 'sizedbox'],
     ];
 
     public static function has(string $phpClass): bool
