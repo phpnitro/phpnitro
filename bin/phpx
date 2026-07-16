@@ -135,8 +135,8 @@ function registerApiRoute(string $kernelPath, string $className, string $route):
     $useLine = "use Backend\\Controller\\{$className};\n";
     if (!str_contains($content, $useLine)) {
         $content = str_replace(
-            "use Engine\\Database\\Database;\n",
-            $useLine . "use Engine\\Database\\Database;\n",
+            "use Symfony\\Component\\HttpFoundation\\JsonResponse;\n",
+            $useLine . "use Symfony\\Component\\HttpFoundation\\JsonResponse;\n",
             $content,
         );
     }
@@ -427,7 +427,7 @@ function cmdBundleAndroid(): void
             : copy($source, "{$staging}/lib/pages/{$entry}");
     }
 
-    foreach (['src', 'composer.json', 'composer.lock'] as $entry) {
+    foreach (['src', 'bootstrap.php', 'composer.json', 'composer.lock'] as $entry) {
         $source = PHPX_ROOT . '/lib/backend/' . $entry;
         is_dir($source)
             ? copyDirectory($source, "{$staging}/lib/backend/{$entry}")

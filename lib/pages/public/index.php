@@ -56,7 +56,7 @@ $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
 // from this SAME PHP process — no second server/port to launch, which is
 // what makes it available implicitly, including inside the Android app.
 if (str_starts_with($path, '/api/')) {
-    require dirname(__DIR__, 2) . '/backend/vendor/autoload.php';
+    require dirname(__DIR__, 2) . '/backend/bootstrap.php';
     (new \Backend\Kernel())->handle(\Symfony\Component\HttpFoundation\Request::createFromGlobals())->send();
     exit;
 }

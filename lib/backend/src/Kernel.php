@@ -5,7 +5,6 @@ namespace Backend;
 use Backend\Controller\FcmController;
 use Backend\Controller\HelloController;
 use Backend\Controller\UploadController;
-use Engine\Database\Database;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -15,16 +14,14 @@ use Symfony\Component\HttpFoundation\Response;
  * Called in-process from lib/pages' front controller (single on-device PHP
  * process, no second server/port) — this is the only entry point backend/
  * has, it has no public/ of its own.
+ *
+ * Callers reach this class through bootstrap.php (never vendor/autoload.php
+ * directly), which is where the SQLite path gets pinned — a page that
+ * instantiates a Repository directly, without ever touching Kernel, still
+ * needs that pinning, so it can't live in Kernel's constructor.
  */
 final class Kernel
 {
-    public function __construct()
-    {
-        // packages/database doesn't know where "here" is, so the app pins
-        // it once at boot instead of the package guessing a path.
-        Database::useSqlitePath(dirname(__DIR__) . '/var/data.sqlite');
-    }
-
     public function handle(Request $request): Response
     {
         $path = $request->getPathInfo();
