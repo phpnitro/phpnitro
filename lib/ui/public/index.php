@@ -13,8 +13,10 @@ use Engine\Router;
 use Symfony\Component\Dotenv\Dotenv;
 
 // ".env" in dev; "env" (no dot) in the Android bundle, because AAPT drops
-// hidden files from APK assets.
-foreach ([__DIR__ . '/../../.env', __DIR__ . '/../../env'] as $envFile) {
+// hidden files from APK assets. Three levels up either way: public -> ui ->
+// lib -> project root (the bundle mirrors the same lib/ui, lib/backend
+// layout, see bin/phpx's cmdBundleAndroid).
+foreach ([__DIR__ . '/../../../.env', __DIR__ . '/../../../env'] as $envFile) {
     if (file_exists($envFile)) {
         (new Dotenv())->loadEnv($envFile);
         break;

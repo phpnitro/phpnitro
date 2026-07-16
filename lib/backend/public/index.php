@@ -6,7 +6,8 @@ use Backend\Kernel;
 use Symfony\Component\Dotenv\Dotenv;
 use Symfony\Component\HttpFoundation\Request;
 
-foreach ([__DIR__ . '/../../.env', __DIR__ . '/../../env'] as $envFile) {
+// Three levels up: public -> backend -> lib -> project root.
+foreach ([__DIR__ . '/../../../.env', __DIR__ . '/../../../env'] as $envFile) {
     if (file_exists($envFile)) {
         (new Dotenv())->loadEnv($envFile);
         break;

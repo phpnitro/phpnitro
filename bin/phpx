@@ -2,14 +2,14 @@
 <?php
 
 /**
- * phpx — CLI for the PHP+Tailwind+WebView mobile framework.
+ * phpx — CLI for PhpNitro, the PHP mobile framework.
  *
  * Commands:
  *   phpx make:screen <Name> [route]   Generate a new Screen and register its route
- *   phpx serve [port]                 Serve ui/ + backend/ together (defaults to 8090)
- *   phpx serve:backend [port]         Serve backend/ alone (defaults to 8091, API-only dev)
- *   phpx new <directory>              Scaffold a new project: android/ backend/ ios/ ui/ .env assets/
- *   phpx bundle:android               Copy ui/ + backend/ + assets/ + .env into the Android app
+ *   phpx serve [port]                 Serve lib/ui/ + lib/backend/ together (defaults to 8090)
+ *   phpx serve:backend [port]         Serve lib/backend/ alone (defaults to 8091, API-only dev)
+ *   phpx new <directory>              Scaffold a new project: android/ ios/ lib/{ui,backend} .env assets/
+ *   phpx bundle:android               Copy lib/ + assets/ + .env into the Android app
  */
 
 define('PHPX_ROOT', dirname(__DIR__));
@@ -96,7 +96,7 @@ function registerRoute(string $indexPath, string $className, string $route): voi
 function cmdMakeScreen(string $name, ?string $route): void
 {
     $className = screenClassName($name);
-    $path = PHPX_ROOT . "/ui/app/{$className}.php";
+    $path = PHPX_ROOT . "/lib/ui/app/{$className}.php";
 
     if (is_file($path)) {
         phpxFail("screen already exists: {$path}");
@@ -107,19 +107,19 @@ function cmdMakeScreen(string $name, ?string $route): void
     file_put_contents($path, screenTemplate($className));
     echo "Created {$path}\n";
 
-    registerRoute(PHPX_ROOT . '/ui/public/index.php', $className, $route);
+    registerRoute(PHPX_ROOT . '/lib/ui/public/index.php', $className, $route);
     echo "Registered route {$route} => Engine\\App\\{$className}\n";
 }
 
 /**
- * Copies assets/ into ui/public/assets/ so both the dev server and the
+ * Copies assets/ into lib/ui/public/assets/ so both the dev server and the
  * Android bundle serve it the exact same way (a plain static file next to
  * tailwind.css — no special-casing in the router).
  */
 function syncAssets(): void
 {
     $source = PHPX_ROOT . '/assets';
-    $destination = PHPX_ROOT . '/ui/public/assets';
+    $destination = PHPX_ROOT . '/lib/ui/public/assets';
 
     if (is_dir($destination)) {
         passthruOrFail('rm -rf ' . escapeshellarg($destination));
@@ -158,10 +158,17 @@ function cmdNew(string $directory): void
 
     mkdir($targetDir, 0777, true);
 
-    foreach (['ui', 'backend', 'android', 'ios', 'assets', 'bin'] as $part) {
+    // `packages/` ships alongside `lib/` (not published to Packagist yet) so
+    // lib/ui/composer.json's path repository ("../../packages/ui") keeps
+    // resolving correctly in the new project — same relative shape as this
+    // framework's own checkout. Once phpnitro/ui is on Packagist, new
+    // projects won't need this local copy at all.
+    foreach (['lib', 'packages', 'android', 'ios', 'assets', 'bin'] as $part) {
         $source = PHPX_ROOT . '/' . $part;
         $destination = $targetDir . '/' . $part;
-        copyDirectory($source, $destination, ['vendor', 'node_modules', '.gradle', 'build', '.kotlin', 'local.properties']);
+        copyDirectory($source, $destination, [
+            'vendor', 'node_modules', '.gradle', 'build', '.kotlin', 'local.properties', 'var',
+        ]);
         echo "Copied {$part}/ to {$destination}\n";
     }
 
@@ -169,7 +176,7 @@ function cmdNew(string $directory): void
     echo "Copied .env to {$targetDir}/.env\n";
 
     echo "Project scaffolded at {$targetDir}\n";
-    echo "Next: cd {$directory} && composer install --working-dir=ui && composer install --working-dir=backend && bin/phpx serve\n";
+    echo "Next: cd {$directory} && composer install --working-dir=lib/ui && composer install --working-dir=lib/backend && bin/phpx serve\n";
 }
 
 /**
@@ -210,22 +217,30 @@ function cmdBundleAndroid(): void
     }
     mkdir($staging, 0777, true);
 
-    // Mirrors the project root layout (ui/ and backend/ as siblings) so the
-    // relative paths each front controller uses to reach the other project
-    // and the shared root .env stay identical between dev and the bundle.
-    foreach (['app', 'php', 'public', 'composer.json', 'composer.lock'] as $entry) {
-        $source = PHPX_ROOT . '/ui/' . $entry;
+    // Mirrors the project root layout (lib/ui/ and lib/backend/ as
+    // siblings under lib/) so the relative paths each front controller
+    // uses to reach the other project and the shared root .env stay
+    // identical between dev and the bundle.
+    foreach (['app', 'public', 'composer.json', 'composer.lock'] as $entry) {
+        $source = PHPX_ROOT . '/lib/ui/' . $entry;
         is_dir($source)
-            ? copyDirectory($source, "{$staging}/ui/{$entry}")
-            : copy($source, "{$staging}/ui/{$entry}");
+            ? copyDirectory($source, "{$staging}/lib/ui/{$entry}")
+            : copy($source, "{$staging}/lib/ui/{$entry}");
     }
 
     foreach (['src', 'composer.json', 'composer.lock'] as $entry) {
-        $source = PHPX_ROOT . '/backend/' . $entry;
+        $source = PHPX_ROOT . '/lib/backend/' . $entry;
         is_dir($source)
-            ? copyDirectory($source, "{$staging}/backend/{$entry}")
-            : copy($source, "{$staging}/backend/{$entry}");
+            ? copyDirectory($source, "{$staging}/lib/backend/{$entry}")
+            : copy($source, "{$staging}/lib/backend/{$entry}");
     }
+
+    // The widget SDK package itself, copied as real files (not the symlink
+    // Composer's path repository normally uses) — Android's AssetManager
+    // can't follow symlinks when the bundle is later packaged into the APK.
+    mkdir("{$staging}/packages/ui", 0777, true);
+    copyDirectory(PHPX_ROOT . '/packages/ui/src', "{$staging}/packages/ui/src");
+    copy(PHPX_ROOT . '/packages/ui/composer.json', "{$staging}/packages/ui/composer.json");
 
     // "env" without the dot: AAPT silently drops hidden files from assets.
     // Force APP_DEBUG=false in the shipped bundle regardless of the dev .env.
@@ -236,15 +251,24 @@ function cmdBundleAndroid(): void
     file_put_contents($staging . '/env', $env);
 
     passthruOrFail(
-        'composer install --no-dev --no-interaction --quiet --working-dir=' . escapeshellarg($staging . '/ui'),
+        'composer install --no-dev --no-interaction --quiet --working-dir=' . escapeshellarg($staging . '/lib/ui'),
     );
     passthruOrFail(
-        'composer install --no-dev --no-interaction --quiet --working-dir=' . escapeshellarg($staging . '/backend'),
+        'composer install --no-dev --no-interaction --quiet --working-dir=' . escapeshellarg($staging . '/lib/backend'),
     );
-    passthruOrFail('rm -f ' . escapeshellarg($staging . '/ui/composer.lock'));
-    passthruOrFail('rm -f ' . escapeshellarg($staging . '/backend/composer.lock'));
+    passthruOrFail('rm -f ' . escapeshellarg($staging . '/lib/ui/composer.lock'));
+    passthruOrFail('rm -f ' . escapeshellarg($staging . '/lib/backend/composer.lock'));
 
-    echo "Bundled ui/ + backend/ into {$staging}\n";
+    // Composer's path repository installs phpnitro/ui as a symlink — replace
+    // it with a real copy (Android's AssetManager can't follow symlinks).
+    $symlinkPath = $staging . '/lib/ui/vendor/phpnitro/ui';
+    if (is_link($symlinkPath)) {
+        $realTarget = realpath($symlinkPath);
+        unlink($symlinkPath);
+        copyDirectory($realTarget, $symlinkPath);
+    }
+
+    echo "Bundled lib/ui + lib/backend into {$staging}\n";
 }
 
 $command = $argv[1] ?? null;
@@ -254,10 +278,10 @@ switch ($command) {
         cmdMakeScreen($argv[2] ?? phpxFail('usage: phpx make:screen <Name> [route]'), $argv[3] ?? null);
         break;
     case 'serve':
-        cmdServe('ui', (int) ($argv[2] ?? 8090), 'router.php');
+        cmdServe('lib/ui', (int) ($argv[2] ?? 8090), 'router.php');
         break;
     case 'serve:backend':
-        cmdServe('backend', (int) ($argv[2] ?? 8091), null);
+        cmdServe('lib/backend', (int) ($argv[2] ?? 8091), null);
         break;
     case 'new':
         cmdNew($argv[2] ?? phpxFail('usage: phpx new <directory>'));
