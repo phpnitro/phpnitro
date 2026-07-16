@@ -18,7 +18,12 @@ final class Database
     public static function connection(): Connection
     {
         if (self::$connection === null) {
-            $url = $_ENV['DATABASE_URL'] ?? 'sqlite:///' . dirname(__DIR__) . '/var/data.sqlite';
+            $path = dirname(__DIR__) . '/var/data.sqlite';
+            $url = $_ENV['DATABASE_URL'] ?? 'sqlite:///' . $path;
+
+            if (!isset($_ENV['DATABASE_URL']) && !is_dir(dirname($path))) {
+                mkdir(dirname($path), 0777, true);
+            }
 
             $dsnParser = new DsnParser([
                 'sqlite' => 'pdo_sqlite',

@@ -38,11 +38,11 @@ class PhpServer(private val context: Context) {
         val builder = ProcessBuilder(
             php.absolutePath,
             "-S", "127.0.0.1:$PORT",
-            "-t", File(www, "public").absolutePath,
+            "-t", File(www, "ui/public").absolutePath,
             "-d", "session.save_path=${sessions.absolutePath}",
             "-d", "sys_temp_dir=${tmp.absolutePath}",
             "-d", "error_log=${File(context.filesDir, "php-error.log").absolutePath}",
-            File(www, "public/router.php").absolutePath,
+            File(www, "ui/public/router.php").absolutePath,
         )
             .redirectErrorStream(true)
             .redirectOutput(File(context.filesDir, "php-server.log"))
