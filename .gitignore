@@ -8,6 +8,8 @@
 /backend/var/*.sqlite
 /.tools/
 /android/local.properties
+/android/.kotlin/
+/engine/.phpunit.result.cache
 /android/app/src/main/assets/www/
 /android/app/src/main/jniLibs/
 /dist/

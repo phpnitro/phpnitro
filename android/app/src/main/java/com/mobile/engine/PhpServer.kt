@@ -6,10 +6,15 @@ import java.net.InetSocketAddress
 import java.net.Socket
 
 /**
- * Runs the bundled static PHP binary (packaged as jniLibs/<abi>/libphp.so so
- * Android lets us exec it from the read-only native library dir) serving the
- * PHP app copied from assets/www to filesDir. The WebView then talks to
- * http://127.0.0.1:PORT — PHP genuinely runs on the device.
+ * Runs the bundled PHP binary — a normal cross-compiled PHP CLI executable
+ * packaged as jniLibs/<abi>/libphp.so purely so Android's installer places
+ * it in the one app-owned directory that is executable but not
+ * app-writable (W^X forbids exec from anywhere the app itself can write).
+ * It is dynamically linked against libsqlite3.so, bundled the same way, so
+ * LD_LIBRARY_PATH must point at the native library dir too.
+ *
+ * Serves the PHP app copied from assets/www to filesDir. The WebView then
+ * talks to http://127.0.0.1:PORT — PHP genuinely runs on the device.
  */
 class PhpServer(private val context: Context) {
 
@@ -25,21 +30,27 @@ class PhpServer(private val context: Context) {
         }
 
         val www = copyAssets()
-        val php = File(context.applicationInfo.nativeLibraryDir, "libphp.so")
+        val nativeDir = context.applicationInfo.nativeLibraryDir
+        val php = File(nativeDir, "libphp.so")
         val sessions = File(context.filesDir, "sessions").apply { mkdirs() }
+        val tmp = context.cacheDir
 
-        process = ProcessBuilder(
+        val builder = ProcessBuilder(
             php.absolutePath,
             "-S", "127.0.0.1:$PORT",
             "-t", File(www, "public").absolutePath,
             "-d", "session.save_path=${sessions.absolutePath}",
-            "-d", "sys_temp_dir=${context.cacheDir.absolutePath}",
+            "-d", "sys_temp_dir=${tmp.absolutePath}",
             "-d", "error_log=${File(context.filesDir, "php-error.log").absolutePath}",
             File(www, "public/router.php").absolutePath,
         )
             .redirectErrorStream(true)
             .redirectOutput(File(context.filesDir, "php-server.log"))
-            .start()
+
+        builder.environment()["LD_LIBRARY_PATH"] = nativeDir
+        builder.environment()["TMPDIR"] = tmp.absolutePath
+
+        process = builder.start()
 
         waitUntilListening()
     }
@@ -77,11 +88,11 @@ class PhpServer(private val context: Context) {
     }
 
     private fun waitUntilListening() {
-        repeat(50) {
+        repeat(80) {
             if (isListening()) {
                 return
             }
-            Thread.sleep(100)
+            Thread.sleep(150)
         }
     }
 }

@@ -14,10 +14,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 
 /**
- * Hosts the PHP-served UI in a native WebView. For now this points at a PHP
- * server reachable over the network (10.0.2.2 is the Android emulator's
- * alias for the host machine's localhost) — there is no on-device PHP
- * runtime yet, that is a separate, much larger piece of work.
+ * Hosts the PHP-served UI in a native WebView, backed by PhpServer — a
+ * cross-compiled PHP binary running as a real on-device process
+ * (armeabi-v7a and arm64-v8a both bundled, so this works on 32-bit and
+ * 64-bit devices alike).
  *
  * Grants the runtime permissions and WebView callbacks needed for the
  * device-capability widgets (camera, microphone, geolocation) to work from
