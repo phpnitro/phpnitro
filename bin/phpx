@@ -5,7 +5,8 @@
  * phpx — CLI for PhpNitro, the PHP mobile framework.
  *
  * Commands:
- *   phpx make:screen <Name> [route]   Generate a new Screen and register its route
+ *   phpx make:page <Name> [route]     Generate a Page + a paired backend Controller, register both routes
+ *   phpx make:entity <Name>           Generate an Entity + a paired Repository
  *   phpx serve [port]                 Serve lib/pages/ + lib/backend/ together (defaults to 8090)
  *   phpx new <directory>              Scaffold a new project: android/ ios/ lib/{pages,backend} .env assets/
  *   phpx bundle:android               Copy lib/ + assets/ + .env into the Android app
@@ -27,11 +28,16 @@ function passthruOrFail(string $command): void
     }
 }
 
-function screenClassName(string $name): string
+function pageClassName(string $name): string
 {
     $className = str_replace([' ', '-', '_'], '', ucwords(preg_replace('/[\s\-_]+/', ' ', $name)));
 
     return str_ends_with($className, 'Page') ? $className : $className . 'Page';
+}
+
+function controllerClassNameFor(string $pageClassName): string
+{
+    return preg_replace('/Page$/', '', $pageClassName) . 'Controller';
 }
 
 function defaultRoute(string $className): string
@@ -42,7 +48,7 @@ function defaultRoute(string $className): string
     return $kebab === '' ? '/' : '/' . $kebab;
 }
 
-function screenTemplate(string $className): string
+function pageTemplate(string $className): string
 {
     return <<<PHP
     <?php
@@ -72,6 +78,28 @@ function screenTemplate(string $className): string
     PHP;
 }
 
+function controllerTemplate(string $className): string
+{
+    return <<<PHP
+    <?php
+
+    namespace Backend\Controller;
+
+    use Symfony\Component\HttpFoundation\JsonResponse;
+    use Symfony\Component\HttpFoundation\Request;
+    use Symfony\Component\HttpFoundation\Response;
+
+    final class {$className}
+    {
+        public function handle(Request \$request): Response
+        {
+            return new JsonResponse(['message' => 'OK']);
+        }
+    }
+
+    PHP;
+}
+
 function registerRoute(string $indexPath, string $className, string $route): void
 {
     $content = file_get_contents($indexPath);
@@ -92,22 +120,155 @@ function registerRoute(string $indexPath, string $className, string $route): voi
     file_put_contents($indexPath, $content);
 }
 
-function cmdMakeScreen(string $name, ?string $route): void
+/**
+ * Wires a generated Controller into Kernel's dispatch match() — the same
+ * hand-registered style as the built-in controllers, just appended instead
+ * of hand-written.
+ */
+function registerApiRoute(string $kernelPath, string $className, string $route): void
 {
-    $className = screenClassName($name);
-    $path = PHPX_ROOT . "/lib/pages/app/{$className}.php";
+    $content = file_get_contents($kernelPath);
+    if ($content === false) {
+        phpxFail("unable to read {$kernelPath}");
+    }
 
-    if (is_file($path)) {
-        phpxFail("screen already exists: {$path}");
+    $useLine = "use Backend\\Controller\\{$className};\n";
+    if (!str_contains($content, $useLine)) {
+        $content = str_replace(
+            "use Engine\\Database\\Database;\n",
+            $useLine . "use Engine\\Database\\Database;\n",
+            $content,
+        );
+    }
+
+    $caseLine = "            '{$route}' => (new {$className}())->handle(\$request),\n";
+    if (!str_contains($content, $caseLine)) {
+        $content = str_replace(
+            "            default => new JsonResponse(['error' => 'Not found'], 404),\n",
+            $caseLine . "            default => new JsonResponse(['error' => 'Not found'], 404),\n",
+            $content,
+        );
+    }
+
+    file_put_contents($kernelPath, $content);
+}
+
+function cmdMakePage(string $name, ?string $route): void
+{
+    $className = pageClassName($name);
+    $pagePath = PHPX_ROOT . "/lib/pages/app/{$className}.php";
+    $controllerClassName = controllerClassNameFor($className);
+    $controllerPath = PHPX_ROOT . "/lib/backend/src/Controller/{$controllerClassName}.php";
+
+    if (is_file($pagePath)) {
+        phpxFail("page already exists: {$pagePath}");
+    }
+    if (is_file($controllerPath)) {
+        phpxFail("controller already exists: {$controllerPath}");
     }
 
     $route ??= defaultRoute($className);
+    $apiRoute = '/api' . ($route === '/' ? '' : $route);
 
-    file_put_contents($path, screenTemplate($className));
-    echo "Created {$path}\n";
-
+    file_put_contents($pagePath, pageTemplate($className));
+    echo "Created {$pagePath}\n";
     registerRoute(PHPX_ROOT . '/lib/pages/public/index.php', $className, $route);
     echo "Registered route {$route} => Engine\\App\\{$className}\n";
+
+    file_put_contents($controllerPath, controllerTemplate($controllerClassName));
+    echo "Created {$controllerPath}\n";
+    registerApiRoute(PHPX_ROOT . '/lib/backend/src/Kernel.php', $controllerClassName, $apiRoute);
+    echo "Registered route {$apiRoute} => Backend\\Controller\\{$controllerClassName}\n";
+}
+
+function entityClassName(string $name): string
+{
+    return str_replace([' ', '-', '_'], '', ucwords(preg_replace('/[\s\-_]+/', ' ', $name)));
+}
+
+function tableNameFor(string $className): string
+{
+    return strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $className));
+}
+
+function entityTemplate(string $className): string
+{
+    return <<<PHP
+    <?php
+
+    namespace Backend\Entity;
+
+    final class {$className}
+    {
+        public function __construct(
+            public readonly ?int \$id = null,
+        ) {
+        }
+    }
+
+    PHP;
+}
+
+function repositoryTemplate(string $className, string $table): string
+{
+    return <<<PHP
+    <?php
+
+    namespace Backend\Repository;
+
+    use Backend\Entity\\{$className};
+    use Engine\Database\Database;
+
+    final class {$className}Repository
+    {
+        public function __construct()
+        {
+            \$this->ensureSchema();
+        }
+
+        private function ensureSchema(): void
+        {
+            Database::connection()->executeStatement(
+                'CREATE TABLE IF NOT EXISTS {$table} (id INTEGER PRIMARY KEY AUTOINCREMENT)',
+            );
+        }
+
+        public function find(int \$id): ?{$className}
+        {
+            \$row = Database::connection()->fetchAssociative('SELECT * FROM {$table} WHERE id = ?', [\$id]);
+
+            return \$row === false ? null : new {$className}(id: (int) \$row['id']);
+        }
+
+        public function save({$className} \$entity): void
+        {
+            Database::connection()->insert('{$table}', ['id' => \$entity->id]);
+        }
+    }
+
+    PHP;
+}
+
+function cmdMakeEntity(string $name): void
+{
+    $className = entityClassName($name);
+    $entityPath = PHPX_ROOT . "/lib/backend/src/Entity/{$className}.php";
+    $repositoryPath = PHPX_ROOT . "/lib/backend/src/Repository/{$className}Repository.php";
+
+    if (is_file($entityPath)) {
+        phpxFail("entity already exists: {$entityPath}");
+    }
+    if (is_file($repositoryPath)) {
+        phpxFail("repository already exists: {$repositoryPath}");
+    }
+
+    $table = tableNameFor($className);
+
+    file_put_contents($entityPath, entityTemplate($className));
+    echo "Created {$entityPath}\n";
+
+    file_put_contents($repositoryPath, repositoryTemplate($className, $table));
+    echo "Created {$repositoryPath}\n";
 }
 
 /**
@@ -278,8 +439,11 @@ function cmdBundleAndroid(): void
 $command = $argv[1] ?? null;
 
 switch ($command) {
-    case 'make:screen':
-        cmdMakeScreen($argv[2] ?? phpxFail('usage: phpx make:screen <Name> [route]'), $argv[3] ?? null);
+    case 'make:page':
+        cmdMakePage($argv[2] ?? phpxFail('usage: phpx make:page <Name> [route]'), $argv[3] ?? null);
+        break;
+    case 'make:entity':
+        cmdMakeEntity($argv[2] ?? phpxFail('usage: phpx make:entity <Name>'));
         break;
     case 'serve':
         cmdServe('lib/pages', (int) ($argv[2] ?? 8090), 'router.php');
@@ -291,5 +455,5 @@ switch ($command) {
         cmdBundleAndroid();
         break;
     default:
-        phpxFail('usage: phpx <make:screen|serve|new|bundle:android> ...');
+        phpxFail('usage: phpx <make:page|make:entity|serve|new|bundle:android> ...');
 }

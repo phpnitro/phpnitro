@@ -21,10 +21,18 @@ composer install --working-dir="$WORKDIR/demo-app/lib/pages" --quiet
 composer install --working-dir="$WORKDIR/demo-app/lib/backend" --quiet
 echo "OK"
 
-echo "== phpx make:screen =="
-(cd "$WORKDIR/demo-app" && php bin/phpx make:screen About)
+echo "== phpx make:page =="
+(cd "$WORKDIR/demo-app" && php bin/phpx make:page About)
 test -f "$WORKDIR/demo-app/lib/pages/app/AboutPage.php" || { echo "FAIL: AboutPage.php not created"; exit 1; }
-grep -q "AboutPage" "$WORKDIR/demo-app/lib/pages/public/index.php" || { echo "FAIL: route not registered"; exit 1; }
+grep -q "AboutPage" "$WORKDIR/demo-app/lib/pages/public/index.php" || { echo "FAIL: page route not registered"; exit 1; }
+test -f "$WORKDIR/demo-app/lib/backend/src/Controller/AboutController.php" || { echo "FAIL: paired AboutController.php not created"; exit 1; }
+grep -q "AboutController" "$WORKDIR/demo-app/lib/backend/src/Kernel.php" || { echo "FAIL: paired controller route not registered"; exit 1; }
+echo "OK"
+
+echo "== phpx make:entity =="
+(cd "$WORKDIR/demo-app" && php bin/phpx make:entity Product)
+test -f "$WORKDIR/demo-app/lib/backend/src/Entity/Product.php" || { echo "FAIL: Product.php not created"; exit 1; }
+test -f "$WORKDIR/demo-app/lib/backend/src/Repository/ProductRepository.php" || { echo "FAIL: paired ProductRepository.php not created"; exit 1; }
 echo "OK"
 
 echo "== phpx serve (real HTTP requests) =="
@@ -36,6 +44,7 @@ done
 curl -sf -o /dev/null http://127.0.0.1:8123/ || { echo "FAIL: GET / did not respond"; exit 1; }
 curl -sf http://127.0.0.1:8123/api/hello | grep -q '"message"' || { echo "FAIL: /api/hello (unified backend) did not respond"; exit 1; }
 curl -sf -o /dev/null http://127.0.0.1:8123/about || { echo "FAIL: generated /about route did not respond"; exit 1; }
+curl -sf http://127.0.0.1:8123/api/about | grep -q '"message"' || { echo "FAIL: generated /api/about (paired controller) did not respond"; exit 1; }
 pkill -f "phpx serve 8123" 2>/dev/null || true
 pkill -f "php -S 127.0.0.1:8123" 2>/dev/null || true
 echo "OK"
