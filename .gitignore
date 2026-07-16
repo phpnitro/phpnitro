@@ -6,6 +6,7 @@
 /android/build/
 /android/app/build/
 /backend/var/*.sqlite
+/backend/var/uploads/
 /.tools/
 /android/local.properties
 /android/.kotlin/
@@ -17,6 +18,7 @@
 /examples/*/ui/node_modules/
 /examples/*/backend/vendor/
 /examples/*/backend/var/*.sqlite
+/examples/*/backend/var/uploads/
 /examples/*/android/.gradle/
 /examples/*/android/build/
 /examples/*/android/app/build/
