@@ -6,9 +6,9 @@ Démonstration complète du framework : catalogue, panier, checkout, compte util
 
 ```bash
 cd examples/ecom
-composer install --working-dir=ui
-composer install --working-dir=backend
-cd ui && php -S 127.0.0.1:8090 -t public public/router.php
+composer install --working-dir=lib/pages
+composer install --working-dir=lib/backend
+cd lib/pages && php -S 127.0.0.1:8090 -t public public/router.php
 ```
 
 Ouvre `http://127.0.0.1:8090/`.
@@ -37,7 +37,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ## Backend
 
-`backend/src/Repository/` : `ProductRepository` (6 produits de démo auto-seedés), `OrderRepository` (statut calculé depuis le temps écoulé, pas de worker), `UserRepository` (comptes, mots de passe hashés). Toutes les routes UI appellent ces repositories **en mémoire** (pas de HTTP), même mécanisme que le framework principal — le backend est toujours disponible, implicitement.
+`lib/backend/src/Repository/` : `ProductRepository` (6 produits de démo auto-seedés), `OrderRepository` (statut calculé depuis le temps écoulé, pas de worker), `UserRepository` (comptes, mots de passe hashés). Toutes les routes UI appellent ces repositories **en mémoire** (pas de HTTP), même mécanisme que le framework principal — le backend est toujours disponible, implicitement. `lib/pages/` et `lib/backend/` dépendent des packages partagés du framework (`phpnitro/ui`, `phpnitro/database`, dans `packages/` à la racine du dépôt) via des path repositories — aucun code de framework dupliqué dans cet exemple.
 
 ## Limites de cet exemple
 

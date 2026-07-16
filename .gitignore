@@ -18,11 +18,11 @@ composer.lock
 /android/app/src/main/assets/www/
 /dist/
 /.vscode/
-/examples/*/ui/vendor/
-/examples/*/ui/node_modules/
-/examples/*/backend/vendor/
-/examples/*/backend/var/*.sqlite
-/examples/*/backend/var/uploads/
+/examples/*/lib/pages/vendor/
+/examples/*/lib/pages/node_modules/
+/examples/*/lib/backend/vendor/
+/examples/*/lib/backend/var/*.sqlite
+/examples/*/lib/backend/var/uploads/
 /examples/*/android/.gradle/
 /examples/*/android/build/
 /examples/*/android/app/build/

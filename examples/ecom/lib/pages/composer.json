@@ -1,0 +1,19 @@
+{
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../../../../packages/ui"
+        }
+    ],
+    "require": {
+        "phpnitro/ui": "*",
+        "symfony/dotenv": "^8.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Engine\\App\\": "app/"
+        }
+    }
+}
