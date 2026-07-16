@@ -59,6 +59,14 @@ if (str_starts_with($path, '/api/')) {
     exit;
 }
 
+// Fragment routes: raw widget HTML (no page wrapper), polled by
+// StreamBuilder's client-side script (stream.js) to fake "live" content
+// without a WebSocket server.
+if ($path === '/fragment/server-time') {
+    echo \Engine\Text::make('Heure serveur : ' . date('H:i:s'))->render();
+    exit;
+}
+
 if ($debug && $path === '/_dev/version') {
     $latest = 0;
     foreach (['app', 'php', 'public'] as $dir) {
@@ -130,6 +138,7 @@ $theme = $_SESSION['theme'] ?? 'light';
     <link rel="stylesheet" href="/tailwind.css">
     <script src="/gestures.js" defer></script>
     <script src="/device.js" defer></script>
+    <script src="/stream.js" defer></script>
     <?php if ($debug) { ?><script src="/dev-reload.js" defer></script><?php } ?>
 </head>
 

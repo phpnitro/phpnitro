@@ -76,4 +76,62 @@ window.phpxDevice = {
       el.textContent = 'Erreur micro : ' + err.message;
     }
   },
+
+  // WebAuthn platform authenticator (fingerprint/face unlock). Registers a
+  // throwaway credential once per session then authenticates against it —
+  // enough to trigger the real OS biometric prompt and prove the round-trip
+  // works. A production app would register server-side and verify the
+  // assertion signature there instead of just checking the call resolved.
+  async fingerprint(outputElementId) {
+    const el = document.getElementById(outputElementId);
+    if (!window.PublicKeyCredential) {
+      if (el) el.textContent = 'Authentification biométrique non disponible sur ce navigateur.';
+      return;
+    }
+
+    try {
+      const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+      if (!available) {
+        if (el) el.textContent = 'Aucun capteur biométrique disponible.';
+        return;
+      }
+
+      let credentialId = sessionStorage.getItem('phpxFingerprintCredentialId');
+
+      if (!credentialId) {
+        const credential = await navigator.credentials.create({
+          publicKey: {
+            challenge: crypto.getRandomValues(new Uint8Array(32)),
+            rp: { name: 'PHP Mobile App' },
+            user: {
+              id: crypto.getRandomValues(new Uint8Array(16)),
+              name: 'app-user',
+              displayName: 'App user',
+            },
+            pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
+            authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
+            timeout: 30000,
+          },
+        });
+        credentialId = btoa(String.fromCharCode(...new Uint8Array(credential.rawId)));
+        sessionStorage.setItem('phpxFingerprintCredentialId', credentialId);
+      }
+
+      await navigator.credentials.get({
+        publicKey: {
+          challenge: crypto.getRandomValues(new Uint8Array(32)),
+          allowCredentials: [{
+            type: 'public-key',
+            id: Uint8Array.from(atob(credentialId), (c) => c.charCodeAt(0)),
+          }],
+          userVerification: 'required',
+          timeout: 30000,
+        },
+      });
+
+      if (el) el.textContent = 'Authentification réussie ✓';
+    } catch (err) {
+      if (el) el.textContent = 'Échec : ' + err.message;
+    }
+  },
 };
