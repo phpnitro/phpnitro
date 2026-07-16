@@ -58,7 +58,12 @@ final class KkiapayButton extends Widget
                     openKkiapayWidget({ amount: {$amount}, key: '{$publicKey}', sandbox: {$sandbox} });
                 });
                 addSuccessListener(function (response) {
-                    const body = new URLSearchParams();
+                    // If this button lives inside a <form> (e.g. a checkout form with
+                    // shipping fields), those values are submitted alongside the
+                    // transaction id — the server needs both together to create the
+                    // order in one step.
+                    const form = document.getElementById('{$id}').closest('form');
+                    const body = form ? new URLSearchParams(new FormData(form)) : new URLSearchParams();
                     body.set('_action', '{$action}');
                     body.set('transaction_id', response.transactionId);
                     const token = document.querySelector('meta[name="csrf-token"]');
