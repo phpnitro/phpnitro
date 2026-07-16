@@ -242,7 +242,16 @@ function repositoryTemplate(string $className, string $table): string
 
         public function save({$className} \$entity): void
         {
-            Database::connection()->insert('{$table}', ['id' => \$entity->id]);
+            // Upsert: calling save() twice with the same id must not crash on
+            // a duplicate primary key — add your own fields to both branches
+            // below as you grow this entity past just "id".
+            \$exists = \$entity->id !== null && \$this->find(\$entity->id) !== null;
+
+            if (\$exists) {
+                Database::connection()->update('{$table}', ['id' => \$entity->id], ['id' => \$entity->id]);
+            } else {
+                Database::connection()->insert('{$table}', ['id' => \$entity->id]);
+            }
         }
     }
 
