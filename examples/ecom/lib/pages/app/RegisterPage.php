@@ -44,8 +44,6 @@ final class RegisterPage extends Screen
             return null;
         }
 
-        require_once dirname(__DIR__, 2) . '/backend/bootstrap.php';
-
         $users = new UserRepository();
 
         if ($users->emailExists($email)) {

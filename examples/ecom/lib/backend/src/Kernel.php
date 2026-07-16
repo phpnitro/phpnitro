@@ -8,10 +8,11 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Callers reach this class through bootstrap.php (never vendor/autoload.php
- * directly), which is where the SQLite path gets pinned — pages that
- * instantiate a Repository directly, without ever touching Kernel, still
- * need that pinning, so it can't live in Kernel's constructor.
+ * Routes an already-built Request to a Controller and returns the Response.
+ * Called in-process from the single front controller (public/index.php) —
+ * no second server/port, backend/ has no public/ of its own. One
+ * project-wide composer.json/vendor covers this and lib/pages both, so
+ * there's no separate autoloader to require here.
  */
 final class Kernel
 {

@@ -33,8 +33,6 @@ final class ProductPage extends Screen
 
     public function build(): Widget
     {
-        require_once dirname(__DIR__, 2) . '/backend/bootstrap.php';
-
         $product = (new ProductRepository())->find((int) $this->params['id']);
 
         if ($product === null) {

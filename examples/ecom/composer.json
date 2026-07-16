@@ -1,0 +1,15 @@
+{
+    "require": {
+        "symfony/http-foundation": "^8.1",
+        "symfony/dotenv": "^8.1",
+        "doctrine/dbal": "^4.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "Engine\\": "../../packages/ui/src/",
+            "Engine\\Database\\": "../../packages/database/src/",
+            "Engine\\App\\": "lib/pages/app/",
+            "Backend\\": "lib/backend/src/"
+        }
+    }
+}

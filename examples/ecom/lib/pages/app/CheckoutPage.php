@@ -51,8 +51,6 @@ final class CheckoutPage extends Screen
             return null;
         }
 
-        require_once dirname(__DIR__, 2) . '/backend/bootstrap.php';
-
         $products = new ProductRepository();
         $items = [];
         $totalCents = 0;

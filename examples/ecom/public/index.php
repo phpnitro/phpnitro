@@ -11,17 +11,23 @@ use Engine\App\OrderConfirmationPage;
 use Engine\App\ProductPage;
 use Engine\App\RegisterPage;
 use Engine\Csrf;
+use Engine\Database\Database;
 use Engine\Router;
 use Symfony\Component\Dotenv\Dotenv;
 
-// Three levels up: public -> pages -> lib -> project root (mirrors the
-// bundle's layout, see bundle-android.sh).
-foreach ([__DIR__ . '/../../../.env', __DIR__ . '/../../../env'] as $envFile) {
+// One level up: public -> project root (mirrors the bundle's layout, see
+// bundle-android.sh).
+foreach ([__DIR__ . '/../.env', __DIR__ . '/../env'] as $envFile) {
     if (file_exists($envFile)) {
         (new Dotenv())->loadEnv($envFile);
         break;
     }
 }
+
+// Single place that pins the SQLite path — a single autoloader/vendor now
+// covers the whole app, so this runs once here instead of once per entry
+// point.
+Database::useSqlitePath(__DIR__ . '/../lib/backend/var/data.sqlite');
 
 $debug = ($_ENV['APP_DEBUG'] ?? 'true') === 'true';
 
@@ -53,20 +59,18 @@ session_start();
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
 
 if (str_starts_with($path, '/api/')) {
-    require dirname(__DIR__, 2) . '/backend/bootstrap.php';
     (new \Backend\Kernel())->handle(\Symfony\Component\HttpFoundation\Request::createFromGlobals())->send();
     exit;
 }
 
 if (preg_match('#^/fragment/order-status/(\d+)$#', $path, $matches)) {
-    require dirname(__DIR__, 2) . '/backend/bootstrap.php';
     echo \Engine\Text::make('Statut : ' . ((new \Backend\Repository\OrderRepository())->status((int) $matches[1]) ?? 'inconnu'))->render();
     exit;
 }
 
 if ($debug && $path === '/_dev/version') {
     $latest = 0;
-    foreach (['app', 'public'] as $dir) {
+    foreach (['lib/pages/app', 'lib/backend/src', 'public'] as $dir) {
         $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(
             dirname(__DIR__) . '/' . $dir,
             FilesystemIterator::SKIP_DOTS,
@@ -129,10 +133,10 @@ $theme = $_SESSION['theme'] ?? 'light';
     <meta name="csrf-token" content="<?= htmlspecialchars(Csrf::token(), ENT_QUOTES) ?>">
     <title><?= htmlspecialchars($_ENV['APP_NAME'] ?? 'Ma Boutique', ENT_QUOTES) ?></title>
     <link rel="stylesheet" href="/tailwind.css">
-    <script src="/gestures.js" defer></script>
-    <script src="/device.js" defer></script>
-    <script src="/stream.js" defer></script>
-    <?php if ($debug) { ?><script src="/dev-reload.js" defer></script><?php } ?>
+    <script src="/assets/js/gestures.js" defer></script>
+    <script src="/assets/js/device.js" defer></script>
+    <script src="/assets/js/stream.js" defer></script>
+    <?php if ($debug) { ?><script src="/assets/js/dev-reload.js" defer></script><?php } ?>
 </head>
 
 <body class="bg-gray-50 dark:bg-gray-900 dark:text-gray-100 min-h-screen">

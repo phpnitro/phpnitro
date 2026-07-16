@@ -24,8 +24,6 @@ final class HomePage extends Screen
 
     public function build(): Widget
     {
-        require_once dirname(__DIR__, 2) . '/backend/bootstrap.php';
-
         $products = (new ProductRepository())->findAll();
 
         $cards = array_map(

@@ -24,8 +24,6 @@ final class OrderConfirmationPage extends Screen
 
     public function build(): Widget
     {
-        require_once dirname(__DIR__, 2) . '/backend/bootstrap.php';
-
         $orderId = (int) $this->params['id'];
         $order = (new OrderRepository())->find($orderId);
 

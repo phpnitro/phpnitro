@@ -27,8 +27,6 @@ final class LoginPage extends Screen
      */
     protected function onLogin(array $data): ?string
     {
-        require_once dirname(__DIR__, 2) . '/backend/bootstrap.php';
-
         $users = new UserRepository();
         $user = $users->findByEmail(trim($data['email'] ?? ''));
 

@@ -38,8 +38,6 @@ final class CartPage extends Screen
 
     public function build(): Widget
     {
-        require_once dirname(__DIR__, 2) . '/backend/bootstrap.php';
-
         $repository = new ProductRepository();
         $cartItems = Cart::items();
 

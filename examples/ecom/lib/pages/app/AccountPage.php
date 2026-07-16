@@ -44,8 +44,6 @@ final class AccountPage extends Screen
             );
         }
 
-        require_once dirname(__DIR__, 2) . '/backend/bootstrap.php';
-
         $user = (new UserRepository())->find($userId);
 
         if ($user === null) {
