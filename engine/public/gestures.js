@@ -2,6 +2,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function sendAction(action) {
     const body = new URLSearchParams();
     body.set('_action', action);
+    const token = document.querySelector('meta[name="csrf-token"]');
+    if (token) {
+      body.set('_token', token.content);
+    }
     fetch(window.location.pathname, { method: 'POST', body })
       .then(() => window.location.reload());
   }

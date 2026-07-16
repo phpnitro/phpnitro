@@ -21,7 +21,14 @@ abstract class Screen
 
     abstract public function build(): Widget;
 
-    public function handle(string $action): void
+    /**
+     * Runs the onXxx handler for $action, passing it the submitted form
+     * values. The handler may return a path (string) to redirect to;
+     * returning null redirects back to the current page.
+     *
+     * @param array<string, string> $data Submitted input values (by input name).
+     */
+    public function handle(string $action, array $data = []): ?string
     {
         $method = 'on' . ucfirst($action);
 
@@ -29,7 +36,9 @@ abstract class Screen
             throw new \RuntimeException("Unknown action \"{$action}\" for screen " . static::class);
         }
 
-        $this->$method();
+        $redirect = $this->$method($data);
         $_SESSION[$this->sessionKey] = $this->state;
+
+        return is_string($redirect) ? $redirect : null;
     }
 }
