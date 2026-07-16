@@ -48,6 +48,22 @@ final class AccountPage extends Screen
 
         $user = (new UserRepository())->find($userId);
 
+        if ($user === null) {
+            // Stale session (e.g. pointing at a user that no longer exists
+            // in the database) — treat as logged out instead of crashing.
+            unset($_SESSION['auth_user_id']);
+
+            return Scaffold::make(
+                body: Column::make([
+                    Text::make('Session expirée, reconnecte-toi.', color: Color::gray(600)),
+                    Link::make('Se connecter', '/login', 'block text-center bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg'),
+                    Link::make('Créer un compte', '/register', 'block text-center bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-medium px-4 py-2 rounded-lg'),
+                ], 'flex flex-col gap-3 p-4'),
+                appBar: AppBar::make('Compte'),
+                bottomNavigation: BottomNavigation::make(AppNav::items()),
+            );
+        }
+
         return Scaffold::make(
             body: Column::make([
                 Text::make($user['name'], size: \Engine\TextSize::XL, weight: FontWeight::BOLD),
