@@ -1,4 +1,4 @@
-# Framework mobile PHP
+# PhpNitro
 
 Écris des interfaces mobiles modernes en PHP : des widgets (`Button`, `Text`, `Column`...) stylés avec Tailwind CSS, servis par un vrai runtime PHP, affichés dans une WebView native (Android WebView / WKWebView).
 
@@ -10,16 +10,22 @@ Contrairement à une première approche envisagée (transpiler le PHP vers Dart/
 
 ```
 mon-app/
-  ui/        widgets PHP (Text, Button, Column...) + tes écrans (Screen)
-  backend/   API "façon Symfony" (Controller / Service / Repository / Entity)
+  lib/
+    ui/        tes écrans (Screen) — le widget SDK (Text, Button, Column...) vient
+               du package Composer phpnitro/ui, invisible dans ton propre code
+    backend/   API "façon Symfony" (Controller / Service / Repository / Entity)
   android/   app Android (WebView native + PHP embarqué) — vérifiée sur device réel
   ios/       stub WKWebView — non testé (pas de Mac/Xcode disponible ici)
-  assets/    images, polices — copié automatiquement dans ui/public/assets
-  .env       config partagée par ui/ et backend/ (un seul fichier, à la racine)
+  assets/    images, polices — copié automatiquement dans lib/ui/public/assets
+  .env       config partagée par lib/ui/ et lib/backend/ (un seul fichier, à la racine)
   bin/       phpx (CLI)
 ```
 
-`ui/` et `backend/` sont servis par le **même processus PHP** — pas un deuxième serveur à lancer, c'est implicite (voir "Backend" plus bas). C'est cette structure exacte que génère `phpx new`.
+Comme un projet Flutter (`android/`, `ios/`, `lib/`), sauf que `lib/` se scinde en `ui/` (présentation) et `backend/` (logique). Le SDK de widgets (~47 classes) est un vrai package Composer séparé (`phpnitro/ui`, dans `packages/ui/` de ce dépôt, câblé via un path repository en attendant sa publication sur Packagist) — `lib/ui/` de ton projet ne contient jamais le code du framework, juste tes propres écrans.
+
+`lib/ui/` et `lib/backend/` sont servis par le **même processus PHP** — pas un deuxième serveur à lancer, c'est implicite (voir "Backend" plus bas). C'est cette structure exacte que génère `phpx new`.
+
+**Linux / macOS / Windows** : pas encore implémentés (ni même stubbés) — chaque plateforme desktop demanderait sa propre coquille native (GTK+WebKit, Cocoa+WKWebView, WebView2), un chantier à part entière. Pas commencé, contrairement à iOS qui a au moins un stub documenté.
 
 Chaque widget est une classe PHP avec un constructeur (propriétés configurables, comme dans Flutter) et une méthode `render(): string` qui produit du HTML :
 
@@ -39,24 +45,24 @@ Button::make('Connexion');
 ```bash
 php bin/phpx new mon-app
 cd mon-app
-composer install --working-dir=ui
-composer install --working-dir=backend
+composer install --working-dir=lib/ui
+composer install --working-dir=lib/backend
 bin/phpx serve
 ```
 
-Ouvre `http://127.0.0.1:8090/`. `phpx new` copie `ui/`, `backend/`, `android/` (binaires PHP inclus), `ios/`, `assets/`, `bin/` et `.env` depuis ce dépôt vers l'emplacement de ton choix (comme `composer create-project`) — ton nouveau projet n'est pas imbriqué dans le framework.
+Ouvre `http://127.0.0.1:8090/`. `phpx new` copie `lib/`, `packages/` (le SDK, en attendant Packagist — voir plus bas), `android/` (binaires PHP inclus), `ios/`, `assets/`, `bin/` et `.env` depuis ce dépôt vers l'emplacement de ton choix (comme `composer create-project`) — ton nouveau projet n'est pas imbriqué dans le framework.
 
 ## CLI (`bin/phpx`)
 
 ```bash
-php bin/phpx serve             # sert ui/ + backend/ ensemble sur le port 8090
-php bin/phpx serve:backend     # sert backend/ seul sur le port 8091 (dev API isolée)
-php bin/phpx make:screen About # crée ui/app/AboutPage.php + enregistre la route /about
+php bin/phpx serve             # sert lib/ui/ + lib/backend/ ensemble sur le port 8090
+php bin/phpx serve:backend     # sert lib/backend/ seul sur le port 8091 (dev API isolée)
+php bin/phpx make:screen About # crée lib/ui/app/AboutPage.php + enregistre la route /about
 php bin/phpx new mon-app       # scaffold un nouveau projet complet (voir ci-dessus)
-php bin/phpx bundle:android    # copie ui/ + backend/ + .env dans l'app Android
+php bin/phpx bundle:android    # copie lib/ + .env dans l'app Android
 ```
 
-`make:screen` génère la classe et l'ajoute automatiquement au routeur (`ui/public/index.php`) — pas d'étape manuelle.
+`make:screen` génère la classe et l'ajoute automatiquement au routeur (`lib/ui/public/index.php`) — pas d'étape manuelle.
 
 ### Tester la CLI
 
@@ -66,26 +72,26 @@ bash bin/test.sh
 
 Ce script fait un vrai `phpx new` dans un dossier temporaire, un vrai `composer install`, un vrai `make:screen`, lance un vrai serveur et l'interroge en HTTP (`/`, `/api/hello`, la route générée), puis un vrai `bundle:android` — il vérifie le résultat réel de chaque commande, pas des mocks. Base-toi dessus pour valider un changement dans `bin/phpx`.
 
-Pour les widgets/Screen/Router/Csrf, la suite PHPUnit (`cd ui && vendor/bin/phpunit`) couvre le rendu et la logique unitairement.
+Pour les widgets/Screen/Router/Csrf, la suite PHPUnit (`cd packages/ui && vendor/bin/phpunit`) couvre le rendu et la logique unitairement.
 
 ## Lancer le moteur de widgets
 
 ```bash
-cd ui
+cd lib/ui
 composer install
 php -S 127.0.0.1:8090 -t public public/router.php   # ou: php ../bin/phpx serve
 ```
 
-Tu dois voir l'écran `ui/app/HomePage.php` rendu et stylé, avec un bouton "Incrémenter" qui augmente réellement un compteur côté serveur (état en session PHP), un lien "Réglages" (`/settings`), et un lien "Device" (`/device`) pour tester caméra/micro/localisation/vibreur.
+Tu dois voir l'écran `lib/ui/app/HomePage.php` rendu et stylé, avec un bouton "Incrémenter" qui augmente réellement un compteur côté serveur (état en session PHP), un lien "Réglages" (`/settings`), et un lien "Device" (`/device`) pour tester caméra/micro/localisation/vibreur.
 
-`.env` (à la racine du projet, chargé via `symfony/dotenv`) contrôle par exemple `APP_NAME`, utilisé comme `<title>` de la page — un seul fichier, partagé par `ui/` et `backend/`.
+`.env` (à la racine du projet, chargé via `symfony/dotenv`) contrôle par exemple `APP_NAME`, utilisé comme `<title>` de la page — un seul fichier, partagé par `lib/ui/` et `lib/backend/`.
 
 (`public/router.php` est nécessaire avec le serveur de dev PHP pour que les routes comme `/settings` soient bien résolues par `Engine\Router` tout en continuant à servir `tailwind.css` comme fichier statique.)
 
 ### Reconstruire le CSS après avoir changé des classes Tailwind
 
 ```bash
-cd ui
+cd lib/ui
 npm install   # une seule fois
 npm run build
 ```
@@ -131,7 +137,7 @@ Un clic sur `Button::make($label, action: 'increment')` soumet un POST au serveu
 
 ## Navigation multi-écrans
 
-Les routes sont déclarées dans `ui/public/index.php` :
+Les routes sont déclarées dans `lib/ui/public/index.php` :
 
 ```php
 $router = new Router([
@@ -145,7 +151,7 @@ Le widget `Link::make($label, $href)` génère un `<a href="...">` classique —
 
 ### Paramètres entre pages
 
-Une route comme `/product/{id}` capture le segment dans `$this->params['id']`, accessible dans `build()` (voir `ui/app/ProductPage.php`). Chaque combinaison classe+paramètres a son propre état de session (deux visites de `/product/1` et `/product/2` ne partagent pas leur état).
+Une route comme `/product/{id}` capture le segment dans `$this->params['id']`, accessible dans `build()` (voir `lib/ui/app/ProductPage.php`). Chaque combinaison classe+paramètres a son propre état de session (deux visites de `/product/1` et `/product/2` ne partagent pas leur état).
 
 ## Formulaires et actions paramétrées
 
@@ -171,7 +177,7 @@ protected function onLogin(array $data): ?string
 }
 ```
 
-Démo complète : `/login` (`ui/app/LoginPage.php`), identifiants `demo`/`demo`.
+Démo complète : `/login` (`lib/ui/app/LoginPage.php`), identifiants `demo`/`demo`.
 
 Tous les POST (boutons, formulaires, gestes) embarquent un jeton CSRF vérifié globalement — requête forgée → 419.
 
@@ -227,11 +233,11 @@ Text::make('Titre', size: TextSize::XL2, weight: FontWeight::BOLD, color: Color:
 
 ## Gestes (double-clic, swipe)
 
-`GestureDetector` est le seul endroit du framework qui utilise du JavaScript côté client (`ui/public/gestures.js`) — nécessaire car un double-clic ou un swipe ne peut pas être détecté en HTTP pur. Le JS ne fait que déclencher la même mécanique d'action que les boutons (`fetch` POST `_action=...`), donc le serveur ne voit aucune différence entre un clic de bouton et un geste détecté.
+`GestureDetector` est le seul endroit du framework qui utilise du JavaScript côté client (`lib/ui/public/gestures.js`) — nécessaire car un double-clic ou un swipe ne peut pas être détecté en HTTP pur. Le JS ne fait que déclencher la même mécanique d'action que les boutons (`fetch` POST `_action=...`), donc le serveur ne voit aucune différence entre un clic de bouton et un geste détecté.
 
 ## Capacités du device (caméra, micro, localisation, vibreur, biométrie, notifications, son, impression)
 
-Widgets `VibrateButton`, `LocationButton`, `CameraPreview`, `MicrophoneButton`, `FingerprintButton`, `SoundButton`, `NotifyButton`, `PrintButton`, `ImagePicker` (écran `ui/app/DevicePage.php`, route `/device`) — pilotés par `ui/public/device.js`, qui **préfère toujours le pont natif** (`window.AndroidNative`, exposé par `android/.../WebAppInterface.kt`) et ne retombe sur les Web APIs standard que si ce pont est absent (navigateur, tests locaux).
+Widgets `VibrateButton`, `LocationButton`, `CameraPreview`, `MicrophoneButton`, `FingerprintButton`, `SoundButton`, `NotifyButton`, `PrintButton`, `ImagePicker` (écran `lib/ui/app/DevicePage.php`, route `/device`) — pilotés par `lib/ui/public/device.js`, qui **préfère toujours le pont natif** (`window.AndroidNative`, exposé par `android/.../WebAppInterface.kt`) et ne retombe sur les Web APIs standard que si ce pont est absent (navigateur, tests locaux).
 
 **Ce qui passe par du vrai code natif Kotlin (pas une Web API médiée par la WebView) :**
 - **Vibreur** — `Vibrator` directement.
@@ -248,7 +254,7 @@ Ce que ça ne donne *pas* encore : un flux caméra live entièrement natif avec 
 
 ## Backend (API)
 
-`ui/` et `backend/` (Symfony HttpFoundation) sont servis par le **même processus PHP** — `ui/public/index.php` délègue toute route `/api/*` à `Backend\Kernel`, en mémoire (pas de requête réseau). Zéro configuration supplémentaire, y compris dans l'app Android : le backend est toujours disponible, implicitement.
+`lib/ui/` et `lib/backend/` (Symfony HttpFoundation) sont servis par le **même processus PHP** — `lib/ui/public/index.php` délègue toute route `/api/*` à `Backend\Kernel`, en mémoire (pas de requête réseau). Zéro configuration supplémentaire, y compris dans l'app Android : le backend est toujours disponible, implicitement.
 
 ```bash
 curl http://127.0.0.1:8090/api/hello
@@ -260,20 +266,20 @@ Pour développer l'API seule sans l'UI : `php bin/phpx serve:backend` (port 8091
 
 ### Upload d'images
 
-`POST /api/upload` avec `{"image": "data:image/png;base64,..."}` (exactement ce que produit le widget `ImagePicker`) décode et stocke le fichier dans `backend/var/uploads/`, et `GET /api/uploads/{filename}` le ressert avec le bon `Content-Type` (déterminé par extension, sans dépendre de `ext-fileinfo` — pas garanti présent dans le PHP cross-compilé pour Android). Voir `Backend\Service\ImageUploadService`.
+`POST /api/upload` avec `{"image": "data:image/png;base64,..."}` (exactement ce que produit le widget `ImagePicker`) décode et stocke le fichier dans `lib/backend/var/uploads/`, et `GET /api/uploads/{filename}` le ressert avec le bon `Content-Type` (déterminé par extension, sans dépendre de `ext-fileinfo` — pas garanti présent dans le PHP cross-compilé pour Android). Voir `Backend\Service\ImageUploadService`.
 
 ### Base de données
 
-`Backend\Database::connection()` (Doctrine DBAL) — SQLite par défaut (`backend/var/data.sqlite`, créé automatiquement au premier appel, zéro config), ou MySQL/PostgreSQL en définissant `DATABASE_URL` dans `.env` (voir les exemples commentés dans ce fichier). Même code, seul le DSN change. `VisitRepository` (`backend/src/Repository/VisitRepository.php`) démontre un vrai cycle create-table/insert/count. `libsqlite3.so` est embarqué avec le binaire PHP dans l'app Android (voir plus bas).
+`Backend\Database::connection()` (Doctrine DBAL) — SQLite par défaut (`lib/backend/var/data.sqlite`, créé automatiquement au premier appel, zéro config), ou MySQL/PostgreSQL en définissant `DATABASE_URL` dans `.env` (voir les exemples commentés dans ce fichier). Même code, seul le DSN change. `VisitRepository` (`lib/backend/src/Repository/VisitRepository.php`) démontre un vrai cycle create-table/insert/count. `libsqlite3.so` est embarqué avec le binaire PHP dans l'app Android (voir plus bas).
 
 La connexion réessaie automatiquement (3 tentatives, avec backoff) à l'établissement initial, et se reconnecte silencieusement si une connexion déjà ouverte a été coupée en cours de session (utile avec un `DATABASE_URL` distant) — un appelant récupère toujours une connexion utilisable plutôt qu'une exception PDO brute.
 
 Structure façon Symfony :
 ```
-backend/
+lib/backend/
   public/index.php        front controller autonome (dev API isolée, `serve:backend`)
   src/
-    Kernel.php             dispatch route -> Controller, réutilisé par ui/public/index.php
+    Kernel.php             dispatch route -> Controller, réutilisé par lib/ui/public/index.php
     Controller/            logique de requête -> réponse (HelloController.php)
     Service/                logique métier réutilisable
     Repository/             accès aux données
@@ -284,10 +290,10 @@ backend/
 
 L'app Android embarque un **vrai PHP 8.4 cross-compilé pour Android** (via le NDK, deux architectures : `armeabi-v7a` et `arm64-v8a`, déjà présentes dans `android/app/src/main/jniLibs/` — **aucun Docker ni compilation requise** pour builder l'app). Au lancement, `PhpServer.kt` copie l'app PHP des assets vers `filesDir`, démarre le binaire embarqué sur un **port choisi dynamiquement** (évite tout conflit si plusieurs apps construites avec ce framework tournent sur le même device), et la WebView s'y connecte : **PHP tourne réellement sur le téléphone**, pas sur un serveur distant. **Vérifié de bout en bout** sur un Infinix X6532 (Android 14, `armeabi-v7a`) — y compris l'authentification biométrique native.
 
-Un vrai **splash screen natif** (Android 12+ SplashScreen API) reste affiché exactement jusqu'à ce que le serveur PHP ait démarré et que la page ait fini de charger — pas de délai fixe deviné, pas de flash d'écran blanc pendant le démarrage. Icône d'app adaptative incluse (vectorielle, thème bleu/éclair).
+Un vrai **splash screen natif** (Android 12+ SplashScreen API) reste affiché exactement jusqu'à ce que le serveur PHP ait démarré et que la page ait fini de charger — pas de délai fixe deviné, pas de flash d'écran blanc pendant le démarrage. Icône d'app adaptative incluse (vectorielle, éclair blanc sur dégradé orange/rouge — voir `branding/`).
 
 ```bash
-php bin/phpx bundle:android   # copie ui/ + backend/ (vendor --no-dev) + .env (APP_DEBUG=false) dans les assets
+php bin/phpx bundle:android   # copie lib/ui/ + lib/backend/ (vendor --no-dev) + .env (APP_DEBUG=false) dans les assets
 cd android
 gradle :app:assembleDebug     # ou via Android Studio
 # → android/app/build/outputs/apk/debug/app-debug.apk
