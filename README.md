@@ -214,8 +214,30 @@ Tous les POST (boutons, formulaires, gestes) embarquent un jeton CSRF vérifié 
 | `Dropdown::make($label, [$items])` | menu déroulant, zéro JS (`<details>`/`<summary>` natif HTML) |
 | `Flash::set($message)` + `FlashMessage::make()` | message flash en session, auto-masqué (animation CSS, pas de JS) |
 | `StreamBuilder::make($endpoint, $render)` | interroge une route JSON en polling et re-rend le widget à chaque changement |
+| `FutureBuilder::make($endpoint, $loading)` | charge une route **une seule fois** au chargement de page (pas de polling), affiche `$loading` en attendant |
+| `Center::make($child)` | centre l'enfant (`flex items-center justify-center`) |
+| `Align::make($child, $alignment)` | aligne l'enfant selon une constante `Alignment::*` |
+| `Padding::make($child, $classes = 'p-4')` | ajoute un espacement interne (classes Tailwind `p-*`) |
+| `Margin::make($child, $classes = 'm-4')` | ajoute un espacement externe (classes Tailwind `m-*`) |
+| `Divider::make($classes = '...')` | ligne de séparation (`<hr>`) |
+| `IconButton::make($icon, $action = null, $classes = '...', $ariaLabel = '')` | bouton icône seule (voir `Icon::*` pour le jeu d'icônes), même comportement d'action que `Button` |
+| `Textarea::make($name, $label = '', $value = '', $placeholder = '', $rows = 4)` | `<textarea>` |
+| `DatePicker::make($name, $label = '', $value = '', $min = '', $max = '')` | `<input type="date">` — le sélecteur natif Android s'affiche via le WebView, zéro JS |
+| `TimePicker::make($name, $label = '', $value = '')` | `<input type="time">` — même chose côté sélecteur natif |
+| `AudioPlayer::make($src, $controls = true, $autoplay = false, $loop = false)` | `<audio>` avec contrôles natifs Chromium |
+| `VideoPlayer::make($src, $controls = true, $autoplay = false, $loop = false, $poster = '')` | `<video>` avec contrôles natifs Chromium |
+| `Image::network($url, $alt = '', $classes = '...')` | alias de `Image::make` (parité nommage Flutter `Image.network`/`NetworkImage`) |
+| `PageView::make([$pages])` | carrousel de pages avec swipe natif (CSS `scroll-snap`, zéro JS) |
+| `Table::make($rows, $headers = [], $border = TableBorder::ALL)` | `<table>` ; `$rows` accepte des chaînes ou des `Widget` par cellule |
+| `TableBorder::ALL\|HORIZONTAL\|VERTICAL\|NONE` | préréglages de bordures (`divide-x`/`divide-y` Tailwind), équivalent DOM du `TableBorder` Flutter |
+| `Navigator::to($path)` / `Navigator::back($fallback = '/')` / `Navigator::link($label, $path)` | sucre de nommage façon Flutter au-dessus de vraies URLs/redirections HTTP (voir `Screen::handle()`) |
+| `GoogleTranslate::make($pageLanguage = 'fr', $includedLanguages = '...')` | widget officiel Google Website Translator (traduction client-side, nécessite le réseau) |
+| `Translator::load($locale, $translations)` / `::t($key, $params = [])` | i18n par clés, côté serveur, pour les textes que tu maîtrises (indépendant de `GoogleTranslate`) |
+| `KkiapayButton::make($publicKey, $amount, $action, $label = 'Payer', $sandbox = true)` | bouton de paiement Kkiapay — voir [Paiement](#paiement) |
 
 Le paramètre `$classes` accepte n'importe quelle classe Tailwind — valeur par défaut sensée, entièrement remplaçable, comme un widget Flutter personnalisable.
+
+`Alignment::TOP_LEFT\|TOP_CENTER\|TOP_RIGHT\|CENTER_LEFT\|CENTER\|CENTER_RIGHT\|BOTTOM_LEFT\|BOTTOM_CENTER\|BOTTOM_RIGHT` couvre le même rôle que `Alignment`/`AxisAlignment` côté Flutter : des préréglages `items-*`/`justify-*` Tailwind, pas un objet géométrique séparé.
 
 ## API de style typée (façon Flutter)
 
@@ -226,6 +248,29 @@ Text::make('Titre', size: TextSize::XL2, weight: FontWeight::BOLD, color: Color:
 ```
 
 `TextSize` et `FontWeight` sont des enums (`TextSize::SM|BASE|LG|XL|XL2|XL3`, `FontWeight::NORMAL|MEDIUM|SEMIBOLD|BOLD`), `Color::gray/blue/red/green(shade)` ou `Color::of('nom', shade)` pour n'importe quelle couleur Tailwind. Ce premier jet ne couvre que `Text` — même principe applicable aux autres widgets par la suite.
+
+## Concepts internes Flutter sans équivalent DOM
+
+Flutter a son propre moteur de rendu (Skia), donc certains de ses types sont des réglages internes à ce moteur — pas des widgets. Comme PhpNitro rend vers du DOM/CSS (pas de canvas custom), ces concepts n'ont pas de classe dédiée : ils se traduisent directement en classes Tailwind, déjà utilisables partout où `$classes` est accepté.
+
+| Flutter | Équivalent PhpNitro |
+|---|---|
+| `BoxFit` (`cover`, `contain`, `fill`...) | classes Tailwind `object-cover`, `object-contain`, `object-fill` sur `Image::make(..., classes: 'object-cover w-full h-40')` |
+| `BoxShape` (`circle`, `rectangle`) | `rounded-full` vs `rounded-none`/`rounded-lg` sur `Container`/`Image` |
+| `Brightness` (`light`, `dark`) | déjà couvert nativement, voir [Mode clair/sombre](#mode-clairsombre) — pas besoin d'un type séparé |
+| `Clip` (`hardEdge`, `antiAlias`...) | `overflow-hidden` (+ `rounded-*` pour les coins) sur le conteneur |
+| `AxisAlignment` (`MainAxisAlignment`/`CrossAxisAlignment`) | classes flex Tailwind (`justify-*`, `items-*`) directement sur `Column`/`Row`, ou les préréglages `Alignment::*` pour `Align`/`Center` |
+| `ButtonBarLayoutBehavior` | `justify-between`/`justify-end` + `gap-*` sur un `Row` contenant les boutons |
+| `ButtonTextTheme` | `$classes` du `Button` lui-même (couleur/poids de texte Tailwind) |
+| `ChangeReportingBehavior` | sans objet ici : chaque action serveur (`onXxx()`) rend un nouvel état complet, il n'y a pas de diff à signaler séparément |
+
+Autrement dit : si un concept Flutter décrit *comment le moteur de rendu dessine*, il devient une classe Tailwind ; s'il décrit *un élément affiché à l'écran*, il devient un widget PHP.
+
+## Paiement
+
+`KkiapayButton` (voir [Widgets disponibles](#widgets-disponibles)) est le seul gateway câblé de bout en bout, choisi comme le plus simple à intégrer (clé publique + widget JS, pas de configuration serveur préalable). Il **ne** doit **jamais** créditer une commande sur le seul événement client `addSuccessListener` : celui-ci n'est qu'un signal d'UI. Le handler `onXxx()` recevant `transaction_id` doit appeler l'API serveur-à-serveur de Kkiapay (`/api/v1/transactions/verify`, clé **privée**) avant de valider quoi que ce soit côté commande.
+
+Stripe, Fedapay, Feexpay, iZiChangePay et PayPal suivent la même forme (bouton → widget/redirection du gateway → callback → vérification serveur obligatoire avec la clé privée avant tout crédit) mais ne sont pas implémentés ici : chacun a ses propres clés de sandbox et son propre format de vérification, qu'on ne peut pas tester à l'aveugle sans compte développeur sur chaque plateforme. `KkiapayButton::render()` (`packages/ui/src/KkiapayButton.php`) sert de modèle à copier/adapter pour ajouter un nouveau gateway.
 
 ## Mode clair/sombre
 
