@@ -335,8 +335,38 @@ function cmdNew(string $directory): void
     copy(PHPX_ROOT . '/.env', $targetDir . '/.env');
     echo "Copied .env to {$targetDir}/.env\n";
 
+    resetPagesForNewProject($targetDir);
+
     echo "Project scaffolded at {$targetDir}\n";
-    echo "Next: cd {$directory} && composer install --working-dir=lib/pages && composer install --working-dir=lib/backend && bin/phpx serve\n";
+    echo "Next: cd {$directory} && composer install --working-dir=lib/pages && composer install --working-dir=lib/backend "
+        . "&& bin/phpx make:page Home / && bin/phpx serve\n";
+}
+
+/**
+ * This framework's own lib/pages/app/ holds demo pages, useful for developing
+ * phpx itself — but a new project should start with an empty canvas, the
+ * developer creates their own pages via `phpx make:page`. Strips the demo
+ * pages + their routes from the freshly-copied scaffold (never touches
+ * PHPX_ROOT itself).
+ */
+function resetPagesForNewProject(string $targetDir): void
+{
+    $appDir = $targetDir . '/lib/pages/app';
+    foreach (glob($appDir . '/*.php') ?: [] as $file) {
+        unlink($file);
+    }
+    touch($appDir . '/.gitkeep');
+
+    $indexPath = $targetDir . '/lib/pages/public/index.php';
+    $content = file_get_contents($indexPath);
+    if ($content === false) {
+        phpxFail("unable to read {$indexPath}");
+    }
+
+    $content = preg_replace('/^use Engine\\\\App\\\\[A-Za-z]+;\n/m', '', $content);
+    $content = preg_replace('/\$router = new Router\(\[\n(?:.*\n)*?\]\);/', "\$router = new Router([\n]);", $content);
+
+    file_put_contents($indexPath, $content);
 }
 
 /**

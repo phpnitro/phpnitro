@@ -14,11 +14,17 @@ for dir in lib packages android ios assets bin; do
   test -d "$WORKDIR/demo-app/$dir" || { echo "FAIL: $dir/ missing from scaffold"; exit 1; }
 done
 test -f "$WORKDIR/demo-app/.env" || { echo "FAIL: .env missing from scaffold"; exit 1; }
+test -z "$(ls "$WORKDIR/demo-app/lib/pages/app"/*.php 2>/dev/null)" || { echo "FAIL: lib/pages/app/ should ship empty (no demo pages) for new projects"; exit 1; }
 echo "OK"
 
 echo "== composer install (ui + backend) =="
 composer install --working-dir="$WORKDIR/demo-app/lib/pages" --quiet
 composer install --working-dir="$WORKDIR/demo-app/lib/backend" --quiet
+echo "OK"
+
+echo "== phpx make:page (root) =="
+(cd "$WORKDIR/demo-app" && php bin/phpx make:page Home /)
+test -f "$WORKDIR/demo-app/lib/pages/app/HomePage.php" || { echo "FAIL: HomePage.php not created"; exit 1; }
 echo "OK"
 
 echo "== phpx make:page =="
