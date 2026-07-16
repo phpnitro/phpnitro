@@ -280,12 +280,10 @@ Installation sur téléphone : transfère l'APK (câble, `adb install`, ou parta
 - iOS : stub non testé, pas de PHP embarqué (voir `ios/README.md`)
 - API de style typée (`TextSize`/`FontWeight`/`Color`) : implémentée seulement sur `Text` pour l'instant
 - `StreamBuilder` fonctionne en polling HTTP (pas de WebSocket/Server-Sent Events) — suffisant pour la plupart des cas, mais pas du "temps réel" au sens strict
-- Notifications push : pas encore implémentées (voir feuille de route)
+- Notifications push : le stockage des tokens côté backend est réel et testé (`/api/fcm/register`, `/api/fcm/count`) ; la partie Android (`FcmService.kt.example`) est écrite mais **désactivée par défaut** — elle nécessite ton propre projet Firebase (`google-services.json`), qui ne peut pas être généré ici (voir le fichier `.example` pour les 6 étapes d'activation). L'envoi effectif de notifications (Firebase Admin SDK côté serveur) n'est pas implémenté.
 - Le serveur de dev PHP (`php -S`, utilisé aussi sur Android) est mono-thread — largement suffisant pour une app mobile (un seul client à la fois), mais pas un choix pertinent pour un vrai serveur multi-utilisateurs
 
 ## Feuille de route — chantiers pas encore commencés
-
-**Notifications push (Firebase/FCM).** Nécessite un projet Firebase, `google-services.json`, le SDK FCM côté Android (et APNs côté iOS) — chantier à part entière, pas juste un widget PHP. Le token FCM serait obtenu côté natif (Kotlin) puis transmis au backend via `/api/...` pour l'enregistrer côté serveur.
 
 **Binaire du framework façon Flutter.** Un exécutable `phpx` autonome (sans taper `php bin/phpx`) est atteignable rapidement via un `.phar` auto-exécutable (ex. avec `box`). Un vrai `phpx build android` (assemblage automatique de l'APK signé) est la suite logique une fois ce point réglé.
 
