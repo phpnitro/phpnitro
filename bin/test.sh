@@ -6,7 +6,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKDIR="$(mktemp -d)"
-trap 'pkill -f "phpx serve 8123" 2>/dev/null || true; rm -rf "$WORKDIR"' EXIT
+trap 'pkill -f "phpx serve 8123" 2>/dev/null || true; pkill -f "php -S 127.0.0.1:8123" 2>/dev/null || true; rm -rf "$WORKDIR"' EXIT
 
 echo "== phpx new =="
 (cd "$WORKDIR" && php "$ROOT/bin/phpx" new demo-app)
@@ -37,6 +37,7 @@ curl -sf -o /dev/null http://127.0.0.1:8123/ || { echo "FAIL: GET / did not resp
 curl -sf http://127.0.0.1:8123/api/hello | grep -q '"message"' || { echo "FAIL: /api/hello (unified backend) did not respond"; exit 1; }
 curl -sf -o /dev/null http://127.0.0.1:8123/about || { echo "FAIL: generated /about route did not respond"; exit 1; }
 pkill -f "phpx serve 8123" 2>/dev/null || true
+pkill -f "php -S 127.0.0.1:8123" 2>/dev/null || true
 echo "OK"
 
 echo "== phpx bundle:android =="

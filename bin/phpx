@@ -7,7 +7,6 @@
  * Commands:
  *   phpx make:screen <Name> [route]   Generate a new Screen and register its route
  *   phpx serve [port]                 Serve lib/pages/ + lib/backend/ together (defaults to 8090)
- *   phpx serve:backend [port]         Serve lib/backend/ alone (defaults to 8091, API-only dev)
  *   phpx new <directory>              Scaffold a new project: android/ ios/ lib/{pages,backend} .env assets/
  *   phpx bundle:android               Copy lib/ + assets/ + .env into the Android app
  */
@@ -285,9 +284,6 @@ switch ($command) {
     case 'serve':
         cmdServe('lib/pages', (int) ($argv[2] ?? 8090), 'router.php');
         break;
-    case 'serve:backend':
-        cmdServe('lib/backend', (int) ($argv[2] ?? 8091), null);
-        break;
     case 'new':
         cmdNew($argv[2] ?? phpxFail('usage: phpx new <directory>'));
         break;
@@ -295,5 +291,5 @@ switch ($command) {
         cmdBundleAndroid();
         break;
     default:
-        phpxFail('usage: phpx <make:screen|serve|serve:backend|new|bundle:android> ...');
+        phpxFail('usage: phpx <make:screen|serve|new|bundle:android> ...');
 }
