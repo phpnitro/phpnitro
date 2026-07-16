@@ -16,17 +16,20 @@ trait RendersAction
         $label = htmlspecialchars($label, ENT_QUOTES);
 
         if ($action === null) {
-            return sprintf('<button type="button" class="%s">%s</button>', $classes, $label);
+            // type=submit so a plain Button placed inside a Form submits it;
+            // outside any form it is inert, same as type=button.
+            return sprintf('<button type="submit" class="%s">%s</button>', $classes, $label);
         }
 
         $action = htmlspecialchars($action, ENT_QUOTES);
 
         return sprintf(
             '<form method="post" class="inline">'
-            . '<input type="hidden" name="_action" value="%s">'
+            . '<input type="hidden" name="_action" value="%s">%s'
             . '<button type="submit" class="%s">%s</button>'
             . '</form>',
             $action,
+            Csrf::field(),
             $classes,
             $label,
         );

@@ -20,6 +20,7 @@ final class ThemeToggle extends Widget
 
         return '<form method="post" class="inline">'
             . '<input type="hidden" name="_action" value="toggleTheme">'
+            . Csrf::field()
             . "<button type=\"submit\" class=\"{$classes}\">Changer de thème</button>"
             . '</form>';
     }
