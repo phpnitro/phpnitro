@@ -197,7 +197,16 @@ Tous les POST (boutons, formulaires, gestes) embarquent un jeton CSRF vérifié 
 | `CameraPreview::make($label)` | ouvre la caméra (`getUserMedia`) dans un `<video>` |
 | `MicrophoneButton::make($label)` | active le micro (`getUserMedia` audio) |
 | `MapView::make($lat, $lng, $zoom = 15)` | carte OpenStreetMap intégrée (`<iframe>`, zéro clé API) |
-| `FingerprintButton::make($label, $action)` | authentification biométrique (`navigator.credentials`/WebAuthn) |
+| `FingerprintButton::make($label, $action)` | authentification biométrique — **native** (`BiometricPrompt` via `AndroidNative`) |
+| `SoundButton::make($url, $label)` | joue un son via `MediaPlayer` natif (survit au verrouillage écran) |
+| `NotifyButton::make($title, $message, $label)` | notification système native, fonctionne hors-ligne (`NotificationCompat`) |
+| `PrintButton::make($label)` | imprime/exporte la page en PDF via le pipeline d'impression natif Android |
+| `ImagePicker::make($fieldName, $label)` | sélecteur d'image natif (galerie système), résultat dans un champ caché de `Form` |
+| `ProgressBar::make($value)` | barre de progression linéaire (0-100, calculée côté serveur) |
+| `CircularProgress::make($value, $size = 64)` | indicateur circulaire (SVG pur, pas de JS/canvas) |
+| `Drawer::make([$items])` + `DrawerToggle::make()` | menu latéral coulissant, zéro JS (case à cocher cachée + variantes Tailwind `peer-checked:`) |
+| `Dropdown::make($label, [$items])` | menu déroulant, zéro JS (`<details>`/`<summary>` natif HTML) |
+| `Flash::set($message)` + `FlashMessage::make()` | message flash en session, auto-masqué (animation CSS, pas de JS) |
 | `StreamBuilder::make($endpoint, $render)` | interroge une route JSON en polling et re-rend le widget à chaque changement |
 
 Le paramètre `$classes` accepte n'importe quelle classe Tailwind — valeur par défaut sensée, entièrement remplaçable, comme un widget Flutter personnalisable.
@@ -220,15 +229,22 @@ Text::make('Titre', size: TextSize::XL2, weight: FontWeight::BOLD, color: Color:
 
 `GestureDetector` est le seul endroit du framework qui utilise du JavaScript côté client (`ui/public/gestures.js`) — nécessaire car un double-clic ou un swipe ne peut pas être détecté en HTTP pur. Le JS ne fait que déclencher la même mécanique d'action que les boutons (`fetch` POST `_action=...`), donc le serveur ne voit aucune différence entre un clic de bouton et un geste détecté.
 
-## Capacités du device (caméra, micro, localisation, vibreur, biométrie)
+## Capacités du device (caméra, micro, localisation, vibreur, biométrie, notifications, son, impression)
 
-Widgets `VibrateButton`, `LocationButton`, `CameraPreview`, `MicrophoneButton`, `FingerprintButton` (écran `ui/app/DevicePage.php`, route `/device`) — utilisent les Web APIs standard (`navigator.vibrate`, `navigator.geolocation`, `navigator.mediaDevices.getUserMedia`, `navigator.credentials`) via `ui/public/device.js`. Ces APIs fonctionnent nativement dans une WebView Android/iOS pourvu que l'app hôte accorde les permissions nécessaires (voir `android/README.md`).
+Widgets `VibrateButton`, `LocationButton`, `CameraPreview`, `MicrophoneButton`, `FingerprintButton`, `SoundButton`, `NotifyButton`, `PrintButton`, `ImagePicker` (écran `ui/app/DevicePage.php`, route `/device`) — pilotés par `ui/public/device.js`, qui **préfère toujours le pont natif** (`window.AndroidNative`, exposé par `android/.../WebAppInterface.kt`) et ne retombe sur les Web APIs standard que si ce pont est absent (navigateur, tests locaux).
 
-**Est-ce "vraiment natif" (comme React Native) ?** Nuance importante :
-- La géolocation et le micro passent déjà par les vraies APIs natives Android en coulisses (Chromium délègue à `FusedLocationProvider`/le pipeline audio natif) — ce n'est pas simulé, juste médié par le moteur de la WebView.
-- Pour la caméra et le vibreur, on va plus loin : `android/.../WebAppInterface.kt` expose un pont JS↔natif (`window.AndroidNative`) qui appelle directement `Vibrator` et lance la vraie app Camera du système (`ActivityResultContracts.TakePicturePreview`) — un vrai code natif Kotlin, pas une Web API. `device.js` préfère ce pont natif quand il est disponible (donc dans notre coquille Android) et retombe sur les Web API sinon (navigateur, iOS pas encore équivalent).
-- `FingerprintButton` utilise WebAuthn (`navigator.credentials.get`), qui délègue à BiometricPrompt sur Android nativement — pas encore de pont natif dédié comme pour la caméra.
-- Ce que ça ne donne *pas* encore : un flux caméra live entièrement natif avec contrôles avancés (CameraX/Camera2 complet, ISO manuel, etc.) — seulement la capture photo via l'app Camera native.
+**Ce qui passe par du vrai code natif Kotlin (pas une Web API médiée par la WebView) :**
+- **Vibreur** — `Vibrator` directement.
+- **Caméra** — lance la vraie app Camera du système (`ActivityResultContracts.TakePicturePreview`).
+- **Biométrie** — `BiometricPrompt` (androidx.biometric). **Important** : WebView n'implémente PAS WebAuthn/FIDO2 comme le fait Chrome-l'application — `navigator.credentials` y est absent ou non fonctionnel même avec une empreinte enregistrée. Le pont natif est donc la seule voie fiable ici, pas une optimisation.
+- **Notifications** — `NotificationCompat`, fonctionne **hors-ligne**, indépendant de tout service push.
+- **Son** — `MediaPlayer`, continue de jouer correctement à travers le verrouillage écran (contrairement à une balise `<audio>` de WebView).
+- **Impression / PDF** — le vrai pipeline d'impression Android (`WebView.createPrintDocumentAdapter` + `PrintManager`, le flux système "Enregistrer en PDF") — pas de bibliothèque PDF PHP.
+- **Sélecteur d'image** — la vraie app galerie/fichiers du système (`ActivityResultContracts.GetContent`).
+
+**Ce qui reste médié par la WebView (mais reste réel, pas simulé)** : géolocation et micro délèguent déjà aux vraies APIs Android en coulisses (`FusedLocationProvider`, pipeline audio natif) via Chromium — fonctionnel, juste pas un pont Kotlin dédié pour l'instant.
+
+Ce que ça ne donne *pas* encore : un flux caméra live entièrement natif avec contrôles avancés (CameraX/Camera2 complet, ISO manuel...) — seulement la capture photo via l'app Camera native.
 
 ## Backend (API)
 
@@ -242,9 +258,15 @@ curl http://127.0.0.1:8090/api/visits   # incrémente et retourne un compteur st
 
 Pour développer l'API seule sans l'UI : `php bin/phpx serve:backend` (port 8091 indépendant).
 
+### Upload d'images
+
+`POST /api/upload` avec `{"image": "data:image/png;base64,..."}` (exactement ce que produit le widget `ImagePicker`) décode et stocke le fichier dans `backend/var/uploads/`, et `GET /api/uploads/{filename}` le ressert avec le bon `Content-Type` (déterminé par extension, sans dépendre de `ext-fileinfo` — pas garanti présent dans le PHP cross-compilé pour Android). Voir `Backend\Service\ImageUploadService`.
+
 ### Base de données
 
 `Backend\Database::connection()` (Doctrine DBAL) — SQLite par défaut (`backend/var/data.sqlite`, créé automatiquement au premier appel, zéro config), ou MySQL/PostgreSQL en définissant `DATABASE_URL` dans `.env` (voir les exemples commentés dans ce fichier). Même code, seul le DSN change. `VisitRepository` (`backend/src/Repository/VisitRepository.php`) démontre un vrai cycle create-table/insert/count. `libsqlite3.so` est embarqué avec le binaire PHP dans l'app Android (voir plus bas).
+
+La connexion réessaie automatiquement (3 tentatives, avec backoff) à l'établissement initial, et se reconnecte silencieusement si une connexion déjà ouverte a été coupée en cours de session (utile avec un `DATABASE_URL` distant) — un appelant récupère toujours une connexion utilisable plutôt qu'une exception PDO brute.
 
 Structure façon Symfony :
 ```
@@ -260,7 +282,9 @@ backend/
 
 ## Construire l'APK (PHP embarqué sur le device)
 
-L'app Android embarque un **vrai PHP 8.4 cross-compilé pour Android** (via le NDK, deux architectures : `armeabi-v7a` et `arm64-v8a`, déjà présentes dans `android/app/src/main/jniLibs/` — **aucun Docker ni compilation requise** pour builder l'app). Au lancement, `PhpServer.kt` copie l'app PHP des assets vers `filesDir`, démarre le binaire embarqué sur `127.0.0.1:8090`, et la WebView s'y connecte : **PHP tourne réellement sur le téléphone**, pas sur un serveur distant. **Vérifié de bout en bout** sur un Infinix X6532 (Android 14, `armeabi-v7a`).
+L'app Android embarque un **vrai PHP 8.4 cross-compilé pour Android** (via le NDK, deux architectures : `armeabi-v7a` et `arm64-v8a`, déjà présentes dans `android/app/src/main/jniLibs/` — **aucun Docker ni compilation requise** pour builder l'app). Au lancement, `PhpServer.kt` copie l'app PHP des assets vers `filesDir`, démarre le binaire embarqué sur un **port choisi dynamiquement** (évite tout conflit si plusieurs apps construites avec ce framework tournent sur le même device), et la WebView s'y connecte : **PHP tourne réellement sur le téléphone**, pas sur un serveur distant. **Vérifié de bout en bout** sur un Infinix X6532 (Android 14, `armeabi-v7a`) — y compris l'authentification biométrique native.
+
+Un vrai **splash screen natif** (Android 12+ SplashScreen API) reste affiché exactement jusqu'à ce que le serveur PHP ait démarré et que la page ait fini de charger — pas de délai fixe deviné, pas de flash d'écran blanc pendant le démarrage. Icône d'app adaptative incluse (vectorielle, thème bleu/éclair).
 
 ```bash
 php bin/phpx bundle:android   # copie ui/ + backend/ (vendor --no-dev) + .env (APP_DEBUG=false) dans les assets
