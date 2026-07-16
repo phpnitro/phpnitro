@@ -6,3 +6,7 @@
 /android/build/
 /android/app/build/
 /backend/var/*.sqlite
+/.tools/
+/android/local.properties
+/android/app/src/main/assets/www/
+/android/app/src/main/jniLibs/

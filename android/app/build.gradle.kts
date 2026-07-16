@@ -21,6 +21,15 @@ android {
         }
     }
 
+    packaging {
+        jniLibs {
+            // Keep libphp.so as a real extracted file so the app can exec it
+            // from the native library dir (Android W^X forbids exec from
+            // writable app storage).
+            useLegacyPackaging = true
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

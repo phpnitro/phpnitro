@@ -44,6 +44,8 @@ class MainActivity : AppCompatActivity() {
 
         ActivityCompat.requestPermissions(this, requestedPermissions, 0)
 
+        Thread { PhpServer(this).start() }.also { it.start(); it.join(8000) }
+
         val webView = WebView(this)
         webAppInterface = WebAppInterface(this, webView) { takePicturePreview.launch(null) }
         webView.addJavascriptInterface(webAppInterface, "AndroidNative")

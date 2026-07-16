@@ -173,6 +173,30 @@ function copyDirectory(string $source, string $destination, array $skip = []): v
     }
 }
 
+function cmdBundleAndroid(): void
+{
+    $staging = PHPX_ROOT . '/android/app/src/main/assets/www';
+
+    if (is_dir($staging)) {
+        passthruOrFail('rm -rf ' . escapeshellarg($staging));
+    }
+    mkdir($staging, 0777, true);
+
+    foreach (['app', 'php', 'public', 'composer.json', 'composer.lock'] as $entry) {
+        $source = PHPX_ROOT . '/engine/' . $entry;
+        is_dir($source)
+            ? copyDirectory($source, "{$staging}/{$entry}")
+            : copy($source, "{$staging}/{$entry}");
+    }
+
+    file_put_contents($staging . '/.env', "APP_NAME=\"Mobile Engine\"\nAPP_DEBUG=false\n");
+
+    passthruOrFail('composer install --no-dev --no-interaction --quiet --working-dir=' . escapeshellarg($staging));
+    passthruOrFail('rm -rf ' . escapeshellarg($staging . '/composer.lock'));
+
+    echo "Bundled engine into {$staging}\n";
+}
+
 $command = $argv[1] ?? null;
 
 switch ($command) {
@@ -188,6 +212,9 @@ switch ($command) {
     case 'new':
         cmdNew($argv[2] ?? phpxFail('usage: phpx new <directory>'));
         break;
+    case 'bundle:android':
+        cmdBundleAndroid();
+        break;
     default:
-        phpxFail('usage: phpx <make:screen|serve|serve:backend|new> ...');
+        phpxFail('usage: phpx <make:screen|serve|serve:backend|new|bundle:android> ...');
 }
