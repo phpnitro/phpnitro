@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  phpunit:
+    name: PHPUnit (${{ matrix.package }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: [packages/ui, packages/database]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, pdo_sqlite
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+        working-directory: ${{ matrix.package }}
+      - run: vendor/bin/phpunit
+        working-directory: ${{ matrix.package }}
+
+  phpx-smoke-test:
+    name: bin/test.sh (phpx smoke test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, pdo_sqlite
+          coverage: none
+      - run: bash bin/test.sh
