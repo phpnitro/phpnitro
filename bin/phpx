@@ -147,7 +147,10 @@ function cmdServe(string $dir, int $port, ?string $router): void
 
 function cmdNew(string $directory): void
 {
-    $targetDir = PHPX_ROOT . '/' . $directory;
+    // Resolved against the current working directory (like `composer create-project`
+    // or `flutter create`) — a new project lives wherever the developer is
+    // working, not nested inside this framework's own checkout.
+    $targetDir = str_starts_with($directory, '/') ? $directory : getcwd() . '/' . $directory;
 
     if (is_dir($targetDir)) {
         phpxFail("directory already exists: {$targetDir}");
@@ -155,12 +158,10 @@ function cmdNew(string $directory): void
 
     mkdir($targetDir, 0777, true);
 
-    foreach (['ui', 'backend', 'android', 'ios', 'assets'] as $part) {
+    foreach (['ui', 'backend', 'android', 'ios', 'assets', 'bin'] as $part) {
         $source = PHPX_ROOT . '/' . $part;
         $destination = $targetDir . '/' . $part;
-        copyDirectory($source, $destination, [
-            'vendor', 'node_modules', '.gradle', 'build', '.kotlin', 'local.properties',
-        ]);
+        copyDirectory($source, $destination, ['vendor', 'node_modules', '.gradle', 'build', '.kotlin', 'local.properties']);
         echo "Copied {$part}/ to {$destination}\n";
     }
 
