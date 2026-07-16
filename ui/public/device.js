@@ -77,12 +77,27 @@ window.phpxDevice = {
     }
   },
 
-  // WebAuthn platform authenticator (fingerprint/face unlock). Registers a
-  // throwaway credential once per session then authenticates against it —
-  // enough to trigger the real OS biometric prompt and prove the round-trip
-  // works. A production app would register server-side and verify the
-  // assertion signature there instead of just checking the call resolved.
-  async fingerprint(outputElementId) {
+  // Fingerprint/face unlock. Prefers the native bridge (Android BiometricPrompt,
+  // via WebAppInterface.showBiometricPrompt) since WebView does NOT implement
+  // WebAuthn/FIDO2 platform authenticators the way the Chrome app does —
+  // navigator.credentials is unreliable-to-absent inside a WebView even when
+  // the device has a fingerprint enrolled. Falls back to WebAuthn only when
+  // running in a real browser (e.g. testing the dev server directly).
+  fingerprint(outputElementId) {
+    const el = document.getElementById(outputElementId);
+
+    if (window.AndroidNative && window.AndroidNative.showBiometricPrompt) {
+      window.onNativeBiometricResult = (success, message) => {
+        if (el) el.textContent = success ? 'Authentification réussie ✓' : ('Échec : ' + message);
+      };
+      window.AndroidNative.showBiometricPrompt();
+      return;
+    }
+
+    this.webAuthnFingerprint(outputElementId);
+  },
+
+  async webAuthnFingerprint(outputElementId) {
     const el = document.getElementById(outputElementId);
     if (!window.PublicKeyCredential) {
       if (el) el.textContent = 'Authentification biométrique non disponible sur ce navigateur.';

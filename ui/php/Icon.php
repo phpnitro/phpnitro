@@ -81,6 +81,25 @@ final class Icon
         );
     }
 
+    public static function hamburger(string $classes = 'w-6 h-6'): string
+    {
+        return self::wrap(
+            $classes,
+            '<line x1="4" y1="7" x2="20" y2="7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+            . '<line x1="4" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+            . '<line x1="4" y1="17" x2="20" y2="17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+        );
+    }
+
+    public static function chevronDown(string $classes = 'w-4 h-4'): string
+    {
+        return self::wrap(
+            $classes,
+            '<polyline points="6,9 12,15 18,9" fill="none" stroke="currentColor" stroke-width="1.8" '
+            . 'stroke-linecap="round" stroke-linejoin="round"/>',
+        );
+    }
+
     private static function wrap(string $classes, string $inner): string
     {
         $classes = htmlspecialchars($classes, ENT_QUOTES);

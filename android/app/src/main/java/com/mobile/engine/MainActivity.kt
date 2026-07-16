@@ -4,9 +4,13 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.webkit.GeolocationPermissions
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.result.contract.ActivityResultContracts
@@ -44,7 +48,7 @@ class MainActivity : AppCompatActivity() {
 
         ActivityCompat.requestPermissions(this, requestedPermissions, 0)
 
-        Thread { PhpServer(this).start() }.also { it.start(); it.join(8000) }
+        Thread { PhpServer(this).start() }.also { it.start(); it.join(15000) }
 
         val webView = WebView(this)
         webAppInterface = WebAppInterface(this, webView) { takePicturePreview.launch(null) }
@@ -52,7 +56,29 @@ class MainActivity : AppCompatActivity() {
 
         webView.settings.javaScriptEnabled = true
         webView.settings.setGeolocationEnabled(true)
-        webView.webViewClient = WebViewClient()
+        // A visible fading scrollbar reads as "browser", not "app" — every
+        // native app hides or fully customizes it. The CSS scrollbar-hiding
+        // rules in ui/src/input.css only cover in-page browser testing;
+        // this is what actually matters inside the WebView.
+        webView.isVerticalScrollBarEnabled = false
+        webView.isHorizontalScrollBarEnabled = false
+        // Defensive: if the very first load races the PHP server still
+        // starting up (slow asset copy on first install, low-end device...),
+        // retry instead of leaving a permanently blank WebView — there is no
+        // automatic retry otherwise.
+        webView.webViewClient = object : WebViewClient() {
+            override fun onReceivedError(
+                view: WebView,
+                request: WebResourceRequest,
+                error: WebResourceError,
+            ) {
+                if (request.isForMainFrame) {
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        view.loadUrl("http://127.0.0.1:${PhpServer.PORT}/")
+                    }, 1000)
+                }
+            }
+        }
         webView.webChromeClient = object : WebChromeClient() {
             override fun onPermissionRequest(request: PermissionRequest) {
                 request.grant(request.resources)

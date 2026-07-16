@@ -44,6 +44,7 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("androidx.biometric:biometric:1.1.0")
 
     // Push notifications — uncomment together with the plugin above and
     // google-services.json, see FcmService.kt.example.

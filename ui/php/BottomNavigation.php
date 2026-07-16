@@ -47,12 +47,12 @@ final class BottomNavigation extends Widget
     private function navClasses(): string
     {
         return match ($this->variant) {
-            self::VARIANT_PILLS => 'fixed bottom-3 left-3 right-3 flex justify-around items-center gap-1 '
+            self::VARIANT_PILLS => 'gpu-layer fixed bottom-3 left-3 right-3 flex justify-around items-center gap-1 '
                 . 'bg-white/95 dark:bg-gray-800/95 backdrop-blur rounded-full shadow-lg '
                 . 'border border-gray-100 dark:border-gray-700 px-2 py-1.5',
-            self::VARIANT_COMPACT => 'fixed bottom-0 left-0 right-0 flex justify-around items-center '
+            self::VARIANT_COMPACT => 'gpu-layer fixed bottom-0 left-0 right-0 flex justify-around items-center '
                 . 'bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-1',
-            default => 'fixed bottom-0 left-0 right-0 flex justify-around items-stretch '
+            default => 'gpu-layer fixed bottom-0 left-0 right-0 flex justify-around items-stretch '
                 . 'bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg',
         };
     }

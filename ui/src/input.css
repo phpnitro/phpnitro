@@ -1,2 +1,38 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* A visible fading scrollbar and rubber-band bounce read as "browser", not
+   "app". The native fix lives in MainActivity.kt (WebView scrollbar
+   disabled) — these rules cover browser-based dev/testing the same way. */
+html, body {
+  overscroll-behavior: none;
+}
+
+html {
+  scrollbar-width: none;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* Fixed-position bars (AppBar, BottomNavigation, FloatingActionButton)
+   promoted to their own GPU compositing layer so they don't get redrawn
+   (and visibly judder) on every scroll frame — a well-known WebView/mobile
+   Chromium cost for fixed elements without this hint. */
+.gpu-layer {
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* FlashMessage auto-dismiss — no JS timer needed. */
+@keyframes phpx-flash-out {
+  0% { opacity: 0; transform: translate(-50%, -10px); }
+  10% { opacity: 1; transform: translate(-50%, 0); }
+  85% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -10px); visibility: hidden; }
+}
+
+.phpx-flash {
+  animation: phpx-flash-out 3.5s ease-in-out forwards;
+}

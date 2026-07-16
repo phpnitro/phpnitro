@@ -7,6 +7,11 @@ use Engine\BottomNavigation;
 use Engine\Button;
 use Engine\Color;
 use Engine\Column;
+use Engine\Drawer;
+use Engine\DrawerToggle;
+use Engine\Dropdown;
+use Engine\Flash;
+use Engine\FlashMessage;
 use Engine\FloatingActionButton;
 use Engine\FontWeight;
 use Engine\GestureDetector;
@@ -29,6 +34,7 @@ final class HomePage extends Screen
     protected function onIncrement(): void
     {
         $this->state['count']++;
+        Flash::set('Compteur incrémenté !');
     }
 
     protected function onDecrement(): void
@@ -54,6 +60,7 @@ final class HomePage extends Screen
 
         return Scaffold::make(
             body: Column::make([
+                FlashMessage::make(),
                 $authRow,
                 GestureDetector::make(
                     Text::make('Compteur : ' . $this->state['count'] . ' (double-clic ou swipe)'),
@@ -62,15 +69,25 @@ final class HomePage extends Screen
                     onSwipeRight: 'increment',
                 ),
                 Button::make('Incrémenter', action: 'increment'),
+                Dropdown::make('Trier', [
+                    ['label' => 'Plus récent', 'href' => '/?sort=recent'],
+                    ['label' => 'Alphabétique', 'href' => '/?sort=alpha'],
+                ]),
                 ListView::make([
                     Link::make('Réglages', '/settings'),
                     Link::make('Produit #42', '/product/42'),
                     ThemeToggle::make(),
                 ]),
             ], 'flex flex-col gap-4'),
-            appBar: AppBar::make('Mon application'),
+            appBar: AppBar::make('Mon application', leading: DrawerToggle::make()),
             bottomNavigation: BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS),
             floatingActionButton: FloatingActionButton::make('+', action: 'increment'),
+            drawer: Drawer::make([
+                ['label' => 'Accueil', 'href' => '/'],
+                ['label' => 'Réglages', 'href' => '/settings'],
+                ['label' => 'Device', 'href' => '/device'],
+                ['label' => 'API', 'href' => '/api'],
+            ], title: 'Mon application'),
         );
     }
 }

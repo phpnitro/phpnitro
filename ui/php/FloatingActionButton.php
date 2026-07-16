@@ -6,7 +6,7 @@ final class FloatingActionButton extends Widget
 {
     use RendersAction;
 
-    private const DEFAULT_CLASSES = 'fixed bottom-20 right-4 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-700 '
+    private const DEFAULT_CLASSES = 'gpu-layer fixed bottom-20 right-4 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-700 '
         . 'text-white text-2xl leading-none flex items-center justify-center shadow-lg';
 
     public function __construct(
