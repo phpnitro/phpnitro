@@ -1,7 +1,7 @@
 .claude/
 /backend/vendor/
-/engine/vendor/
-/engine/node_modules/
+/ui/vendor/
+/ui/node_modules/
 /android/.gradle/
 /android/build/
 /android/app/build/
@@ -9,7 +9,6 @@
 /.tools/
 /android/local.properties
 /android/.kotlin/
-/engine/.phpunit.result.cache
+/ui/.phpunit.result.cache
 /android/app/src/main/assets/www/
-/android/app/src/main/jniLibs/
 /dist/

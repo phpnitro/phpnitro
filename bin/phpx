@@ -6,9 +6,10 @@
  *
  * Commands:
  *   phpx make:screen <Name> [route]   Generate a new Screen and register its route
- *   phpx serve [port]                 Serve engine/ (defaults to 8090)
- *   phpx serve:backend [port]         Serve backend/ (defaults to 8091)
- *   phpx new <directory>              Scaffold a new project (copy of engine/ + backend/)
+ *   phpx serve [port]                 Serve ui/ + backend/ together (defaults to 8090)
+ *   phpx serve:backend [port]         Serve backend/ alone (defaults to 8091, API-only dev)
+ *   phpx new <directory>              Scaffold a new project: android/ backend/ ios/ ui/ .env assets/
+ *   phpx bundle:android               Copy ui/ + backend/ + assets/ + .env into the Android app
  */
 
 define('PHPX_ROOT', dirname(__DIR__));
@@ -95,7 +96,7 @@ function registerRoute(string $indexPath, string $className, string $route): voi
 function cmdMakeScreen(string $name, ?string $route): void
 {
     $className = screenClassName($name);
-    $path = PHPX_ROOT . "/engine/app/{$className}.php";
+    $path = PHPX_ROOT . "/ui/app/{$className}.php";
 
     if (is_file($path)) {
         phpxFail("screen already exists: {$path}");
@@ -106,12 +107,31 @@ function cmdMakeScreen(string $name, ?string $route): void
     file_put_contents($path, screenTemplate($className));
     echo "Created {$path}\n";
 
-    registerRoute(PHPX_ROOT . '/engine/public/index.php', $className, $route);
+    registerRoute(PHPX_ROOT . '/ui/public/index.php', $className, $route);
     echo "Registered route {$route} => Engine\\App\\{$className}\n";
+}
+
+/**
+ * Copies assets/ into ui/public/assets/ so both the dev server and the
+ * Android bundle serve it the exact same way (a plain static file next to
+ * tailwind.css — no special-casing in the router).
+ */
+function syncAssets(): void
+{
+    $source = PHPX_ROOT . '/assets';
+    $destination = PHPX_ROOT . '/ui/public/assets';
+
+    if (is_dir($destination)) {
+        passthruOrFail('rm -rf ' . escapeshellarg($destination));
+    }
+
+    copyDirectory($source, $destination, ['README.md']);
 }
 
 function cmdServe(string $dir, int $port, ?string $router): void
 {
+    syncAssets();
+
     $publicDir = PHPX_ROOT . "/{$dir}/public";
     if (!is_dir($publicDir)) {
         phpxFail("no public/ directory found at {$publicDir}");
@@ -135,19 +155,24 @@ function cmdNew(string $directory): void
 
     mkdir($targetDir, 0777, true);
 
-    foreach (['engine', 'backend'] as $part) {
+    foreach (['ui', 'backend', 'android', 'ios', 'assets'] as $part) {
         $source = PHPX_ROOT . '/' . $part;
         $destination = $targetDir . '/' . $part;
-        copyDirectory($source, $destination, ['vendor', 'node_modules', '.flutter']);
+        copyDirectory($source, $destination, [
+            'vendor', 'node_modules', '.gradle', 'build', '.kotlin', 'local.properties',
+        ]);
         echo "Copied {$part}/ to {$destination}\n";
     }
 
+    copy(PHPX_ROOT . '/.env', $targetDir . '/.env');
+    echo "Copied .env to {$targetDir}/.env\n";
+
     echo "Project scaffolded at {$targetDir}\n";
-    echo "Next: cd {$directory}/engine && composer install && ../../bin/phpx serve\n";
+    echo "Next: cd {$directory} && composer install --working-dir=ui && composer install --working-dir=backend && bin/phpx serve\n";
 }
 
 /**
- * @param string[] $skip Directory names to skip entirely.
+ * @param string[] $skip Directory/file names to skip entirely.
  */
 function copyDirectory(string $source, string $destination, array $skip = []): void
 {
@@ -175,6 +200,8 @@ function copyDirectory(string $source, string $destination, array $skip = []): v
 
 function cmdBundleAndroid(): void
 {
+    syncAssets();
+
     $staging = PHPX_ROOT . '/android/app/src/main/assets/www';
 
     if (is_dir($staging)) {
@@ -182,20 +209,41 @@ function cmdBundleAndroid(): void
     }
     mkdir($staging, 0777, true);
 
+    // Mirrors the project root layout (ui/ and backend/ as siblings) so the
+    // relative paths each front controller uses to reach the other project
+    // and the shared root .env stay identical between dev and the bundle.
     foreach (['app', 'php', 'public', 'composer.json', 'composer.lock'] as $entry) {
-        $source = PHPX_ROOT . '/engine/' . $entry;
+        $source = PHPX_ROOT . '/ui/' . $entry;
         is_dir($source)
-            ? copyDirectory($source, "{$staging}/{$entry}")
-            : copy($source, "{$staging}/{$entry}");
+            ? copyDirectory($source, "{$staging}/ui/{$entry}")
+            : copy($source, "{$staging}/ui/{$entry}");
+    }
+
+    foreach (['src', 'composer.json', 'composer.lock'] as $entry) {
+        $source = PHPX_ROOT . '/backend/' . $entry;
+        is_dir($source)
+            ? copyDirectory($source, "{$staging}/backend/{$entry}")
+            : copy($source, "{$staging}/backend/{$entry}");
     }
 
     // "env" without the dot: AAPT silently drops hidden files from assets.
-    file_put_contents($staging . '/env', "APP_NAME=\"Mobile Engine\"\nAPP_DEBUG=false\n");
+    // Force APP_DEBUG=false in the shipped bundle regardless of the dev .env.
+    $env = file_get_contents(PHPX_ROOT . '/.env');
+    $env = preg_match('/^APP_DEBUG=/m', $env)
+        ? preg_replace('/^APP_DEBUG=.*$/m', 'APP_DEBUG=false', $env)
+        : $env . "\nAPP_DEBUG=false\n";
+    file_put_contents($staging . '/env', $env);
 
-    passthruOrFail('composer install --no-dev --no-interaction --quiet --working-dir=' . escapeshellarg($staging));
-    passthruOrFail('rm -rf ' . escapeshellarg($staging . '/composer.lock'));
+    passthruOrFail(
+        'composer install --no-dev --no-interaction --quiet --working-dir=' . escapeshellarg($staging . '/ui'),
+    );
+    passthruOrFail(
+        'composer install --no-dev --no-interaction --quiet --working-dir=' . escapeshellarg($staging . '/backend'),
+    );
+    passthruOrFail('rm -f ' . escapeshellarg($staging . '/ui/composer.lock'));
+    passthruOrFail('rm -f ' . escapeshellarg($staging . '/backend/composer.lock'));
 
-    echo "Bundled engine into {$staging}\n";
+    echo "Bundled ui/ + backend/ into {$staging}\n";
 }
 
 $command = $argv[1] ?? null;
@@ -205,7 +253,7 @@ switch ($command) {
         cmdMakeScreen($argv[2] ?? phpxFail('usage: phpx make:screen <Name> [route]'), $argv[3] ?? null);
         break;
     case 'serve':
-        cmdServe('engine', (int) ($argv[2] ?? 8090), 'router.php');
+        cmdServe('ui', (int) ($argv[2] ?? 8090), 'router.php');
         break;
     case 'serve:backend':
         cmdServe('backend', (int) ($argv[2] ?? 8091), null);

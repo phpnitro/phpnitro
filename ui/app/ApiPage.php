@@ -2,22 +2,24 @@
 
 namespace Engine\App;
 
+use Backend\Kernel;
 use Engine\BottomNavigation;
 use Engine\Column;
 use Engine\Link;
 use Engine\Screen;
 use Engine\Text;
 use Engine\Widget;
+use Symfony\Component\HttpFoundation\Request;
 
 /**
- * Demonstrates the mobile UI (engine/) calling the pure-PHP backend
- * (backend/, Symfony HttpFoundation) over HTTP — two separate PHP
- * processes talking to each other, both real PHP runtimes.
+ * Demonstrates the mobile UI calling the pure-PHP backend (backend/,
+ * Symfony HttpFoundation). Both live in the SAME PHP process, so this is a
+ * direct in-process call to Backend\Kernel — no HTTP round-trip, no second
+ * server to launch. (A loopback HTTP call to itself would deadlock anyway:
+ * PHP's built-in dev server handles one request at a time.)
  */
 final class ApiPage extends Screen
 {
-    private const BACKEND_URL = 'http://127.0.0.1:8091/api/hello';
-
     protected function initialState(): array
     {
         return [];
@@ -25,11 +27,9 @@ final class ApiPage extends Screen
 
     public function build(): Widget
     {
-        $message = $this->fetchBackendMessage();
-
         return Column::make([
             Text::make('Backend PHP', 'text-2xl font-bold text-gray-900 dark:text-gray-100'),
-            Text::make($message),
+            Text::make($this->fetchBackendMessage()),
             Link::make("Retour à l'accueil", '/'),
             BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS),
         ]);
@@ -37,14 +37,10 @@ final class ApiPage extends Screen
 
     private function fetchBackendMessage(): string
     {
-        $context = stream_context_create(['http' => ['timeout' => 2]]);
-        $response = @file_get_contents(self::BACKEND_URL, false, $context);
+        require_once dirname(__DIR__, 2) . '/backend/vendor/autoload.php';
 
-        if ($response === false) {
-            return 'Backend indisponible (lance `php -S 127.0.0.1:8091 -t public` dans backend/).';
-        }
-
-        $data = json_decode($response, true);
+        $request = Request::create('/api/hello');
+        $data = json_decode((new Kernel())->handle($request)->getContent(), true);
 
         return $data['message'] ?? 'Réponse inattendue du backend.';
     }

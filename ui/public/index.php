@@ -14,7 +14,7 @@ use Symfony\Component\Dotenv\Dotenv;
 
 // ".env" in dev; "env" (no dot) in the Android bundle, because AAPT drops
 // hidden files from APK assets.
-foreach ([__DIR__ . '/../.env', __DIR__ . '/../env'] as $envFile) {
+foreach ([__DIR__ . '/../../.env', __DIR__ . '/../../env'] as $envFile) {
     if (file_exists($envFile)) {
         (new Dotenv())->loadEnv($envFile);
         break;
@@ -49,6 +49,15 @@ if ($debug) {
 session_start();
 
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
+
+// The backend (Symfony HttpFoundation, its own composer project) is served
+// from this SAME PHP process — no second server/port to launch, which is
+// what makes it available implicitly, including inside the Android app.
+if (str_starts_with($path, '/api/')) {
+    require dirname(__DIR__, 2) . '/backend/vendor/autoload.php';
+    (new \Backend\Kernel())->handle(\Symfony\Component\HttpFoundation\Request::createFromGlobals())->send();
+    exit;
+}
 
 if ($debug && $path === '/_dev/version') {
     $latest = 0;
