@@ -69,7 +69,7 @@ class MainActivity : AppCompatActivity() {
                 callback.invoke(origin, granted, false)
             }
         }
-        webView.loadUrl("http://10.0.2.2:8090/")
+        webView.loadUrl("http://127.0.0.1:${PhpServer.PORT}/")
 
         setContentView(webView)
     }
