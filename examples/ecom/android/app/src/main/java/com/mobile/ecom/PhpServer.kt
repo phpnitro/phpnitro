@@ -3,6 +3,7 @@ package com.mobile.ecom
 import android.content.Context
 import java.io.File
 import java.net.InetSocketAddress
+import java.net.ServerSocket
 import java.net.Socket
 
 /**
@@ -14,20 +15,42 @@ import java.net.Socket
  * LD_LIBRARY_PATH must point at the native library dir too.
  *
  * Serves the PHP app copied from assets/www to filesDir. The WebView then
- * talks to http://127.0.0.1:PORT — PHP genuinely runs on the device.
+ * talks to http://127.0.0.1:<port> — PHP genuinely runs on the device.
+ *
+ * The port is picked dynamically (an OS-assigned free ephemeral port)
+ * instead of a hardcoded one: multiple apps built with this framework can
+ * end up on the same device (e.g. a demo app + a real app, both using
+ * PhpServer), and a shared hardcoded port would collide if both happen to
+ * be running at once — one app's WebView could end up talking to a
+ * different app's PHP process entirely. A dynamic port makes that
+ * structurally impossible rather than relying on cleanup/ordering.
  */
 class PhpServer(private val context: Context) {
 
     companion object {
-        const val PORT = 8090
+        private const val PREFS_NAME = "phpx_server"
+        private const val PREF_PORT = "port"
+
+        /**
+         * Last known bound port, persisted so other components started
+         * independently of MainActivity (e.g. a push notification service
+         * reacting to a message) can still reach the running server without
+         * needing a hardcoded port.
+         */
+        fun lastKnownPort(context: Context): Int =
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getInt(PREF_PORT, 0)
     }
 
     private var process: Process? = null
+    private var port: Int = 0
 
-    fun start() {
-        if (isListening()) {
-            return
-        }
+    /** Returns the port the server actually bound to. */
+    fun start(): Int {
+        val freePort = findFreePort()
+        port = freePort
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putInt(PREF_PORT, freePort)
+            .apply()
 
         val www = copyAssets()
         val nativeDir = context.applicationInfo.nativeLibraryDir
@@ -37,7 +60,7 @@ class PhpServer(private val context: Context) {
 
         val builder = ProcessBuilder(
             php.absolutePath,
-            "-S", "127.0.0.1:$PORT",
+            "-S", "127.0.0.1:$freePort",
             "-t", File(www, "ui/public").absolutePath,
             "-d", "session.save_path=${sessions.absolutePath}",
             "-d", "sys_temp_dir=${tmp.absolutePath}",
@@ -52,8 +75,18 @@ class PhpServer(private val context: Context) {
 
         process = builder.start()
 
-        waitUntilListening()
+        waitUntilListening(freePort)
+
+        return freePort
     }
+
+    /** Kills the PHP subprocess. Call from onDestroy for a clean shutdown. */
+    fun stop() {
+        process?.destroy()
+        process = null
+    }
+
+    private fun findFreePort(): Int = ServerSocket(0).use { it.localPort }
 
     private fun copyAssets(): File {
         val target = File(context.filesDir, "www")
@@ -80,16 +113,16 @@ class PhpServer(private val context: Context) {
         }
     }
 
-    private fun isListening(): Boolean = try {
-        Socket().use { it.connect(InetSocketAddress("127.0.0.1", PORT), 200) }
+    private fun isListening(port: Int): Boolean = try {
+        Socket().use { it.connect(InetSocketAddress("127.0.0.1", port), 200) }
         true
     } catch (_: Exception) {
         false
     }
 
-    private fun waitUntilListening() {
+    private fun waitUntilListening(port: Int) {
         repeat(80) {
-            if (isListening()) {
+            if (isListening(port)) {
                 return
             }
             Thread.sleep(150)
