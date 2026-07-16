@@ -17,3 +17,9 @@
 /examples/*/ui/node_modules/
 /examples/*/backend/vendor/
 /examples/*/backend/var/*.sqlite
+/examples/*/android/.gradle/
+/examples/*/android/build/
+/examples/*/android/app/build/
+/examples/*/android/local.properties
+/examples/*/android/.kotlin/
+/examples/*/android/app/src/main/assets/www/

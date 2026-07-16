@@ -1,0 +1,70 @@
+package com.mobile.ecom
+
+import android.util.Log
+import com.google.firebase.messaging.FirebaseMessagingService
+import com.google.firebase.messaging.RemoteMessage
+import java.io.OutputStreamWriter
+import java.net.HttpURLConnection
+import java.net.URL
+
+/**
+ * Firebase Cloud Messaging service — NOT compiled by default (.kt.example,
+ * not .kt) because it needs a real Firebase project to even build:
+ *
+ * 1. Create a project at https://console.firebase.google.com, add an
+ *    Android app with applicationId "com.mobile.engine" (or your own).
+ * 2. Download the generated google-services.json into android/app/.
+ * 3. In android/build.gradle.kts, uncomment:
+ *      id("com.google.gms.google-services") version "4.4.2" apply false
+ * 4. In android/app/build.gradle.kts, uncomment:
+ *      id("com.google.gms.google-services")
+ *      implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
+ *      implementation("com.google.firebase:firebase-messaging")
+ * 5. Rename this file to FcmService.kt.
+ * 6. Register it in AndroidManifest.xml inside <application>:
+ *      <service android:name=".FcmService" android:exported="false">
+ *          <intent-filter><action android:name="com.google.firebase.MESSAGING_EVENT" /></intent-filter>
+ *      </service>
+ *
+ * Once active: onNewToken() fires with the device's push token, which this
+ * forwards to the backend's /api/fcm/register (see
+ * backend/src/Controller/FcmController.php) so a server-side job can later
+ * send notifications to it via the Firebase Admin SDK / FCM HTTP v1 API
+ * (not implemented here — that's a separate server-side piece, typically
+ * NOT run from the PHP-on-device process but from your own infrastructure,
+ * since sending push notifications requires your Firebase service account
+ * credentials, which must never ship inside the app).
+ */
+class FcmService : FirebaseMessagingService() {
+
+    override fun onNewToken(token: String) {
+        super.onNewToken(token)
+        Thread { registerToken(token) }.start()
+    }
+
+    override fun onMessageReceived(message: RemoteMessage) {
+        super.onMessageReceived(message)
+        Log.d("FcmService", "Message received: ${message.data}")
+        // Show a system notification here (NotificationCompat.Builder) if
+        // message.notification is non-null and the app is backgrounded.
+    }
+
+    private fun registerToken(token: String) {
+        try {
+            val url = URL("http://127.0.0.1:${PhpServer.PORT}/api/fcm/register")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json")
+
+            OutputStreamWriter(connection.outputStream).use {
+                it.write("""{"token":"$token"}""")
+            }
+
+            connection.responseCode
+            connection.disconnect()
+        } catch (e: Exception) {
+            Log.e("FcmService", "Failed to register FCM token", e)
+        }
+    }
+}

@@ -13,6 +13,16 @@ cd ui && php -S 127.0.0.1:8090 -t public public/router.php
 
 Ouvre `http://127.0.0.1:8090/`.
 
+## Android
+
+APK dédié (package `com.mobile.ecom`, distinct de la démo racine — les deux s'installent en même temps) : voir `android/README.md`. **Vérifié sur device réel** (Infinix X6532) : catalogue affiché, données servies par le PHP embarqué sur le téléphone.
+
+```bash
+bash bundle-android.sh
+cd android && gradle :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
 ## Ce que ça démontre
 
 | Écran | Route | Widgets / fonctionnalités |
@@ -33,4 +43,4 @@ Ouvre `http://127.0.0.1:8090/`.
 
 - Photos produits : images aléatoires ([picsum.photos](https://picsum.photos)) plutôt que des vraies photos produit — suffisant pour démontrer la mise en page, pas pour un vrai catalogue.
 - Pas de vrai paiement (le bouton biométrique confirme localement, ne débite rien).
-- Pas encore packagé en APK Android dédié — utilise le même mécanisme que le framework principal (`bin/phpx bundle:android` root, à adapter si tu veux packager spécifiquement cet exemple).
+- Les images produits mettent quelques secondes à charger sur le device réel (réseau du téléphone) — comportement normal, pas un bug.
