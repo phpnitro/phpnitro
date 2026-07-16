@@ -12,3 +12,4 @@
 /ui/.phpunit.result.cache
 /android/app/src/main/assets/www/
 /dist/
+/.vscode/
