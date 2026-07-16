@@ -9,19 +9,24 @@ use Engine\App\LoginPage;
 use Engine\App\ProductPage;
 use Engine\App\SettingsPage;
 use Engine\Csrf;
+use Engine\Database\Database;
 use Engine\Router;
 use Symfony\Component\Dotenv\Dotenv;
 
 // ".env" in dev; "env" (no dot) in the Android bundle, because AAPT drops
-// hidden files from APK assets. Three levels up either way: public -> pages ->
-// lib -> project root (the bundle mirrors the same lib/pages, lib/backend
-// layout, see bin/phpx's cmdBundleAndroid).
-foreach ([__DIR__ . '/../../../.env', __DIR__ . '/../../../env'] as $envFile) {
+// hidden files from APK assets. One level up either way: public -> project
+// root (the bundle mirrors this same layout, see bin/phpx's cmdBundleAndroid).
+foreach ([__DIR__ . '/../.env', __DIR__ . '/../env'] as $envFile) {
     if (file_exists($envFile)) {
         (new Dotenv())->loadEnv($envFile);
         break;
     }
 }
+
+// Single place that pins the SQLite path — a single autoloader/vendor now
+// covers the whole app, so this runs once here instead of once per entry
+// point (no more separate lib/backend/bootstrap.php).
+Database::useSqlitePath(__DIR__ . '/../lib/backend/var/data.sqlite');
 
 $debug = ($_ENV['APP_DEBUG'] ?? 'true') === 'true';
 
@@ -52,11 +57,10 @@ session_start();
 
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
 
-// The backend (Symfony HttpFoundation, its own composer project) is served
-// from this SAME PHP process — no second server/port to launch, which is
-// what makes it available implicitly, including inside the Android app.
+// The backend (Symfony HttpFoundation) is handled from this SAME PHP
+// process — no second server/port to launch, which is what makes it
+// available implicitly, including inside the Android app.
 if (str_starts_with($path, '/api/')) {
-    require dirname(__DIR__, 2) . '/backend/bootstrap.php';
     (new \Backend\Kernel())->handle(\Symfony\Component\HttpFoundation\Request::createFromGlobals())->send();
     exit;
 }
@@ -71,7 +75,7 @@ if ($path === '/fragment/server-time') {
 
 if ($debug && $path === '/_dev/version') {
     $latest = 0;
-    foreach (['app', 'php', 'public'] as $dir) {
+    foreach (['lib/pages/app', 'lib/backend/src', 'public'] as $dir) {
         $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(
             dirname(__DIR__) . '/' . $dir,
             FilesystemIterator::SKIP_DOTS,
@@ -138,11 +142,11 @@ $theme = $_SESSION['theme'] ?? 'light';
     <meta name="csrf-token" content="<?= htmlspecialchars(Csrf::token(), ENT_QUOTES) ?>">
     <title><?= htmlspecialchars($_ENV['APP_NAME'] ?? 'PHP Engine', ENT_QUOTES) ?></title>
     <link rel="stylesheet" href="/tailwind.css">
-    <script src="/gestures.js" defer></script>
-    <script src="/device.js" defer></script>
-    <script src="/stream.js" defer></script>
-    <script src="/future.js" defer></script>
-    <?php if ($debug) { ?><script src="/dev-reload.js" defer></script><?php } ?>
+    <script src="/assets/js/gestures.js" defer></script>
+    <script src="/assets/js/device.js" defer></script>
+    <script src="/assets/js/stream.js" defer></script>
+    <script src="/assets/js/future.js" defer></script>
+    <?php if ($debug) { ?><script src="/assets/js/dev-reload.js" defer></script><?php } ?>
 </head>
 
 <body class="bg-gray-50 dark:bg-gray-900 dark:text-gray-100 min-h-screen">

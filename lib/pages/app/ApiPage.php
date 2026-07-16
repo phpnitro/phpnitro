@@ -37,8 +37,6 @@ final class ApiPage extends Screen
 
     private function fetchBackendMessage(): string
     {
-        require_once dirname(__DIR__, 2) . '/backend/bootstrap.php';
-
         $request = Request::create('/api/hello');
         $data = json_decode((new Kernel())->handle($request)->getContent(), true);
 
