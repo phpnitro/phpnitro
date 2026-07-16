@@ -1,4 +1,6 @@
 .claude/
+/packages/ui/vendor/
+/packages/ui/.phpunit.result.cache
 /backend/vendor/
 /ui/vendor/
 /ui/node_modules/
