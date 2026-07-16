@@ -141,6 +141,7 @@ $theme = $_SESSION['theme'] ?? 'light';
     <script src="/gestures.js" defer></script>
     <script src="/device.js" defer></script>
     <script src="/stream.js" defer></script>
+    <script src="/future.js" defer></script>
     <?php if ($debug) { ?><script src="/dev-reload.js" defer></script><?php } ?>
 </head>
 
