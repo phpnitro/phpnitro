@@ -1,9 +1,12 @@
 .claude/
 /packages/ui/vendor/
 /packages/ui/.phpunit.result.cache
+/packages/database/vendor/
+/packages/database/.phpunit.result.cache
 /lib/backend/vendor/
-/lib/ui/vendor/
-/lib/ui/node_modules/
+/lib/pages/vendor/
+/lib/pages/node_modules/
+composer.lock
 /android/.gradle/
 /android/build/
 /android/app/build/

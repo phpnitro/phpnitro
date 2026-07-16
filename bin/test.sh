@@ -17,14 +17,14 @@ test -f "$WORKDIR/demo-app/.env" || { echo "FAIL: .env missing from scaffold"; e
 echo "OK"
 
 echo "== composer install (ui + backend) =="
-composer install --working-dir="$WORKDIR/demo-app/lib/ui" --quiet
+composer install --working-dir="$WORKDIR/demo-app/lib/pages" --quiet
 composer install --working-dir="$WORKDIR/demo-app/lib/backend" --quiet
 echo "OK"
 
 echo "== phpx make:screen =="
 (cd "$WORKDIR/demo-app" && php bin/phpx make:screen About)
-test -f "$WORKDIR/demo-app/lib/ui/app/AboutPage.php" || { echo "FAIL: AboutPage.php not created"; exit 1; }
-grep -q "AboutPage" "$WORKDIR/demo-app/lib/ui/public/index.php" || { echo "FAIL: route not registered"; exit 1; }
+test -f "$WORKDIR/demo-app/lib/pages/app/AboutPage.php" || { echo "FAIL: AboutPage.php not created"; exit 1; }
+grep -q "AboutPage" "$WORKDIR/demo-app/lib/pages/public/index.php" || { echo "FAIL: route not registered"; exit 1; }
 echo "OK"
 
 echo "== phpx serve (real HTTP requests) =="
@@ -41,7 +41,7 @@ echo "OK"
 
 echo "== phpx bundle:android =="
 (cd "$WORKDIR/demo-app" && php bin/phpx bundle:android)
-test -d "$WORKDIR/demo-app/android/app/src/main/assets/www/lib/ui/public" || { echo "FAIL: ui/ not bundled"; exit 1; }
+test -d "$WORKDIR/demo-app/android/app/src/main/assets/www/lib/pages/public" || { echo "FAIL: pages/ not bundled"; exit 1; }
 test -d "$WORKDIR/demo-app/android/app/src/main/assets/www/lib/backend/vendor" || { echo "FAIL: backend/ not bundled"; exit 1; }
 test -f "$WORKDIR/demo-app/android/app/src/main/assets/www/env" || { echo "FAIL: env not bundled"; exit 1; }
 echo "OK"
