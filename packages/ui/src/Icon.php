@@ -100,6 +100,27 @@ final class Icon
         );
     }
 
+    public static function cart(string $classes = 'w-5 h-5'): string
+    {
+        return self::wrap(
+            $classes,
+            '<path d="M3 4h2l2.4 12.4a2 2 0 0 0 2 1.6h7.2a2 2 0 0 0 2-1.6L20 8H6" fill="none" '
+            . 'stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+            . '<circle cx="10" cy="21" r="1.4" fill="currentColor"/>'
+            . '<circle cx="17" cy="21" r="1.4" fill="currentColor"/>',
+        );
+    }
+
+    public static function user(string $classes = 'w-5 h-5'): string
+    {
+        return self::wrap(
+            $classes,
+            '<circle cx="12" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="1.5"/>'
+            . '<path d="M4.5 20c1.2-3.6 4.2-5.5 7.5-5.5s6.3 1.9 7.5 5.5" fill="none" '
+            . 'stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+        );
+    }
+
     private static function wrap(string $classes, string $inner): string
     {
         $classes = htmlspecialchars($classes, ENT_QUOTES);
