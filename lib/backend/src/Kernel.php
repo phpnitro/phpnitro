@@ -5,19 +5,26 @@ namespace Backend;
 use Backend\Controller\FcmController;
 use Backend\Controller\HelloController;
 use Backend\Controller\UploadController;
+use Engine\Database\Database;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Routes an already-built Request to a Controller and returns the Response.
- * Extracted out of public/index.php so the exact same dispatch logic can be
- * called in-process from ui/'s router (single on-device PHP process) as
- * well as from the standalone backend/public/index.php (local API-only dev
- * server via `phpx serve:backend`).
+ * Called in-process from lib/pages' front controller (single on-device PHP
+ * process, no second server/port) — this is the only entry point backend/
+ * has, it has no public/ of its own.
  */
 final class Kernel
 {
+    public function __construct()
+    {
+        // packages/database doesn't know where "here" is, so the app pins
+        // it once at boot instead of the package guessing a path.
+        Database::useSqlitePath(dirname(__DIR__) . '/var/data.sqlite');
+    }
+
     public function handle(Request $request): Response
     {
         $path = $request->getPathInfo();

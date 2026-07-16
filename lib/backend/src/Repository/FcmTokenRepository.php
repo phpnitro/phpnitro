@@ -2,7 +2,7 @@
 
 namespace Backend\Repository;
 
-use Backend\Database;
+use Engine\Database\Database;
 
 /**
  * Stores device push tokens (Firebase Cloud Messaging) so a backend job can

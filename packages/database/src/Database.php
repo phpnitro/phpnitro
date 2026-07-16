@@ -1,6 +1,6 @@
 <?php
 
-namespace Backend;
+namespace Engine\Database;
 
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
@@ -17,6 +17,10 @@ use Doctrine\DBAL\Tools\DsnParser;
  * previously-open connection turns out to have been dropped mid-session —
  * a caller just gets a working Connection either way instead of a raw PDO
  * "server has gone away" exception.
+ *
+ * This package doesn't know the consuming app's directory layout, so the
+ * default SQLite path is relative to getcwd() unless the app pins it
+ * explicitly via useSqlitePath() at boot (see Backend\Kernel).
  */
 final class Database
 {
@@ -24,6 +28,12 @@ final class Database
     private const RETRY_DELAY_MS = 200;
 
     private static ?Connection $connection = null;
+    private static ?string $sqlitePath = null;
+
+    public static function useSqlitePath(string $path): void
+    {
+        self::$sqlitePath = $path;
+    }
 
     public static function connection(): Connection
     {
@@ -68,7 +78,7 @@ final class Database
 
     private static function connect(): Connection
     {
-        $path = dirname(__DIR__) . '/var/data.sqlite';
+        $path = self::$sqlitePath ?? getcwd() . '/var/data.sqlite';
         $url = $_ENV['DATABASE_URL'] ?? 'sqlite:///' . $path;
 
         if (!isset($_ENV['DATABASE_URL']) && !is_dir(dirname($path))) {

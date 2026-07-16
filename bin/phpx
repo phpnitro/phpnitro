@@ -235,12 +235,15 @@ function cmdBundleAndroid(): void
             : copy($source, "{$staging}/lib/backend/{$entry}");
     }
 
-    // The widget SDK package itself, copied as real files (not the symlink
-    // Composer's path repository normally uses) — Android's AssetManager
-    // can't follow symlinks when the bundle is later packaged into the APK.
-    mkdir("{$staging}/packages/ui", 0777, true);
-    copyDirectory(PHPX_ROOT . '/packages/ui/src', "{$staging}/packages/ui/src");
-    copy(PHPX_ROOT . '/packages/ui/composer.json', "{$staging}/packages/ui/composer.json");
+    // The widget SDK and database packages themselves, copied as real files
+    // (not the symlink Composer's path repository normally uses) — Android's
+    // AssetManager can't follow symlinks when the bundle is later packaged
+    // into the APK.
+    foreach (['ui', 'database'] as $package) {
+        mkdir("{$staging}/packages/{$package}", 0777, true);
+        copyDirectory(PHPX_ROOT . "/packages/{$package}/src", "{$staging}/packages/{$package}/src");
+        copy(PHPX_ROOT . "/packages/{$package}/composer.json", "{$staging}/packages/{$package}/composer.json");
+    }
 
     // "env" without the dot: AAPT silently drops hidden files from assets.
     // Force APP_DEBUG=false in the shipped bundle regardless of the dev .env.
@@ -259,13 +262,15 @@ function cmdBundleAndroid(): void
     passthruOrFail('rm -f ' . escapeshellarg($staging . '/lib/pages/composer.lock'));
     passthruOrFail('rm -f ' . escapeshellarg($staging . '/lib/backend/composer.lock'));
 
-    // Composer's path repository installs phpnitro/ui as a symlink — replace
-    // it with a real copy (Android's AssetManager can't follow symlinks).
-    $symlinkPath = $staging . '/lib/pages/vendor/phpnitro/ui';
-    if (is_link($symlinkPath)) {
-        $realTarget = realpath($symlinkPath);
-        unlink($symlinkPath);
-        copyDirectory($realTarget, $symlinkPath);
+    // Composer's path repositories install phpnitro/ui and phpnitro/database
+    // as symlinks — replace them with real copies (Android's AssetManager
+    // can't follow symlinks).
+    foreach ([$staging . '/lib/pages/vendor/phpnitro/ui', $staging . '/lib/backend/vendor/phpnitro/database'] as $symlinkPath) {
+        if (is_link($symlinkPath)) {
+            $realTarget = realpath($symlinkPath);
+            unlink($symlinkPath);
+            copyDirectory($realTarget, $symlinkPath);
+        }
     }
 
     echo "Bundled lib/pages + lib/backend into {$staging}\n";

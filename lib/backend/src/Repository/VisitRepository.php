@@ -2,7 +2,7 @@
 
 namespace Backend\Repository;
 
-use Backend\Database;
+use Engine\Database\Database;
 
 final class VisitRepository
 {
