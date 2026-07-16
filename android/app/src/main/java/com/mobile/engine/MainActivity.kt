@@ -16,6 +16,7 @@ import android.webkit.WebViewClient
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
 /**
  * Hosts the PHP-served UI in a native WebView, backed by PhpServer — a
@@ -25,8 +26,13 @@ import androidx.core.app.ActivityCompat
  *
  * Grants the runtime permissions and WebView callbacks needed for the
  * device-capability widgets (camera, microphone, geolocation) to work from
- * the pages served by engine/, and exposes WebAppInterface as
- * window.AndroidNative for the genuinely-native vibrate/camera path.
+ * the pages served by ui/, and exposes WebAppInterface as
+ * window.AndroidNative for the genuinely-native vibrate/camera/biometric/
+ * notification/print path.
+ *
+ * A native SplashScreen (see themes.xml, Theme.App.Starting) stays on
+ * screen until PhpServer has actually bound its port AND the WebView has
+ * finished loading — no fixed timeout, no blank-white flash while PHP boots.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -34,24 +40,40 @@ class MainActivity : AppCompatActivity() {
         Manifest.permission.CAMERA,
         Manifest.permission.RECORD_AUDIO,
         Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.POST_NOTIFICATIONS,
     )
 
     private lateinit var webAppInterface: WebAppInterface
+    private lateinit var phpServer: PhpServer
+
+    @Volatile
+    private var serverReady = false
+
+    @Volatile
+    private var pageLoaded = false
+
+    @Volatile
+    private var port = 0
 
     private val takePicturePreview = registerForActivityResult(
         ActivityResultContracts.TakePicturePreview(),
     ) { bitmap -> webAppInterface.deliverPhoto(bitmap) }
 
+    private val pickImage = registerForActivityResult(
+        ActivityResultContracts.GetContent(),
+    ) { uri -> webAppInterface.deliverPickedImage(uri) }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        splashScreen.setKeepOnScreenCondition { !(serverReady && pageLoaded) }
 
         ActivityCompat.requestPermissions(this, requestedPermissions, 0)
 
-        Thread { PhpServer(this).start() }.also { it.start(); it.join(15000) }
-
         val webView = WebView(this)
         webAppInterface = WebAppInterface(this, webView) { takePicturePreview.launch(null) }
+            .also { it.onImagePickRequested = { pickImage.launch("image/*") } }
         webView.addJavascriptInterface(webAppInterface, "AndroidNative")
 
         webView.settings.javaScriptEnabled = true
@@ -63,20 +85,22 @@ class MainActivity : AppCompatActivity() {
         webView.isVerticalScrollBarEnabled = false
         webView.isHorizontalScrollBarEnabled = false
         // Defensive: if the very first load races the PHP server still
-        // starting up (slow asset copy on first install, low-end device...),
-        // retry instead of leaving a permanently blank WebView — there is no
-        // automatic retry otherwise.
+        // starting up, retry instead of leaving a permanently blank WebView.
         webView.webViewClient = object : WebViewClient() {
             override fun onReceivedError(
                 view: WebView,
                 request: WebResourceRequest,
                 error: WebResourceError,
             ) {
-                if (request.isForMainFrame) {
+                if (request.isForMainFrame && port != 0) {
                     Handler(Looper.getMainLooper()).postDelayed({
-                        view.loadUrl("http://127.0.0.1:${PhpServer.PORT}/")
+                        view.loadUrl("http://127.0.0.1:$port/")
                     }, 1000)
                 }
+            }
+
+            override fun onPageFinished(view: WebView, url: String) {
+                pageLoaded = true
             }
         }
         webView.webChromeClient = object : WebChromeClient() {
@@ -95,8 +119,20 @@ class MainActivity : AppCompatActivity() {
                 callback.invoke(origin, granted, false)
             }
         }
-        webView.loadUrl("http://127.0.0.1:${PhpServer.PORT}/")
 
         setContentView(webView)
+
+        phpServer = PhpServer(this)
+        Thread {
+            val boundPort = phpServer.start()
+            port = boundPort
+            serverReady = true
+            runOnUiThread { webView.loadUrl("http://127.0.0.1:$boundPort/") }
+        }.start()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        phpServer.stop()
     }
 }

@@ -51,7 +51,8 @@ class FcmService : FirebaseMessagingService() {
 
     private fun registerToken(token: String) {
         try {
-            val url = URL("http://127.0.0.1:${PhpServer.PORT}/api/fcm/register")
+            val port = PhpServer.lastKnownPort(this)
+            val url = URL("http://127.0.0.1:$port/api/fcm/register")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.doOutput = true

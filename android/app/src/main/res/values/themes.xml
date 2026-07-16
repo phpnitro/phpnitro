@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shown natively by the OS while PhpServer boots — replaces the old
+         fixed-timeout blocking wait with an actual splash screen that stays
+         up exactly until the server is ready and the page has loaded, no
+         guessed delay, no blank WebView flash in between. -->
+    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.AppCompat.DayNight.NoActionBar</item>
+    </style>
+</resources>
