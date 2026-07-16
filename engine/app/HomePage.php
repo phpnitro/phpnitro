@@ -2,6 +2,7 @@
 
 namespace Engine\App;
 
+use Engine\AppBar;
 use Engine\BottomNavigation;
 use Engine\Button;
 use Engine\Color;
@@ -10,6 +11,8 @@ use Engine\FloatingActionButton;
 use Engine\FontWeight;
 use Engine\GestureDetector;
 use Engine\Link;
+use Engine\ListView;
+use Engine\Scaffold;
 use Engine\Screen;
 use Engine\Text;
 use Engine\TextSize;
@@ -33,22 +36,41 @@ final class HomePage extends Screen
         $this->state['count']--;
     }
 
+    protected function onLogout(): void
+    {
+        unset($_SESSION['auth_user']);
+    }
+
     public function build(): Widget
     {
-        return Column::make([
-            Text::make('Mon application', size: TextSize::XL2, weight: FontWeight::BOLD, color: Color::gray(900)),
-            GestureDetector::make(
-                Text::make('Compteur : ' . $this->state['count'] . ' (double-clic ou swipe)'),
-                onDoubleClick: 'increment',
-                onSwipeLeft: 'decrement',
-                onSwipeRight: 'increment',
-            ),
-            Button::make('Incrémenter', action: 'increment'),
-            Link::make('Réglages', '/settings'),
-            Link::make('Produit #42', '/product/42'),
-            ThemeToggle::make(),
-            FloatingActionButton::make('+', action: 'increment'),
-            BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS),
-        ]);
+        $user = $_SESSION['auth_user'] ?? null;
+
+        $authRow = $user !== null
+            ? Column::make([
+                Text::make("Connecté : {$user}", color: Color::green(600), weight: FontWeight::MEDIUM),
+                Button::make('Se déconnecter', action: 'logout', classes: 'text-sm text-red-600 hover:underline text-left'),
+            ], 'flex flex-col gap-1')
+            : Link::make('Se connecter', '/login');
+
+        return Scaffold::make(
+            body: Column::make([
+                $authRow,
+                GestureDetector::make(
+                    Text::make('Compteur : ' . $this->state['count'] . ' (double-clic ou swipe)'),
+                    onDoubleClick: 'increment',
+                    onSwipeLeft: 'decrement',
+                    onSwipeRight: 'increment',
+                ),
+                Button::make('Incrémenter', action: 'increment'),
+                ListView::make([
+                    Link::make('Réglages', '/settings'),
+                    Link::make('Produit #42', '/product/42'),
+                    ThemeToggle::make(),
+                ]),
+            ], 'flex flex-col gap-4'),
+            appBar: AppBar::make('Mon application'),
+            bottomNavigation: BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS),
+            floatingActionButton: FloatingActionButton::make('+', action: 'increment'),
+        );
     }
 }
