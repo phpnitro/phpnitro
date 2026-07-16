@@ -13,3 +13,7 @@
 /android/app/src/main/assets/www/
 /dist/
 /.vscode/
+/examples/*/ui/vendor/
+/examples/*/ui/node_modules/
+/examples/*/backend/vendor/
+/examples/*/backend/var/*.sqlite
