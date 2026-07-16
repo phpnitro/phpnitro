@@ -16,6 +16,15 @@ final class Image extends Widget
         return new self($src, $alt, $classes);
     }
 
+    /**
+     * Flutter-parity alias for a remote URL (Image.network / NetworkImage) —
+     * identical to make(), src is already just a URL or local path either way.
+     */
+    public static function network(string $url, string $alt = '', string $classes = 'max-w-full h-auto'): self
+    {
+        return new self($url, $alt, $classes);
+    }
+
     public function render(): string
     {
         return sprintf(
