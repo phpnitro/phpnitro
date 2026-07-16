@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1</string>
+    <key>UILaunchStoryboardName</key>
+    <string></string>
+
+    <!-- Same device-capability widgets as Android (VibrateButton has no iOS
+         equivalent permission; LocationButton/CameraPreview/MicrophoneButton do). -->
+    <key>NSCameraUsageDescription</key>
+    <string>Camera access is used by CameraPreview widgets in your PHP screens.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Microphone access is used by MicrophoneButton widgets in your PHP screens.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Location access is used by LocationButton widgets in your PHP screens.</string>
+
+    <!-- Equivalent of android:usesCleartextTraffic="true" — allows plain HTTP
+         to the local PHP server during development. Restrict this before a
+         real App Store submission. -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <true/>
+    </dict>
+</dict>
+</plist>
