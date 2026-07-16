@@ -7,11 +7,8 @@ on:
 
 jobs:
   phpunit:
-    name: PHPUnit (${{ matrix.package }})
+    name: PHPUnit (packages/ui + packages/database)
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        package: [packages/ui, packages/database]
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
@@ -20,9 +17,7 @@ jobs:
           extensions: dom, pdo_sqlite
           coverage: none
       - run: composer install --no-interaction --prefer-dist
-        working-directory: ${{ matrix.package }}
       - run: vendor/bin/phpunit
-        working-directory: ${{ matrix.package }}
 
   phpx-smoke-test:
     name: bin/test.sh (phpx smoke test)
