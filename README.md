@@ -117,6 +117,34 @@ Le widget `Link::make($label, $href)` génère un `<a href="...">` classique —
 
 Une route comme `/product/{id}` capture le segment dans `$this->params['id']`, accessible dans `build()` (voir `engine/app/ProductPage.php`). Chaque combinaison classe+paramètres a son propre état de session (deux visites de `/product/1` et `/product/2` ne partagent pas leur état).
 
+## Formulaires et actions paramétrées
+
+`Form` regroupe des champs et poste une action nommée ; l'écran reçoit toutes les valeurs saisies dans `onXxx(array $data)`, et peut retourner un chemin pour rediriger :
+
+```php
+// build():
+Form::make([
+    TextField::make('username', label: 'Utilisateur'),
+    TextField::make('password', label: 'Mot de passe', type: 'password'),
+    Checkbox::make('remember', 'Se souvenir de moi'),
+    Button::make('Se connecter'),
+], action: 'login'),
+
+// handler:
+protected function onLogin(array $data): ?string
+{
+    if ($data['username'] === 'demo' && $data['password'] === 'demo') {
+        return '/';              // redirection programmatique
+    }
+    $this->state['error'] = 'Identifiants invalides.';
+    return null;                 // reste sur la page
+}
+```
+
+Démo complète : `/login` (`engine/app/LoginPage.php`), identifiants `demo`/`demo`.
+
+Tous les POST (boutons, formulaires, gestes) embarquent un jeton CSRF vérifié globalement — requête forgée → 419.
+
 ## Widgets disponibles
 
 | PHP | Rend en |
@@ -198,13 +226,28 @@ backend/
   .env                      config (chargée via symfony/dotenv)
 ```
 
+## Construire l'APK (PHP embarqué sur le device)
+
+L'app Android embarque un **binaire PHP 8.4 statique** (musl, arm64, ~10 Mo, packagé en `jniLibs/arm64-v8a/libphp.so` pour pouvoir être exécuté depuis le répertoire natif en lecture seule — Android interdit l'exec depuis le stockage inscriptible). Au lancement, `PhpServer.kt` copie l'app PHP des assets vers `filesDir`, démarre `php -S 127.0.0.1:8090`, et la WebView s'y connecte : **PHP tourne réellement sur le téléphone**, pas sur un serveur distant.
+
+```bash
+php bin/phpx bundle:android   # copie engine/ (vendor --no-dev, APP_DEBUG=false) dans les assets
+cd android
+gradle :app:assembleDebug     # ou via Android Studio
+# → android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Prérequis build : Android SDK (compileSdk 35), Gradle ≥ 8.9, JDK 17. Le binaire PHP statique vient de [static-php.dev](https://dl.static-php.dev/static-php-cli/common/) (`php-8.4.x-cli-linux-aarch64.tar.gz`, renommé `libphp.so` dans `android/app/src/main/jniLibs/arm64-v8a/` — gitignoré, à re-télécharger si absent).
+
+Installation sur téléphone : transfère l'APK (câble, `adb install`, ou partage de fichier), autorise l'installation de sources inconnues, installe. APK signé en debug (parfait pour tester, pas pour le Play Store — il faudra une clé de release). Architecture arm64-v8a uniquement (tous les Android récents).
+
 ## Coquille Android
 
 `android/` contient un projet Gradle minimal (`MainActivity` + `WebView`) pointé sur le serveur PHP. **Non vérifié dans cet environnement** (pas d'émulateur configuré, pas de Gradle installé) — voir `android/README.md` pour les instructions et la limite actuelle (pointe vers un PHP hébergé sur le réseau local, pas encore un PHP embarqué sur le device).
 
 ## Limites actuelles
 
-- Pas de PHP embarqué *sur* le device — c'est le plus gros chantier restant (cross-compiler PHP pour Android/iOS), voir la feuille de route
+- PHP embarqué Android : fait (binaire statique + PhpServer) mais **jamais lancé sur un vrai téléphone par moi** — l'APK est vérifié par simulation locale exacte (même bundle, binaire x86_64 jumeau) ; premier lancement réel = ton installation
 - Pas encore d'équivalent iOS (WKWebView) — nécessite une machine macOS/Xcode, indisponible dans cet environnement
 - Les actions serveur (`onXxx`) ne reçoivent pas encore de paramètres (seules les routes en reçoivent, via `{id}`)
 - Caméra/micro/localisation/vibreur : vérifiés uniquement au niveau HTML/JS (structure correcte, Web APIs standard) — jamais testés sur un vrai device/émulateur Android faute d'environnement disponible ici
