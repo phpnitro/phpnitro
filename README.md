@@ -4,6 +4,8 @@
 
 Contrairement à une première approche envisagée (transpiler le PHP vers Dart/Flutter), **PHP reste ici le vrai runtime** : ce n'est pas un langage source qui disparaît à la compilation, c'est le code qui s'exécute réellement à chaque interaction — comme le ferait un serveur web classique, mais embarqué sur le device. **Vérifié de bout en bout sur un vrai téléphone Android** (voir `android/README.md`).
 
+**Exemple complet** : `examples/ecom` — une boutique en ligne (catalogue, panier, checkout, compte, carte, biométrie, suivi de commande en direct) qui utilise la quasi-totalité du framework. Voir `examples/ecom/README.md`.
+
 ## Architecture d'un projet
 
 ```
