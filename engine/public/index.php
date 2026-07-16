@@ -12,7 +12,14 @@ use Engine\Csrf;
 use Engine\Router;
 use Symfony\Component\Dotenv\Dotenv;
 
-(new Dotenv())->loadEnv(__DIR__ . '/../.env');
+// ".env" in dev; "env" (no dot) in the Android bundle, because AAPT drops
+// hidden files from APK assets.
+foreach ([__DIR__ . '/../.env', __DIR__ . '/../env'] as $envFile) {
+    if (file_exists($envFile)) {
+        (new Dotenv())->loadEnv($envFile);
+        break;
+    }
+}
 
 $debug = ($_ENV['APP_DEBUG'] ?? 'true') === 'true';
 

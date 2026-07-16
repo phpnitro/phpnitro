@@ -189,7 +189,8 @@ function cmdBundleAndroid(): void
             : copy($source, "{$staging}/{$entry}");
     }
 
-    file_put_contents($staging . '/.env', "APP_NAME=\"Mobile Engine\"\nAPP_DEBUG=false\n");
+    // "env" without the dot: AAPT silently drops hidden files from assets.
+    file_put_contents($staging . '/env', "APP_NAME=\"Mobile Engine\"\nAPP_DEBUG=false\n");
 
     passthruOrFail('composer install --no-dev --no-interaction --quiet --working-dir=' . escapeshellarg($staging));
     passthruOrFail('rm -rf ' . escapeshellarg($staging . '/composer.lock'));
