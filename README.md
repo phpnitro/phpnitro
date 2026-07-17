@@ -67,11 +67,30 @@ php bin/phpx make:page About        # crée lib/pages/app/AboutPage.php + lib/ba
 php bin/phpx make:entity Product    # crée lib/backend/src/Entity/Product.php + Repository/ProductRepository.php
 php bin/phpx new mon-app            # scaffold un nouveau projet complet (voir ci-dessus)
 php bin/phpx bundle:android         # copie public/ + lib/ + packages/ + .env dans l'app Android
+php bin/phpx payments                # liste les gateways déclarés dans phpnitro.yml et leur statut dans .env
 ```
 
 `make:page` génère la classe et l'ajoute automatiquement au routeur (`public/index.php`), **et** génère un Controller pairé dans `lib/backend/src/Controller/`, câblé dans `Backend\Kernel` sur la route `/api/...` correspondante — façon Symfony, sans attributs de routage : juste une entrée de plus dans le `match()` de `Kernel::handle()`. `make:entity` fait la même chose côté données : une classe Entity (propriétés simples, aucune logique de persistance) pairée à un Repository pré-câblé sur `phpnitro/database`. Les deux sont des points de départ — les champs/le schéma restent à ta charge, ça retire juste la paperasse.
 
 Par défaut, `make:page Home` (sans second argument) enregistre la route `/home`, pas `/` — passe explicitement `/` en second argument pour la page racine.
+
+### phpnitro.yml — le manifeste de l'app
+
+```yaml
+name: Mon App
+description: ...
+version: 1.0.0
+php: ">=8.1"
+
+payments:
+  kkiapay:
+    public_key_env: KKIAPAY_PUBLIC_KEY
+    secret_key_env: KKIAPAY_PRIVATE_KEY
+```
+
+Même rôle que `pubspec.yaml` pour Flutter : décrire l'app à un seul endroit plutôt que d'éparpiller ces infos. Portée volontairement limitée pour l'instant : `name` reste la source de vérité pour `APP_NAME` dans `.env` (`phpx serve`/`phpx bundle:android` le resynchronisent automatiquement à chaque lancement/build), et `payments` déclare quelles variables d'environnement chaque gateway attend — sans jamais lire les clés elles-mêmes. `phpx payments` lit ce fichier et rapporte, pour chaque gateway déclaré, s'il est configuré, en mode démo (clé publique seule) ou pas configuré du tout, directement depuis `.env`.
+
+`phpnitro.yml` est copié tel quel par `phpx new`. `examples/ecom` a le sien aussi, mais en documentation seule : cet exemple n'utilise pas `bin/phpx`, donc rien n'y lit le fichier — `CheckoutPage` choisit son gateway directement depuis `.env` (voir [Paiement](#paiement)).
 
 ### Tester la CLI
 
@@ -240,7 +259,13 @@ Tous les POST (boutons, formulaires, gestes) embarquent un jeton CSRF vérifié 
 | `Navigator::to($path)` / `Navigator::back($fallback = '/')` / `Navigator::link($label, $path)` | sucre de nommage façon Flutter au-dessus de vraies URLs/redirections HTTP (voir `Screen::handle()`) |
 | `GoogleTranslate::make($pageLanguage = 'fr', $includedLanguages = '...')` | widget officiel Google Website Translator (traduction client-side, nécessite le réseau) |
 | `Translator::load($locale, $translations)` / `::t($key, $params = [])` | i18n par clés, côté serveur, pour les textes que tu maîtrises (indépendant de `GoogleTranslate`) |
-| `KkiapayButton::make($publicKey, $amount, $action, $label = 'Payer', $sandbox = true)` | bouton de paiement Kkiapay — voir [Paiement](#paiement) |
+| `KkiapayButton::make($publicKey, $amount, $action, $label = 'Payer', $sandbox = true)` | paiement Kkiapay — voir [Paiement](#paiement) |
+| `PaypalButton::make($clientId, $amount, $action, $currency = 'EUR')` | paiement PayPal (vrai JS SDK, `paypal.Buttons()`) — voir [Paiement](#paiement) |
+| `FedapayButton::make($publicKey, $amount, $action, $description = '', $label = 'Payer', $sandbox = true)` | paiement FedaPay — voir [Paiement](#paiement) |
+| `StripeButton::make($action, $label = 'Payer par carte')` + `StripeCheckout::createSessionUrl(...)` | paiement Stripe (Checkout hébergé, aucun SDK client) — voir [Paiement](#paiement) |
+| `FeexpayButton::make($shopId, $amount, $action, $label = 'Payer', $sandbox = true)` | paiement Feexpay — gabarit non vérifié, voir [Paiement](#paiement) |
+| `IziChangePayButton::make($apiKey, $amount, $action, $label = 'Payer', $sandbox = true)` | paiement iZiChangePay — gabarit non vérifié, voir [Paiement](#paiement) |
+| `TresorPayButton::make($apiKey, $amount, $action, $label = 'Payer', $sandbox = true)` | paiement TresorPay — gabarit non vérifié, voir [Paiement](#paiement) |
 
 Le paramètre `$classes` accepte n'importe quelle classe Tailwind — valeur par défaut sensée, entièrement remplaçable, comme un widget Flutter personnalisable.
 
@@ -275,11 +300,19 @@ Autrement dit : si un concept Flutter décrit *comment le moteur de rendu dessin
 
 ## Paiement
 
-`KkiapayButton` (voir [Widgets disponibles](#widgets-disponibles)) est le seul gateway câblé de bout en bout, choisi comme le plus simple à intégrer (clé publique + widget JS, pas de configuration serveur préalable). Il **ne** doit **jamais** créditer une commande sur le seul événement client `addSuccessListener` : celui-ci n'est qu'un signal d'UI. Le handler `onXxx()` recevant `transaction_id` doit appeler l'API serveur-à-serveur de Kkiapay (`/api/v1/transactions/verify`, clé **privée**) avant de valider quoi que ce soit côté commande. Quand le bouton est placé à l'intérieur d'un `Form::make(...)`, son callback de succès sérialise aussi les autres champs du formulaire (nom, adresse...) et les poste avec `transaction_id` — utile pour un vrai checkout qui a besoin des infos de livraison en plus du paiement.
+Sept gateways ont un widget dans `packages/ui/src/` (voir [Widgets disponibles](#widgets-disponibles)) et une intégration complète et testée dans `examples/ecom` (`CheckoutPage`). Toutes suivent la même règle : un événement de succès côté client (`addSuccessListener`, `onApprove`...) **n'est jamais une preuve de paiement**, juste un signal d'UI — la commande n'est créée qu'après une vérification serveur-à-serveur avec la clé **privée/secrète**. La confiance dans chaque implémentation varie beaucoup d'un gateway à l'autre :
 
-Intégration complète et testée dans `examples/ecom` (`CheckoutPage::onConfirmPayment()`) : sans `KKIAPAY_PUBLIC_KEY` dans `.env`, la page reste en mode démo (bouton "valider sans paiement", comportement d'avant) ; dès que la clé publique est renseignée, `KkiapayButton` remplace ce bouton et le paiement est réellement requis avant de créer la commande. La vérification serveur-à-serveur (`KKIAPAY_PRIVATE_KEY`) appelle l'API Kkiapay documentée, mais n'a pas pu être testée contre un vrai compte sandbox dans cet environnement — le chemin sans clé privée (mode démo, transaction locale non vérifiée) est celui qui est réellement testé ici ; vérifie le format exact de l'appel serveur-à-serveur contre la doc Kkiapay actuelle avant un déploiement réel.
+| Gateway | Confiance | Ce qui est vérifié |
+|---|---|---|
+| **Kkiapay** | Élevée | Pattern d'origine — widget JS + `transaction_id` + endpoint de vérification documenté. Non testé contre un vrai compte sandbox. |
+| **PayPal** | Élevée | Vrai JS SDK (`paypal.Buttons()`), flux OAuth2 + capture server-side standard et bien documenté. Non testé contre une vraie app sandbox. |
+| **FedaPay** | Moyenne-élevée | Même forme que Kkiapay (`FedaPay.init()`). Non testé. |
+| **Stripe** | Élevée sur le principe, non testé sur l'appel réel | Checkout hébergé (`StripeCheckout::createSessionUrl()`, API REST directe, aucun SDK client nécessaire) — confirmé qu'une clé invalide échoue proprement (pas de crash), l'appel réel à l'API Stripe n'a pas pu être testé (pas de clé sandbox disponible ici). |
+| **Feexpay, iZiChangePay, TresorPay** | Faible à très faible | Gabarits structurels seulement (URL de script et nom des fonctions JS marqués `TODO`, à vérifier contre la doc de chaque gateway) — `CheckoutPage` refuse la transaction dès qu'une clé secrète est configurée plutôt que de faire semblant de la vérifier avec un appel non confirmé. |
 
-Stripe, Fedapay, Feexpay, iZiChangePay et PayPal suivent la même forme (bouton → widget/redirection du gateway → callback → vérification serveur obligatoire avec la clé privée avant tout crédit) mais ne sont pas implémentés ici : chacun a ses propres clés de sandbox et son propre format de vérification, qu'on ne peut pas tester à l'aveugle sans compte développeur sur chaque plateforme. `KkiapayButton::render()` (`packages/ui/src/KkiapayButton.php`) sert de modèle à copier/adapter pour ajouter un nouveau gateway.
+`examples/ecom/.env` documente les variables de chaque gateway ; `/checkout` choisit le **premier** gateway configuré dans cet ordre (voir `CheckoutPage::selectPaymentWidget()`) — rien de configuré = mode démo (comportement d'avant, commande créée directement sans paiement). Quand le bouton est placé à l'intérieur d'un `Form::make(...)`, son callback de succès sérialise aussi les autres champs du formulaire (nom, adresse...) et les poste avec l'identifiant de transaction — utile pour un vrai checkout qui a besoin des infos de livraison en plus du paiement (voir `KkiapayButton`).
+
+Pour ajouter un autre gateway : `packages/ui/src/KkiapayButton.php` ou `FedapayButton.php` servent de modèle pour un widget JS classique ; `StripeButton.php`/`StripeCheckout.php` pour un flux de redirection hébergé sans SDK client.
 
 ## Mode clair/sombre
 
