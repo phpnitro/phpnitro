@@ -5,14 +5,21 @@
     fetch(endpoint)
       .then((r) => r.text())
       .then((html) => {
-        el.innerHTML = html;
+        if (document.body.contains(el)) {
+          el.innerHTML = html;
+        }
       })
       .catch(() => {
-        el.innerHTML = '<p class="text-red-600 dark:text-red-400">Erreur de chargement.</p>';
+        if (document.body.contains(el)) {
+          el.innerHTML = '<p class="text-red-600 dark:text-red-400">Erreur de chargement.</p>';
+        }
       });
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
+  function bindFutureBuilders() {
     document.querySelectorAll('[data-future-endpoint]').forEach(resolve);
-  });
+  }
+
+  document.addEventListener('DOMContentLoaded', bindFutureBuilders);
+  document.addEventListener('phpx:navigated', bindFutureBuilders);
 })();

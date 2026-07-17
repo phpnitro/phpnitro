@@ -10,6 +10,8 @@ use Engine\App\ProductPage;
 use Engine\App\SettingsPage;
 use Engine\Csrf;
 use Engine\Database\Database;
+use Engine\Navigation;
+use Engine\PageRenderer;
 use Engine\Router;
 use Symfony\Component\Dotenv\Dotenv;
 
@@ -115,42 +117,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (($_POST['_action'] ?? null) === 'toggleTheme') {
         $_SESSION['theme'] = ($_SESSION['theme'] ?? 'light') === 'dark' ? 'light' : 'dark';
-        header('Location: ' . $_SERVER['REQUEST_URI'], true, 303);
-        exit;
-    }
 
-    if (isset($_POST['_action'])) {
+        if (!Navigation::isPartial()) {
+            header('Location: ' . $_SERVER['REQUEST_URI'], true, 303);
+            exit;
+        }
+        // Partial mode: same path, just re-render below with the new theme.
+    } elseif (isset($_POST['_action'])) {
         $screen = new $resolved['class']($resolved['params']);
         $data = array_diff_key($_POST, ['_action' => null, '_token' => null]);
-        $redirect = $screen->handle($_POST['_action'], $data);
-        header('Location: ' . ($redirect ?? $_SERVER['REQUEST_URI']), true, 303);
-        exit;
+        $redirect = $screen->handle($_POST['_action'], $data) ?? $path;
+
+        if (!Navigation::isPartial()) {
+            header('Location: ' . $redirect, true, 303);
+            exit;
+        }
+
+        if (PageRenderer::isExternalUrl($redirect)) {
+            PageRenderer::redirectExternally($redirect);
+        }
+
+        // Partial mode: an action can redirect to a DIFFERENT screen (e.g.
+        // checkout -> /order/5) — re-resolve that path and render its page
+        // as the fragment, instead of making nav.js do a second round-trip
+        // to follow a redirect it would otherwise receive.
+        $path = $redirect;
+
+        try {
+            $resolved = $router->resolve($path);
+        } catch (\RuntimeException $e) {
+            http_response_code(404);
+            echo '<h1>404 — page introuvable</h1>';
+            exit;
+        }
     }
 }
 
 $screen = new $resolved['class']($resolved['params']);
 $widgetTree = $screen->build();
-$theme = $_SESSION['theme'] ?? 'light';
 
-?>
-<!doctype html>
-<html lang="fr" class="<?= $theme === 'dark' ? 'dark' : '' ?>">
-
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="csrf-token" content="<?= htmlspecialchars(Csrf::token(), ENT_QUOTES) ?>">
-    <title><?= htmlspecialchars($_ENV['APP_NAME'] ?? 'PHP Engine', ENT_QUOTES) ?></title>
-    <link rel="stylesheet" href="/tailwind.css">
-    <script src="/assets/js/gestures.js" defer></script>
-    <script src="/assets/js/device.js" defer></script>
-    <script src="/assets/js/stream.js" defer></script>
-    <script src="/assets/js/future.js" defer></script>
-    <?php if ($debug) { ?><script src="/assets/js/dev-reload.js" defer></script><?php } ?>
-</head>
-
-<body class="bg-gray-50 dark:bg-gray-900 dark:text-gray-100 min-h-screen">
-    <?= $widgetTree->render() ?>
-</body>
-
-</html>
+PageRenderer::render($widgetTree, $path, $_ENV['APP_NAME'] ?? 'PHP Engine', [
+    '/assets/js/gestures.js',
+    '/assets/js/device.js',
+    '/assets/js/stream.js',
+    '/assets/js/future.js',
+    '/assets/js/nav.js',
+], $debug);
