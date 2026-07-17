@@ -14,6 +14,7 @@ use Engine\App\WidgetsIndexPage;
 use Engine\App\WidgetsLayoutPage;
 use Engine\App\WidgetsMapsPage;
 use Engine\App\WidgetsMediaPage;
+use Engine\App\WidgetsStepperPage;
 use Engine\Csrf;
 use Engine\Database\Database;
 use Engine\Navigation;
@@ -110,6 +111,7 @@ $router = new Router([
     '/widgets/media' => WidgetsMediaPage::class,
     '/widgets/maps' => WidgetsMapsPage::class,
     '/widgets/dialogs' => WidgetsDialogsPage::class,
+    '/widgets/stepper' => WidgetsStepperPage::class,
 ]);
 
 try {
