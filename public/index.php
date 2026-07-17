@@ -8,6 +8,12 @@ use Engine\App\HomePage;
 use Engine\App\LoginPage;
 use Engine\App\ProductPage;
 use Engine\App\SettingsPage;
+use Engine\App\WidgetsDialogsPage;
+use Engine\App\WidgetsFormsPage;
+use Engine\App\WidgetsIndexPage;
+use Engine\App\WidgetsLayoutPage;
+use Engine\App\WidgetsMapsPage;
+use Engine\App\WidgetsMediaPage;
 use Engine\Csrf;
 use Engine\Database\Database;
 use Engine\Navigation;
@@ -98,6 +104,12 @@ $router = new Router([
     '/api' => ApiPage::class,
     '/product/{id}' => ProductPage::class,
     '/login' => LoginPage::class,
+    '/widgets' => WidgetsIndexPage::class,
+    '/widgets/layout' => WidgetsLayoutPage::class,
+    '/widgets/forms' => WidgetsFormsPage::class,
+    '/widgets/media' => WidgetsMediaPage::class,
+    '/widgets/maps' => WidgetsMapsPage::class,
+    '/widgets/dialogs' => WidgetsDialogsPage::class,
 ]);
 
 try {

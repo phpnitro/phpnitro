@@ -76,6 +76,7 @@ final class HomePage extends Screen
                 ListView::make([
                     Link::make('Réglages', '/settings'),
                     Link::make('Produit #42', '/product/42'),
+                    Link::make('Vitrine des widgets', '/widgets'),
                     ThemeToggle::make(),
                 ]),
             ], 'flex flex-col gap-4'),
@@ -87,6 +88,7 @@ final class HomePage extends Screen
                 ['label' => 'Réglages', 'href' => '/settings'],
                 ['label' => 'Device', 'href' => '/device'],
                 ['label' => 'API', 'href' => '/api'],
+                ['label' => 'Widgets', 'href' => '/widgets'],
             ], title: 'Mon application'),
         );
     }

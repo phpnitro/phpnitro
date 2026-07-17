@@ -6,12 +6,16 @@ use Engine\BottomNavigation;
 use Engine\CameraPreview;
 use Engine\Column;
 use Engine\FingerprintButton;
+use Engine\ImagePicker;
 use Engine\Link;
 use Engine\LocationButton;
 use Engine\Maps\MapView;
 use Engine\MicrophoneButton;
+use Engine\NotifyButton;
+use Engine\PrintButton;
 use Engine\Screen;
 use Engine\SingleScrollView;
+use Engine\SoundButton;
 use Engine\StreamBuilder;
 use Engine\Text;
 use Engine\VibrateButton;
@@ -33,6 +37,10 @@ final class DevicePage extends Screen
             MicrophoneButton::make(),
             CameraPreview::make(),
             FingerprintButton::make(),
+            NotifyButton::make('PhpNitro', 'Ceci est une notification native.'),
+            SoundButton::make('/assets/audio/beep.wav'),
+            PrintButton::make(),
+            ImagePicker::make('photo'),
             Text::make('Carte (OpenStreetMap, zéro clé API)', 'text-lg font-semibold text-gray-900 dark:text-gray-100'),
             MapView::make(48.8566, 2.3522),
             Text::make('Contenu live (StreamBuilder, polling toutes les 2s)', 'text-lg font-semibold text-gray-900 dark:text-gray-100'),
