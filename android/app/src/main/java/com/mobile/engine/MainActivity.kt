@@ -13,6 +13,7 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -121,6 +122,21 @@ class MainActivity : AppCompatActivity() {
         }
 
         setContentView(webView)
+
+        // nav.js swaps screens via history.pushState instead of real page
+        // loads, so the WebView's own back/forward stack carries those
+        // entries too — without this, the hardware back button has nothing
+        // to pop and falls straight through to finishing the Activity.
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (webView.canGoBack()) {
+                    webView.goBack()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
 
         phpServer = PhpServer(this)
         Thread {
