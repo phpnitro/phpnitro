@@ -70,6 +70,7 @@ php bin/phpx bundle:android         # copie public/ + lib/ + packages/ + .env da
 php bin/phpx payments                # liste les gateways déclarés dans phpnitro.yml et leur statut dans .env
 php bin/phpx maps                    # idem pour les fournisseurs de carte (Mapbox/Google/OpenStreetMap)
 php bin/phpx icon                    # régénère l'icône Android depuis phpnitro.yml's `icon` (sans refaire tout bundle:android)
+php bin/phpx firebase                # idem pour le compte de service / project ID / clé API web Firebase
 ```
 
 `make:page` génère la classe et l'ajoute automatiquement au routeur (`public/index.php`), **et** génère un Controller pairé dans `lib/backend/src/Controller/`, câblé dans `Backend\Kernel` sur la route `/api/...` correspondante — façon Symfony, sans attributs de routage : juste une entrée de plus dans le `match()` de `Kernel::handle()`. `make:entity` fait la même chose côté données : une classe Entity (propriétés simples, aucune logique de persistance) pairée à un Repository pré-câblé sur `phpnitro/database`. Les deux sont des points de départ — les champs/le schéma restent à ta charge, ça retire juste la paperasse.
@@ -97,9 +98,14 @@ maps:
     access_token_env: MAPBOX_ACCESS_TOKEN
   google:
     api_key_env: GOOGLE_MAPS_API_KEY
+
+firebase:
+  service_account_env: FIREBASE_SERVICE_ACCOUNT_JSON
+  project_id_env: FIREBASE_PROJECT_ID
+  web_api_key_env: FIREBASE_WEB_API_KEY
 ```
 
-Même rôle que `pubspec.yaml` pour Flutter : décrire l'app à un seul endroit plutôt que d'éparpiller ces infos. `name` est la source de vérité pour `APP_NAME` dans `.env` (`phpx serve`/`phpx bundle:android` le resynchronisent automatiquement) **et** pour le label natif Android (`strings.xml`'s `app_name`, resynchronisé par `phpx bundle:android`). `icon` (optionnel) génère l'icône du launcher Android — mipmaps legacy + icône adaptative — depuis un PNG carré, via `bin/generate-android-icon.php` (GD, aucune dépendance ImageMagick) ; sans cette clé, l'icône existante n'est pas touchée. `payments`/`maps` déclarent quelles variables d'environnement chaque gateway/fournisseur de carte attend — sans jamais lire les clés elles-mêmes ; `phpx payments`/`phpx maps` rapportent, pour chaque entrée déclarée, si elle est configurée, en mode démo (clé publique seule, pour les paiements) ou pas configurée du tout, directement depuis `.env`.
+Même rôle que `pubspec.yaml` pour Flutter : décrire l'app à un seul endroit plutôt que d'éparpiller ces infos. `name` est la source de vérité pour `APP_NAME` dans `.env` (`phpx serve`/`phpx bundle:android` le resynchronisent automatiquement) **et** pour le label natif Android (`strings.xml`'s `app_name`, resynchronisé par `phpx bundle:android`). `icon` (optionnel) génère l'icône du launcher Android — mipmaps legacy + icône adaptative — depuis un PNG carré, via `bin/generate-android-icon.php` (GD, aucune dépendance ImageMagick) ; sans cette clé, l'icône existante n'est pas touchée. `payments`/`maps`/`firebase` déclarent quelles variables d'environnement chaque gateway/fournisseur/config attend — sans jamais lire les clés elles-mêmes ; `phpx payments`/`phpx maps`/`phpx firebase` rapportent, pour chaque entrée déclarée, si elle est configurée, en mode démo (clé publique seule, pour les paiements) ou pas configurée du tout, directement depuis `.env`.
 
 `phpnitro.yml` est copié tel quel par `phpx new`. `examples/ecom` a le sien aussi, mais en documentation seule : cet exemple n'utilise pas `bin/phpx`, donc rien n'y lit le fichier — `CheckoutPage` choisit son gateway directement depuis `.env` (voir [Paiement](#paiement)).
 
@@ -230,11 +236,19 @@ protected function onLogin(array $data): ?string
 
 Démo complète : `/login` (`lib/pages/app/LoginPage.php`), identifiants `demo`/`demo`.
 
+### Afficher les erreurs explicitement
+
+`ErrorBanner::make($this->state['error'])` — une boîte visuellement distincte (icône + fond/bordure rouges), pas une simple ligne de texte rouge ; retourne `''` si le message est `null`/vide, donc toujours safe à inclure sans condition. `TextField`/`Textarea`/`SelectBox` acceptent aussi un `error: string` optionnel (bordure rouge + message sous le champ, défaut `''` = rendu inchangé) pour une erreur au niveau du champ plutôt qu'un message global. Distinct de `Flash`/`FlashMessage` (message one-shot après redirection, consommé puis effacé) : une erreur de validation doit rester affichée à chaque nouvelle tentative tant qu'elle n'est pas corrigée, donc reste dans `$this->state`, pas dans `Flash`.
+
+### Stepper (assistant multi-étapes)
+
+`Stepper` reste stateless (en-tête de progression + le contenu de l'étape courante + boutons Retour/Suivant) — l'index d'étape et les données accumulées vivent dans `$this->state` de l'écran appelant, exactement comme `CheckoutPage` accumule ses erreurs de validation à travers plusieurs POST. Retour et Suivant doivent atteindre deux `onXxx()` différents à partir d'un seul `<form>` (que `Stepper` construit lui-même) : chaque bouton porte son propre `name="_action" value="..."` plutôt qu'un champ caché partagé — seul le bouton cliqué envoie sa paire, donc Retour préserve aussi les valeurs de l'étape en cours, pas seulement Suivant. Démo complète et fonctionnelle (pas juste un rendu statique) : `/widgets/stepper`.
+
 Tous les POST (boutons, formulaires, gestes) embarquent un jeton CSRF vérifié globalement — requête forgée → 419.
 
 ## Widgets disponibles
 
-Toutes les classes ci-dessous sont dans le namespace `Engine\` sauf préfixe explicite (`Maps\` = `Engine\Maps\`, `Dialogs\` = `Engine\Dialogs\`, `Payments\` = `Engine\Payments\` — des packages de service dédiés, voir `packages/maps`, `packages/dialogs`, `packages/payments`, sur le même modèle que `packages/database` : un second namespace PSR-4 dans le `composer.json` racine, pas un package Composer séparé).
+Toutes les classes ci-dessous sont dans le namespace `Engine\` sauf préfixe explicite (`Maps\` = `Engine\Maps\`, `Dialogs\` = `Engine\Dialogs\`, `Payments\` = `Engine\Payments\`, `Firebase\` = `Engine\Firebase\` — des packages de service dédiés, voir `packages/maps`, `packages/dialogs`, `packages/payments`, `packages/firebase`, sur le même modèle que `packages/database` : un second namespace PSR-4 dans le `composer.json` racine, pas un package Composer séparé).
 
 Chaque widget est démontré quelque part : la route `/widgets` de l'app démo racine (index + sous-pages par catégorie — layout, formulaires, média, cartes, dialogues) couvre tout sauf les paiements, exercés en conditions réelles dans [examples/ecom](examples/ecom/README.md#paiement) à la place.
 
@@ -279,7 +293,7 @@ Chaque widget est démontré quelque part : la route `/widgets` de l'app démo r
 | `Margin::make($child, $classes = 'm-4')` | ajoute un espacement externe (classes Tailwind `m-*`) |
 | `Divider::make($classes = '...')` | ligne de séparation (`<hr>`) |
 | `IconButton::make($icon, $action = null, $classes = '...', $ariaLabel = '')` | bouton icône seule (voir `Icon::*` pour le jeu d'icônes), même comportement d'action que `Button` |
-| `Textarea::make($name, $label = '', $value = '', $placeholder = '', $rows = 4)` | `<textarea>` |
+| `Textarea::make($name, $label = '', $value = '', $placeholder = '', $rows = 4, $error = '')` | `<textarea>` |
 | `DatePicker::make($name, $label = '', $value = '', $min = '', $max = '')` | `<input type="date">` — le sélecteur natif Android s'affiche via le WebView, zéro JS |
 | `TimePicker::make($name, $label = '', $value = '')` | `<input type="time">` — même chose côté sélecteur natif |
 | `AudioPlayer::make($src, $controls = true, $autoplay = false, $loop = false)` | `<audio>` avec contrôles natifs Chromium |
@@ -292,15 +306,22 @@ Chaque widget est démontré quelque part : la route `/widgets` de l'app démo r
 | `GoogleTranslate::make($pageLanguage = 'fr', $includedLanguages = '...')` | widget officiel Google Website Translator (traduction client-side, nécessite le réseau) |
 | `Translator::load($locale, $translations)` / `::t($key, $params = [])` | i18n par clés, côté serveur, pour les textes que tu maîtrises (indépendant de `GoogleTranslate`) |
 | `SwitchToggle::make($name, $label, $on = false)` | interrupteur on/off (case à cocher cachée + variantes `peer-checked:`, zéro JS) |
+| `Stepper::make($currentStep, $totalSteps, $stepLabels, $body, $backAction = null, $nextAction = null)` | assistant multi-étapes — voir [Stepper](#stepper-assistant-multi-étapes) |
+| `ErrorBanner::make($message)` | boîte d'erreur explicite (icône + fond rouge) — voir [Afficher les erreurs explicitement](#afficher-les-erreurs-explicitement) |
 | `Dialogs\AlertButton::make($message, $label = '...', $title = '')` | boîte de dialogue **native** Android (`AlertDialog`), repli `window.alert()` — voir [Boîtes de dialogue](#boîtes-de-dialogue) |
 | `Dialogs\ConfirmButton::make($message, $action, $label = '...', $title = '')` | confirmation native ; n'appelle `$action` que si l'utilisateur confirme — voir [Boîtes de dialogue](#boîtes-de-dialogue) |
 | `Payments\KkiapayButton::make($publicKey, $amount, $action, $label = 'Payer', $sandbox = true)` | paiement Kkiapay — voir [Paiement](#paiement) |
 | `Payments\PaypalButton::make($clientId, $amount, $action, $currency = 'EUR')` | paiement PayPal (vrai JS SDK, `paypal.Buttons()`) — voir [Paiement](#paiement) |
 | `Payments\FedapayButton::make($publicKey, $amount, $action, $description = '', $label = 'Payer', $sandbox = true)` | paiement FedaPay — voir [Paiement](#paiement) |
 | `Payments\StripeButton::make($action, $label = 'Payer par carte')` + `Payments\StripeCheckout::createSessionUrl(...)` | paiement Stripe (Checkout hébergé, aucun SDK client) — voir [Paiement](#paiement) |
+| `Payments\StripeCardField::make($publicKey, $clientSecret, $action, $label = '...')` | champ carte intégré (Stripe Elements, iframe géré par Stripe) — voir [Paiement](#paiement) |
 | `Payments\FeexpayButton::make($shopId, $amount, $action, $label = 'Payer', $sandbox = true)` | paiement Feexpay — gabarit non vérifié, voir [Paiement](#paiement) |
 | `Payments\IziChangePayButton::make($apiKey, $amount, $action, $label = 'Payer', $sandbox = true)` | paiement iZiChangePay — gabarit non vérifié, voir [Paiement](#paiement) |
 | `Payments\TresorPayButton::make($apiKey, $amount, $action, $label = 'Payer', $sandbox = true)` | paiement TresorPay — gabarit non vérifié, voir [Paiement](#paiement) |
+| `Firebase\FirebaseAuth::signIn($webApiKey, $email, $password)` / `::signUp(...)` | connexion/inscription via l'API REST Identity Toolkit — voir [Firebase](#firebase) |
+| `Firebase\FirebaseMessaging::send($serviceAccountPath, $projectId, $token, $title, $body)` | envoi d'une notification push (FCM HTTP v1) — voir [Firebase](#firebase) |
+| `Firebase\Firestore::get(...)` / `::set(...)` | client REST minimal Firestore (un document à la fois) — voir [Firebase](#firebase) |
+| `Firebase\GoogleServiceAccount::accessToken($serviceAccountPath, $scope)` | jeton OAuth2 de compte de service, partagé par FCM et Firestore — voir [Firebase](#firebase) |
 
 Le paramètre `$classes` accepte n'importe quelle classe Tailwind — valeur par défaut sensée, entièrement remplaçable, comme un widget Flutter personnalisable.
 
@@ -342,10 +363,13 @@ Sept gateways ont un widget dans `packages/payments/src/` (namespace `Engine\Pay
 | **Kkiapay** | Élevée | Pattern d'origine — widget JS + `transaction_id` + endpoint de vérification documenté. Non testé contre un vrai compte sandbox. |
 | **PayPal** | Élevée | Vrai JS SDK (`paypal.Buttons()`), flux OAuth2 + capture server-side standard et bien documenté. Non testé contre une vraie app sandbox. |
 | **FedaPay** | Moyenne-élevée | Même forme que Kkiapay (`FedaPay.init()`). Non testé. |
-| **Stripe** | Élevée sur le principe, non testé sur l'appel réel | Checkout hébergé (`StripeCheckout::createSessionUrl()`, API REST directe, aucun SDK client nécessaire) — confirmé qu'une clé invalide échoue proprement (pas de crash), l'appel réel à l'API Stripe n'a pas pu être testé (pas de clé sandbox disponible ici). |
+| **Stripe** (redirection) | Élevée sur le principe, non testé sur l'appel réel | Checkout hébergé (`StripeCheckout::createSessionUrl()`, API REST directe, aucun SDK client nécessaire) — confirmé qu'une clé invalide échoue proprement (pas de crash), l'appel réel à l'API Stripe n'a pas pu être testé (pas de clé sandbox disponible ici). |
+| **Stripe** (`StripeCardField`) | Élevée sur le principe, non testé sur l'appel réel | Champ carte intégré via Stripe Elements (`stripe.confirmCardPayment`), pas un formulaire `TextField` brut — la carte reste dans un iframe géré par Stripe, jamais dans notre DOM/serveur (voir la note PCI-DSS ci-dessous). Activé automatiquement quand `STRIPE_PUBLIC_KEY` **et** `STRIPE_SECRET_KEY` sont renseignés (secrète seule = redirection hébergée à la place). |
 | **Feexpay, iZiChangePay, TresorPay** | Faible à très faible | Gabarits structurels seulement (URL de script et nom des fonctions JS marqués `TODO`, à vérifier contre la doc de chaque gateway) — `CheckoutPage` refuse la transaction dès qu'une clé secrète est configurée plutôt que de faire semblant de la vérifier avec un appel non confirmé. |
 
 `examples/ecom/.env` documente les variables de chaque gateway ; `/checkout` choisit le **premier** gateway configuré dans cet ordre (voir `CheckoutPage::selectPaymentWidget()`) — rien de configuré = mode démo (comportement d'avant, commande créée directement sans paiement). Quand le bouton est placé à l'intérieur d'un `Form::make(...)`, son callback de succès sérialise aussi les autres champs du formulaire (nom, adresse...) et les poste avec l'identifiant de transaction — utile pour un vrai checkout qui a besoin des infos de livraison en plus du paiement (voir `KkiapayButton`).
+
+**Pourquoi pas un simple formulaire carte bancaire ?** Aucune intégration ici ne laisse jamais une donnée de carte brute atteindre notre propre DOM/serveur — que ce soit par redirection hébergée ou par un widget JS fournisseur. Un widget construit avec des `TextField` classiques pour numéro/CVV/expiration, postés via `Form`/`$data` vers notre propre serveur, mettrait cette donnée en **scope PCI-DSS SAQ D** (audit complet, segmentation réseau...) — une vraie régression de sécurité. `StripeCardField` suit donc le même principe que les autres gateways : la partie sensible reste hors de notre contrôle (iframe Stripe), seul un identifiant déjà confirmé (`payment_intent_id`) transite par notre serveur, revérifié via `StripeCheckout::retrievePaymentIntent()` avant de créer la commande.
 
 Pour ajouter un autre gateway : `packages/payments/src/KkiapayButton.php` ou `FedapayButton.php` servent de modèle pour un widget JS classique ; `StripeButton.php`/`StripeCheckout.php` pour un flux de redirection hébergé sans SDK client.
 
@@ -364,6 +388,21 @@ Trois fournisseurs dans `packages/maps/src/` (namespace `Engine\Maps\`) :
 ## Boîtes de dialogue
 
 `packages/dialogs/src/` (namespace `Engine\Dialogs\`) — `AlertButton`/`ConfirmButton`, natives d'abord : `assets/js/dialogs.js` (`window.phpxDialogs`) appelle une vraie `AlertDialog` Android via `WebAppInterface.showAlertDialog()`/`showConfirmDialog()` (même idiome de callback que `showBiometricPrompt()`), et ne retombe sur `window.alert()`/`window.confirm()` du navigateur que si le pont natif est absent. `ConfirmButton` n'appelle l'action serveur (`phpxNav.submitAction()`) que depuis le callback de confirmation — annuler la boîte de dialogue ne touche jamais le serveur.
+
+## Firebase
+
+`packages/firebase/src/` (namespace `Engine\Firebase\`) — aucune dépendance `kreait/firebase-php`/`google/apiclient` : uniquement du REST + les fonctions `openssl_*` de PHP, même philosophie que `StripeCheckout`.
+
+| Classe | Rôle | Authentification |
+|---|---|---|
+| `GoogleServiceAccount` | Jeton OAuth2 à partir d'un compte de service (flow "JWT Bearer" standard de Google : JWT signé RS256 via `openssl_sign`, échangé contre un access token) — brique partagée par les deux classes suivantes. | Compte de service (fichier JSON téléchargé depuis la console Firebase). |
+| `FirebaseMessaging::send(...)` | Envoie une notification push (FCM HTTP v1). Finit la partie qui manquait : le stockage des tokens (`fcm_tokens`, `/api/fcm/register`) était déjà réel et testé ; il manquait l'envoi. **Doit tourner sur ton propre serveur hébergé, jamais depuis le PHP embarqué sur le téléphone** — un compte de service est un vrai secret serveur, qui ne doit jamais finir dans un APK. | Compte de service. |
+| `FirebaseAuth::signIn(...)` / `::signUp(...)` | Connecte/inscrit un utilisateur final via l'API REST Identity Toolkit — remplace utile de la session + `UserRepository` existante, pas un remplacement forcé (les deux coexistent). | Clé API web (client-safe par conception Firebase, distincte du compte de service). |
+| `Firestore::get(...)` / `::set(...)` | Client REST minimal (un document à la fois) — une alternative à `Database::connection()` (Doctrine DBAL/SQL), pas branchée dedans : Firestore n'est pas un driver DBAL. | Compte de service. |
+
+Confiance : même tier que Mapbox/Google Maps — implémenté d'après la doc officielle Google/Firebase (flows stables et bien documentés), mais rien n'a pu être testé contre un vrai projet Firebase (aucun compte de service ni clé disponible dans cet environnement). Le JWT signing a un test dédié (`packages/firebase/tests/GoogleServiceAccountTest.php`) qui vérifie la structure et la signature RS256 avec une paire de clés générée à la volée, sans réseau.
+
+`phpnitro.yml`'s `firebase:` déclare les 3 noms de variables d'environnement attendues (`phpx firebase` rapporte leur statut) ; démo `FirebaseAuth` sur `/widgets/firebase-auth` (affiche un message explicite si `FIREBASE_WEB_API_KEY` n'est pas configuré, plutôt que de tenter un appel réseau voué à l'échec).
 
 ## Mode clair/sombre
 
@@ -453,10 +492,10 @@ Installation sur téléphone : transfère l'APK (câble, `adb install`, ou parta
 - iOS : stub non testé, pas de PHP embarqué (voir `ios/README.md`)
 - API de style typée (`TextSize`/`FontWeight`/`Color`) : implémentée seulement sur `Text` pour l'instant
 - `StreamBuilder` fonctionne en polling HTTP (pas de WebSocket/Server-Sent Events) — suffisant pour la plupart des cas, mais pas du "temps réel" au sens strict
-- Notifications push : le stockage des tokens côté backend est réel et testé (`/api/fcm/register`, `/api/fcm/count`) ; la partie Android (`FcmService.kt.example`) est écrite mais **désactivée par défaut** — elle nécessite ton propre projet Firebase (`google-services.json`), qui ne peut pas être généré ici (voir le fichier `.example` pour les 6 étapes d'activation). L'envoi effectif de notifications (Firebase Admin SDK côté serveur) n'est pas implémenté.
+- Notifications push : le stockage des tokens côté backend est réel et testé (`/api/fcm/register`, `/api/fcm/count`) ; la partie Android (`FcmService.kt.example`) est écrite (y compris l'affichage de la notification système) mais **désactivée par défaut** — elle nécessite ton propre projet Firebase (`google-services.json`), qui ne peut pas être généré ici (voir le fichier `.example` pour les 6 étapes d'activation). L'envoi serveur (`Engine\Firebase\FirebaseMessaging::send()`) est maintenant implémenté, mais non testé contre un vrai projet Firebase (aucun compte de service disponible ici).
 - Le serveur de dev PHP (`php -S`, utilisé aussi sur Android) est mono-thread — largement suffisant pour une app mobile (un seul client à la fois), mais pas un choix pertinent pour un vrai serveur multi-utilisateurs
-- Mapbox/Google Maps (`Engine\Maps\`) : implémentés d'après la doc officielle, mais pas testés contre un vrai compte/projet (aucune clé disponible dans cet environnement) — seul `OsmMap` (OpenStreetMap/Leaflet) a été vérifié en conditions réelles sur device
-- Couverture de tests des widgets : `packages/ui/tests/WidgetsTest.php` ne couvre qu'une poignée de widgets ; la vitrine `/widgets` prouve visuellement que le reste fonctionne (sur un vrai device), mais n'est pas un test automatisé — étendre `WidgetsTest.php` aux widgets restants est un chantier à part
+- Mapbox/Google Maps (`Engine\Maps\`), `StripeCardField`, et tout `Engine\Firebase\` (Messaging/Auth/Firestore) : implémentés d'après la doc officielle, mais pas testés contre un vrai compte/projet (aucune clé/compte de service disponible dans cet environnement) — seul `OsmMap` (OpenStreetMap/Leaflet) a été vérifié en conditions réelles sur device
+- Couverture de tests des widgets : `packages/ui/tests/WidgetsTest.php` ne couvre qu'une partie des widgets ; la vitrine `/widgets` prouve visuellement que le reste fonctionne (sur un vrai device), mais n'est pas un test automatisé — étendre `WidgetsTest.php` aux widgets restants est un chantier à part
 
 ## Feuille de route — chantiers pas encore commencés
 
