@@ -1,6 +1,8 @@
 <?php
 
-namespace Engine;
+namespace Engine\Payments;
+
+use Engine\Widget;
 
 /**
  * Kkiapay checkout button (chosen as the one fully-wired payment gateway

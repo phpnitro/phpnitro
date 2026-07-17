@@ -1,6 +1,6 @@
 <?php
 
-namespace Engine;
+namespace Engine\Payments;
 
 /**
  * Minimal wrapper around Stripe's REST API to create a Checkout Session and

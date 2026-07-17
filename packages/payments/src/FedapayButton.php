@@ -1,6 +1,8 @@
 <?php
 
-namespace Engine;
+namespace Engine\Payments;
+
+use Engine\Widget;
 
 /**
  * FedaPay checkout widget (West African aggregator, same shape as

@@ -1,6 +1,8 @@
 <?php
 
-namespace Engine;
+namespace Engine\Payments;
+
+use Engine\Widget;
 
 /**
  * TresorPay checkout widget — structural template ONLY. Of all the

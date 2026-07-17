@@ -1,6 +1,8 @@
 <?php
 
-namespace Engine;
+namespace Engine\Payments;
+
+use Engine\Widget;
 
 /**
  * Real PayPal JS SDK button (paypal.Buttons().render()) — not a redirect,

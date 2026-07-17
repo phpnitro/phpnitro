@@ -1,6 +1,9 @@
 <?php
 
-namespace Engine;
+namespace Engine\Payments;
+
+use Engine\RendersAction;
+use Engine\Widget;
 
 /**
  * Stripe Checkout (hosted page) redirect flow — the simplest correct Stripe

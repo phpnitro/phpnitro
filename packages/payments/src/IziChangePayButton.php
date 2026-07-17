@@ -1,6 +1,8 @@
 <?php
 
-namespace Engine;
+namespace Engine\Payments;
+
+use Engine\Widget;
 
 /**
  * iZiChangePay checkout widget — structural template, NOT verified against

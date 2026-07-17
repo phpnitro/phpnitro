@@ -13,6 +13,7 @@
         "psr-4": {
             "Engine\\": "packages/ui/src/",
             "Engine\\Database\\": "packages/database/src/",
+            "Engine\\Payments\\": "packages/payments/src/",
             "Engine\\App\\": "lib/pages/app/",
             "Backend\\": "lib/backend/src/"
         }
@@ -20,7 +21,8 @@
     "autoload-dev": {
         "psr-4": {
             "Engine\\Tests\\": "packages/ui/tests/",
-            "Engine\\Database\\Tests\\": "packages/database/tests/"
+            "Engine\\Database\\Tests\\": "packages/database/tests/",
+            "Engine\\Payments\\Tests\\": "packages/payments/tests/"
         }
     }
 }
