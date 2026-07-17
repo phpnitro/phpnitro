@@ -3,6 +3,7 @@
         "php": ">=8.1",
         "symfony/http-foundation": "^8.1",
         "symfony/dotenv": "^8.1",
+        "symfony/yaml": "^8.1",
         "doctrine/dbal": "^4.4"
     },
     "require-dev": {

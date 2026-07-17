@@ -10,6 +10,11 @@
  *   phpx serve [port]                 Serve public/ (defaults to 8090)
  *   phpx new <directory>              Scaffold a new project: android/ ios/ lib/ packages/ public/ assets/ bin/
  *   phpx bundle:android               Copy public/ + lib/ + packages/ + .env into the Android app
+ *   phpx payments                     List phpnitro.yml's declared payment gateways and their .env status
+ *
+ * phpnitro.yml (project root) is the app manifest — name/description/version
+ * and the payment gateways the app declares. `serve`/`bundle:android` keep
+ * .env's APP_NAME in sync with its `name` automatically.
  */
 
 define('PHPX_ROOT', dirname(__DIR__));
@@ -298,9 +303,83 @@ function syncAssets(): void
     copyDirectory($source, $destination, ['README.md']);
 }
 
+/**
+ * @return array<string, mixed>
+ */
+function loadManifest(): array
+{
+    $manifestPath = PHPX_ROOT . '/phpnitro.yml';
+    if (!is_file($manifestPath)) {
+        return [];
+    }
+
+    require_once PHPX_ROOT . '/vendor/autoload.php';
+
+    return \Symfony\Component\Yaml\Yaml::parseFile($manifestPath) ?? [];
+}
+
+/**
+ * phpnitro.yml's `name` is the single source of truth for the app's display
+ * name — this keeps .env's APP_NAME in sync instead of two places to edit
+ * whenever the app gets renamed. No-op for projects without a manifest.
+ */
+function syncManifestToEnv(): void
+{
+    $manifest = loadManifest();
+    if (!isset($manifest['name'])) {
+        return;
+    }
+
+    $envPath = PHPX_ROOT . '/.env';
+    $env = is_file($envPath) ? file_get_contents($envPath) : '';
+    $line = 'APP_NAME="' . addslashes($manifest['name']) . '"';
+
+    $env = preg_match('/^APP_NAME=.*$/m', $env)
+        ? preg_replace('/^APP_NAME=.*$/m', $line, $env)
+        : rtrim($env) . "\n" . $line . "\n";
+
+    file_put_contents($envPath, $env);
+}
+
+function cmdPayments(): void
+{
+    $manifest = loadManifest();
+    $payments = $manifest['payments'] ?? [];
+
+    if ($payments === []) {
+        echo "Aucun moyen de paiement déclaré dans phpnitro.yml.\n";
+
+        return;
+    }
+
+    $envPath = PHPX_ROOT . '/.env';
+    if (is_file($envPath)) {
+        (new \Symfony\Component\Dotenv\Dotenv())->loadEnv($envPath);
+    }
+
+    echo "Moyens de paiement déclarés dans phpnitro.yml :\n\n";
+
+    foreach ($payments as $name => $config) {
+        $publicKeyEnv = $config['public_key_env'] ?? null;
+        $secretKeyEnv = $config['secret_key_env'] ?? null;
+
+        $publicSet = $publicKeyEnv !== null && ($_ENV[$publicKeyEnv] ?? '') !== '';
+        $secretSet = $secretKeyEnv !== null && ($_ENV[$secretKeyEnv] ?? '') !== '';
+
+        $status = match (true) {
+            $publicSet && $secretSet => 'configuré (clé publique + secrète)',
+            $publicSet => 'clé publique seule — vérification serveur désactivée, mode démo',
+            default => 'non configuré',
+        };
+
+        printf("  %-14s %s\n", $name, $status);
+    }
+}
+
 function cmdServe(int $port): void
 {
     syncAssets();
+    syncManifestToEnv();
 
     $publicDir = PHPX_ROOT . '/public';
     if (!is_dir($publicDir)) {
@@ -340,7 +419,7 @@ function cmdNew(string $directory): void
         echo "Copied {$part}/ to {$destination}\n";
     }
 
-    foreach (['.env', 'composer.json', 'package.json', 'package-lock.json'] as $file) {
+    foreach (['.env', 'composer.json', 'package.json', 'package-lock.json', 'phpnitro.yml'] as $file) {
         copy(PHPX_ROOT . '/' . $file, $targetDir . '/' . $file);
         echo "Copied {$file} to {$targetDir}/{$file}\n";
     }
@@ -408,6 +487,7 @@ function copyDirectory(string $source, string $destination, array $skip = []): v
 function cmdBundleAndroid(): void
 {
     syncAssets();
+    syncManifestToEnv();
 
     $staging = PHPX_ROOT . '/android/app/src/main/assets/www';
 
@@ -462,6 +542,9 @@ switch ($command) {
     case 'bundle:android':
         cmdBundleAndroid();
         break;
+    case 'payments':
+        cmdPayments();
+        break;
     default:
-        phpxFail('usage: phpx <make:page|make:entity|serve|new|bundle:android> ...');
+        phpxFail('usage: phpx <make:page|make:entity|serve|new|bundle:android|payments> ...');
 }

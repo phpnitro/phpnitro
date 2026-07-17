@@ -1,0 +1,31 @@
+name: Ma Boutique
+description: Boutique en ligne de démonstration complète du framework PhpNitro
+version: 1.0.0
+php: ">=8.1"
+
+# Documentation seule ici (cet exemple n'utilise pas bin/phpx) — voir
+# CheckoutPage::build() pour l'ordre de priorité réel entre gateways, et
+# ../../README.md#paiement pour le détail de chacun. Renseigne l'une de ces
+# paires dans .env pour l'activer sur /checkout.
+payments:
+    kkiapay:
+        public_key_env: KKIAPAY_PUBLIC_KEY
+        secret_key_env: KKIAPAY_PRIVATE_KEY
+    stripe:
+        public_key_env: STRIPE_PUBLIC_KEY
+        secret_key_env: STRIPE_SECRET_KEY
+    paypal:
+        public_key_env: PAYPAL_CLIENT_ID
+        secret_key_env: PAYPAL_CLIENT_SECRET
+    fedapay:
+        public_key_env: FEDAPAY_PUBLIC_KEY
+        secret_key_env: FEDAPAY_SECRET_KEY
+    feexpay:
+        public_key_env: FEEXPAY_SHOP_ID
+        secret_key_env: FEEXPAY_API_KEY
+    izichangepay:
+        public_key_env: IZICHANGEPAY_API_KEY
+        secret_key_env: IZICHANGEPAY_API_SECRET
+    tresorpay:
+        public_key_env: TRESORPAY_PUBLIC_KEY
+        secret_key_env: TRESORPAY_SECRET_KEY
