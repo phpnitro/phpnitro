@@ -22,12 +22,14 @@ cd android && gradle :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
+L'icône du launcher et le nom natif (`strings.xml`) sont générés depuis `phpnitro.yml`'s `icon`/`icon_background`/`name` par `bundle-android.sh` (voir la section `phpnitro.yml` du [README racine](../../README.md)) — `assets/icon.png` ici est un **placeholder généré** (à remplacer par un vrai logo, il suffit de changer le chemin dans `phpnitro.yml`). Vérifié sur device réel : l'icône du launcher et l'icône animée de l'écran de démarrage (`themes.xml`) reflètent bien le PNG source.
+
 ## Ce que ça démontre
 
 | Écran | Route | Widgets / fonctionnalités |
 |---|---|---|
 | Catalogue | `/` | Grille de produits (`Column` en mode grid), `LinkWrap`, `Image`, produits stockés en SQLite (Doctrine DBAL) |
-| Détail produit | `/product/{id}` | `MapView` (retrait en magasin), `Button` avec action, `SingleScrollView` |
+| Détail produit | `/product/{id}` | `Maps\MapView` (retrait en magasin — voir [Cartes](../../README.md#cartes)), `Button` avec action, `SingleScrollView` |
 | Panier | `/cart` | `ListView`, `Form` + champ caché pour retirer un article, état partagé entre écrans (`Cart`, session) |
 | Paiement | `/checkout` | `Form`, `TextField`, `SelectBox`, `Checkbox`, `FingerprintButton` (WebAuthn), un gateway de paiement réel parmi 7 selon `.env` (sinon mode démo sans paiement — voir [Paiement](#paiement)), validation + redirection programmatique |
 | Confirmation | `/order/{id}` | `StreamBuilder` — le statut de la commande progresse tout seul (confirmée → en préparation → expédiée → livrée) sans rechargement de page |
@@ -36,7 +38,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ## Backend
 
-`lib/backend/src/Repository/` : `ProductRepository` (6 produits de démo auto-seedés), `OrderRepository` (statut calculé depuis le temps écoulé, pas de worker), `UserRepository` (comptes, mots de passe hashés). Toutes les routes UI appellent ces repositories **en mémoire** (pas de HTTP), même mécanisme que le framework principal — le backend est toujours disponible, implicitement. Un seul `composer.json`/`vendor/` pour tout l'exemple : son autoload PSR-4 pointe directement sur les packages partagés du framework (`../../packages/ui/src`, `../../packages/database/src`, à la racine du dépôt) — aucun code de framework dupliqué ici.
+`lib/backend/src/Repository/` : `ProductRepository` (6 produits de démo auto-seedés), `OrderRepository` (statut calculé depuis le temps écoulé, pas de worker), `UserRepository` (comptes, mots de passe hashés). Toutes les routes UI appellent ces repositories **en mémoire** (pas de HTTP), même mécanisme que le framework principal — le backend est toujours disponible, implicitement. Un seul `composer.json`/`vendor/` pour tout l'exemple : son autoload PSR-4 pointe directement sur les packages partagés du framework (`../../packages/ui/src`, `../../packages/database/src`, `../../packages/payments/src`, `../../packages/maps/src`, `../../packages/dialogs/src`, à la racine du dépôt) — aucun code de framework dupliqué ici.
 
 ## Paiement
 
@@ -46,7 +48,7 @@ Par défaut (`.env` sans aucune clé de paiement), `/checkout` reste en **mode d
 2. **PayPal** — vrai JS SDK (`paypal.Buttons()`), vérification serveur = vrai flux OAuth2 + capture. Confiance élevée, non testé contre une vraie app sandbox.
 3. **FedaPay** — même forme que Kkiapay. Confiance moyenne-élevée, non testé.
 4. **Stripe** — aucune clé publique/SDK client : bouton simple, tout se passe côté serveur (`StripeCheckout::createSessionUrl()`, API REST Stripe directe). Confirmé qu'une clé invalide échoue proprement (commande créée, redirection locale de secours) plutôt que de planter.
-5. **Feexpay**, 6. **iZiChangePay**, 7. **TresorPay** — gabarits structurels seulement (voir le docblock de chaque widget dans `packages/ui/src/`) : URL de script et nom des fonctions JS marqués `TODO`, à vérifier contre la doc de chaque gateway avant usage réel. Si une clé secrète est configurée, `CheckoutPage` **refuse** la transaction plutôt que de faire semblant de la vérifier — seul le mode démo (aucune clé secrète) fonctionne réellement ici.
+5. **Feexpay**, 6. **iZiChangePay**, 7. **TresorPay** — gabarits structurels seulement (voir le docblock de chaque widget dans `packages/payments/src/`) : URL de script et nom des fonctions JS marqués `TODO`, à vérifier contre la doc de chaque gateway avant usage réel. Si une clé secrète est configurée, `CheckoutPage` **refuse** la transaction plutôt que de faire semblant de la vérifier — seul le mode démo (aucune clé secrète) fonctionne réellement ici.
 
 Chaque widget place, à l'intérieur du `Form::make(...)` du panier, son callback de succès qui sérialise aussi les champs du formulaire (nom, adresse, conditions) et les poste avec l'identifiant de transaction vers son `onConfirmX()` — la commande n'est créée qu'après vérification (sauf en mode démo, où la signature client est acceptée telle quelle : sandbox uniquement, ne fais jamais ça pour un vrai magasin).
 
