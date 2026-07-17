@@ -16,5 +16,8 @@
         <testsuite name="dialogs">
             <directory>packages/dialogs/tests</directory>
         </testsuite>
+        <testsuite name="firebase">
+            <directory>packages/firebase/tests</directory>
+        </testsuite>
     </testsuites>
 </phpunit>
