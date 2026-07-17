@@ -6,6 +6,22 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRAMEWORK_ROOT="$(cd "$ROOT/../.." && pwd)"
 STAGING="$ROOT/android/app/src/main/assets/www"
+ANDROID_RES="$ROOT/android/app/src/main/res"
+
+# Native app label + launcher icon, driven by phpnitro.yml — this example
+# has no bin/phpx of its own, so plain grep/sed reads its handful of
+# top-level scalar keys (same idiom already used above for .env) instead of
+# a full YAML parser.
+APP_NAME=$(grep -m1 '^name:' "$ROOT/phpnitro.yml" | sed -E 's/^name:[[:space:]]*"?([^"]*)"?[[:space:]]*$/\1/')
+if [ -n "$APP_NAME" ] && [ -f "$ANDROID_RES/values/strings.xml" ]; then
+  sed -i "s|<string name=\"app_name\">.*</string>|<string name=\"app_name\">${APP_NAME}</string>|" "$ANDROID_RES/values/strings.xml"
+fi
+
+ICON_PATH=$(grep -m1 '^icon:' "$ROOT/phpnitro.yml" | sed -E 's/^icon:[[:space:]]*"?([^"]*)"?[[:space:]]*$/\1/')
+if [ -n "$ICON_PATH" ]; then
+  ICON_BG=$(grep -m1 '^icon_background:' "$ROOT/phpnitro.yml" | sed -E 's/^icon_background:[[:space:]]*"?([^"]*)"?[[:space:]]*$/\1/')
+  php "$FRAMEWORK_ROOT/bin/generate-android-icon.php" "$ROOT/$ICON_PATH" "$ANDROID_RES" "${ICON_BG:-#FFFFFF}"
+fi
 
 rm -rf "$STAGING"
 mkdir -p "$STAGING/lib/pages" "$STAGING/lib/backend" "$STAGING/packages/ui" "$STAGING/packages/database" "$STAGING/packages/payments" "$STAGING/packages/maps" "$STAGING/packages/dialogs"

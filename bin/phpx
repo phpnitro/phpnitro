@@ -12,10 +12,13 @@
  *   phpx bundle:android               Copy public/ + lib/ + packages/ + .env into the Android app
  *   phpx payments                     List phpnitro.yml's declared payment gateways and their .env status
  *   phpx maps                         List phpnitro.yml's declared map providers and their .env status
+ *   phpx icon                         Regenerate the Android launcher icon from phpnitro.yml's `icon`
  *
- * phpnitro.yml (project root) is the app manifest — name/description/version
- * and the payment gateways the app declares. `serve`/`bundle:android` keep
- * .env's APP_NAME in sync with its `name` automatically.
+ * phpnitro.yml (project root) is the app manifest — name/description/version,
+ * the payment gateways and map providers the app declares, and optionally
+ * `icon`/`icon_background` for the Android launcher icon. `serve` keeps
+ * .env's APP_NAME in sync with `name`; `bundle:android` additionally syncs
+ * the native app label (strings.xml) and regenerates the launcher icon.
  */
 
 define('PHPX_ROOT', dirname(__DIR__));
@@ -342,6 +345,58 @@ function syncManifestToEnv(): void
     file_put_contents($envPath, $env);
 }
 
+/**
+ * Rewrites android/.../res/values/strings.xml's app_name from the
+ * manifest's `name` — the OS-level launcher label, distinct from .env's
+ * APP_NAME (read at runtime by the PHP app itself). Only meaningful for
+ * the packaged APK, so this only runs from cmdBundleAndroid(), not serve().
+ */
+function syncManifestToAndroidStrings(string $androidResDir): void
+{
+    $manifest = loadManifest();
+    if (!isset($manifest['name'])) {
+        return;
+    }
+
+    $stringsPath = "{$androidResDir}/values/strings.xml";
+    if (!is_file($stringsPath)) {
+        return;
+    }
+
+    $escaped = htmlspecialchars($manifest['name'], ENT_XML1 | ENT_QUOTES);
+    $strings = file_get_contents($stringsPath);
+    $strings = preg_replace('#<string name="app_name">.*?</string>#', "<string name=\"app_name\">{$escaped}</string>", $strings);
+
+    file_put_contents($stringsPath, $strings);
+}
+
+/**
+ * Generates the Android launcher icon (legacy mipmaps + adaptive icon) from
+ * the manifest's `icon` (a square PNG path, relative to the project root)
+ * and `icon_background` (hex color, defaults to white) — see
+ * bin/generate-android-icon.php. No-op if `icon` isn't declared, so
+ * projects that haven't opted in keep their existing hand-authored icon.
+ */
+function syncManifestIcon(string $androidResDir): void
+{
+    $manifest = loadManifest();
+    if (!isset($manifest['icon'])) {
+        return;
+    }
+
+    $iconPath = PHPX_ROOT . '/' . $manifest['icon'];
+    $background = $manifest['icon_background'] ?? '#FFFFFF';
+    $generator = __DIR__ . '/generate-android-icon.php';
+
+    passthruOrFail(sprintf(
+        'php %s %s %s %s',
+        escapeshellarg($generator),
+        escapeshellarg($iconPath),
+        escapeshellarg($androidResDir),
+        escapeshellarg($background),
+    ));
+}
+
 function cmdPayments(): void
 {
     $manifest = loadManifest();
@@ -402,6 +457,16 @@ function cmdMaps(): void
     }
 
     printf("  %-14s %s\n", 'openstreetmap', 'toujours disponible (aucune clé requise)');
+}
+
+function cmdIcon(): void
+{
+    $manifest = loadManifest();
+    if (!isset($manifest['icon'])) {
+        phpxFail("phpnitro.yml ne déclare pas d'icône — ajoute `icon: chemin/vers/icone.png` (carré) pour en générer une.");
+    }
+
+    syncManifestIcon(PHPX_ROOT . '/android/app/src/main/res');
 }
 
 function cmdServe(int $port): void
@@ -517,6 +582,10 @@ function cmdBundleAndroid(): void
     syncAssets();
     syncManifestToEnv();
 
+    $androidResDir = PHPX_ROOT . '/android/app/src/main/res';
+    syncManifestToAndroidStrings($androidResDir);
+    syncManifestIcon($androidResDir);
+
     $staging = PHPX_ROOT . '/android/app/src/main/assets/www';
 
     if (is_dir($staging)) {
@@ -579,6 +648,9 @@ switch ($command) {
     case 'maps':
         cmdMaps();
         break;
+    case 'icon':
+        cmdIcon();
+        break;
     default:
-        phpxFail('usage: phpx <make:page|make:entity|serve|new|bundle:android|payments|maps> ...');
+        phpxFail('usage: phpx <make:page|make:entity|serve|new|bundle:android|payments|maps|icon> ...');
 }

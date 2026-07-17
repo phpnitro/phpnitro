@@ -3,6 +3,13 @@ description: Démo du framework — écrans, widgets, capacités device, backend
 version: 1.0.0
 php: ">=8.1"
 
+# Décommente pour générer l'icône Android (mipmaps + icône adaptative)
+# depuis `phpx bundle:android` — voir bin/generate-android-icon.php et
+# `phpx icon` pour une régénération à la demande. `name` ci-dessus pilote
+# aussi le label natif de l'app (strings.xml), en plus de .env's APP_NAME.
+# icon: assets/icon.png
+# icon_background: "#2563EB"
+
 # Chaque gateway déclare le(s) nom(s) de variable(s) d'environnement qu'il
 # attend dans .env — `phpx payments` lit ce fichier et dit lesquels sont
 # réellement configurés, sans jamais lire les clés elles-mêmes.

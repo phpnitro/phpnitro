@@ -3,6 +3,12 @@ description: Boutique en ligne de démonstration complète du framework PhpNitro
 version: 1.0.0
 php: ">=8.1"
 
+# Icône du launcher Android générée depuis ce PNG carré (placeholder — à
+# remplacer par un vrai logo, il suffit de changer le chemin) par
+# bundle-android.sh via ../../bin/generate-android-icon.php.
+icon: assets/icon.png
+icon_background: "#059669"
+
 # Documentation seule ici (cet exemple n'utilise pas bin/phpx) — voir
 # CheckoutPage::build() pour l'ordre de priorité réel entre gateways, et
 # ../../README.md#paiement pour le détail de chacun. Renseigne l'une de ces
