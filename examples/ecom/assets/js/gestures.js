@@ -1,19 +1,8 @@
-document.addEventListener('DOMContentLoaded', () => {
-  function sendAction(action) {
-    const body = new URLSearchParams();
-    body.set('_action', action);
-    const token = document.querySelector('meta[name="csrf-token"]');
-    if (token) {
-      body.set('_token', token.content);
-    }
-    fetch(window.location.pathname, { method: 'POST', body })
-      .then(() => window.location.reload());
-  }
-
+function phpxBindGestureAreas() {
   document.querySelectorAll('.gesture-area').forEach((el) => {
     const dblClickAction = el.dataset.onDblclick;
     if (dblClickAction) {
-      el.addEventListener('dblclick', () => sendAction(dblClickAction));
+      el.addEventListener('dblclick', () => window.phpxNav.submitAction(dblClickAction));
     }
 
     const swipeLeftAction = el.dataset.onSwipeLeft;
@@ -35,13 +24,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const threshold = 40;
 
         if (deltaX <= -threshold && swipeLeftAction) {
-          sendAction(swipeLeftAction);
+          window.phpxNav.submitAction(swipeLeftAction);
         } else if (deltaX >= threshold && swipeRightAction) {
-          sendAction(swipeRightAction);
+          window.phpxNav.submitAction(swipeRightAction);
         }
 
         startX = null;
       });
     }
   });
-});
+}
+
+// Bound once at page load, then again after every partial-navigation swap
+// (see nav.js) — document.body.innerHTML replacement creates entirely new
+// elements, none of which carry the listeners bound here the first time.
+document.addEventListener('DOMContentLoaded', phpxBindGestureAreas);
+document.addEventListener('phpx:navigated', phpxBindGestureAreas);
