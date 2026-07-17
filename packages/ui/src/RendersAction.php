@@ -4,16 +4,29 @@ namespace Engine;
 
 /**
  * Shared rendering for widgets that either do nothing on click (plain
- * <button>) or submit a named action to the server (<form> + hidden input),
- * consistent with the "PHP is the real runtime" interaction model used
- * throughout the engine.
+ * <button>), submit a named action to the server (<form> + hidden input),
+ * or trigger raw client-side JS ($onClick — how a service class like
+ * Engine\Device\Vibrate or Engine\Payments\Kkiapay gets attached to a
+ * button the developer controls, instead of being baked into an
+ * opinionated pre-styled widget). $onClick takes priority over $action
+ * when both are given — they're different mechanisms (client JS vs.
+ * server POST), not meant to combine on the same element.
  */
 trait RendersAction
 {
-    private function renderActionableButton(string $label, ?string $action, string $classes): string
+    private function renderActionableButton(string $label, ?string $action, string $classes, ?string $onClick = null): string
     {
         $classes = htmlspecialchars($classes, ENT_QUOTES);
         $label = htmlspecialchars($label, ENT_QUOTES);
+
+        if ($onClick !== null) {
+            return sprintf(
+                '<button type="button" onclick="%s" class="%s">%s</button>',
+                htmlspecialchars($onClick, ENT_QUOTES),
+                $classes,
+                $label,
+            );
+        }
 
         if ($action === null) {
             // type=submit so a plain Button placed inside a Form submits it;

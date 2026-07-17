@@ -9,6 +9,8 @@ use Engine\Column;
 use Engine\ErrorBanner;
 use Engine\FontWeight;
 use Engine\Form;
+use Engine\Html;
+use Engine\IconButton;
 use Engine\ListView;
 use Engine\Row;
 use Engine\SelectBox;
@@ -156,5 +158,27 @@ final class WidgetsTest extends TestCase
 
         $this->assertStringContainsString('border-red-500', $html);
         $this->assertStringContainsString('Choix requis', $html);
+    }
+
+    public function testHtmlRawPassesThroughUnescaped(): void
+    {
+        $this->assertSame('<script>hi</script>', Html::raw('<script>hi</script>')->render());
+    }
+
+    public function testButtonOnClickTakesPriorityOverAction(): void
+    {
+        $html = Button::make('Vibrer', action: 'shouldBeIgnored', onClick: 'phpxDevice.vibrate(200)')->render();
+
+        $this->assertStringContainsString('onclick="phpxDevice.vibrate(200)"', $html);
+        $this->assertStringNotContainsString('<form', $html);
+        $this->assertStringNotContainsString('shouldBeIgnored', $html);
+    }
+
+    public function testIconButtonSupportsOnClick(): void
+    {
+        $html = IconButton::make('<svg></svg>', onClick: 'doStuff()')->render();
+
+        $this->assertStringContainsString('onclick="doStuff()"', $html);
+        $this->assertStringNotContainsString('<form', $html);
     }
 }

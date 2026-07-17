@@ -12,16 +12,21 @@ final class Button extends Widget
         private readonly string $label,
         private readonly ?string $action = null,
         private readonly string $classes = self::DEFAULT_CLASSES,
+        private readonly ?string $onClick = null,
     ) {
     }
 
-    public static function make(string $label, ?string $action = null, string $classes = self::DEFAULT_CLASSES): self
-    {
-        return new self($label, $action, $classes);
+    public static function make(
+        string $label,
+        ?string $action = null,
+        string $classes = self::DEFAULT_CLASSES,
+        ?string $onClick = null,
+    ): self {
+        return new self($label, $action, $classes, $onClick);
     }
 
     public function render(): string
     {
-        return $this->renderActionableButton($this->label, $this->action, $this->classes);
+        return $this->renderActionableButton($this->label, $this->action, $this->classes, $this->onClick);
     }
 }
