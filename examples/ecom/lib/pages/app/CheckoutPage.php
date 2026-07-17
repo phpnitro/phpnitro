@@ -9,17 +9,30 @@ use Engine\Button;
 use Engine\Checkbox;
 use Engine\Color;
 use Engine\Column;
+use Engine\FedapayButton;
+use Engine\FeexpayButton;
 use Engine\FingerprintButton;
 use Engine\Form;
+use Engine\IziChangePayButton;
 use Engine\KkiapayButton;
 use Engine\Link;
+use Engine\PaypalButton;
 use Engine\Scaffold;
 use Engine\Screen;
 use Engine\SelectBox;
+use Engine\StripeButton;
+use Engine\StripeCheckout;
 use Engine\Text;
 use Engine\TextField;
+use Engine\TresorPayButton;
 use Engine\Widget;
 
+/**
+ * Picks ONE payment method to show on /checkout, whichever comes first in
+ * this priority list with its key(s) configured in .env — see
+ * ../../phpnitro.yml for the full list of env var names. No key configured
+ * anywhere -> demo mode (order created directly, no payment).
+ */
 final class CheckoutPage extends Screen
 {
     protected function initialState(): array
@@ -28,7 +41,7 @@ final class CheckoutPage extends Screen
     }
 
     /**
-     * Demo path when no Kkiapay key is configured (see build()) — validates
+     * Demo path when no gateway is configured (see build()) — validates
      * and creates the order directly, no payment step.
      *
      * @param array<string, string> $data
@@ -45,11 +58,97 @@ final class CheckoutPage extends Screen
      *
      * @param array<string, string> $data
      */
-    protected function onConfirmPayment(array $data): ?string
+    protected function onConfirmKkiapay(array $data): ?string
     {
-        $transactionId = trim($data['transaction_id'] ?? '');
+        return $this->verifyThenCreateOrder($data, 'transaction_id', $this->verifyKkiapayTransaction(...));
+    }
 
-        if ($transactionId === '' || !$this->verifyKkiapayTransaction($transactionId)) {
+    /**
+     * @param array<string, string> $data
+     */
+    protected function onConfirmPaypal(array $data): ?string
+    {
+        return $this->verifyThenCreateOrder($data, 'paypal_order_id', $this->verifyPaypalOrder(...));
+    }
+
+    /**
+     * @param array<string, string> $data
+     */
+    protected function onConfirmFedapay(array $data): ?string
+    {
+        return $this->verifyThenCreateOrder($data, 'transaction_id', $this->verifyFedapayTransaction(...));
+    }
+
+    /**
+     * @param array<string, string> $data
+     */
+    protected function onConfirmFeexpay(array $data): ?string
+    {
+        return $this->verifyThenCreateOrder($data, 'transaction_id', fn (string $id) => $this->trustOnlyInDemoMode('FEEXPAY_API_KEY'));
+    }
+
+    /**
+     * @param array<string, string> $data
+     */
+    protected function onConfirmIzichangepay(array $data): ?string
+    {
+        return $this->verifyThenCreateOrder($data, 'transaction_id', fn (string $id) => $this->trustOnlyInDemoMode('IZICHANGEPAY_API_SECRET'));
+    }
+
+    /**
+     * @param array<string, string> $data
+     */
+    protected function onConfirmTresorpay(array $data): ?string
+    {
+        return $this->verifyThenCreateOrder($data, 'transaction_id', fn (string $id) => $this->trustOnlyInDemoMode('TRESORPAY_SECRET_KEY'));
+    }
+
+    /**
+     * Stripe Checkout has no client-side callback at all (StripeButton is a
+     * plain submit button) — this creates the order right away, then asks
+     * Stripe for a hosted Checkout Session and redirects there.
+     *
+     * This is optimistic: the order exists before Stripe actually confirms
+     * payment, because this demo has no webhook endpoint to react
+     * asynchronously. A real store must mark orders paid from Stripe's
+     * webhook (signature verified) instead — same "don't trust the
+     * redirect alone" rule as every other gateway here, just with a bigger
+     * gap since there's no callback yet in this codebase at all.
+     *
+     * @param array<string, string> $data
+     */
+    protected function onConfirmStripe(array $data): ?string
+    {
+        [, $totalCents] = $this->cartToOrderLines(Cart::items());
+
+        $redirect = $this->validateAndCreateOrder($data);
+        if ($redirect === null) {
+            return null;
+        }
+
+        $secretKey = $_ENV['STRIPE_SECRET_KEY'] ?? '';
+        $baseUrl = (($_SERVER['HTTPS'] ?? '') !== '' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+
+        $sessionUrl = StripeCheckout::createSessionUrl(
+            $secretKey,
+            $totalCents,
+            'eur',
+            'Commande Ma Boutique',
+            $baseUrl . $redirect,
+            $baseUrl . '/checkout',
+        );
+
+        return $sessionUrl ?? $redirect;
+    }
+
+    /**
+     * @param array<string, string> $data
+     */
+    private function verifyThenCreateOrder(array $data, string $transactionField, callable $verify): ?string
+    {
+        $transactionId = trim($data[$transactionField] ?? '');
+
+        if ($transactionId === '' || !$verify($transactionId)) {
             $this->state['error'] = "Le paiement n'a pas pu être vérifié.";
 
             return null;
@@ -142,6 +241,7 @@ final class CheckoutPage extends Screen
                     'http' => [
                         'header' => "x-api-key: {$privateKey}\r\n",
                         'timeout' => 10,
+                        'ignore_errors' => true,
                     ],
                 ]),
             );
@@ -158,6 +258,110 @@ final class CheckoutPage extends Screen
         }
     }
 
+    /**
+     * Real PayPal OAuth2 client-credentials + capture flow (client secret
+     * exchanged for a bearer token, then POST .../capture) — matches
+     * PayPal's documented API, but untested against a real sandbox app in
+     * this environment. Uses the SANDBOX host; switch to api-m.paypal.com
+     * for a live account.
+     */
+    private function verifyPaypalOrder(string $orderId): bool
+    {
+        $clientId = $_ENV['PAYPAL_CLIENT_ID'] ?? '';
+        $clientSecret = $_ENV['PAYPAL_CLIENT_SECRET'] ?? '';
+
+        if ($clientSecret === '') {
+            return true;
+        }
+
+        try {
+            $base = 'https://api-m.sandbox.paypal.com';
+            $auth = base64_encode("{$clientId}:{$clientSecret}");
+
+            $tokenResponse = file_get_contents("{$base}/v1/oauth2/token", false, stream_context_create([
+                'http' => [
+                    'method' => 'POST',
+                    'header' => "Authorization: Basic {$auth}\r\nContent-Type: application/x-www-form-urlencoded\r\n",
+                    'content' => 'grant_type=client_credentials',
+                    'timeout' => 10,
+                    'ignore_errors' => true,
+                ],
+            ]));
+
+            $accessToken = $tokenResponse !== false ? (json_decode($tokenResponse, true)['access_token'] ?? null) : null;
+            if ($accessToken === null) {
+                return false;
+            }
+
+            $captureResponse = file_get_contents("{$base}/v2/checkout/orders/{$orderId}/capture", false, stream_context_create([
+                'http' => [
+                    'method' => 'POST',
+                    'header' => "Authorization: Bearer {$accessToken}\r\nContent-Type: application/json\r\n",
+                    'content' => '',
+                    'timeout' => 10,
+                    'ignore_errors' => true,
+                ],
+            ]));
+
+            if ($captureResponse === false) {
+                return false;
+            }
+
+            return (json_decode($captureResponse, true)['status'] ?? null) === 'COMPLETED';
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * FedaPay's transaction-status endpoint, Bearer auth with the secret
+     * key — moderate confidence in this shape (not Kkiapay/PayPal level),
+     * untested against a real sandbox account.
+     */
+    private function verifyFedapayTransaction(string $transactionId): bool
+    {
+        $secretKey = $_ENV['FEDAPAY_SECRET_KEY'] ?? '';
+
+        if ($secretKey === '') {
+            return true;
+        }
+
+        try {
+            $response = file_get_contents("https://api.fedapay.com/v1/transactions/{$transactionId}", false, stream_context_create([
+                'http' => [
+                    'header' => "Authorization: Bearer {$secretKey}\r\n",
+                    'timeout' => 10,
+                    'ignore_errors' => true,
+                ],
+            ]));
+
+            if ($response === false) {
+                return false;
+            }
+
+            $data = json_decode($response, true);
+            $status = $data['v1/transaction']['status'] ?? $data['transaction']['status'] ?? null;
+
+            return $status === 'approved';
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * Feexpay/iZiChangePay/TresorPay have no confirmed server-to-server
+     * verify endpoint implemented here (see each widget's docblock — low
+     * to very-low confidence in their exact API). Rather than fake a call
+     * to an unverified endpoint, this refuses once a secret key is
+     * configured (signalling "this is meant to be a real deployment")
+     * instead of silently trusting the client. Demo mode (no secret key)
+     * still works, same as every other gateway.
+     */
+    private function trustOnlyInDemoMode(string $secretEnvKey): bool
+    {
+        return ($_ENV[$secretEnvKey] ?? '') === '';
+    }
+
     public function build(): Widget
     {
         $children = [];
@@ -166,24 +370,10 @@ final class CheckoutPage extends Screen
             $children[] = Text::make($this->state['error'], color: Color::red(600));
         }
 
-        $publicKey = $_ENV['KKIAPAY_PUBLIC_KEY'] ?? '';
         [, $totalCents] = $this->cartToOrderLines(Cart::items());
+        $amount = $totalCents / 100;
 
-        // Amount/currency must match what your Kkiapay account is
-        // configured for — this demo just reuses the shop's own euro
-        // totals (see CartPage/ProductPage), which won't be right for a
-        // real XOF-denominated Kkiapay account.
-        $payButton = $publicKey !== ''
-            ? KkiapayButton::make(
-                $publicKey,
-                $totalCents / 100,
-                action: 'confirmPayment',
-                label: 'Payer et valider la commande',
-            )
-            : Button::make(
-                'Valider la commande (mode démo, sans paiement)',
-                classes: 'bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg w-full',
-            );
+        $payButton = $this->selectPaymentWidget($amount);
 
         $children[] = Form::make([
             TextField::make('name', label: 'Nom complet'),
@@ -202,6 +392,47 @@ final class CheckoutPage extends Screen
         return Scaffold::make(
             body: Column::make($children, 'flex flex-col gap-4 p-4'),
             appBar: AppBar::make('Paiement', backHref: '/cart'),
+        );
+    }
+
+    /**
+     * Amount/currency reuses the shop's own euro totals (see
+     * CartPage/ProductPage) for every gateway here — won't be right for an
+     * account configured in XOF/USD/etc, adjust per gateway as needed.
+     */
+    private function selectPaymentWidget(float $amount): Widget
+    {
+        if (($key = $_ENV['KKIAPAY_PUBLIC_KEY'] ?? '') !== '') {
+            return KkiapayButton::make($key, $amount, action: 'confirmKkiapay', label: 'Payer avec Kkiapay');
+        }
+
+        if (($key = $_ENV['PAYPAL_CLIENT_ID'] ?? '') !== '') {
+            return PaypalButton::make($key, $amount, action: 'confirmPaypal');
+        }
+
+        if (($key = $_ENV['FEDAPAY_PUBLIC_KEY'] ?? '') !== '') {
+            return FedapayButton::make($key, $amount, action: 'confirmFedapay', description: 'Commande Ma Boutique', label: 'Payer avec FedaPay');
+        }
+
+        if (($_ENV['STRIPE_SECRET_KEY'] ?? '') !== '') {
+            return StripeButton::make(action: 'confirmStripe', label: 'Payer par carte (Stripe)');
+        }
+
+        if (($key = $_ENV['FEEXPAY_SHOP_ID'] ?? '') !== '') {
+            return FeexpayButton::make($key, $amount, action: 'confirmFeexpay', label: 'Payer avec Feexpay');
+        }
+
+        if (($key = $_ENV['IZICHANGEPAY_API_KEY'] ?? '') !== '') {
+            return IziChangePayButton::make($key, $amount, action: 'confirmIzichangepay', label: 'Payer avec iZiChangePay');
+        }
+
+        if (($key = $_ENV['TRESORPAY_PUBLIC_KEY'] ?? '') !== '') {
+            return TresorPayButton::make($key, $amount, action: 'confirmTresorpay', label: 'Payer avec TresorPay');
+        }
+
+        return Button::make(
+            'Valider la commande (mode démo, sans paiement)',
+            classes: 'bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg w-full',
         );
     }
 }
