@@ -173,11 +173,23 @@ $router = new Router([
 ]);
 ```
 
-Le widget `Link::make($label, $href)` génère un `<a href="...">` classique — navigation par vraie requête HTTP, cohérent avec le modèle "PHP est le runtime réel" (pas de routeur JS côté client). Un chemin non déclaré renvoie une vraie 404, pas une erreur silencieuse.
+Le widget `Link::make($label, $href)` génère un `<a href="...">` classique — une vraie route HTTP, résolue par `Engine\Router` (pas de table de routes côté client). Un chemin non déclaré renvoie une vraie 404, pas une erreur silencieuse.
 
 ### Paramètres entre pages
 
 Une route comme `/product/{id}` capture le segment dans `$this->params['id']`, accessible dans `build()` (voir `lib/pages/app/ProductPage.php`). Chaque combinaison classe+paramètres a son propre état de session (deux visites de `/product/1` et `/product/2` ne partagent pas leur état).
+
+### Pas de rechargement de page (`nav.js`)
+
+Cliquer sur un `Link` ou soumettre un `Form`/`Button` ne recharge **pas** la page : `assets/js/nav.js` intercepte tout clic sur un lien et toute soumission de formulaire du même domaine, fait la requête avec un header (`X-Phpx-Partial: 1`), et remplace `<body>` par la réponse au lieu de naviguer — `history.pushState` tient l'URL à jour (et `popstate` recharge en arrière/avant). PHP reste l'unique source de rendu : le serveur renvoie exactement le même arbre de widgets qu'avant, juste encapsulé dans un petit JSON (`{html, path, theme}`) au lieu du document complet — `Engine\Navigation::isPartial()` détecte le header, `Engine\PageRenderer` choisit lequel des deux envoyer. Une action qui redirige vers un autre écran (connexion → accueil, checkout → confirmation) est résolue et rendue **côté serveur dans la même requête**, pas en deux allers-retours.
+
+Sans JS (curl, navigateur avec JS désactivé, `bin/test.sh`) : `Navigation::isPartial()` est faux, et le comportement est exactement celui d'avant (POST → redirection 303 → GET, document complet à chaque fois) — rien ne casse, l'amélioration est strictement une amélioration progressive.
+
+Deux pièges propres à ce genre de swap, déjà gérés :
+- `innerHTML` n'exécute jamais les balises `<script>` qu'il contient — `nav.js` les recrée une par une (`document.createElement('script')`) après chaque swap, donc les widgets avec un script inline (boutons de paiement) continuent de fonctionner après une navigation, pas seulement au premier chargement.
+- Tout ce qui s'attache au DOM une seule fois à `DOMContentLoaded` (gestes, polling `StreamBuilder`/`FutureBuilder`) doit aussi se réattacher après un swap — `nav.js` déclenche un événement `phpx:navigated` que `gestures.js`/`stream.js`/`future.js` écoutent pour se relier aux nouveaux éléments. `StreamBuilder` vérifie en plus que son élément est toujours attaché au DOM avant chaque requête de polling, pour qu'une navigation loin d'une page avec un live-tracker actif arrête vraiment le polling au lieu de le laisser tourner indéfiniment sur un élément détaché.
+
+Un widget qui a besoin de poster une action en JS (comme les boutons de paiement) utilise `window.phpxNav.submitAction(action, champs)` ou `window.phpxNav.submitForm(form, action, champs)` plutôt que de refaire son propre `fetch` — même mécanique de swap partout.
 
 ## Formulaires et actions paramétrées
 
@@ -399,6 +411,7 @@ Installation sur téléphone : transfère l'APK (câble, `adb install`, ou parta
 
 ## Limites actuelles
 
+- `nav.js` (navigation sans rechargement de page) : vérifié en profondeur via curl (les deux projets, tous les cas listés ci-dessus) mais pas encore reconfirmé dans la WebView réelle après ce changement précis (téléphone déconnecté au moment d'écrire ceci) — à revérifier visuellement à la prochaine connexion.
 - iOS : stub non testé, pas de PHP embarqué (voir `ios/README.md`)
 - API de style typée (`TextSize`/`FontWeight`/`Color`) : implémentée seulement sur `Text` pour l'instant
 - `StreamBuilder` fonctionne en polling HTTP (pas de WebSocket/Server-Sent Events) — suffisant pour la plupart des cas, mais pas du "temps réel" au sens strict
@@ -412,8 +425,6 @@ Installation sur téléphone : transfère l'APK (câble, `adb install`, ou parta
 **Hot reload.** Éditer un écran et rafraîchir la page montre déjà le changement instantanément (PHP est interprété à chaque requête, pas de VM à recharger comme pour Dart). Ce qui manque : que la WebView se rafraîchisse **automatiquement** quand un fichier change (petit watcher de fichiers + rechargement déclenché, façon `nodemon`/`browser-sync`).
 
 **Canvas.** Se mappe directement sur l'élément HTML5 `<canvas>` (2D, voire WebGL), mature et accéléré matériellement dans toutes les WebViews. Un widget `Canvas::make()->rect(...)->circle(...)` est réaliste à construire.
-
-**"Rapide comme une fusée".** Notre modèle actuel (clic → POST → redirect → rechargement complet de page) a un coût réseau/re-rendu par interaction que Flutter (diffing en mémoire, zéro réseau) n'a pas. Piste concrète : passer des rechargements pleine page à des mises à jour partielles (le serveur renvoie juste le HTML du widget modifié, remplacé dans le DOM via `fetch`, façon htmx/Turbo) — même modèle "PHP source de vérité", juste sans le flash de rechargement complet.
 
 ## Historique
 
