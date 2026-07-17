@@ -6,6 +6,12 @@
   function executeScripts(container) {
     container.querySelectorAll('script').forEach((oldScript) => {
       const newScript = document.createElement('script');
+      // A <script src=...> created via createElement defaults to
+      // executing asynchronously (out of document order) unless this is
+      // set — without it, a widget's own inline follow-up script (e.g.
+      // OsmMap's L.map(...) call, right after leaflet.js's <script src>)
+      // can run before the library it depends on has finished loading.
+      newScript.async = false;
       for (const attr of oldScript.attributes) {
         newScript.setAttribute(attr.name, attr.value);
       }

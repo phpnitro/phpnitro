@@ -45,17 +45,30 @@ final class MapboxMap extends Widget
         return <<<HTML
             <div id="{$id}" class="{$classes}"></div>
             <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css">
-            <script src="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.js"></script>
             <script>
                 (function () {
-                    mapboxgl.accessToken = '{$token}';
-                    var map = new mapboxgl.Map({
-                        container: '{$id}',
-                        style: 'mapbox://styles/mapbox/streets-v12',
-                        center: [{$lng}, {$lat}],
-                        zoom: {$this->zoom},
-                    });
-                    new mapboxgl.Marker().setLngLat([{$lng}, {$lat}]).addTo(map);
+                    function init() {
+                        mapboxgl.accessToken = '{$token}';
+                        var map = new mapboxgl.Map({
+                            container: '{$id}',
+                            style: 'mapbox://styles/mapbox/streets-v12',
+                            center: [{$lng}, {$lat}],
+                            zoom: {$this->zoom},
+                        });
+                        new mapboxgl.Marker().setLngLat([{$lng}, {$lat}]).addTo(map);
+                    }
+
+                    // See OsmMap for why this loads mapbox-gl.js dynamically
+                    // with an onload callback instead of a plain <script
+                    // src> tag followed by an inline script.
+                    if (window.mapboxgl) {
+                        init();
+                        return;
+                    }
+                    var script = document.createElement('script');
+                    script.src = 'https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.js';
+                    script.onload = init;
+                    document.head.appendChild(script);
                 })();
             </script>
             HTML;
