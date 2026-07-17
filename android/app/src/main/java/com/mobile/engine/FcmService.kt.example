@@ -1,6 +1,14 @@
 package com.mobile.engine
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import java.io.OutputStreamWriter
@@ -29,13 +37,19 @@ import java.net.URL
  * Once active: onNewToken() fires with the device's push token, which this
  * forwards to the backend's /api/fcm/register (see
  * backend/src/Controller/FcmController.php) so a server-side job can later
- * send notifications to it via the Firebase Admin SDK / FCM HTTP v1 API
- * (not implemented here — that's a separate server-side piece, typically
- * NOT run from the PHP-on-device process but from your own infrastructure,
- * since sending push notifications requires your Firebase service account
- * credentials, which must never ship inside the app).
+ * send notifications to it via Engine\Firebase\FirebaseMessaging (see
+ * packages/firebase/src/) — that send step must run from your own hosted
+ * server, never from the PHP-on-device process, since it requires a
+ * Firebase service-account credential that must never ship inside the app.
  */
 class FcmService : FirebaseMessagingService() {
+
+    companion object {
+        // Same channel id WebAppInterface.kt already uses for local
+        // notifications (NotifyButton) — one shared "Notifications"
+        // channel in system settings instead of two near-identical ones.
+        private const val NOTIFICATION_CHANNEL_ID = "phpx_default"
+    }
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
@@ -44,9 +58,38 @@ class FcmService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
-        Log.d("FcmService", "Message received: ${message.data}")
-        // Show a system notification here (NotificationCompat.Builder) if
-        // message.notification is non-null and the app is backgrounded.
+
+        val notification = message.notification ?: return
+        showNotification(notification.title ?: return, notification.body ?: "")
+    }
+
+    private fun showNotification(title: String, body: String) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ActivityCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                NOTIFICATION_CHANNEL_ID,
+                "Notifications",
+                NotificationManager.IMPORTANCE_DEFAULT,
+            )
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(channel)
+        }
+
+        val builtNotification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .build()
+
+        NotificationManagerCompat.from(this).notify(System.currentTimeMillis().toInt(), builtNotification)
     }
 
     private fun registerToken(token: String) {

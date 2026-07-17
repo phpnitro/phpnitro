@@ -39,6 +39,7 @@ final class WidgetsIndexPage extends Screen
             Link::make('Cartes (Mapbox, Google Maps, OpenStreetMap)', '/widgets/maps'),
             Link::make('Boîtes de dialogue (Engine\\Dialogs\\)', '/widgets/dialogs'),
             Link::make('Stepper (assistant multi-étapes)', '/widgets/stepper'),
+            Link::make('Firebase Auth (Engine\\Firebase\\)', '/widgets/firebase-auth'),
             Text::make(
                 'Paiement (Engine\\Payments\\) : 7 gateways réels, testés en conditions réelles '
                 . "dans examples/ecom/checkout — pas dupliqués ici, ils ont besoin d'une vraie clé pour s'afficher.",

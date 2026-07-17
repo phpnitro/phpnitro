@@ -13,6 +13,7 @@
  *   phpx payments                     List phpnitro.yml's declared payment gateways and their .env status
  *   phpx maps                         List phpnitro.yml's declared map providers and their .env status
  *   phpx icon                         Regenerate the Android launcher icon from phpnitro.yml's `icon`
+ *   phpx firebase                     List phpnitro.yml's declared Firebase config and their .env status
  *
  * phpnitro.yml (project root) is the app manifest — name/description/version,
  * the payment gateways and map providers the app declares, and optionally
@@ -459,6 +460,41 @@ function cmdMaps(): void
     printf("  %-14s %s\n", 'openstreetmap', 'toujours disponible (aucune clé requise)');
 }
 
+function cmdFirebase(): void
+{
+    $manifest = loadManifest();
+    $firebase = $manifest['firebase'] ?? [];
+
+    if ($firebase === []) {
+        echo "Firebase non déclaré dans phpnitro.yml.\n";
+
+        return;
+    }
+
+    $envPath = PHPX_ROOT . '/.env';
+    if (is_file($envPath)) {
+        (new \Symfony\Component\Dotenv\Dotenv())->loadEnv($envPath);
+    }
+
+    echo "Firebase (phpnitro.yml) :\n\n";
+
+    // Flat map (label => nom de variable d'environnement), contrairement à
+    // payments/maps qui groupent plusieurs fournisseurs — Firebase n'a
+    // qu'un seul projet possible ici, donc un seul niveau suffit.
+    $labels = [
+        'service_account_env' => 'compte de service (FCM + Firestore)',
+        'project_id_env' => 'project ID',
+        'web_api_key_env' => 'cle API web (Firebase Auth)',
+    ];
+
+    foreach ($firebase as $key => $envVarName) {
+        $configured = ($_ENV[$envVarName] ?? '') !== '';
+        $label = $labels[$key] ?? $key;
+
+        printf("  %-32s %s\n", $label, $configured ? 'configuré' : 'non configuré');
+    }
+}
+
 function cmdIcon(): void
 {
     $manifest = loadManifest();
@@ -606,6 +642,7 @@ function cmdBundleAndroid(): void
     copyDirectory(PHPX_ROOT . '/packages/payments/src', "{$staging}/packages/payments/src");
     copyDirectory(PHPX_ROOT . '/packages/maps/src', "{$staging}/packages/maps/src");
     copyDirectory(PHPX_ROOT . '/packages/dialogs/src', "{$staging}/packages/dialogs/src");
+    copyDirectory(PHPX_ROOT . '/packages/firebase/src', "{$staging}/packages/firebase/src");
     copy(PHPX_ROOT . '/composer.json', "{$staging}/composer.json");
 
     // "env" without the dot: AAPT silently drops hidden files from assets.
@@ -651,6 +688,9 @@ switch ($command) {
     case 'icon':
         cmdIcon();
         break;
+    case 'firebase':
+        cmdFirebase();
+        break;
     default:
-        phpxFail('usage: phpx <make:page|make:entity|serve|new|bundle:android|payments|maps|icon> ...');
+        phpxFail('usage: phpx <make:page|make:entity|serve|new|bundle:android|payments|maps|icon|firebase> ...');
 }

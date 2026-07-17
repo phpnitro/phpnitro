@@ -44,3 +44,14 @@ maps:
         access_token_env: MAPBOX_ACCESS_TOKEN
     google:
         api_key_env: GOOGLE_MAPS_API_KEY
+
+# Engine\Firebase\ (voir packages/firebase/src/) — service_account_env sert
+# à FirebaseMessaging (envoi de push, à exécuter depuis ton propre serveur,
+# jamais depuis le PHP embarqué sur le téléphone) et Firestore ;
+# web_api_key_env sert à FirebaseAuth (connexion des utilisateurs finaux,
+# une clé distincte et client-safe par conception, pas le compte de
+# service). Voir `phpx firebase`.
+firebase:
+    service_account_env: FIREBASE_SERVICE_ACCOUNT_JSON
+    project_id_env: FIREBASE_PROJECT_ID
+    web_api_key_env: FIREBASE_WEB_API_KEY
