@@ -18,6 +18,7 @@ use Engine\Payments\IziChangePayButton;
 use Engine\Payments\KkiapayButton;
 use Engine\Payments\PaypalButton;
 use Engine\Payments\StripeButton;
+use Engine\Payments\StripeCardField;
 use Engine\Payments\StripeCheckout;
 use Engine\Payments\TresorPayButton;
 use Engine\Scaffold;
@@ -76,6 +77,20 @@ final class CheckoutPage extends Screen
     protected function onConfirmFedapay(array $data): ?string
     {
         return $this->verifyThenCreateOrder($data, 'transaction_id', $this->verifyFedapayTransaction(...));
+    }
+
+    /**
+     * StripeCardField already confirmed the card client-side
+     * (stripe.confirmCardPayment) before posting here — this re-fetches
+     * the PaymentIntent server-side to confirm its real status is
+     * "succeeded" rather than trusting that client signal alone, same
+     * discipline as every other gateway above.
+     *
+     * @param array<string, string> $data
+     */
+    protected function onConfirmStripeCard(array $data): ?string
+    {
+        return $this->verifyThenCreateOrder($data, 'payment_intent_id', $this->verifyStripePaymentIntent(...));
     }
 
     /**
@@ -313,6 +328,23 @@ final class CheckoutPage extends Screen
     }
 
     /**
+     * PaymentIntents.retrieve — same official Stripe REST endpoint as
+     * createPaymentIntent, untested against a real Stripe account here.
+     */
+    private function verifyStripePaymentIntent(string $paymentIntentId): bool
+    {
+        $secretKey = $_ENV['STRIPE_SECRET_KEY'] ?? '';
+
+        if ($secretKey === '') {
+            return false;
+        }
+
+        $intent = StripeCheckout::retrievePaymentIntent($secretKey, $paymentIntentId);
+
+        return ($intent['status'] ?? null) === 'succeeded';
+    }
+
+    /**
      * FedaPay's transaction-status endpoint, Bearer auth with the secret
      * key — moderate confidence in this shape (not Kkiapay/PayPal level),
      * untested against a real sandbox account.
@@ -407,6 +439,17 @@ final class CheckoutPage extends Screen
 
         if (($key = $_ENV['FEDAPAY_PUBLIC_KEY'] ?? '') !== '') {
             return FedapayButton::make($key, $amount, action: 'confirmFedapay', description: 'Commande Ma Boutique', label: 'Payer avec FedaPay');
+        }
+
+        if (($publicKey = $_ENV['STRIPE_PUBLIC_KEY'] ?? '') !== '' && ($secretKey = $_ENV['STRIPE_SECRET_KEY'] ?? '') !== '') {
+            $intent = StripeCheckout::createPaymentIntent($secretKey, (int) round($amount * 100), 'eur');
+
+            if ($intent !== null) {
+                return StripeCardField::make($publicKey, $intent['client_secret'], action: 'confirmStripeCard');
+            }
+            // PaymentIntent creation failed (bad key, network...) — fall
+            // through to the hosted-checkout path below instead of
+            // rendering a card field with no PaymentIntent to confirm.
         }
 
         if (($_ENV['STRIPE_SECRET_KEY'] ?? '') !== '') {
