@@ -77,12 +77,27 @@ window.phpxDevice = {
     }
   },
 
-  // WebAuthn platform authenticator (fingerprint/face unlock). Registers a
-  // throwaway credential once per session then authenticates against it —
-  // enough to trigger the real OS biometric prompt and prove the round-trip
-  // works. A production app would register server-side and verify the
-  // assertion signature there instead of just checking the call resolved.
-  async fingerprint(outputElementId) {
+  // Fingerprint/face unlock. Prefers the native bridge (Android BiometricPrompt,
+  // via WebAppInterface.showBiometricPrompt) since WebView does NOT implement
+  // WebAuthn/FIDO2 platform authenticators the way the Chrome app does —
+  // navigator.credentials is unreliable-to-absent inside a WebView even when
+  // the device has a fingerprint enrolled. Falls back to WebAuthn only when
+  // running in a real browser (e.g. testing the dev server directly).
+  fingerprint(outputElementId) {
+    const el = document.getElementById(outputElementId);
+
+    if (window.AndroidNative && window.AndroidNative.showBiometricPrompt) {
+      window.onNativeBiometricResult = (success, message) => {
+        if (el) el.textContent = success ? 'Authentification réussie ✓' : ('Échec : ' + message);
+      };
+      window.AndroidNative.showBiometricPrompt();
+      return;
+    }
+
+    this.webAuthnFingerprint(outputElementId);
+  },
+
+  async webAuthnFingerprint(outputElementId) {
     const el = document.getElementById(outputElementId);
     if (!window.PublicKeyCredential) {
       if (el) el.textContent = 'Authentification biométrique non disponible sur ce navigateur.';
@@ -133,5 +148,81 @@ window.phpxDevice = {
     } catch (err) {
       if (el) el.textContent = 'Échec : ' + err.message;
     }
+  },
+
+  // Native MediaPlayer (keeps playing across screen lock / audio focus
+  // changes) with a plain <audio> fallback for browser testing.
+  playSound(url) {
+    if (window.AndroidNative && window.AndroidNative.playSound) {
+      window.AndroidNative.playSound(url);
+      return;
+    }
+    new Audio(url).play().catch(() => {});
+  },
+
+  // Real system notification (native NotificationCompat), independent of
+  // any push service — works fully offline. Falls back to the Web
+  // Notifications API in a browser.
+  async notify(title, message) {
+    if (window.AndroidNative && window.AndroidNative.showNotification) {
+      window.AndroidNative.showNotification(title, message);
+      return;
+    }
+
+    if (!('Notification' in window)) {
+      return;
+    }
+
+    if (Notification.permission === 'default') {
+      await Notification.requestPermission();
+    }
+
+    if (Notification.permission === 'granted') {
+      new Notification(title, { body: message });
+    }
+  },
+
+  // Native print pipeline (WebView.createPrintDocumentAdapter + PrintManager
+  // — the system "Save as PDF" flow), falls back to window.print() in a browser.
+  print() {
+    if (window.AndroidNative && window.AndroidNative.printPage) {
+      window.AndroidNative.printPage();
+      return;
+    }
+    window.print();
+  },
+
+  // Native image picker (system gallery/file app via Android's
+  // ActivityResultContracts.GetContent), falls back to a plain <input
+  // type=file> + FileReader in a browser.
+  // hiddenFieldId (optional) also gets the data URL, so the picked image
+  // can be submitted as part of a normal Form POST (see ImagePicker widget).
+  pickImage(imgElementId, hiddenFieldId) {
+    const el = document.getElementById(imgElementId);
+    const setResult = (dataUrl) => {
+      if (el && dataUrl) el.src = dataUrl;
+      if (hiddenFieldId) {
+        const hidden = document.getElementById(hiddenFieldId);
+        if (hidden) hidden.value = dataUrl || '';
+      }
+    };
+
+    if (window.AndroidNative && window.AndroidNative.pickImage) {
+      window.onNativeImagePicked = setResult;
+      window.AndroidNative.pickImage();
+      return;
+    }
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = () => {
+      const file = input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => setResult(reader.result);
+      reader.readAsDataURL(file);
+    };
+    input.click();
   },
 };
