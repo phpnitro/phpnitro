@@ -159,6 +159,7 @@ $widgetTree = $screen->build();
 PageRenderer::render($widgetTree, $path, $_ENV['APP_NAME'] ?? 'PHP Engine', [
     '/assets/js/gestures.js',
     '/assets/js/device.js',
+    '/assets/js/dialogs.js',
     '/assets/js/stream.js',
     '/assets/js/future.js',
     '/assets/js/nav.js',

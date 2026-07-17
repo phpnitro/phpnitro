@@ -10,6 +10,7 @@
             "Engine\\Database\\": "../../packages/database/src/",
             "Engine\\Payments\\": "../../packages/payments/src/",
             "Engine\\Maps\\": "../../packages/maps/src/",
+            "Engine\\Dialogs\\": "../../packages/dialogs/src/",
             "Engine\\App\\": "lib/pages/app/",
             "Backend\\": "lib/backend/src/"
         }

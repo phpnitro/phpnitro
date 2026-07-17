@@ -15,6 +15,7 @@
             "Engine\\Database\\": "packages/database/src/",
             "Engine\\Payments\\": "packages/payments/src/",
             "Engine\\Maps\\": "packages/maps/src/",
+            "Engine\\Dialogs\\": "packages/dialogs/src/",
             "Engine\\App\\": "lib/pages/app/",
             "Backend\\": "lib/backend/src/"
         }
@@ -24,7 +25,8 @@
             "Engine\\Tests\\": "packages/ui/tests/",
             "Engine\\Database\\Tests\\": "packages/database/tests/",
             "Engine\\Payments\\Tests\\": "packages/payments/tests/",
-            "Engine\\Maps\\Tests\\": "packages/maps/tests/"
+            "Engine\\Maps\\Tests\\": "packages/maps/tests/",
+            "Engine\\Dialogs\\Tests\\": "packages/dialogs/tests/"
         }
     }
 }

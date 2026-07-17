@@ -13,5 +13,8 @@
         <testsuite name="maps">
             <directory>packages/maps/tests</directory>
         </testsuite>
+        <testsuite name="dialogs">
+            <directory>packages/dialogs/tests</directory>
+        </testsuite>
     </testsuites>
 </phpunit>

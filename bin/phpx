@@ -536,6 +536,7 @@ function cmdBundleAndroid(): void
     copyDirectory(PHPX_ROOT . '/packages/database/src', "{$staging}/packages/database/src");
     copyDirectory(PHPX_ROOT . '/packages/payments/src', "{$staging}/packages/payments/src");
     copyDirectory(PHPX_ROOT . '/packages/maps/src', "{$staging}/packages/maps/src");
+    copyDirectory(PHPX_ROOT . '/packages/dialogs/src', "{$staging}/packages/dialogs/src");
     copy(PHPX_ROOT . '/composer.json', "{$staging}/composer.json");
 
     // "env" without the dot: AAPT silently drops hidden files from assets.

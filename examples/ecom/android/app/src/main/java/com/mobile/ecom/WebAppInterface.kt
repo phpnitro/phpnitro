@@ -17,6 +17,7 @@ import android.print.PrintManager
 import android.util.Base64
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
+import androidx.appcompat.app.AlertDialog
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.app.ActivityCompat
@@ -249,6 +250,46 @@ class WebAppInterface(
             val jobName = "Document"
             val adapter = webView.createPrintDocumentAdapter(jobName)
             printManager.print(jobName, adapter, PrintAttributes.Builder().build())
+        }
+    }
+
+    @JavascriptInterface
+    fun showAlertDialog(title: String, message: String) {
+        val activity = context as? Activity ?: return
+
+        activity.runOnUiThread {
+            AlertDialog.Builder(activity)
+                .setTitle(title.ifEmpty { null })
+                .setMessage(message)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+        }
+    }
+
+    @JavascriptInterface
+    fun showConfirmDialog(title: String, message: String) {
+        val activity = context as? Activity ?: run {
+            reportConfirmDialogResult(false)
+            return
+        }
+
+        activity.runOnUiThread {
+            AlertDialog.Builder(activity)
+                .setTitle(title.ifEmpty { null })
+                .setMessage(message)
+                .setPositiveButton(android.R.string.ok) { _, _ -> reportConfirmDialogResult(true) }
+                .setNegativeButton(android.R.string.cancel) { _, _ -> reportConfirmDialogResult(false) }
+                .setOnCancelListener { reportConfirmDialogResult(false) }
+                .show()
+        }
+    }
+
+    private fun reportConfirmDialogResult(confirmed: Boolean) {
+        webView.post {
+            webView.evaluateJavascript(
+                "window.onNativeConfirmResult && window.onNativeConfirmResult(${confirmed})",
+                null,
+            )
         }
     }
 }
