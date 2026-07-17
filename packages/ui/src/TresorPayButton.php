@@ -68,15 +68,7 @@ final class TresorPayButton extends Widget
                         sandbox: {$sandbox},
                         onSuccess: function (response) {
                             const form = document.getElementById('{$id}').closest('form');
-                            const body = form ? new URLSearchParams(new FormData(form)) : new URLSearchParams();
-                            body.set('_action', '{$action}');
-                            body.set('transaction_id', response.transaction_id);
-                            const token = document.querySelector('meta[name="csrf-token"]');
-                            if (token) {
-                                body.set('_token', token.content);
-                            }
-                            fetch(window.location.pathname, { method: 'POST', body })
-                                .then(() => window.location.reload());
+                            window.phpxNav.submitForm(form, '{$action}', { transaction_id: response.transaction_id });
                         },
                     });
                 });

@@ -57,15 +57,7 @@ final class PaypalButton extends Widget
                     },
                     onApprove: function (data) {
                         const form = document.getElementById('{$id}').closest('form');
-                        const body = form ? new URLSearchParams(new FormData(form)) : new URLSearchParams();
-                        body.set('_action', '{$action}');
-                        body.set('paypal_order_id', data.orderID);
-                        const token = document.querySelector('meta[name="csrf-token"]');
-                        if (token) {
-                            body.set('_token', token.content);
-                        }
-                        return fetch(window.location.pathname, { method: 'POST', body })
-                            .then(() => window.location.reload());
+                        return window.phpxNav.submitForm(form, '{$action}', { paypal_order_id: data.orderID });
                     },
                 }).render('#{$id}');
             </script>

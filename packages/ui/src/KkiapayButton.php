@@ -61,17 +61,10 @@ final class KkiapayButton extends Widget
                     // If this button lives inside a <form> (e.g. a checkout form with
                     // shipping fields), those values are submitted alongside the
                     // transaction id — the server needs both together to create the
-                    // order in one step.
+                    // order in one step. phpxNav.submitForm also means this swaps the
+                    // resulting page in instead of a full reload, same as everywhere else.
                     const form = document.getElementById('{$id}').closest('form');
-                    const body = form ? new URLSearchParams(new FormData(form)) : new URLSearchParams();
-                    body.set('_action', '{$action}');
-                    body.set('transaction_id', response.transactionId);
-                    const token = document.querySelector('meta[name="csrf-token"]');
-                    if (token) {
-                        body.set('_token', token.content);
-                    }
-                    fetch(window.location.pathname, { method: 'POST', body })
-                        .then(() => window.location.reload());
+                    window.phpxNav.submitForm(form, '{$action}', { transaction_id: response.transactionId });
                 });
             </script>
             HTML;
