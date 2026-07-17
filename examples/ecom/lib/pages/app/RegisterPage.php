@@ -5,13 +5,12 @@ namespace Engine\App;
 use Backend\Repository\UserRepository;
 use Engine\AppBar;
 use Engine\Button;
-use Engine\Color;
 use Engine\Column;
+use Engine\ErrorBanner;
 use Engine\Form;
 use Engine\Link;
 use Engine\Scaffold;
 use Engine\Screen;
-use Engine\Text;
 use Engine\TextField;
 use Engine\Widget;
 
@@ -60,11 +59,7 @@ final class RegisterPage extends Screen
 
     public function build(): Widget
     {
-        $children = [];
-
-        if ($this->state['error'] !== null) {
-            $children[] = Text::make($this->state['error'], color: Color::red(600));
-        }
+        $children = [ErrorBanner::make($this->state['error'])];
 
         $children[] = Form::make([
             TextField::make('name', label: 'Nom'),

@@ -15,6 +15,7 @@ final class TextField extends Widget
         private readonly string $type = 'text',
         private readonly string $placeholder = '',
         private readonly string $classes = self::DEFAULT_CLASSES,
+        private readonly string $error = '',
     ) {
     }
 
@@ -25,29 +26,37 @@ final class TextField extends Widget
         string $type = 'text',
         string $placeholder = '',
         string $classes = self::DEFAULT_CLASSES,
+        string $error = '',
     ): self {
-        return new self($name, $label, $value, $type, $placeholder, $classes);
+        return new self($name, $label, $value, $type, $placeholder, $classes, $error);
     }
 
     public function render(): string
     {
+        $classes = $this->error === '' ? $this->classes : $this->classes . ' border-red-500 dark:border-red-500 focus:ring-red-500';
+
         $input = sprintf(
             '<input type="%s" name="%s" value="%s" placeholder="%s" class="%s">',
             htmlspecialchars($this->type, ENT_QUOTES),
             htmlspecialchars($this->name, ENT_QUOTES),
             htmlspecialchars($this->value, ENT_QUOTES),
             htmlspecialchars($this->placeholder, ENT_QUOTES),
-            htmlspecialchars($this->classes, ENT_QUOTES),
+            htmlspecialchars($classes, ENT_QUOTES),
         );
 
+        $errorHtml = $this->error === ''
+            ? ''
+            : sprintf('<span class="text-xs text-red-600 dark:text-red-400">%s</span>', htmlspecialchars($this->error, ENT_QUOTES));
+
         if ($this->label === '') {
-            return $input;
+            return $input . $errorHtml;
         }
 
         return sprintf(
-            '<label class="flex flex-col gap-1 text-sm text-gray-700 dark:text-gray-300">%s%s</label>',
+            '<label class="flex flex-col gap-1 text-sm text-gray-700 dark:text-gray-300">%s%s%s</label>',
             htmlspecialchars($this->label, ENT_QUOTES),
             $input,
+            $errorHtml,
         );
     }
 }

@@ -16,6 +16,7 @@ final class SelectBox extends Widget
         private readonly string $selected = '',
         private readonly string $label = '',
         private readonly string $classes = self::DEFAULT_CLASSES,
+        private readonly string $error = '',
     ) {
     }
 
@@ -28,8 +29,9 @@ final class SelectBox extends Widget
         string $selected = '',
         string $label = '',
         string $classes = self::DEFAULT_CLASSES,
+        string $error = '',
     ): self {
-        return new self($name, $options, $selected, $label, $classes);
+        return new self($name, $options, $selected, $label, $classes, $error);
     }
 
     public function render(): string
@@ -44,21 +46,28 @@ final class SelectBox extends Widget
             );
         }
 
+        $classes = $this->error === '' ? $this->classes : $this->classes . ' border-red-500 dark:border-red-500';
+
         $select = sprintf(
             '<select name="%s" class="%s">%s</select>',
             htmlspecialchars($this->name, ENT_QUOTES),
-            htmlspecialchars($this->classes, ENT_QUOTES),
+            htmlspecialchars($classes, ENT_QUOTES),
             $optionsHtml,
         );
 
+        $errorHtml = $this->error === ''
+            ? ''
+            : sprintf('<span class="text-xs text-red-600 dark:text-red-400">%s</span>', htmlspecialchars($this->error, ENT_QUOTES));
+
         if ($this->label === '') {
-            return $select;
+            return $select . $errorHtml;
         }
 
         return sprintf(
-            '<label class="flex flex-col gap-1 text-sm text-gray-700 dark:text-gray-300">%s%s</label>',
+            '<label class="flex flex-col gap-1 text-sm text-gray-700 dark:text-gray-300">%s%s%s</label>',
             htmlspecialchars($this->label, ENT_QUOTES),
             $select,
+            $errorHtml,
         );
     }
 }

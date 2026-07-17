@@ -6,6 +6,7 @@ use Engine\Button;
 use Engine\Checkbox;
 use Engine\Color;
 use Engine\Column;
+use Engine\ErrorBanner;
 use Engine\FontWeight;
 use Engine\Form;
 use Engine\ListView;
@@ -13,6 +14,7 @@ use Engine\Row;
 use Engine\SelectBox;
 use Engine\Stepper;
 use Engine\Text;
+use Engine\Textarea;
 use Engine\TextField;
 use Engine\TextSize;
 use PHPUnit\Framework\TestCase;
@@ -109,5 +111,50 @@ final class WidgetsTest extends TestCase
 
         $this->assertStringNotContainsString('value="back"', $html);
         $this->assertStringContainsString('name="_action" value="next"', $html);
+    }
+
+    public function testErrorBannerRendersNothingWhenMessageIsNull(): void
+    {
+        $this->assertSame('', ErrorBanner::make(null)->render());
+    }
+
+    public function testErrorBannerRendersMessageEscaped(): void
+    {
+        $html = ErrorBanner::make('<b>bad</b> input')->render();
+
+        $this->assertStringContainsString('&lt;b&gt;bad&lt;/b&gt; input', $html);
+        $this->assertStringContainsString('bg-red-50', $html);
+    }
+
+    public function testTextFieldWithoutErrorIsUnchanged(): void
+    {
+        $html = TextField::make('email', label: 'Email')->render();
+
+        $this->assertStringNotContainsString('border-red-500', $html);
+        $this->assertStringNotContainsString('text-red-600', $html);
+    }
+
+    public function testTextFieldWithErrorAddsRedBorderAndMessage(): void
+    {
+        $html = TextField::make('email', label: 'Email', error: 'Email invalide')->render();
+
+        $this->assertStringContainsString('border-red-500', $html);
+        $this->assertStringContainsString('Email invalide', $html);
+    }
+
+    public function testTextareaWithErrorAddsRedBorderAndMessage(): void
+    {
+        $html = Textarea::make('note', label: 'Note', error: 'Trop long')->render();
+
+        $this->assertStringContainsString('border-red-500', $html);
+        $this->assertStringContainsString('Trop long', $html);
+    }
+
+    public function testSelectBoxWithErrorAddsRedBorderAndMessage(): void
+    {
+        $html = SelectBox::make('lang', ['fr' => 'Français'], label: 'Langue', error: 'Choix requis')->render();
+
+        $this->assertStringContainsString('border-red-500', $html);
+        $this->assertStringContainsString('Choix requis', $html);
     }
 }

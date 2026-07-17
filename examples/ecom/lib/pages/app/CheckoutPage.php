@@ -7,8 +7,8 @@ use Backend\Repository\ProductRepository;
 use Engine\AppBar;
 use Engine\Button;
 use Engine\Checkbox;
-use Engine\Color;
 use Engine\Column;
+use Engine\ErrorBanner;
 use Engine\FingerprintButton;
 use Engine\Form;
 use Engine\Link;
@@ -23,7 +23,6 @@ use Engine\Payments\TresorPayButton;
 use Engine\Scaffold;
 use Engine\Screen;
 use Engine\SelectBox;
-use Engine\Text;
 use Engine\TextField;
 use Engine\Widget;
 
@@ -364,11 +363,7 @@ final class CheckoutPage extends Screen
 
     public function build(): Widget
     {
-        $children = [];
-
-        if ($this->state['error'] !== null) {
-            $children[] = Text::make($this->state['error'], color: Color::red(600));
-        }
+        $children = [ErrorBanner::make($this->state['error'])];
 
         [, $totalCents] = $this->cartToOrderLines(Cart::items());
         $amount = $totalCents / 100;

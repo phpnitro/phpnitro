@@ -121,6 +121,17 @@ final class Icon
         );
     }
 
+    public static function warning(string $classes = 'w-5 h-5'): string
+    {
+        return self::wrap(
+            $classes,
+            '<path d="M12 3.5 21.5 20h-19L12 3.5Z" fill="none" stroke="currentColor" '
+            . 'stroke-width="1.5" stroke-linejoin="round"/>'
+            . '<line x1="12" y1="9.5" x2="12" y2="14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>'
+            . '<circle cx="12" cy="17" r="1" fill="currentColor"/>',
+        );
+    }
+
     private static function wrap(string $classes, string $inner): string
     {
         $classes = htmlspecialchars($classes, ENT_QUOTES);
