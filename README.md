@@ -189,6 +189,8 @@ Deux pièges propres à ce genre de swap, déjà gérés :
 - `innerHTML` n'exécute jamais les balises `<script>` qu'il contient — `nav.js` les recrée une par une (`document.createElement('script')`) après chaque swap, donc les widgets avec un script inline (boutons de paiement) continuent de fonctionner après une navigation, pas seulement au premier chargement.
 - Tout ce qui s'attache au DOM une seule fois à `DOMContentLoaded` (gestes, polling `StreamBuilder`/`FutureBuilder`) doit aussi se réattacher après un swap — `nav.js` déclenche un événement `phpx:navigated` que `gestures.js`/`stream.js`/`future.js` écoutent pour se relier aux nouveaux éléments. `StreamBuilder` vérifie en plus que son élément est toujours attaché au DOM avant chaque requête de polling, pour qu'une navigation loin d'une page avec un live-tracker actif arrête vraiment le polling au lieu de le laisser tourner indéfiniment sur un élément détaché.
 
+Sur Android, `history.pushState` alimente aussi la pile back/forward native de la WebView — `MainActivity.kt` intercepte le bouton retour matériel (`OnBackPressedCallback`) et appelle `webView.goBack()` tant qu'il reste des écrans dans cette pile, avant de laisser l'Activity se fermer normalement une fois arrivé au premier écran. Vérifié en conditions réelles sur téléphone (Infinix X6532) : navigation complète accueil → produit → panier → paiement (avec erreur de validation serveur puis biométrie) → confirmation de commande (fragment `StreamBuilder` en direct) → retour, sans aucun rechargement visible ni erreur JS.
+
 Un widget qui a besoin de poster une action en JS (comme les boutons de paiement) utilise `window.phpxNav.submitAction(action, champs)` ou `window.phpxNav.submitForm(form, action, champs)` plutôt que de refaire son propre `fetch` — même mécanique de swap partout.
 
 ## Formulaires et actions paramétrées
@@ -411,7 +413,6 @@ Installation sur téléphone : transfère l'APK (câble, `adb install`, ou parta
 
 ## Limites actuelles
 
-- `nav.js` (navigation sans rechargement de page) : vérifié en profondeur via curl (les deux projets, tous les cas listés ci-dessus) mais pas encore reconfirmé dans la WebView réelle après ce changement précis (téléphone déconnecté au moment d'écrire ceci) — à revérifier visuellement à la prochaine connexion.
 - iOS : stub non testé, pas de PHP embarqué (voir `ios/README.md`)
 - API de style typée (`TextSize`/`FontWeight`/`Color`) : implémentée seulement sur `Text` pour l'instant
 - `StreamBuilder` fonctionne en polling HTTP (pas de WebSocket/Server-Sent Events) — suffisant pour la plupart des cas, mais pas du "temps réel" au sens strict
