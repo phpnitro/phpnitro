@@ -10,5 +10,8 @@
         <testsuite name="database">
             <directory>packages/database/tests</directory>
         </testsuite>
+        <testsuite name="maps">
+            <directory>packages/maps/tests</directory>
+        </testsuite>
     </testsuites>
 </phpunit>

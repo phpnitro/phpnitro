@@ -29,3 +29,12 @@ payments:
     tresorpay:
         public_key_env: TRESORPAY_PUBLIC_KEY
         secret_key_env: TRESORPAY_SECRET_KEY
+
+# Engine\Maps\MapView::make() (utilisé sur /product/{id} pour le retrait en
+# magasin) choisit le premier fournisseur configuré ici ; OpenStreetMap n'a
+# pas besoin d'entrée, c'est le repli toujours disponible sans clé.
+maps:
+    mapbox:
+        access_token_env: MAPBOX_ACCESS_TOKEN
+    google:
+        api_key_env: GOOGLE_MAPS_API_KEY

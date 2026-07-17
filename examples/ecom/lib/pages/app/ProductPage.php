@@ -10,7 +10,7 @@ use Engine\Color;
 use Engine\Column;
 use Engine\FontWeight;
 use Engine\Image;
-use Engine\MapView;
+use Engine\Maps\MapView;
 use Engine\Scaffold;
 use Engine\Screen;
 use Engine\SingleScrollView;

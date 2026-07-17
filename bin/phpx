@@ -11,6 +11,7 @@
  *   phpx new <directory>              Scaffold a new project: android/ ios/ lib/ packages/ public/ assets/ bin/
  *   phpx bundle:android               Copy public/ + lib/ + packages/ + .env into the Android app
  *   phpx payments                     List phpnitro.yml's declared payment gateways and their .env status
+ *   phpx maps                         List phpnitro.yml's declared map providers and their .env status
  *
  * phpnitro.yml (project root) is the app manifest — name/description/version
  * and the payment gateways the app declares. `serve`/`bundle:android` keep
@@ -376,6 +377,33 @@ function cmdPayments(): void
     }
 }
 
+function cmdMaps(): void
+{
+    $manifest = loadManifest();
+    $maps = $manifest['maps'] ?? [];
+
+    $envPath = PHPX_ROOT . '/.env';
+    if (is_file($envPath)) {
+        (new \Symfony\Component\Dotenv\Dotenv())->loadEnv($envPath);
+    }
+
+    echo "Fournisseurs de carte déclarés dans phpnitro.yml :\n\n";
+
+    // Chaque fournisseur n'a qu'une seule clé (access_token_env pour
+    // Mapbox, api_key_env pour Google...) contrairement aux gateways de
+    // paiement qui ont une paire publique/secrète — prendre la première
+    // (et unique) valeur du sous-tableau évite de coder en dur le nom du
+    // champ par fournisseur.
+    foreach ($maps as $name => $config) {
+        $keyEnv = array_values($config)[0] ?? null;
+        $configured = $keyEnv !== null && ($_ENV[$keyEnv] ?? '') !== '';
+
+        printf("  %-14s %s\n", $name, $configured ? 'configuré' : 'non configuré');
+    }
+
+    printf("  %-14s %s\n", 'openstreetmap', 'toujours disponible (aucune clé requise)');
+}
+
 function cmdServe(int $port): void
 {
     syncAssets();
@@ -507,6 +535,7 @@ function cmdBundleAndroid(): void
     copyDirectory(PHPX_ROOT . '/packages/ui/src', "{$staging}/packages/ui/src");
     copyDirectory(PHPX_ROOT . '/packages/database/src', "{$staging}/packages/database/src");
     copyDirectory(PHPX_ROOT . '/packages/payments/src', "{$staging}/packages/payments/src");
+    copyDirectory(PHPX_ROOT . '/packages/maps/src', "{$staging}/packages/maps/src");
     copy(PHPX_ROOT . '/composer.json', "{$staging}/composer.json");
 
     // "env" without the dot: AAPT silently drops hidden files from assets.
@@ -546,6 +575,9 @@ switch ($command) {
     case 'payments':
         cmdPayments();
         break;
+    case 'maps':
+        cmdMaps();
+        break;
     default:
-        phpxFail('usage: phpx <make:page|make:entity|serve|new|bundle:android|payments> ...');
+        phpxFail('usage: phpx <make:page|make:entity|serve|new|bundle:android|payments|maps> ...');
 }

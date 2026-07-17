@@ -8,7 +8,7 @@ use Engine\Column;
 use Engine\FingerprintButton;
 use Engine\Link;
 use Engine\LocationButton;
-use Engine\MapView;
+use Engine\Maps\MapView;
 use Engine\MicrophoneButton;
 use Engine\Screen;
 use Engine\SingleScrollView;

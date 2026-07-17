@@ -8,7 +8,7 @@ FRAMEWORK_ROOT="$(cd "$ROOT/../.." && pwd)"
 STAGING="$ROOT/android/app/src/main/assets/www"
 
 rm -rf "$STAGING"
-mkdir -p "$STAGING/lib/pages" "$STAGING/lib/backend" "$STAGING/packages/ui" "$STAGING/packages/database" "$STAGING/packages/payments"
+mkdir -p "$STAGING/lib/pages" "$STAGING/lib/backend" "$STAGING/packages/ui" "$STAGING/packages/database" "$STAGING/packages/payments" "$STAGING/packages/maps"
 
 cp -r "$ROOT/public" "$STAGING/public"
 cp -r "$ROOT/assets" "$STAGING/assets"
@@ -17,6 +17,7 @@ cp -r "$ROOT/lib/backend/src" "$STAGING/lib/backend/src"
 cp -r "$FRAMEWORK_ROOT/packages/ui/src" "$STAGING/packages/ui/src"
 cp -r "$FRAMEWORK_ROOT/packages/database/src" "$STAGING/packages/database/src"
 cp -r "$FRAMEWORK_ROOT/packages/payments/src" "$STAGING/packages/payments/src"
+cp -r "$FRAMEWORK_ROOT/packages/maps/src" "$STAGING/packages/maps/src"
 cp "$ROOT/composer.json" "$STAGING/composer.json"
 
 # examples/ecom's composer.json reaches the shared framework packages via
@@ -26,6 +27,7 @@ cp "$ROOT/composer.json" "$STAGING/composer.json"
 sed -i 's#\.\./\.\./packages/ui/src/#packages/ui/src/#' "$STAGING/composer.json"
 sed -i 's#\.\./\.\./packages/database/src/#packages/database/src/#' "$STAGING/composer.json"
 sed -i 's#\.\./\.\./packages/payments/src/#packages/payments/src/#' "$STAGING/composer.json"
+sed -i 's#\.\./\.\./packages/maps/src/#packages/maps/src/#' "$STAGING/composer.json"
 
 # "env" without the dot: AAPT drops hidden files from assets. Force
 # APP_DEBUG=false in the shipped bundle regardless of the dev .env.
