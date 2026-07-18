@@ -1,10 +1,22 @@
+// Both native shells expose the same method names on window.AndroidNative
+// (Android, WebAppInterface.kt, synchronous @JavascriptInterface calls) or
+// window.iOSNative (iOS, WebAppInterface.swift — a JS shim backed by an
+// async WKScriptMessageHandler, but with an identical call shape from this
+// side) — everything below picks whichever bridge is present rather than
+// hardcoding one platform, so this file never needs a per-platform branch.
+function phpxNativeBridge() {
+  return window.AndroidNative || window.iOSNative || null;
+}
+
 window.phpxDevice = {
   vibrate(ms) {
-    // Prefer the genuinely-native path (Android Vibrator via WebAppInterface)
-    // when running inside our Android shell; fall back to the standard Web
-    // API (still real hardware, but WebView-mediated) everywhere else.
-    if (window.AndroidNative && window.AndroidNative.vibrate) {
-      window.AndroidNative.vibrate(ms);
+    // Prefer the genuinely-native path (Vibrator/UIImpactFeedbackGenerator
+    // via the native bridge) when running inside a native shell; fall back
+    // to the standard Web API (still real hardware, but WebView-mediated)
+    // everywhere else.
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.vibrate) {
+      bridge.vibrate(ms);
       return;
     }
     if (navigator.vibrate) {
@@ -13,9 +25,10 @@ window.phpxDevice = {
   },
 
   takeNativePhoto(imgElementId) {
-    if (!window.AndroidNative || !window.AndroidNative.takeNativePhoto) {
+    const bridge = phpxNativeBridge();
+    if (!bridge || !bridge.takeNativePhoto) {
       const el = document.getElementById(imgElementId);
-      if (el) el.insertAdjacentText('afterend', 'Photo native disponible uniquement dans la coquille Android.');
+      if (el) el.insertAdjacentText('afterend', 'Photo native disponible uniquement dans la coquille Android/iOS.');
       return;
     }
 
@@ -26,7 +39,7 @@ window.phpxDevice = {
       }
     };
 
-    window.AndroidNative.takeNativePhoto();
+    bridge.takeNativePhoto();
   },
 
   locate(outputElementId) {
@@ -77,20 +90,22 @@ window.phpxDevice = {
     }
   },
 
-  // Fingerprint/face unlock. Prefers the native bridge (Android BiometricPrompt,
-  // via WebAppInterface.showBiometricPrompt) since WebView does NOT implement
+  // Fingerprint/face unlock. Prefers the native bridge (Android
+  // BiometricPrompt or iOS LocalAuthentication/Face ID-Touch ID, via
+  // WebAppInterface.showBiometricPrompt) since WebView does NOT implement
   // WebAuthn/FIDO2 platform authenticators the way the Chrome app does —
   // navigator.credentials is unreliable-to-absent inside a WebView even when
   // the device has a fingerprint enrolled. Falls back to WebAuthn only when
   // running in a real browser (e.g. testing the dev server directly).
   fingerprint(outputElementId) {
     const el = document.getElementById(outputElementId);
+    const bridge = phpxNativeBridge();
 
-    if (window.AndroidNative && window.AndroidNative.showBiometricPrompt) {
+    if (bridge && bridge.showBiometricPrompt) {
       window.onNativeBiometricResult = (success, message) => {
         if (el) el.textContent = success ? 'Authentification réussie ✓' : ('Échec : ' + message);
       };
-      window.AndroidNative.showBiometricPrompt();
+      bridge.showBiometricPrompt();
       return;
     }
 
@@ -150,22 +165,24 @@ window.phpxDevice = {
     }
   },
 
-  // Native MediaPlayer (keeps playing across screen lock / audio focus
-  // changes) with a plain <audio> fallback for browser testing.
+  // Native MediaPlayer/AVAudioPlayer (keeps playing across screen lock /
+  // audio focus changes) with a plain <audio> fallback for browser testing.
   playSound(url) {
-    if (window.AndroidNative && window.AndroidNative.playSound) {
-      window.AndroidNative.playSound(url);
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.playSound) {
+      bridge.playSound(url);
       return;
     }
     new Audio(url).play().catch(() => {});
   },
 
-  // Real system notification (native NotificationCompat), independent of
-  // any push service — works fully offline. Falls back to the Web
-  // Notifications API in a browser.
+  // Real system notification (native NotificationCompat/UNUserNotificationCenter),
+  // independent of any push service — works fully offline. Falls back to the
+  // Web Notifications API in a browser.
   async notify(title, message) {
-    if (window.AndroidNative && window.AndroidNative.showNotification) {
-      window.AndroidNative.showNotification(title, message);
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.showNotification) {
+      bridge.showNotification(title, message);
       return;
     }
 
@@ -183,20 +200,22 @@ window.phpxDevice = {
   },
 
   // Native print pipeline (WebView.createPrintDocumentAdapter + PrintManager
-  // — the system "Save as PDF" flow), falls back to window.print() in a browser.
+  // on Android, UIPrintInteractionController on iOS — the system "Save as
+  // PDF"/AirPrint flow), falls back to window.print() in a browser.
   print() {
-    if (window.AndroidNative && window.AndroidNative.printPage) {
-      window.AndroidNative.printPage();
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.printPage) {
+      bridge.printPage();
       return;
     }
     window.print();
   },
 
-  // Native image picker (system gallery/file app via Android's
-  // ActivityResultContracts.GetContent), falls back to a plain <input
-  // type=file> + FileReader in a browser.
+  // Native image picker (system gallery/file app — Android's
+  // ActivityResultContracts.GetContent or iOS's PHPickerViewController),
+  // falls back to a plain <input type=file> + FileReader in a browser.
   // hiddenFieldId (optional) also gets the data URL, so the picked image
-  // can be submitted as part of a normal Form POST (see ImagePicker widget).
+  // can be submitted as part of a normal Form POST (see ImagePicker service).
   pickImage(imgElementId, hiddenFieldId) {
     const el = document.getElementById(imgElementId);
     const setResult = (dataUrl) => {
@@ -207,9 +226,10 @@ window.phpxDevice = {
       }
     };
 
-    if (window.AndroidNative && window.AndroidNative.pickImage) {
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.pickImage) {
       window.onNativeImagePicked = setResult;
-      window.AndroidNative.pickImage();
+      bridge.pickImage();
       return;
     }
 

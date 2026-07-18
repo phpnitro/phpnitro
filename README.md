@@ -512,11 +512,11 @@ Installation sur téléphone : transfère l'APK (câble, `adb install`, ou parta
 
 ## iOS
 
-`ios/` contient un stub `WKWebView` (Swift) équivalent à la coquille Android — **non testé** (pas de Mac/Xcode disponible dans cet environnement de développement), et sans PHP embarqué sur le device (ça pointe pour l'instant vers un PHP hébergé sur le réseau). Voir `ios/README.md` pour l'état exact et les prochaines étapes.
+`ios/` contient une `WKWebView` (Swift) équivalent à la coquille Android, avec un vrai pont natif (`WebAppInterface.swift`) qui expose `window.iOSNative` avec exactement les mêmes méthodes que `window.AndroidNative` — `assets/js/device.js`/`dialogs.js` détectent déjà les deux, aucun widget/service n'a besoin d'un chemin spécifique iOS. **Rien de tout ça n'est compilé ni testé** (pas de Mac/Xcode disponible dans cet environnement) et le PHP embarqué sur le device n'existe toujours pas (ça pointe pour l'instant vers un PHP hébergé sur le réseau, comme avant). Voir `ios/README.md` pour l'état exact, capacité par capacité, et les prochaines étapes.
 
 ## Limites actuelles
 
-- iOS : stub non testé, pas de PHP embarqué (voir `ios/README.md`)
+- iOS : pont natif écrit (parité de capacités avec Android) mais non compilé/testé, PHP toujours pas embarqué sur le device (voir `ios/README.md`)
 - API de style typée (`TextSize`/`FontWeight`/`Color`) : implémentée seulement sur `Text` pour l'instant
 - `StreamBuilder` fonctionne en polling HTTP (pas de WebSocket/Server-Sent Events) — suffisant pour la plupart des cas, mais pas du "temps réel" au sens strict
 - Notifications push : le stockage des tokens côté backend est réel et testé (`/api/fcm/register`, `/api/fcm/count`) ; la partie Android (`FcmService.kt.example`) est écrite (y compris l'affichage de la notification système) mais **désactivée par défaut** — elle nécessite ton propre projet Firebase (`google-services.json`), qui ne peut pas être généré ici (voir le fichier `.example` pour les 6 étapes d'activation). L'envoi serveur (`Engine\Firebase\FirebaseMessaging::send()`) est maintenant implémenté, mais non testé contre un vrai projet Firebase (aucun compte de service disponible ici).

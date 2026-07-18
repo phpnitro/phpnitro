@@ -13,14 +13,20 @@
     <key>UILaunchStoryboardName</key>
     <string></string>
 
-    <!-- Same device-capability widgets as Android (VibrateButton has no iOS
-         equivalent permission; LocationButton/CameraPreview/MicrophoneButton do). -->
+    <!-- Same device capabilities as Android (Device\Vibrate has no iOS
+         permission — see WebAppInterface.swift's vibrate() comment;
+         LocationButton/Device\Camera/Device\Microphone do need one each).
+         Device\ImagePicker (PHPickerViewController) deliberately needs NO
+         NSPhotoLibraryUsageDescription — see WebAppInterface.swift's
+         pickImage() comment on why iOS 14+'s picker doesn't require it. -->
     <key>NSCameraUsageDescription</key>
-    <string>Camera access is used by CameraPreview widgets in your PHP screens.</string>
+    <string>Camera access is used by Engine\Device\Camera in your PHP screens.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Microphone access is used by MicrophoneButton widgets in your PHP screens.</string>
+    <string>Microphone access is used by Engine\Device\Microphone in your PHP screens.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Location access is used by LocationButton widgets in your PHP screens.</string>
+    <key>NSFaceIDUsageDescription</key>
+    <string>Face ID is used by Engine\Device\Fingerprint to confirm your identity in your PHP screens.</string>
 
     <!-- Equivalent of android:usesCleartextTraffic="true" — allows plain HTTP
          to the local PHP server during development. Restrict this before a
