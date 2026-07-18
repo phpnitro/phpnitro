@@ -5,8 +5,8 @@ namespace Engine\Payments;
 /**
  * Minimal wrapper around Stripe's REST API — hosted Checkout Sessions
  * (createSessionUrl) and PaymentIntents (createPaymentIntent/
- * retrievePaymentIntent, used by StripeCardField's own Elements-based card
- * field) — no stripe-php SDK dependency, just the documented HTTP
+ * retrievePaymentIntent, used by Stripe::cardElement()'s own Elements-based
+ * card field) — no stripe-php SDK dependency, just the documented HTTP
  * endpoints (Bearer auth with the secret key, form-encoded bodies). Not
  * tested against a real Stripe account in this environment (no sandbox
  * credentials available) — verify against Stripe's current API docs
@@ -43,8 +43,8 @@ final class StripeCheckout
 
     /**
      * Creates a PaymentIntent server-side (POST /v1/payment_intents) —
-     * the client_secret it returns is what StripeCardField needs to mount
-     * Stripe Elements and confirm the card client-side. Same REST-only
+     * the client_secret it returns is what Stripe::cardElement() needs to
+     * mount Stripe Elements and confirm the card client-side. Same REST-only
      * approach as createSessionUrl(), same "not tested against a real
      * Stripe account" caveat.
      *

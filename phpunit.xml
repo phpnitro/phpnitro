@@ -22,5 +22,8 @@
         <testsuite name="device">
             <directory>packages/device/tests</directory>
         </testsuite>
+        <testsuite name="payments">
+            <directory>packages/payments/tests</directory>
+        </testsuite>
     </testsuites>
 </phpunit>

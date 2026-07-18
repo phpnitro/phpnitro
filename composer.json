@@ -30,7 +30,8 @@
             "Engine\\Maps\\Tests\\": "packages/maps/tests/",
             "Engine\\Dialogs\\Tests\\": "packages/dialogs/tests/",
             "Engine\\Firebase\\Tests\\": "packages/firebase/tests/",
-            "Engine\\Device\\Tests\\": "packages/device/tests/"
+            "Engine\\Device\\Tests\\": "packages/device/tests/",
+            "Engine\\Payments\\Tests\\": "packages/payments/tests/"
         }
     }
 }

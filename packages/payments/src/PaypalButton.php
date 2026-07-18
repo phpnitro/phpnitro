@@ -5,17 +5,26 @@ namespace Engine\Payments;
 use Engine\Widget;
 
 /**
- * Real PayPal JS SDK button (paypal.Buttons().render()) — not a redirect,
- * the button renders in place. createOrder sets the amount client-side for
- * simplicity, matching the other gateway widgets here; for a high-value
- * production store, create the order server-side instead so the amount
- * can't be tampered with client-side.
+ * Real PayPal JS SDK button (paypal.Buttons().render()) — deliberately
+ * still a widget, unlike Kkiapay/Fedapay/Feexpay/IziChangePay/TresorPay
+ * in this package. PayPal's SDK renders its OWN branded button INTO a
+ * container div it controls end-to-end (brand/compliance requirement on
+ * PayPal's side) — there is no `onclick` to extract and attach to an
+ * arbitrary developer-styled button, so the "service, not a widget"
+ * conversion doesn't apply here. This is a genuine SDK constraint, not a
+ * gap in this abstraction.
  *
- * onApprove is a UI signal only, same rule as KkiapayButton — the handler
- * receiving `paypal_order_id` MUST call PayPal's server-to-server
- * /v2/checkout/orders/{id}/capture with your CLIENT SECRET before trusting
- * the payment. That call isn't exercised by anything in this codebase (no
- * sandbox app available here to test against).
+ * createOrder sets the amount client-side for simplicity, matching the
+ * other gateway widgets here; for a high-value production store, create
+ * the order server-side instead so the amount can't be tampered with
+ * client-side.
+ *
+ * onApprove is a UI signal only, same rule as every gateway in this
+ * package — the handler receiving `paypal_order_id` MUST call PayPal's
+ * server-to-server /v2/checkout/orders/{id}/capture with your CLIENT
+ * SECRET before trusting the payment. That call isn't exercised by
+ * anything in this codebase (no sandbox app available here to test
+ * against).
  */
 final class PaypalButton extends Widget
 {

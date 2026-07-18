@@ -12,15 +12,14 @@ use Engine\Device\Fingerprint;
 use Engine\ErrorBanner;
 use Engine\Form;
 use Engine\Link;
-use Engine\Payments\FedapayButton;
-use Engine\Payments\FeexpayButton;
-use Engine\Payments\IziChangePayButton;
-use Engine\Payments\KkiapayButton;
+use Engine\Payments\Fedapay;
+use Engine\Payments\Feexpay;
+use Engine\Payments\IziChangePay;
+use Engine\Payments\Kkiapay;
 use Engine\Payments\PaypalButton;
-use Engine\Payments\StripeButton;
-use Engine\Payments\StripeCardField;
+use Engine\Payments\Stripe;
 use Engine\Payments\StripeCheckout;
-use Engine\Payments\TresorPayButton;
+use Engine\Payments\TresorPay;
 use Engine\Row;
 use Engine\Scaffold;
 use Engine\Screen;
@@ -53,9 +52,9 @@ final class CheckoutPage extends Screen
     }
 
     /**
-     * KkiapayButton's success callback posts here with the shipping form's
+     * Kkiapay::onSuccess()'s listener posts here with the shipping form's
      * fields (name, address, terms...) AND transaction_id together — see
-     * KkiapayButton's docblock on why the enclosing <form> gets serialized.
+     * Kkiapay's docblock on why the enclosing <form> gets serialized.
      *
      * @param array<string, string> $data
      */
@@ -81,8 +80,9 @@ final class CheckoutPage extends Screen
     }
 
     /**
-     * StripeCardField already confirmed the card client-side
-     * (stripe.confirmCardPayment) before posting here — this re-fetches
+     * Stripe::confirmPaymentOnClick() already confirmed the card
+     * client-side (stripe.confirmCardPayment) before posting here — this
+     * re-fetches
      * the PaymentIntent server-side to confirm its real status is
      * "succeeded" rather than trusting that client signal alone, same
      * discipline as every other gateway above.
@@ -119,8 +119,9 @@ final class CheckoutPage extends Screen
     }
 
     /**
-     * Stripe Checkout has no client-side callback at all (StripeButton is a
-     * plain submit button) — this creates the order right away, then asks
+     * Stripe Checkout has no client-side callback at all (just a plain
+     * Button::make submit button, no gateway JS) — this creates the order
+     * right away, then asks
      * Stripe for a hosted Checkout Session and redirects there.
      *
      * This is optimistic: the order exists before Stripe actually confirms
@@ -229,8 +230,8 @@ final class CheckoutPage extends Screen
     }
 
     /**
-     * Client-side success is only a UI signal (see KkiapayButton's
-     * docblock) — a real deployment must call Kkiapay's server-to-server
+     * Client-side success is only a UI signal (see Kkiapay's docblock) —
+     * a real deployment must call Kkiapay's server-to-server
      * verify API with the PRIVATE key before trusting it. That call isn't
      * exercised by anything in this codebase (no sandbox account available
      * here to test against), so double-check it against Kkiapay's current
@@ -401,8 +402,6 @@ final class CheckoutPage extends Screen
         [, $totalCents] = $this->cartToOrderLines(Cart::items());
         $amount = $totalCents / 100;
 
-        $payButton = $this->selectPaymentWidget($amount);
-
         $children[] = Form::make([
             TextField::make('name', label: 'Nom complet'),
             TextField::make('address', label: 'Adresse de livraison'),
@@ -419,7 +418,7 @@ final class CheckoutPage extends Screen
                 ),
                 Fingerprint::outputElement('checkout_fp_out'),
             ], 'flex items-center gap-2'),
-            $payButton,
+            ...$this->selectPaymentWidgets($amount),
         ], action: 'confirm');
 
         $children[] = Link::make('Retour au panier', '/cart');
@@ -434,26 +433,54 @@ final class CheckoutPage extends Screen
      * Amount/currency reuses the shop's own euro totals (see
      * CartPage/ProductPage) for every gateway here — won't be right for an
      * account configured in XOF/USD/etc, adjust per gateway as needed.
+     *
+     * Each gateway's script tag + trigger button (+ success-listener
+     * script for Kkiapay) are returned together so build() can splice
+     * them straight into the checkout form — the button is a plain
+     * Button::make with the gateway's payOnClick() attached, not a
+     * pre-styled gateway widget.
+     *
+     * @return array<Widget>
      */
-    private function selectPaymentWidget(float $amount): Widget
+    private function selectPaymentWidgets(float $amount): array
     {
+        $classes = 'w-full rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium px-4 py-3';
+
         if (($key = $_ENV['KKIAPAY_PUBLIC_KEY'] ?? '') !== '') {
-            return KkiapayButton::make($key, $amount, action: 'confirmKkiapay', label: 'Payer avec Kkiapay');
+            return [
+                Kkiapay::scriptTag(),
+                Kkiapay::onSuccess('confirmKkiapay'),
+                Button::make('Payer avec Kkiapay', onClick: Kkiapay::payOnClick($key, $amount), classes: $classes),
+            ];
         }
 
         if (($key = $_ENV['PAYPAL_CLIENT_ID'] ?? '') !== '') {
-            return PaypalButton::make($key, $amount, action: 'confirmPaypal');
+            return [PaypalButton::make($key, $amount, action: 'confirmPaypal')];
         }
 
         if (($key = $_ENV['FEDAPAY_PUBLIC_KEY'] ?? '') !== '') {
-            return FedapayButton::make($key, $amount, action: 'confirmFedapay', description: 'Commande Ma Boutique', label: 'Payer avec FedaPay');
+            return [
+                Fedapay::scriptTag(),
+                Button::make(
+                    'Payer avec FedaPay',
+                    onClick: Fedapay::payOnClick($key, $amount, 'confirmFedapay', 'Commande Ma Boutique'),
+                    classes: 'w-full rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-medium px-4 py-3',
+                ),
+            ];
         }
 
         if (($publicKey = $_ENV['STRIPE_PUBLIC_KEY'] ?? '') !== '' && ($secretKey = $_ENV['STRIPE_SECRET_KEY'] ?? '') !== '') {
             $intent = StripeCheckout::createPaymentIntent($secretKey, (int) round($amount * 100), 'eur');
 
             if ($intent !== null) {
-                return StripeCardField::make($publicKey, $intent['client_secret'], action: 'confirmStripeCard');
+                return [
+                    Stripe::cardElement($publicKey, $intent['client_secret']),
+                    Button::make(
+                        'Payer par carte (Stripe)',
+                        onClick: Stripe::confirmPaymentOnClick('confirmStripeCard'),
+                        classes: 'w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-3 mt-3',
+                    ),
+                ];
             }
             // PaymentIntent creation failed (bad key, network...) — fall
             // through to the hosted-checkout path below instead of
@@ -461,24 +488,49 @@ final class CheckoutPage extends Screen
         }
 
         if (($_ENV['STRIPE_SECRET_KEY'] ?? '') !== '') {
-            return StripeButton::make(action: 'confirmStripe', label: 'Payer par carte (Stripe)');
+            return [Button::make(
+                'Payer par carte (Stripe)',
+                action: 'confirmStripe',
+                classes: 'w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-3',
+            )];
         }
 
         if (($key = $_ENV['FEEXPAY_SHOP_ID'] ?? '') !== '') {
-            return FeexpayButton::make($key, $amount, action: 'confirmFeexpay', label: 'Payer avec Feexpay');
+            return [
+                Feexpay::scriptTag(),
+                Button::make(
+                    'Payer avec Feexpay',
+                    onClick: Feexpay::payOnClick($key, $amount, 'confirmFeexpay'),
+                    classes: 'w-full rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-medium px-4 py-3',
+                ),
+            ];
         }
 
         if (($key = $_ENV['IZICHANGEPAY_API_KEY'] ?? '') !== '') {
-            return IziChangePayButton::make($key, $amount, action: 'confirmIzichangepay', label: 'Payer avec iZiChangePay');
+            return [
+                IziChangePay::scriptTag(),
+                Button::make(
+                    'Payer avec iZiChangePay',
+                    onClick: IziChangePay::payOnClick($key, $amount, 'confirmIzichangepay'),
+                    classes: 'w-full rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium px-4 py-3',
+                ),
+            ];
         }
 
         if (($key = $_ENV['TRESORPAY_PUBLIC_KEY'] ?? '') !== '') {
-            return TresorPayButton::make($key, $amount, action: 'confirmTresorpay', label: 'Payer avec TresorPay');
+            return [
+                TresorPay::scriptTag(),
+                Button::make(
+                    'Payer avec TresorPay',
+                    onClick: TresorPay::payOnClick($key, $amount, 'confirmTresorpay'),
+                    classes: 'w-full rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-medium px-4 py-3',
+                ),
+            ];
         }
 
-        return Button::make(
+        return [Button::make(
             'Valider la commande (mode démo, sans paiement)',
             classes: 'bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg w-full',
-        );
+        )];
     }
 }
