@@ -22,6 +22,11 @@ final class OrderConfirmationPage extends Screen
         return [];
     }
 
+    public function showsBottomNav(): bool
+    {
+        return false;
+    }
+
     public function build(): Widget
     {
         $orderId = (int) $this->params['id'];

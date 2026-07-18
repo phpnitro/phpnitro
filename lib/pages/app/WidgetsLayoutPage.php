@@ -4,7 +4,6 @@ namespace Engine\App;
 
 use Engine\Align;
 use Engine\Alignment;
-use Engine\BottomNavigation;
 use Engine\Center;
 use Engine\Column;
 use Engine\Container;
@@ -99,7 +98,6 @@ final class WidgetsLayoutPage extends Screen
             ),
 
             Link::make('Retour à la vitrine', '/widgets'),
-            BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS),
         ], 'flex flex-col gap-4 p-4'));
     }
 }

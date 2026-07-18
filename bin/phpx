@@ -583,6 +583,16 @@ function resetPagesForNewProject(string $targetDir): void
     $content = preg_replace('/^use Engine\\\\App\\\\[A-Za-z]+;\n/m', '', $content);
     $content = preg_replace('/\$router = new Router\(\[\n(?:.*\n)*?\]\);/', "\$router = new Router([\n]);", $content);
 
+    // The persistent bottom nav (BottomNavigation::make(AppNav::items(), ...))
+    // references AppNav and demo routes stripped above — a fresh scaffold has
+    // no pages yet, so drop those two trailing PageRenderer::render() args
+    // entirely rather than pointing at a class that no longer exists.
+    $content = preg_replace(
+        '/,\s*BottomNavigation::make\([^;]*?\),\s*\$screen->showsBottomNav\(\)(?=\);)/',
+        '',
+        $content,
+    );
+
     file_put_contents($indexPath, $content);
 }
 

@@ -4,7 +4,6 @@ namespace Engine\App;
 
 use Backend\Repository\ProductRepository;
 use Engine\AppBar;
-use Engine\BottomNavigation;
 use Engine\Button;
 use Engine\Color;
 use Engine\Column;
@@ -65,7 +64,7 @@ final class ProductPage extends Screen
                 MapView::make(48.8566, 2.3522, zoom: 14),
             ], 'flex flex-col gap-3 p-4')),
             appBar: AppBar::make('Produit', backHref: '/'),
-            bottomNavigation: BottomNavigation::make(AppNav::items()),
+            hasBottomNav: true,
         );
     }
 }

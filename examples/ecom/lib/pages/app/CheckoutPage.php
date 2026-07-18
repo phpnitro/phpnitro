@@ -40,6 +40,11 @@ final class CheckoutPage extends Screen
         return ['error' => null];
     }
 
+    public function showsBottomNav(): bool
+    {
+        return false;
+    }
+
     /**
      * Demo path when no gateway is configured (see build()) — validates
      * and creates the order directly, no payment step.

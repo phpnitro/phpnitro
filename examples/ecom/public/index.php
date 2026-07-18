@@ -3,6 +3,7 @@
 require __DIR__ . '/../vendor/autoload.php';
 
 use Engine\App\AccountPage;
+use Engine\App\AppNav;
 use Engine\App\CartPage;
 use Engine\App\CheckoutPage;
 use Engine\App\HomePage;
@@ -10,6 +11,7 @@ use Engine\App\LoginPage;
 use Engine\App\OrderConfirmationPage;
 use Engine\App\ProductPage;
 use Engine\App\RegisterPage;
+use Engine\BottomNavigation;
 use Engine\Csrf;
 use Engine\Database\Database;
 use Engine\Navigation;
@@ -151,4 +153,4 @@ PageRenderer::render($widgetTree, $path, $_ENV['APP_NAME'] ?? 'Ma Boutique', [
     '/assets/js/dialogs.js',
     '/assets/js/stream.js',
     '/assets/js/nav.js',
-], $debug);
+], $debug, BottomNavigation::make(AppNav::items()), $screen->showsBottomNav());

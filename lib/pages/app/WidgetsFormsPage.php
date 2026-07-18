@@ -2,7 +2,6 @@
 
 namespace Engine\App;
 
-use Engine\BottomNavigation;
 use Engine\Button;
 use Engine\CircularProgress;
 use Engine\Column;
@@ -70,7 +69,6 @@ final class WidgetsFormsPage extends Screen
             $this->section('CircularProgress — 40%', CircularProgress::make(0.4)),
 
             Link::make('Retour à la vitrine', '/widgets'),
-            BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS),
         ], 'flex flex-col gap-4 p-4'));
     }
 }

@@ -2,7 +2,6 @@
 
 namespace Engine\App;
 
-use Engine\BottomNavigation;
 use Engine\Column;
 use Engine\Link;
 use Engine\Screen;
@@ -100,7 +99,6 @@ final class WidgetsStepperPage extends Screen
             Text::make('Stepper', 'text-2xl font-bold text-gray-900 dark:text-gray-100'),
             $stepper,
             Link::make('Retour à la vitrine', '/widgets'),
-            BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS),
         ], 'flex flex-col gap-4 p-4'));
     }
 }

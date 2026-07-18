@@ -34,7 +34,7 @@ final class BottomNavigation extends Widget
             $this->items,
         ));
 
-        return sprintf('<nav class="%s">%s</nav>', $this->navClasses(), $items);
+        return sprintf('<nav id="phpx-bottom-nav" class="%s">%s</nav>', $this->navClasses(), $items);
     }
 
     private function normalizePath(string $path): string
@@ -58,6 +58,13 @@ final class BottomNavigation extends Widget
     }
 
     /**
+     * The nav bar is rendered once and never re-created (see PageRenderer/
+     * nav.js) — after a partial navigation swaps the content, nothing
+     * re-runs this PHP to recompute which tab is active. Each link carries
+     * its own active/inactive class string as data attributes so nav.js
+     * can toggle `class` directly (a plain string swap) without knowing
+     * anything about this variant's Tailwind classes.
+     *
      * @param array{label: string, href: string, icon?: string} $item
      */
     private function renderItem(array $item, bool $active): string
@@ -66,43 +73,48 @@ final class BottomNavigation extends Widget
         $label = htmlspecialchars($item['label'], ENT_QUOTES);
         $icon = $item['icon'] ?? '•';
 
-        $activeClasses = $active
-            ? 'text-blue-600 dark:text-blue-400'
-            : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200';
+        [$base, $activeClasses, $inactiveClasses] = $this->itemClassParts();
+        $activeClass = htmlspecialchars(trim("{$base} {$activeClasses}"), ENT_QUOTES);
+        $inactiveClass = htmlspecialchars(trim("{$base} {$inactiveClasses}"), ENT_QUOTES);
+        $currentClass = $active ? $activeClass : $inactiveClass;
 
-        if ($this->variant === self::VARIANT_PILLS) {
-            $pillBg = $active ? 'bg-blue-50 dark:bg-blue-950' : '';
-
-            return sprintf(
-                '<a href="%s" class="flex flex-col items-center justify-center gap-0.5 rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors %s %s">'
-                . '<span class="text-base leading-none">%s</span><span>%s</span>'
-                . '</a>',
-                $href,
-                $activeClasses,
-                $pillBg,
-                $icon,
-                $label,
-            );
-        }
-
-        if ($this->variant === self::VARIANT_COMPACT) {
-            return sprintf(
-                '<a href="%s" class="flex items-center justify-center p-3 text-xl transition-colors %s" title="%s">%s</a>',
-                $href,
-                $activeClasses,
-                $label,
-                $icon,
-            );
-        }
+        $title = $this->variant === self::VARIANT_COMPACT ? sprintf(' title="%s"', $label) : '';
+        $inner = $this->variant === self::VARIANT_COMPACT
+            ? $icon
+            : sprintf('<span class="%s">%s</span><span>%s</span>', $this->variant === self::VARIANT_PILLS ? 'text-base leading-none' : 'text-lg leading-none', $icon, $label);
 
         return sprintf(
-            '<a href="%s" class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-xs font-medium transition-colors %s">'
-            . '<span class="text-lg leading-none">%s</span><span>%s</span>'
-            . '</a>',
+            '<a href="%s" class="%s" data-active-class="%s" data-inactive-class="%s"%s>%s</a>',
             $href,
-            $activeClasses,
-            $icon,
-            $label,
+            $currentClass,
+            $activeClass,
+            $inactiveClass,
+            $title,
+            $inner,
         );
+    }
+
+    /**
+     * @return array{0: string, 1: string, 2: string} base classes, classes added when active, classes added when inactive
+     */
+    private function itemClassParts(): array
+    {
+        return match ($this->variant) {
+            self::VARIANT_PILLS => [
+                'flex flex-col items-center justify-center gap-0.5 rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors',
+                'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950',
+                'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200',
+            ],
+            self::VARIANT_COMPACT => [
+                'flex items-center justify-center p-3 text-xl transition-colors',
+                'text-blue-600 dark:text-blue-400',
+                'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200',
+            ],
+            default => [
+                'flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-xs font-medium transition-colors',
+                'text-blue-600 dark:text-blue-400',
+                'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200',
+            ],
+        };
     }
 }

@@ -3,7 +3,6 @@
 namespace Engine\App;
 
 use Engine\AudioPlayer;
-use Engine\BottomNavigation;
 use Engine\Column;
 use Engine\Divider;
 use Engine\FutureBuilder;
@@ -53,7 +52,6 @@ final class WidgetsMediaPage extends Screen
             ),
 
             Link::make('Retour à la vitrine', '/widgets'),
-            BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS),
         ], 'flex flex-col gap-4 p-4'));
     }
 }

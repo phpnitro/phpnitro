@@ -2,7 +2,6 @@
 
 namespace Engine\App;
 
-use Engine\BottomNavigation;
 use Engine\Column;
 use Engine\Divider;
 use Engine\Link;
@@ -53,7 +52,6 @@ final class WidgetsMapsPage extends Screen
             $this->section('MapView::make() — résolution automatique', MapView::make(48.8566, 2.3522, 14)),
 
             Link::make('Retour à la vitrine', '/widgets'),
-            BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS),
         ], 'flex flex-col gap-4 p-4'));
     }
 }

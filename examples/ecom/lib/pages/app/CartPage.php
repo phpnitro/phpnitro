@@ -4,7 +4,6 @@ namespace Engine\App;
 
 use Backend\Repository\ProductRepository;
 use Engine\AppBar;
-use Engine\BottomNavigation;
 use Engine\Button;
 use Engine\Color;
 use Engine\Column;
@@ -48,7 +47,7 @@ final class CartPage extends Screen
                     Link::make('Voir la boutique', '/'),
                 ], 'flex flex-col gap-3 p-4'),
                 appBar: AppBar::make('Panier'),
-                bottomNavigation: BottomNavigation::make(AppNav::items()),
+                hasBottomNav: true,
             );
         }
 
@@ -84,7 +83,7 @@ final class CartPage extends Screen
                 Link::make('Passer commande', '/checkout', 'block text-center bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg'),
             ], 'flex flex-col gap-4 p-4'),
             appBar: AppBar::make('Panier'),
-            bottomNavigation: BottomNavigation::make(AppNav::items()),
+            hasBottomNav: true,
         );
     }
 }

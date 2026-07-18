@@ -36,6 +36,14 @@ final class PageRenderer
     }
 
     /**
+     * $persistentNav is rendered exactly once per HTTP request and lives
+     * OUTSIDE #phpx-content, the region nav.js ever swaps — it is never
+     * part of $widgetTree, and never appears in the partial JSON's "html"
+     * either. Only its visibility changes per route, via the
+     * "showBottomNav" flag (both here and in the partial payload) — nav.js
+     * toggles a `hidden` class instead of ever destroying/recreating the
+     * nav bar, which is what causes the jump a full node replacement would.
+     *
      * @param string[] $scripts Script src paths, in order, appended to <head>.
      */
     public static function render(
@@ -44,6 +52,8 @@ final class PageRenderer
         string $appName,
         array $scripts,
         bool $debug,
+        ?Widget $persistentNav = null,
+        bool $showBottomNav = true,
     ): never {
         if (Navigation::isPartial()) {
             header('Content-Type: application/json');
@@ -51,6 +61,7 @@ final class PageRenderer
                 'html' => $widgetTree->render(),
                 'path' => $path,
                 'theme' => $_SESSION['theme'] ?? 'light',
+                'showBottomNav' => $showBottomNav,
             ]);
             exit;
         }
@@ -65,6 +76,10 @@ final class PageRenderer
         ));
         $devReloadTag = $debug ? '<script src="/assets/js/dev-reload.js" defer></script>' : '';
         $body = $widgetTree->render();
+        $navWrapperClass = $showBottomNav ? '' : 'hidden';
+        $navHtml = $persistentNav !== null
+            ? "<div id=\"phpx-bottom-nav-wrapper\" class=\"{$navWrapperClass}\">{$persistentNav->render()}</div>"
+            : '';
 
         echo <<<HTML
             <!doctype html>
@@ -81,7 +96,8 @@ final class PageRenderer
             </head>
 
             <body class="bg-gray-50 dark:bg-gray-900 dark:text-gray-100 min-h-screen">
-                {$body}
+                <div id="phpx-content">{$body}</div>
+                {$navHtml}
             </body>
 
             </html>

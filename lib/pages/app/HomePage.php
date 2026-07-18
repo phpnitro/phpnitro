@@ -3,7 +3,6 @@
 namespace Engine\App;
 
 use Engine\AppBar;
-use Engine\BottomNavigation;
 use Engine\Button;
 use Engine\Color;
 use Engine\Column;
@@ -81,7 +80,7 @@ final class HomePage extends Screen
                 ]),
             ], 'flex flex-col gap-4'),
             appBar: AppBar::make('Mon application', leading: DrawerToggle::make()),
-            bottomNavigation: BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS),
+            hasBottomNav: true,
             floatingActionButton: FloatingActionButton::make('+', action: 'increment'),
             drawer: Drawer::make([
                 ['label' => 'Accueil', 'href' => '/'],

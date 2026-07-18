@@ -1,8 +1,9 @@
 (function () {
   // Setting .innerHTML never executes embedded <script> tags — recreating
   // each one via createElement (and copying its attributes/content) does,
-  // which is what lets widgets like KkiapayButton keep working after a
-  // partial swap instead of only on a real page load.
+  // which is what lets gateway script tags (see Engine\Payments\Kkiapay
+  // etc.) keep working after a partial swap instead of only on a real
+  // page load.
   function executeScripts(container) {
     container.querySelectorAll('script').forEach((oldScript) => {
       const newScript = document.createElement('script');
@@ -20,6 +21,28 @@
     });
   }
 
+  // The bottom nav lives OUTSIDE #phpx-content and is rendered once by
+  // PageRenderer — it's never part of payload.html, so it's never
+  // destroyed/recreated by the swap below (that full-node replacement is
+  // what caused the visible jump before). Only two things about it ever
+  // change per navigation: whether it's shown at all, and which tab looks
+  // active — both handled here without touching the <nav> node itself.
+  function updatePersistentNav(payload) {
+    const wrapper = document.getElementById('phpx-bottom-nav-wrapper');
+    if (wrapper) {
+      wrapper.classList.toggle('hidden', !payload.showBottomNav);
+    }
+
+    const nav = document.getElementById('phpx-bottom-nav');
+    if (!nav || !payload.path) return;
+
+    const currentPath = (payload.path.split('?')[0] || '/').replace(/\/+$/, '') || '/';
+    nav.querySelectorAll('a[data-active-class]').forEach((link) => {
+      const linkPath = (new URL(link.getAttribute('href'), window.location.origin).pathname || '/').replace(/\/+$/, '') || '/';
+      link.className = linkPath === currentPath ? link.dataset.activeClass : link.dataset.inactiveClass;
+    });
+  }
+
   function applyPayload(payload) {
     // A redirect target can be an external URL (e.g. a hosted Stripe
     // Checkout session) that can't be swapped in — go there for real.
@@ -29,8 +52,17 @@
     }
 
     document.documentElement.classList.toggle('dark', payload.theme === 'dark');
-    document.body.innerHTML = payload.html;
-    executeScripts(document.body);
+    const content = document.getElementById('phpx-content');
+    if (content) {
+      content.innerHTML = payload.html;
+      executeScripts(content);
+    } else {
+      // Full pages rendered before this content wrapper existed (or a
+      // fragment route with no chrome at all) — fall back to the whole body.
+      document.body.innerHTML = payload.html;
+      executeScripts(document.body);
+    }
+    updatePersistentNav(payload);
 
     const current = window.location.pathname + window.location.search;
     if (payload.path && payload.path !== current) {

@@ -2,6 +2,7 @@
 
 namespace Engine\Tests;
 
+use Engine\BottomNavigation;
 use Engine\Button;
 use Engine\Checkbox;
 use Engine\Color;
@@ -13,6 +14,7 @@ use Engine\Html;
 use Engine\IconButton;
 use Engine\ListView;
 use Engine\Row;
+use Engine\Scaffold;
 use Engine\SelectBox;
 use Engine\Stepper;
 use Engine\Text;
@@ -180,5 +182,40 @@ final class WidgetsTest extends TestCase
 
         $this->assertStringContainsString('onclick="doStuff()"', $html);
         $this->assertStringNotContainsString('<form', $html);
+    }
+
+    public function testScaffoldReservesBottomPaddingOnlyWhenHasBottomNav(): void
+    {
+        $with = Scaffold::make(body: Text::make('x'), hasBottomNav: true)->render();
+        $without = Scaffold::make(body: Text::make('x'), hasBottomNav: false)->render();
+
+        $this->assertStringContainsString('pb-24', $with);
+        $this->assertStringContainsString('pb-4', $without);
+        $this->assertStringNotContainsString('pb-24', $without);
+    }
+
+    public function testScaffoldNeverRendersItsOwnNav(): void
+    {
+        $html = Scaffold::make(body: Text::make('x'), hasBottomNav: true)->render();
+
+        $this->assertStringNotContainsString('<nav', $html);
+    }
+
+    public function testBottomNavigationRendersStableIdAndActiveInactiveClassData(): void
+    {
+        $_SERVER['REQUEST_URI'] = '/settings';
+
+        $html = BottomNavigation::make([
+            ['label' => 'Accueil', 'href' => '/'],
+            ['label' => 'Réglages', 'href' => '/settings'],
+        ])->render();
+
+        $this->assertStringContainsString('id="phpx-bottom-nav"', $html);
+        $this->assertStringContainsString('data-active-class="', $html);
+        $this->assertStringContainsString('data-inactive-class="', $html);
+
+        // The currently active tab's rendered class should match its own active-class data attribute.
+        preg_match('/<a href="\/settings" class="([^"]+)" data-active-class="([^"]+)"/', $html, $matches);
+        $this->assertSame($matches[2], $matches[1]);
     }
 }

@@ -2,7 +2,6 @@
 
 namespace Engine\App;
 
-use Engine\BottomNavigation;
 use Engine\Button;
 use Engine\Column;
 use Engine\Dialogs\ConfirmButton;
@@ -116,7 +115,6 @@ final class WidgetsFirebaseAuthPage extends Screen
         }
 
         $children[] = Link::make('Retour à la vitrine', '/widgets');
-        $children[] = BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS);
 
         return SingleScrollView::make(Column::make($children, 'flex flex-col gap-4 p-4'));
     }

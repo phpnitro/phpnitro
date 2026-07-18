@@ -3,7 +3,6 @@
 namespace Engine\App;
 
 use Backend\Kernel;
-use Engine\BottomNavigation;
 use Engine\Column;
 use Engine\Link;
 use Engine\Screen;
@@ -31,7 +30,6 @@ final class ApiPage extends Screen
             Text::make('Backend PHP', 'text-2xl font-bold text-gray-900 dark:text-gray-100'),
             Text::make($this->fetchBackendMessage()),
             Link::make("Retour à l'accueil", '/'),
-            BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS),
         ]);
     }
 

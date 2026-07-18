@@ -21,6 +21,11 @@ final class LoginPage extends Screen
         return ['error' => null];
     }
 
+    public function showsBottomNav(): bool
+    {
+        return false;
+    }
+
     /**
      * @param array<string, string> $data
      */

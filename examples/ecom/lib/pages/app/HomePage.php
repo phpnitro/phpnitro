@@ -4,7 +4,6 @@ namespace Engine\App;
 
 use Backend\Repository\ProductRepository;
 use Engine\AppBar;
-use Engine\BottomNavigation;
 use Engine\Color;
 use Engine\Column;
 use Engine\FontWeight;
@@ -34,7 +33,7 @@ final class HomePage extends Screen
         return Scaffold::make(
             body: Column::make($cards, 'grid grid-cols-2 gap-3'),
             appBar: AppBar::make('Ma Boutique'),
-            bottomNavigation: BottomNavigation::make(AppNav::items()),
+            hasBottomNav: true,
         );
     }
 

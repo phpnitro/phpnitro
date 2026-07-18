@@ -3,6 +3,7 @@
 require __DIR__ . '/../vendor/autoload.php';
 
 use Engine\App\ApiPage;
+use Engine\App\AppNav;
 use Engine\App\DevicePage;
 use Engine\App\HomePage;
 use Engine\App\LoginPage;
@@ -16,6 +17,7 @@ use Engine\App\WidgetsLayoutPage;
 use Engine\App\WidgetsMapsPage;
 use Engine\App\WidgetsMediaPage;
 use Engine\App\WidgetsStepperPage;
+use Engine\BottomNavigation;
 use Engine\Csrf;
 use Engine\Database\Database;
 use Engine\Navigation;
@@ -179,4 +181,4 @@ PageRenderer::render($widgetTree, $path, $_ENV['APP_NAME'] ?? 'PHP Engine', [
     '/assets/js/stream.js',
     '/assets/js/future.js',
     '/assets/js/nav.js',
-], $debug);
+], $debug, BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS), $screen->showsBottomNav());

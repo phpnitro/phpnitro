@@ -4,7 +4,6 @@ namespace Engine\App;
 
 use Backend\Repository\UserRepository;
 use Engine\AppBar;
-use Engine\BottomNavigation;
 use Engine\Button;
 use Engine\Color;
 use Engine\Column;
@@ -40,7 +39,7 @@ final class AccountPage extends Screen
                     Link::make('Créer un compte', '/register', 'block text-center bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-medium px-4 py-2 rounded-lg'),
                 ], 'flex flex-col gap-3 p-4'),
                 appBar: AppBar::make('Compte'),
-                bottomNavigation: BottomNavigation::make(AppNav::items()),
+                hasBottomNav: true,
             );
         }
 
@@ -58,7 +57,7 @@ final class AccountPage extends Screen
                     Link::make('Créer un compte', '/register', 'block text-center bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-medium px-4 py-2 rounded-lg'),
                 ], 'flex flex-col gap-3 p-4'),
                 appBar: AppBar::make('Compte'),
-                bottomNavigation: BottomNavigation::make(AppNav::items()),
+                hasBottomNav: true,
             );
         }
 
@@ -70,7 +69,7 @@ final class AccountPage extends Screen
                 Button::make('Se déconnecter', action: 'logout', classes: 'text-red-600 hover:underline text-left'),
             ], 'flex flex-col gap-3 p-4'),
             appBar: AppBar::make('Compte'),
-            bottomNavigation: BottomNavigation::make(AppNav::items()),
+            hasBottomNav: true,
         );
     }
 }

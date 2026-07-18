@@ -2,7 +2,6 @@
 
 namespace Engine\App;
 
-use Engine\BottomNavigation;
 use Engine\Column;
 use Engine\Link;
 use Engine\Screen;
@@ -46,7 +45,6 @@ final class WidgetsIndexPage extends Screen
                 'text-sm text-gray-500 dark:text-gray-400',
             ),
             Link::make("Retour à l'accueil", '/'),
-            BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS),
         ], 'flex flex-col gap-4 p-4'));
     }
 }

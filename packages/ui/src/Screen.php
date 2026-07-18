@@ -22,6 +22,16 @@ abstract class Screen
     abstract public function build(): Widget;
 
     /**
+     * Whether the persistent bottom nav (rendered once by PageRenderer,
+     * see index.php) should be visible on this screen — override to
+     * false for screens like login/checkout that don't want it at all.
+     */
+    public function showsBottomNav(): bool
+    {
+        return true;
+    }
+
+    /**
      * Runs the onXxx handler for $action, passing it the submitted form
      * values. The handler may return a path (string) to redirect to;
      * returning null redirects back to the current page.

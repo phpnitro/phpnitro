@@ -83,4 +83,9 @@ final class ScreenTest extends TestCase
 
         $this->assertSame(0, $b->count());
     }
+
+    public function testShowsBottomNavDefaultsToTrue(): void
+    {
+        $this->assertTrue((new CounterScreen())->showsBottomNav());
+    }
 }
