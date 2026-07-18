@@ -24,7 +24,7 @@ if [ -n "$ICON_PATH" ]; then
 fi
 
 rm -rf "$STAGING"
-mkdir -p "$STAGING/lib/pages" "$STAGING/lib/backend" "$STAGING/packages/ui" "$STAGING/packages/database" "$STAGING/packages/payments" "$STAGING/packages/maps" "$STAGING/packages/dialogs"
+mkdir -p "$STAGING/lib/pages" "$STAGING/lib/backend" "$STAGING/packages/ui" "$STAGING/packages/database" "$STAGING/packages/payments" "$STAGING/packages/maps" "$STAGING/packages/dialogs" "$STAGING/packages/device"
 
 cp -r "$ROOT/public" "$STAGING/public"
 cp -r "$ROOT/assets" "$STAGING/assets"
@@ -35,6 +35,7 @@ cp -r "$FRAMEWORK_ROOT/packages/database/src" "$STAGING/packages/database/src"
 cp -r "$FRAMEWORK_ROOT/packages/payments/src" "$STAGING/packages/payments/src"
 cp -r "$FRAMEWORK_ROOT/packages/maps/src" "$STAGING/packages/maps/src"
 cp -r "$FRAMEWORK_ROOT/packages/dialogs/src" "$STAGING/packages/dialogs/src"
+cp -r "$FRAMEWORK_ROOT/packages/device/src" "$STAGING/packages/device/src"
 cp "$ROOT/composer.json" "$STAGING/composer.json"
 
 # examples/ecom's composer.json reaches the shared framework packages via
@@ -46,6 +47,7 @@ sed -i 's#\.\./\.\./packages/database/src/#packages/database/src/#' "$STAGING/co
 sed -i 's#\.\./\.\./packages/payments/src/#packages/payments/src/#' "$STAGING/composer.json"
 sed -i 's#\.\./\.\./packages/maps/src/#packages/maps/src/#' "$STAGING/composer.json"
 sed -i 's#\.\./\.\./packages/dialogs/src/#packages/dialogs/src/#' "$STAGING/composer.json"
+sed -i 's#\.\./\.\./packages/device/src/#packages/device/src/#' "$STAGING/composer.json"
 
 # "env" without the dot: AAPT drops hidden files from assets. Force
 # APP_DEBUG=false in the shipped bundle regardless of the dev .env.

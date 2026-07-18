@@ -6,9 +6,9 @@ use Engine\Widget;
 
 /**
  * Shows a confirmation dialog; only submits `action` (via phpxNav, no full
- * page reload) if the user confirms — same idiom as VibrateButton/
- * NotifyButton (a plain button calling a JS bridge), not a <form> submit,
- * since the server call must not happen until the user actually confirms.
+ * page reload) if the user confirms — same idiom as Engine\Device\'s
+ * onClick triggers (a plain button calling a JS bridge), not a <form>
+ * submit, since the server call must not happen until the user actually confirms.
  */
 final class ConfirmButton extends Widget
 {

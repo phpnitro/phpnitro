@@ -4,8 +4,8 @@ namespace Engine;
 
 /**
  * WebView's Chromium engine supports <audio> with native transport
- * controls directly — no JS bridge needed, unlike SoundButton (which
- * fires a one-shot sound effect via the native MediaPlayer bridge).
+ * controls directly — no JS bridge needed, unlike Engine\Device\Sound
+ * (which fires a one-shot sound effect via the native MediaPlayer bridge).
  */
 final class AudioPlayer extends Widget
 {

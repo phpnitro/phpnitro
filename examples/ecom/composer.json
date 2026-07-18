@@ -11,6 +11,7 @@
             "Engine\\Payments\\": "../../packages/payments/src/",
             "Engine\\Maps\\": "../../packages/maps/src/",
             "Engine\\Dialogs\\": "../../packages/dialogs/src/",
+            "Engine\\Device\\": "../../packages/device/src/",
             "Engine\\App\\": "lib/pages/app/",
             "Backend\\": "lib/backend/src/"
         }

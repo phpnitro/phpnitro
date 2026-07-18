@@ -8,8 +8,8 @@ use Engine\AppBar;
 use Engine\Button;
 use Engine\Checkbox;
 use Engine\Column;
+use Engine\Device\Fingerprint;
 use Engine\ErrorBanner;
-use Engine\FingerprintButton;
 use Engine\Form;
 use Engine\Link;
 use Engine\Payments\FedapayButton;
@@ -21,6 +21,7 @@ use Engine\Payments\StripeButton;
 use Engine\Payments\StripeCardField;
 use Engine\Payments\StripeCheckout;
 use Engine\Payments\TresorPayButton;
+use Engine\Row;
 use Engine\Scaffold;
 use Engine\Screen;
 use Engine\SelectBox;
@@ -410,7 +411,14 @@ final class CheckoutPage extends Screen
                 'express' => 'Express (24h)',
             ], selected: 'standard', label: 'Mode de livraison'),
             Checkbox::make('terms', "J'accepte les conditions générales"),
-            FingerprintButton::make('Confirmer avec biométrie'),
+            Row::make([
+                Button::make(
+                    'Confirmer avec biométrie',
+                    onClick: Fingerprint::onClick('checkout_fp_out'),
+                    classes: 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-medium px-4 py-2 rounded-lg',
+                ),
+                Fingerprint::outputElement('checkout_fp_out'),
+            ], 'flex items-center gap-2'),
             $payButton,
         ], action: 'confirm');
 
