@@ -248,14 +248,16 @@ Tous les POST (boutons, formulaires, gestes) embarquent un jeton CSRF vérifié 
 
 ## Widgets disponibles
 
-Toutes les classes ci-dessous sont dans le namespace `Engine\` sauf préfixe explicite (`Maps\` = `Engine\Maps\`, `Dialogs\` = `Engine\Dialogs\`, `Payments\` = `Engine\Payments\`, `Firebase\` = `Engine\Firebase\` — des packages de service dédiés, voir `packages/maps`, `packages/dialogs`, `packages/payments`, `packages/firebase`, sur le même modèle que `packages/database` : un second namespace PSR-4 dans le `composer.json` racine, pas un package Composer séparé).
+Toutes les classes ci-dessous sont dans le namespace `Engine\` sauf préfixe explicite (`Maps\` = `Engine\Maps\`, `Dialogs\` = `Engine\Dialogs\`, `Payments\` = `Engine\Payments\`, `Firebase\` = `Engine\Firebase\`, `Device\` = `Engine\Device\` — des packages de service dédiés, voir `packages/maps`, `packages/dialogs`, `packages/payments`, `packages/firebase`, `packages/device`, sur le même modèle que `packages/database` : un second namespace PSR-4 dans le `composer.json` racine, pas un package Composer séparé).
+
+**Widgets vs services.** La plupart des classes ci-dessous sont des widgets : `::make()` retourne un `Widget` qui rend son propre HTML complet. Mais un bouton d'action pré-stylé (paiement, vibreur, appareil photo...) impose sa propre apparence — si tu veux ton propre label/style, tu es coincé. `Engine\Device\` et une partie d'`Engine\Payments\` sont donc des **services** : des méthodes statiques qui retournent une expression JS brute à attacher à N'IMPORTE QUEL bouton via `Button::make($label, onClick: ...)`, plutôt qu'un widget imposé. Voir [Capacités du device](#capacités-du-device-caméra-micro-localisation-vibreur-biométrie-notifications-son-impression) et [Paiement](#paiement).
 
 Chaque widget est démontré quelque part : la route `/widgets` de l'app démo racine (index + sous-pages par catégorie — layout, formulaires, média, cartes, dialogues) couvre tout sauf les paiements, exercés en conditions réelles dans [examples/ecom](examples/ecom/README.md#paiement) à la place.
 
 | PHP | Rend en |
 |---|---|
 | `Text::make($content, $classes = '...')` | `<p>` |
-| `Button::make($label, $action = null, $classes = '...')` | `<button>` (ou `<form>` si `$action` est fourni) |
+| `Button::make($label, $action = null, $classes = '...', $onClick = null)` | `<button>` (ou `<form>` si `$action` est fourni) ; `$onClick` (expression JS brute, prioritaire sur `$action`) attache un service comme `Vibrate::onClick()` ou `Kkiapay::payOnClick()` sans passer par un widget dédié |
 | `Column::make([$children], $classes = '...')` | `<div class="flex flex-col ...">` |
 | `Row::make([$children], $classes = '...')` | `<div class="flex flex-row ...">` |
 | `Container::make($child, $classes = '...')` | `<div>` à un seul enfant |
@@ -263,23 +265,16 @@ Chaque widget est démontré quelque part : la route `/widgets` de l'app démo r
 | `Link::make($label, $href, $classes = '...')` | `<a href="...">` |
 | `ListView::make([$children], $classes = '...')` | liste verticale avec séparateurs |
 | `SingleScrollView::make($child, $classes = '...')` | conteneur défilable (vertical, style `overflow-y-auto`) |
-| `BottomNavigation::make([['label'=>..,'href'=>..], ...])` | `<nav>` fixée en bas d'écran |
+| `BottomNavigation::make([['label'=>..,'href'=>..], ...])` | `<nav>` fixée en bas d'écran — rendue **une seule fois** par `PageRenderer` (voir `Screen::showsBottomNav()`, `Scaffold`'s `hasBottomNav`), jamais recréée par `nav.js` lors d'une navigation |
 | `FloatingActionButton::make($label, $action = null, $classes = '...')` | bouton rond flottant (bottom-right) |
 | `GestureDetector::make($child, onDoubleClick:, onSwipeLeft:, onSwipeRight:)` | `<div>` détectant double-clic / swipe (déclenche une action serveur) |
 | `ThemeToggle::make()` | bouton bascule clair/sombre |
-| `VibrateButton::make($label, $milliseconds = 200)` | déclenche `navigator.vibrate()` |
 | `LocationButton::make($label)` | déclenche `navigator.geolocation`, affiche les coordonnées |
-| `CameraPreview::make($label)` | ouvre la caméra (`getUserMedia`) dans un `<video>` |
-| `MicrophoneButton::make($label)` | active le micro (`getUserMedia` audio) |
+| `Device\Vibrate`, `Device\Notify`, `Device\Sound`, `Device\Printer`, `Device\Microphone`, `Device\Fingerprint`, `Device\Camera`, `Device\ImagePicker` | services (JS attachable via `Button::make(..., onClick: ...)`), pas des widgets — voir [Capacités du device](#capacités-du-device-caméra-micro-localisation-vibreur-biométrie-notifications-son-impression) |
 | `Maps\MapView::make($lat, $lng, $zoom = 15)` | résout automatiquement Mapbox &gt; Google Maps &gt; OpenStreetMap selon `.env` — voir [Cartes](#cartes) |
 | `Maps\OsmMap::make($lat, $lng, $zoom = 15)` | carte OpenStreetMap interactive (Leaflet, zéro clé API) |
 | `Maps\MapboxMap::make($accessToken, $lat, $lng, $zoom = 15)` | carte Mapbox GL JS interactive (jeton client, pas de clé secrète) |
 | `Maps\GoogleMap::make($apiKey, $lat, $lng, $zoom = 15)` | carte Google Maps JavaScript API interactive |
-| `FingerprintButton::make($label, $action)` | authentification biométrique — **native** (`BiometricPrompt` via `AndroidNative`) |
-| `SoundButton::make($url, $label)` | joue un son via `MediaPlayer` natif (survit au verrouillage écran) |
-| `NotifyButton::make($title, $message, $label)` | notification système native, fonctionne hors-ligne (`NotificationCompat`) |
-| `PrintButton::make($label)` | imprime/exporte la page en PDF via le pipeline d'impression natif Android |
-| `ImagePicker::make($fieldName, $label)` | sélecteur d'image natif (galerie système), résultat dans un champ caché de `Form` |
 | `ProgressBar::make($value)` | barre de progression linéaire (0-100, calculée côté serveur) |
 | `CircularProgress::make($value, $size = 64)` | indicateur circulaire (SVG pur, pas de JS/canvas) |
 | `Drawer::make([$items])` + `DrawerToggle::make()` | menu latéral coulissant, zéro JS (case à cocher cachée + variantes Tailwind `peer-checked:`) |
@@ -292,7 +287,8 @@ Chaque widget est démontré quelque part : la route `/widgets` de l'app démo r
 | `Padding::make($child, $classes = 'p-4')` | ajoute un espacement interne (classes Tailwind `p-*`) |
 | `Margin::make($child, $classes = 'm-4')` | ajoute un espacement externe (classes Tailwind `m-*`) |
 | `Divider::make($classes = '...')` | ligne de séparation (`<hr>`) |
-| `IconButton::make($icon, $action = null, $classes = '...', $ariaLabel = '')` | bouton icône seule (voir `Icon::*` pour le jeu d'icônes), même comportement d'action que `Button` |
+| `IconButton::make($icon, $action = null, $classes = '...', $ariaLabel = '', $onClick = null)` | bouton icône seule (voir `Icon::*` pour le jeu d'icônes), même comportement d'action/`onClick` que `Button` |
+| `Html::raw($html)` | passthrough HTML/JS brut — l'échappatoire qu'utilisent les services (`Engine\Device\`, `Engine\Payments\`) pour composer script tags et éléments de sortie dans un arbre de widgets |
 | `Textarea::make($name, $label = '', $value = '', $placeholder = '', $rows = 4, $error = '')` | `<textarea>` |
 | `DatePicker::make($name, $label = '', $value = '', $min = '', $max = '')` | `<input type="date">` — le sélecteur natif Android s'affiche via le WebView, zéro JS |
 | `TimePicker::make($name, $label = '', $value = '')` | `<input type="time">` — même chose côté sélecteur natif |
@@ -310,14 +306,14 @@ Chaque widget est démontré quelque part : la route `/widgets` de l'app démo r
 | `ErrorBanner::make($message)` | boîte d'erreur explicite (icône + fond rouge) — voir [Afficher les erreurs explicitement](#afficher-les-erreurs-explicitement) |
 | `Dialogs\AlertButton::make($message, $label = '...', $title = '')` | boîte de dialogue **native** Android (`AlertDialog`), repli `window.alert()` — voir [Boîtes de dialogue](#boîtes-de-dialogue) |
 | `Dialogs\ConfirmButton::make($message, $action, $label = '...', $title = '')` | confirmation native ; n'appelle `$action` que si l'utilisateur confirme — voir [Boîtes de dialogue](#boîtes-de-dialogue) |
-| `Payments\KkiapayButton::make($publicKey, $amount, $action, $label = 'Payer', $sandbox = true)` | paiement Kkiapay — voir [Paiement](#paiement) |
-| `Payments\PaypalButton::make($clientId, $amount, $action, $currency = 'EUR')` | paiement PayPal (vrai JS SDK, `paypal.Buttons()`) — voir [Paiement](#paiement) |
-| `Payments\FedapayButton::make($publicKey, $amount, $action, $description = '', $label = 'Payer', $sandbox = true)` | paiement FedaPay — voir [Paiement](#paiement) |
-| `Payments\StripeButton::make($action, $label = 'Payer par carte')` + `Payments\StripeCheckout::createSessionUrl(...)` | paiement Stripe (Checkout hébergé, aucun SDK client) — voir [Paiement](#paiement) |
-| `Payments\StripeCardField::make($publicKey, $clientSecret, $action, $label = '...')` | champ carte intégré (Stripe Elements, iframe géré par Stripe) — voir [Paiement](#paiement) |
-| `Payments\FeexpayButton::make($shopId, $amount, $action, $label = 'Payer', $sandbox = true)` | paiement Feexpay — gabarit non vérifié, voir [Paiement](#paiement) |
-| `Payments\IziChangePayButton::make($apiKey, $amount, $action, $label = 'Payer', $sandbox = true)` | paiement iZiChangePay — gabarit non vérifié, voir [Paiement](#paiement) |
-| `Payments\TresorPayButton::make($apiKey, $amount, $action, $label = 'Payer', $sandbox = true)` | paiement TresorPay — gabarit non vérifié, voir [Paiement](#paiement) |
+| `Payments\Kkiapay::scriptTag()` + `::payOnClick($publicKey, $amount, $sandbox = true)` + `::onSuccess($action)` | service paiement Kkiapay, à attacher via `Button::make(..., onClick: ...)` — voir [Paiement](#paiement) |
+| `Payments\PaypalButton::make($clientId, $amount, $action, $currency = 'EUR')` | paiement PayPal (vrai JS SDK, `paypal.Buttons()`) — reste un widget (exception documentée) — voir [Paiement](#paiement) |
+| `Payments\Fedapay::scriptTag()` + `::payOnClick($publicKey, $amount, $action, $description = '', $sandbox = true)` | service paiement FedaPay — voir [Paiement](#paiement) |
+| `Button::make($label, action: $action)` + `Payments\StripeCheckout::createSessionUrl(...)` | paiement Stripe (Checkout hébergé, aucun SDK client, aucun widget dédié) — voir [Paiement](#paiement) |
+| `Payments\Stripe::cardElement($publicKey, $clientSecret)` + `::confirmPaymentOnClick($action)` | champ carte intégré (Stripe Elements, iframe géré par Stripe) + déclencheur de confirmation décorrélé — voir [Paiement](#paiement) |
+| `Payments\Feexpay::scriptTag()` + `::payOnClick($shopId, $amount, $action, $sandbox = true)` | service paiement Feexpay — gabarit non vérifié, voir [Paiement](#paiement) |
+| `Payments\IziChangePay::scriptTag()` + `::payOnClick($apiKey, $amount, $action, $sandbox = true)` | service paiement iZiChangePay — gabarit non vérifié, voir [Paiement](#paiement) |
+| `Payments\TresorPay::scriptTag()` + `::payOnClick($apiKey, $amount, $action, $sandbox = true)` | service paiement TresorPay — gabarit non vérifié, voir [Paiement](#paiement) |
 | `Firebase\FirebaseAuth::signIn($webApiKey, $email, $password)` / `::signUp(...)` | connexion/inscription via l'API REST Identity Toolkit — voir [Firebase](#firebase) |
 | `Firebase\FirebaseMessaging::send($serviceAccountPath, $projectId, $token, $title, $body)` | envoi d'une notification push (FCM HTTP v1) — voir [Firebase](#firebase) |
 | `Firebase\Firestore::get(...)` / `::set(...)` | client REST minimal Firestore (un document à la fois) — voir [Firebase](#firebase) |
@@ -356,22 +352,33 @@ Autrement dit : si un concept Flutter décrit *comment le moteur de rendu dessin
 
 ## Paiement
 
-Sept gateways ont un widget dans `packages/payments/src/` (namespace `Engine\Payments\`, voir [Widgets disponibles](#widgets-disponibles)) et une intégration complète et testée dans `examples/ecom` (`CheckoutPage`). Toutes suivent la même règle : un événement de succès côté client (`addSuccessListener`, `onApprove`...) **n'est jamais une preuve de paiement**, juste un signal d'UI — la commande n'est créée qu'après une vérification serveur-à-serveur avec la clé **privée/secrète**. La confiance dans chaque implémentation varie beaucoup d'un gateway à l'autre :
+Sept gateways dans `packages/payments/src/` (namespace `Engine\Payments\`) et une intégration complète et testée dans `examples/ecom` (`CheckoutPage`). Cinq d'entre eux (Kkiapay, FedaPay, Feexpay, iZiChangePay, TresorPay) sont des **services**, pas des widgets : chaque classe expose `scriptTag(): Widget` (le `<script>` du SDK, à placer une fois sur la page), `payOnClick(...): string` (le déclencheur, attachable via `Button::make($label, onClick: ...)` à n'importe quel bouton) et, pour Kkiapay seulement, `onSuccess(string $action): Widget` (Kkiapay enregistre son callback de succès globalement via `addSuccessListener`, séparément du clic qui ouvre le widget — les quatre autres passent leur callback directement dans l'appel d'init du SDK). PayPal et Stripe Elements restent des widgets, pour des raisons documentées ci-dessous plutôt que par oubli.
+
+Toutes suivent la même règle : un événement de succès côté client (`addSuccessListener`, `onApprove`...) **n'est jamais une preuve de paiement**, juste un signal d'UI — la commande n'est créée qu'après une vérification serveur-à-serveur avec la clé **privée/secrète**. La confiance dans chaque implémentation varie beaucoup d'un gateway à l'autre :
 
 | Gateway | Confiance | Ce qui est vérifié |
 |---|---|---|
-| **Kkiapay** | Élevée | Pattern d'origine — widget JS + `transaction_id` + endpoint de vérification documenté. Non testé contre un vrai compte sandbox. |
-| **PayPal** | Élevée | Vrai JS SDK (`paypal.Buttons()`), flux OAuth2 + capture server-side standard et bien documenté. Non testé contre une vraie app sandbox. |
-| **FedaPay** | Moyenne-élevée | Même forme que Kkiapay (`FedaPay.init()`). Non testé. |
-| **Stripe** (redirection) | Élevée sur le principe, non testé sur l'appel réel | Checkout hébergé (`StripeCheckout::createSessionUrl()`, API REST directe, aucun SDK client nécessaire) — confirmé qu'une clé invalide échoue proprement (pas de crash), l'appel réel à l'API Stripe n'a pas pu être testé (pas de clé sandbox disponible ici). |
-| **Stripe** (`StripeCardField`) | Élevée sur le principe, non testé sur l'appel réel | Champ carte intégré via Stripe Elements (`stripe.confirmCardPayment`), pas un formulaire `TextField` brut — la carte reste dans un iframe géré par Stripe, jamais dans notre DOM/serveur (voir la note PCI-DSS ci-dessous). Activé automatiquement quand `STRIPE_PUBLIC_KEY` **et** `STRIPE_SECRET_KEY` sont renseignés (secrète seule = redirection hébergée à la place). |
-| **Feexpay, iZiChangePay, TresorPay** | Faible à très faible | Gabarits structurels seulement (URL de script et nom des fonctions JS marqués `TODO`, à vérifier contre la doc de chaque gateway) — `CheckoutPage` refuse la transaction dès qu'une clé secrète est configurée plutôt que de faire semblant de la vérifier avec un appel non confirmé. |
+| **Kkiapay** (`Payments\Kkiapay`) | Élevée | Pattern d'origine — script SDK + `transaction_id` + endpoint de vérification documenté. Non testé contre un vrai compte sandbox. |
+| **PayPal** (`Payments\PaypalButton`, widget) | Élevée | Vrai JS SDK (`paypal.Buttons()`), flux OAuth2 + capture server-side standard et bien documenté. Non testé contre une vraie app sandbox. Reste un widget : le SDK PayPal dessine lui-même son bouton dans un conteneur qu'il contrôle entièrement (contrainte de marque/conformité PayPal) — il n'y a pas d'`onclick` à extraire pour l'attacher à un bouton externe. |
+| **FedaPay** (`Payments\Fedapay`) | Moyenne-élevée | Même forme que Kkiapay (`FedaPay.init()`). Non testé. |
+| **Stripe** (redirection, `Button::make` + `Payments\StripeCheckout`) | Élevée sur le principe, non testé sur l'appel réel | Checkout hébergé (`StripeCheckout::createSessionUrl()`, API REST directe, aucun SDK client nécessaire) — un simple `Button::make($label, action: $action)` suffit, pas de widget dédié (l'ancien `StripeButton` a été supprimé, il n'ajoutait rien). Confirmé qu'une clé invalide échoue proprement (pas de crash), l'appel réel à l'API Stripe n'a pas pu être testé (pas de clé sandbox disponible ici). |
+| **Stripe Elements** (`Payments\Stripe::cardElement()` + `::confirmPaymentOnClick()`) | Élevée sur le principe, non testé sur l'appel réel | Champ carte intégré via Stripe Elements (`stripe.confirmCardPayment`), pas un formulaire `TextField` brut — la carte reste dans un iframe géré par Stripe, jamais dans notre DOM/serveur (voir la note PCI-DSS ci-dessous). `cardElement()` reste un point de montage (widget), mais le bouton de confirmation est décorrélé via `confirmPaymentOnClick(): string`, attachable à n'importe quel bouton. Activé automatiquement quand `STRIPE_PUBLIC_KEY` **et** `STRIPE_SECRET_KEY` sont renseignés (secrète seule = redirection hébergée à la place). |
+| **Feexpay, iZiChangePay, TresorPay** (`Payments\Feexpay`, `Payments\IziChangePay`, `Payments\TresorPay`) | Faible à très faible | Gabarits structurels seulement (URL de script et nom des fonctions JS marqués `TODO`, à vérifier contre la doc de chaque gateway) — `CheckoutPage` refuse la transaction dès qu'une clé secrète est configurée plutôt que de faire semblant de la vérifier avec un appel non confirmé. |
 
-`examples/ecom/.env` documente les variables de chaque gateway ; `/checkout` choisit le **premier** gateway configuré dans cet ordre (voir `CheckoutPage::selectPaymentWidget()`) — rien de configuré = mode démo (comportement d'avant, commande créée directement sans paiement). Quand le bouton est placé à l'intérieur d'un `Form::make(...)`, son callback de succès sérialise aussi les autres champs du formulaire (nom, adresse...) et les poste avec l'identifiant de transaction — utile pour un vrai checkout qui a besoin des infos de livraison en plus du paiement (voir `KkiapayButton`).
+`examples/ecom/.env` documente les variables de chaque gateway ; `/checkout` choisit le **premier** gateway configuré dans cet ordre (voir `CheckoutPage::selectPaymentWidgets()`) — rien de configuré = mode démo (comportement d'avant, commande créée directement sans paiement). Le déclencheur stashe le formulaire englobant dans une variable JS partagée (`window.__phpxPaymentForm`) au moment du clic, donc si le bouton est placé à l'intérieur d'un `Form::make(...)`, ses autres champs (nom, adresse...) sont sérialisés et postés avec l'identifiant de transaction — utile pour un vrai checkout qui a besoin des infos de livraison en plus du paiement.
 
-**Pourquoi pas un simple formulaire carte bancaire ?** Aucune intégration ici ne laisse jamais une donnée de carte brute atteindre notre propre DOM/serveur — que ce soit par redirection hébergée ou par un widget JS fournisseur. Un widget construit avec des `TextField` classiques pour numéro/CVV/expiration, postés via `Form`/`$data` vers notre propre serveur, mettrait cette donnée en **scope PCI-DSS SAQ D** (audit complet, segmentation réseau...) — une vraie régression de sécurité. `StripeCardField` suit donc le même principe que les autres gateways : la partie sensible reste hors de notre contrôle (iframe Stripe), seul un identifiant déjà confirmé (`payment_intent_id`) transite par notre serveur, revérifié via `StripeCheckout::retrievePaymentIntent()` avant de créer la commande.
+Exemple (remplace l'ancien `KkiapayButton::make($key, $amount, action: 'confirmKkiapay')`) :
+```php
+Column::make([
+    Kkiapay::scriptTag(),
+    Kkiapay::onSuccess(action: 'confirmKkiapay'),
+    Button::make('Payer avec mon bouton perso', onClick: Kkiapay::payOnClick($key, $amount)),
+])
+```
 
-Pour ajouter un autre gateway : `packages/payments/src/KkiapayButton.php` ou `FedapayButton.php` servent de modèle pour un widget JS classique ; `StripeButton.php`/`StripeCheckout.php` pour un flux de redirection hébergé sans SDK client.
+**Pourquoi pas un simple formulaire carte bancaire ?** Aucune intégration ici ne laisse jamais une donnée de carte brute atteindre notre propre DOM/serveur — que ce soit par redirection hébergée ou par un widget JS fournisseur. Un widget construit avec des `TextField` classiques pour numéro/CVV/expiration, postés via `Form`/`$data` vers notre propre serveur, mettrait cette donnée en **scope PCI-DSS SAQ D** (audit complet, segmentation réseau...) — une vraie régression de sécurité. `Stripe::cardElement()` suit donc le même principe que les autres gateways : la partie sensible reste hors de notre contrôle (iframe Stripe), seul un identifiant déjà confirmé (`payment_intent_id`) transite par notre serveur, revérifié via `StripeCheckout::retrievePaymentIntent()` avant de créer la commande.
+
+Pour ajouter un autre gateway : `packages/payments/src/Kkiapay.php` ou `Fedapay.php` servent de modèle pour un service à SDK JS classique ; `StripeCheckout.php` pour un flux de redirection hébergé sans SDK client.
 
 ## Cartes
 
@@ -383,7 +390,7 @@ Trois fournisseurs dans `packages/maps/src/` (namespace `Engine\Maps\`) :
 | **Mapbox** (`MapboxMap`) | Élevée sur le principe, non testé | Mapbox GL JS v3, jeton d'accès public (client-safe par conception chez Mapbox). Implémenté d'après la doc officielle, pas de compte Mapbox disponible ici pour tester en réel. |
 | **Google Maps** (`GoogleMap`) | Élevée sur le principe, non testé | Google Maps JavaScript API, clé restreinte par domaine/package (façon officielle de l'utiliser côté client). Implémenté d'après la doc officielle, pas de projet Google Cloud disponible ici pour tester en réel. |
 
-`Maps\MapView::make($lat, $lng, $zoom)` choisit automatiquement Mapbox > Google Maps > OpenStreetMap selon `MAPBOX_ACCESS_TOKEN`/`GOOGLE_MAPS_API_KEY` dans `.env` — même idiome de priorité que `CheckoutPage::selectPaymentWidget()` (voir `phpnitro.yml`'s `maps:`, `phpx maps`). Rien configuré = OpenStreetMap, toujours disponible.
+`Maps\MapView::make($lat, $lng, $zoom)` choisit automatiquement Mapbox > Google Maps > OpenStreetMap selon `MAPBOX_ACCESS_TOKEN`/`GOOGLE_MAPS_API_KEY` dans `.env` — même idiome de priorité que `CheckoutPage::selectPaymentWidgets()` (voir `phpnitro.yml`'s `maps:`, `phpx maps`). Rien configuré = OpenStreetMap, toujours disponible.
 
 ## Boîtes de dialogue
 
@@ -414,7 +421,27 @@ Confiance : même tier que Mapbox/Google Maps — implémenté d'après la doc o
 
 ## Capacités du device (caméra, micro, localisation, vibreur, biométrie, notifications, son, impression)
 
-Widgets `VibrateButton`, `LocationButton`, `CameraPreview`, `MicrophoneButton`, `FingerprintButton`, `SoundButton`, `NotifyButton`, `PrintButton`, `ImagePicker` (écran `lib/pages/app/DevicePage.php`, route `/device`) — pilotés par `assets/js/device.js`, qui **préfère toujours le pont natif** (`window.AndroidNative`, exposé par `android/.../WebAppInterface.kt`) et ne retombe sur les Web APIs standard que si ce pont est absent (navigateur, tests locaux).
+`Engine\Device\` (`packages/device/src/`) — des **services**, pas des widgets : chaque classe expose une méthode statique qui retourne soit une expression JS à attacher via `Button::make($label, onClick: ...)` à N'IMPORTE QUEL bouton (le tien, avec ton propre label/style), soit un élément de sortie (`Widget`, via `Html::raw`) à placer où tu veux. Rien n'impose plus un bouton pré-stylé — voir `lib/pages/app/DevicePage.php` (route `/device`) pour un exemple complet de composition.
+
+| Service | Méthode(s) |
+|---|---|
+| `Device\Vibrate` | `::onClick($milliseconds = 200): string` |
+| `Device\Notify` | `::onClick($title, $message): string` |
+| `Device\Sound` | `::onClick($url): string` |
+| `Device\Printer` | `::onClick(): string` (`Print` est un mot réservé PHP) |
+| `Device\Microphone` | `::onClick($outputId): string` + `::outputElement($id): Widget` |
+| `Device\Fingerprint` | `::onClick($outputId): string` + `::outputElement($id): Widget` |
+| `Device\Camera` | `::openOnClick($videoId): string` + `::captureOnClick($imageId): string` + `::videoElement($id): Widget` + `::imageElement($id): Widget` |
+| `Device\ImagePicker` | `::pickOnClick($previewId, $hiddenFieldId): string` + `::hiddenField($name, $id): Widget` + `::previewElement($id): Widget` |
+
+Exemple (remplace l'ancien `VibrateButton::make()`) :
+```php
+Button::make('Faire vibrer mon bouton perso', onClick: Vibrate::onClick(300), classes: 'bg-purple-600 text-white ...')
+```
+
+`LocationButton` (dans `packages/ui/src/`, namespace `Engine\`) reste un widget classique — non concerné par cette conversion.
+
+Tous ces services passent par `assets/js/device.js` (`window.phpxDevice`), qui **préfère toujours le pont natif** (`window.AndroidNative`, exposé par `android/.../WebAppInterface.kt`) et ne retombe sur les Web APIs standard que si ce pont est absent (navigateur, tests locaux).
 
 **Ce qui passe par du vrai code natif Kotlin (pas une Web API médiée par la WebView) :**
 - **Vibreur** — `Vibrator` directement.
@@ -494,7 +521,7 @@ Installation sur téléphone : transfère l'APK (câble, `adb install`, ou parta
 - `StreamBuilder` fonctionne en polling HTTP (pas de WebSocket/Server-Sent Events) — suffisant pour la plupart des cas, mais pas du "temps réel" au sens strict
 - Notifications push : le stockage des tokens côté backend est réel et testé (`/api/fcm/register`, `/api/fcm/count`) ; la partie Android (`FcmService.kt.example`) est écrite (y compris l'affichage de la notification système) mais **désactivée par défaut** — elle nécessite ton propre projet Firebase (`google-services.json`), qui ne peut pas être généré ici (voir le fichier `.example` pour les 6 étapes d'activation). L'envoi serveur (`Engine\Firebase\FirebaseMessaging::send()`) est maintenant implémenté, mais non testé contre un vrai projet Firebase (aucun compte de service disponible ici).
 - Le serveur de dev PHP (`php -S`, utilisé aussi sur Android) est mono-thread — largement suffisant pour une app mobile (un seul client à la fois), mais pas un choix pertinent pour un vrai serveur multi-utilisateurs
-- Mapbox/Google Maps (`Engine\Maps\`), `StripeCardField`, et tout `Engine\Firebase\` (Messaging/Auth/Firestore) : implémentés d'après la doc officielle, mais pas testés contre un vrai compte/projet (aucune clé/compte de service disponible dans cet environnement) — seul `OsmMap` (OpenStreetMap/Leaflet) a été vérifié en conditions réelles sur device
+- Mapbox/Google Maps (`Engine\Maps\`), `Payments\Stripe::cardElement()`, et tout `Engine\Firebase\` (Messaging/Auth/Firestore) : implémentés d'après la doc officielle, mais pas testés contre un vrai compte/projet (aucune clé/compte de service disponible dans cet environnement) — seul `OsmMap` (OpenStreetMap/Leaflet) a été vérifié en conditions réelles sur device
 - Couverture de tests des widgets : `packages/ui/tests/WidgetsTest.php` ne couvre qu'une partie des widgets ; la vitrine `/widgets` prouve visuellement que le reste fonctionne (sur un vrai device), mais n'est pas un test automatisé — étendre `WidgetsTest.php` aux widgets restants est un chantier à part
 
 ## Feuille de route — chantiers pas encore commencés

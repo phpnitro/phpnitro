@@ -39,4 +39,4 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ## Permissions et capacités device
 
-`MainActivity` demande les permissions caméra/micro/localisation et configure la `WebView` (`WebChromeClient.onPermissionRequest`, `onGeolocationPermissionsShowPrompt`, `setGeolocationEnabled`) pour que `VibrateButton`, `LocationButton`, `CameraPreview` et `MicrophoneButton` fonctionnent réellement.
+`MainActivity` demande les permissions caméra/micro/localisation et configure la `WebView` (`WebChromeClient.onPermissionRequest`, `onGeolocationPermissionsShowPrompt`, `setGeolocationEnabled`) pour que `Device\Vibrate`, `LocationButton`, `Device\Camera` et `Device\Microphone` fonctionnent réellement.
