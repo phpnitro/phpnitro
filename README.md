@@ -1,4 +1,4 @@
-# PhpNitro
+# PhpNitro (mobile framework)
 
 Écris des interfaces mobiles modernes en PHP : des widgets (`Button`, `Text`, `Column`...) stylés avec Tailwind CSS, servis par un vrai runtime PHP, affichés dans une WebView native (Android WebView / WKWebView).
 
