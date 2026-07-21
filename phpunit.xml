@@ -34,5 +34,17 @@
         <testsuite name="connectivity">
             <directory>packages/connectivity/tests</directory>
         </testsuite>
+        <testsuite name="launcher">
+            <directory>packages/launcher/tests</directory>
+        </testsuite>
+        <testsuite name="diagnostics">
+            <directory>packages/diagnostics/tests</directory>
+        </testsuite>
+        <testsuite name="format">
+            <directory>packages/format/tests</directory>
+        </testsuite>
+        <testsuite name="socialauth">
+            <directory>packages/socialauth/tests</directory>
+        </testsuite>
     </testsuites>
 </phpunit>

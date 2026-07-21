@@ -214,6 +214,16 @@ window.phpxDevice = {
     }
   },
 
+  // android_alarm_manager_plus equivalent — no web/browser fallback
+  // exists (a page can't schedule work after it's been closed), so this
+  // is a silent no-op outside a native shell.
+  scheduleAlarm(requestCode, delaySeconds, title, message) {
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.scheduleAlarm) {
+      bridge.scheduleAlarm(requestCode, delaySeconds, title, message);
+    }
+  },
+
   // Switches the home-screen launcher icon (Android activity-alias
   // toggle, see WebAppInterface.kt's setAppIcon()) — no web/browser
   // equivalent exists (a page can't change what icon its own PWA/tab uses
@@ -223,6 +233,21 @@ window.phpxDevice = {
     if (bridge && bridge.setAppIcon) {
       bridge.setAppIcon(iconKey);
     }
+  },
+
+  // Opens any URI (https://, tel:, mailto:, sms:) via the system handler
+  // app — a plain WebView has no dialer/mail client of its own to hand
+  // tel:/mailto: off to, and a bare <a> would just fail silently (see
+  // MainActivity.kt's shouldOverrideUrlLoading for the non-JS-triggered
+  // equivalent). window.open in a real browser tab already knows how to
+  // do this itself.
+  launchUrl(url) {
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.launchUrl) {
+      bridge.launchUrl(url);
+      return;
+    }
+    window.open(url, '_blank');
   },
 
   // Native print pipeline (WebView.createPrintDocumentAdapter + PrintManager

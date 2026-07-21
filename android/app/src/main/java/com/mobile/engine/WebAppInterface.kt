@@ -8,6 +8,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
@@ -302,6 +304,71 @@ class WebAppInterface(
             PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
             PackageManager.DONT_KILL_APP,
         )
+    }
+
+    /**
+     * Real connection type via ConnectivityManager — what
+     * assets/js/connectivity.js's connectionType() prefers over the
+     * browser's own (limited/inconsistent) navigator.connection.
+     */
+    @JavascriptInterface
+    fun getConnectionType(): String {
+        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = manager.activeNetwork ?: return "none"
+        val capabilities = manager.getNetworkCapabilities(network) ?: return "none"
+
+        return when {
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "wifi"
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "cellular"
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "ethernet"
+            else -> "other"
+        }
+    }
+
+    /**
+     * Opens any URI (https://, tel:, mailto:, sms:...) via the system's own
+     * handler app — url_launcher's core job. See MainActivity.kt's
+     * shouldOverrideUrlLoading() for the equivalent behavior on a plain
+     * <a href> a developer didn't route through this JS trigger.
+     */
+    @JavascriptInterface
+    fun launchUrl(url: String) {
+        val activity = context as? Activity ?: return
+
+        activity.runOnUiThread {
+            try {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            } catch (_: Exception) {
+                // No app installed that handles this URI — nothing sensible
+                // to fall back to natively, same as a dead link.
+            }
+        }
+    }
+
+    /**
+     * android_alarm_manager_plus equivalent — schedules AlarmReceiver to
+     * fire (and show a notification) after $delaySeconds, even if this
+     * app's process has since been killed. setExactAndAllowWhileIdle so it
+     * still fires under Doze, at the cost of needing the (normal, no
+     * runtime prompt) SCHEDULE_EXACT_ALARM permission on API 31+.
+     */
+    @JavascriptInterface
+    fun scheduleAlarm(requestCode: Int, delaySeconds: Int, title: String, message: String) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            putExtra("title", title)
+            putExtra("message", message)
+            putExtra("requestCode", requestCode)
+        }
+        val pendingIntent = android.app.PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE,
+        )
+        val triggerAt = System.currentTimeMillis() + delaySeconds * 1000L
+
+        alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
     }
 
     @JavascriptInterface

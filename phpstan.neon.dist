@@ -11,6 +11,10 @@ parameters:
         - packages/countries/src
         - packages/preferences/src
         - packages/connectivity/src
+        - packages/launcher/src
+        - packages/diagnostics/src
+        - packages/format/src
+        - packages/socialauth/src
         - lib/pages/app
         - lib/backend/src
         - public/index.php

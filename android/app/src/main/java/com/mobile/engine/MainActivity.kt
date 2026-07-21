@@ -2,6 +2,7 @@ package com.mobile.engine
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -91,6 +92,28 @@ class MainActivity : AppCompatActivity() {
         // Defensive: if the very first load races the PHP server still
         // starting up, retry instead of leaving a permanently blank WebView.
         webView.webViewClient = object : WebViewClient() {
+            // Without this, a tel:/mailto:/sms: link (or a plain http(s)
+            // link to a real external site) just fails silently — WebView
+            // has no dialer/mail app of its own to hand those off to.
+            // Engine\Launcher\ triggers the same Intent.ACTION_VIEW path
+            // via WebAppInterface.launchUrl() for JS-initiated opens;
+            // this covers a developer's own plain <a href="tel:...">.
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                val uri = request.url
+                val isOwnServer = uri.scheme in listOf("http", "https") && uri.host == "127.0.0.1" && uri.port == port
+
+                if (isOwnServer) {
+                    return false
+                }
+
+                return try {
+                    this@MainActivity.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                    true
+                } catch (_: ActivityNotFoundException) {
+                    true
+                }
+            }
+
             override fun onReceivedError(
                 view: WebView,
                 request: WebResourceRequest,

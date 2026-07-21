@@ -24,7 +24,11 @@
             "Engine\\Preferences\\": "packages/preferences/src/",
             "Engine\\Connectivity\\": "packages/connectivity/src/",
             "Engine\\App\\": "lib/pages/app/",
-            "Backend\\": "lib/backend/src/"
+            "Backend\\": "lib/backend/src/",
+            "Engine\\Launcher\\": "packages/launcher/src/",
+            "Engine\\Diagnostics\\": "packages/diagnostics/src/",
+            "Engine\\Format\\": "packages/format/src/",
+            "Engine\\SocialAuth\\": "packages/socialauth/src/"
         }
     },
     "autoload-dev": {
@@ -39,7 +43,10 @@
             "Engine\\Countries\\Tests\\": "packages/countries/tests/",
             "Engine\\Preferences\\Tests\\": "packages/preferences/tests/",
             "Engine\\Connectivity\\Tests\\": "packages/connectivity/tests/",
-            "Engine\\Payments\\Tests\\": "packages/payments/tests/"
+            "Engine\\Launcher\\Tests\\": "packages/launcher/tests/",
+            "Engine\\Diagnostics\\Tests\\": "packages/diagnostics/tests/",
+            "Engine\\Format\\Tests\\": "packages/format/tests/",
+            "Engine\\SocialAuth\\Tests\\": "packages/socialauth/tests/"
         }
     }
 }
