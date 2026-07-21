@@ -20,9 +20,10 @@ Ce qui reste, pour atteindre la parité :
 - **Compiler et tester le pont natif déjà écrit** sur un vrai projet Xcode, d'abord contre un PHP hébergé sur le réseau (étape recommandée avant même de toucher au SAPI embed — voir `ios/README.md`).
 - Tester sur un vrai device iPhone (aucun disponible ici).
 
-### 2. Le code source PHP est lisible en clair dans l'APK
-Vérifié : `bin/phpx bundle:android` copie les fichiers `.php` **tels quels** (texte brut) dans les assets de l'APK. N'importe qui peut décompresser l'APK (`unzip`) et lire tout le code métier, y compris les clés/logique côté serveur qui tournent sur le device. Flutter compile en code natif (AOT), React Native transforme en bundle JS minifié/obfusqué (Hermes bytecode) — aucun des deux n'expose son code source aussi directement.
-- Il faut soit un compilateur PHP → bytecode (type `opcache` précompilé packagé, ou un vrai compilateur AOT PHP — projet de recherche à part entière), soit au minimum un minifieur/obfuscateur PHP appliqué au moment du bundle.
+### 2. Le code source PHP est lisible en clair dans l'APK — **minifié maintenant, toujours pas obfusqué**
+**Mise à jour** : `bin/phpx bundle:android` fait maintenant tourner chaque fichier `.php` (framework + app, pas `vendor/`) à travers un minifieur maison basé sur `token_get_all()` — retire commentaires/docblocks, compresse les espaces. **Vérifié à fond** : testé sur les 121 fichiers réels du framework avant d'être branché (233 Ko → 137 Ko, -41,4 %, zéro erreur de syntaxe), puis `bundle:android` exécuté pour de vrai, les 727 fichiers `.php` du bundle (dont `vendor/`, non touché) revérifiés avec `php -l`, APK reconstruite, installée et **lancée sur l'Infinix X6532** — l'app tourne normalement avec le code minifié (état de session, navigation, aucun crash). `bin/test.sh` vérifie maintenant aussi qu'un fichier bundlé connu pour avoir un docblock en source ne l'a plus, et que tous les fichiers bundlés restent syntaxiquement valides — un vrai garde-fou anti-régression, pas juste "la commande retourne 0".
+
+**Ce que ce n'est toujours pas**, pour rester honnête : **aucune obfuscation réelle** — pas de renommage d'identifiants, pas d'encodage de chaînes. Un APK décompressé montre toujours du PHP parfaitement lisible (juste sans les commentaires qui expliquaient les choix de conception). Il faut soit un compilateur PHP → bytecode (type `opcache` précompilé packagé, ou un vrai compilateur AOT PHP — projet de recherche à part entière), soit un vrai obfuscateur (renommage de variables/méthodes, chaînes encodées) pour que ce point soit vraiment réglé.
 - Sans ça, n'importe quelle app construite avec ce framework expose tout son code métier à l'utilisateur final — un vrai problème de sécurité/propriété intellectuelle pour un usage commercial.
 
 ### 3. Aucune release signée, aucun pipeline de publication
@@ -62,15 +63,18 @@ Toujours absent : pas de `CustomPaint`/Canvas (graphiques dessinés à la main),
 - **Kkiapay, FedaPay** : confiance moyenne à élevée sur le pattern, mais jamais exercés contre un vrai sandbox (aucun compte disponible dans cet environnement).
 - Manque aussi : Apple Pay / Google Pay natifs (aucun des deux n'est implémenté), gestion des remboursements, réception de webhooks asynchrones (le flux actuel est 100% synchrone côté client).
 
-### 8. Capacités device incomplètes face à Flutter/RN
-Ce qui existe (vibreur, caméra, micro, biométrie, notifications, son, impression, sélecteur d'image, géolocalisation) couvre l'essentiel — mais il manque, par rapport à l'écosystème de plugins Flutter/RN :
+### 8. Capacités device incomplètes face à Flutter/RN — **partage natif et deep linking ajoutés**
+**Mise à jour** : deux capacités ajoutées et vérifiées en conditions réelles cette session :
+- **Partage natif** (`Engine\Device\Share`) : Android (`Intent.ACTION_SEND` + `createChooser`, `WebAppInterface.kt`), iOS (`UIActivityViewController`, écrit mais non compilé — même statut que le reste d'`ios/`), repli `navigator.share()` en navigateur. **Vérifié en vrai** : bouton "Partager" tapé sur `/device` sur l'Infinix X6532, le vrai share sheet Android s'est ouvert avec le texte exact envoyé depuis PHP.
+- **Deep linking** (schéma personnalisé `phpnitro://<path>`, pas de vrais App Links HTTPS — voir plus bas) : intent-filter `VIEW`/`BROWSABLE` + `android:launchMode="singleTask"` pour que l'app déjà ouverte réutilise son instance (`onNewIntent`) plutôt que d'en empiler une seconde. **Bug réel trouvé et corrigé en testant en vrai** : `uri.host`, pas `uri.path`, contient le premier segment d'une URI `scheme://autorité/chemin` — `phpnitro://settings` atterrissait sur `host="settings"`, `path=""`, ce qu'une lecture naïve de `uri.path` seul résolvait silencieusement en `/` et ouvrait l'accueil au lieu de Réglages. Corrigé (host+path concaténés), puis revérifié : lancement à froid **et** re-tap pendant que l'app tourne déjà (`onNewIntent`) confirmés tous les deux, sur device réel.
+
+Manque toujours, par rapport à l'écosystème de plugins Flutter/RN :
 - Capteurs (accéléromètre, gyroscope, boussole).
 - Bluetooth / NFC.
 - Contacts, calendrier.
-- Partage natif (share sheet Android/iOS).
 - Achats intégrés (in-app purchase, obligatoire pour certains modèles économiques sur les stores).
 - Tâches en arrière-plan (background execution, geofencing).
-- Deep linking / universal links.
+- Vrais App Links HTTPS (`android:autoVerify` + `.well-known/assetlinks.json` hébergé sur un domaine vérifié) — le schéma personnalisé actuel n'est pas cliquable depuis un lien web/SMS/email comme le serait un vrai App Link, seulement invocable par une autre app ou `adb`.
 - Stockage sécurisé type Keychain/Keystore (aujourd'hui : SQLite + session PHP, pas un coffre-fort chiffré dédié aux tokens sensibles).
 
 ### 9. Notifications push non vérifiées en conditions réelles
@@ -140,6 +144,9 @@ Pour être honnête dans les deux sens : ces briques sont réelles, fonctionnell
 - `Stack`/`Positioned`/`Wrap` (#5) et la réutilisation de `.phpx-animate` par `stream.js`/`future.js` (#4) sont réels, vérifiés (PHPUnit + device réel) — premiers jalons, pas des réponses complètes aux deux items.
 - **Hot reload** (`assets/js/dev-reload.js` + `/_dev/version`) — retiré de la liste des manques cette session : ce document affirmait à tort qu'aucun rafraîchissement automatique n'existait ; en réalité le mécanisme (poll + reload sur hash de mtime différent) fonctionnait déjà, testé pour de vrai. Seul un angle mort (`packages/*/src` non surveillé) a été corrigé — voir `public/index.php`.
 - `box.json` + `phpx.phar` (#13) : packaging réel, vérifié de bout en bout (`phpx new` scaffoldé depuis le `.phar`, projet résultant qui répond HTTP 200) — deux bugs de permissions/shebang trouvés et corrigés au passage. Ne résout pas encore le vrai objectif de #13 (binaire global indépendant du répertoire courant) : voir le détail dans l'item lui-même.
+- Audit accessibilité TalkBack réel (#11) : deux bugs trouvés et corrigés (hamburger/fermeture du `Drawer` invisibles pour TalkBack, FAB annoncé par son glyphe brut) — premier audit réel, pas exhaustif (voir l'item pour ce qui reste non couvert).
+- `Engine\Device\Share` et le deep linking `phpnitro://` (#8) : les deux vérifiés en conditions réelles sur device (share sheet Android ouvert avec le bon texte, navigation directe vers la bonne route côté PHP) — un bug de parsing d'URI trouvé et corrigé pour le deep linking au passage.
+- Minification PHP au bundle (#2) : réelle et vérifiée (121 fichiers testés avant intégration, 727 fichiers du bundle revérifiés, app lancée avec le code minifié sur device réel) — retire les commentaires/docblocks, ne renomme rien : ce n'est pas de l'obfuscation, voir l'item pour la nuance.
 
 ---
 
