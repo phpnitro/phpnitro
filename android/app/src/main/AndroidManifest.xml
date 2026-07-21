@@ -19,10 +19,23 @@
         <activity
             android:name=".MainActivity"
             android:theme="@style/Theme.App.Starting"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Custom-scheme deep link (phpnitro://<path>), e.g.
+                 phpnitro://product/42 opens /product/42 — see
+                 MainActivity.kt's deepLinkPath(). A real HTTPS App Link
+                 (android:autoVerify + a hosted .well-known/assetlinks.json)
+                 needs a verified domain this environment doesn't have, so
+                 this is scheme-based only for now, not domain-verified. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="phpnitro" />
             </intent-filter>
         </activity>
     </application>

@@ -2,7 +2,9 @@ package com.mobile.engine
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -46,6 +48,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var webAppInterface: WebAppInterface
     private lateinit var phpServer: PhpServer
+    private lateinit var webView: WebView
 
     @Volatile
     private var serverReady = false
@@ -72,7 +75,7 @@ class MainActivity : AppCompatActivity() {
 
         ActivityCompat.requestPermissions(this, requestedPermissions, 0)
 
-        val webView = WebView(this)
+        webView = WebView(this)
         webAppInterface = WebAppInterface(this, webView) { takePicturePreview.launch(null) }
             .also { it.onImagePickRequested = { pickImage.launch("image/*") } }
         webView.addJavascriptInterface(webAppInterface, "AndroidNative")
@@ -143,8 +146,49 @@ class MainActivity : AppCompatActivity() {
             val boundPort = phpServer.start()
             port = boundPort
             serverReady = true
-            runOnUiThread { webView.loadUrl("http://127.0.0.1:$boundPort/") }
+            val path = deepLinkPath(intent) ?: "/"
+            runOnUiThread { webView.loadUrl("http://127.0.0.1:$boundPort$path") }
         }.start()
+    }
+
+    /**
+     * Fires when a deep link (or a re-tap of the launcher icon) arrives
+     * while the Activity is already running — android:launchMode="singleTask"
+     * (AndroidManifest.xml) routes it here instead of spawning a second
+     * MainActivity instance on top of the WebView that's already showing.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+
+        val path = deepLinkPath(intent) ?: return
+        if (serverReady) {
+            webView.loadUrl("http://127.0.0.1:$port$path")
+        }
+    }
+
+    /**
+     * phpnitro://<path> (e.g. phpnitro://product/42) -> "/product/42",
+     * resolved by the exact same Engine\Router every normal in-app
+     * navigation goes through — a deep link is just a different way to
+     * arrive at an ordinary route, not a separate code path on the PHP
+     * side. Only this app's own scheme is handled; anything else (a stray
+     * VIEW intent with unexpected data) is ignored rather than guessed at.
+     *
+     * uri.host, not uri.path, holds the first path segment: standard
+     * scheme://authority/path URI parsing treats whatever comes right after
+     * "://" up to the next "/" as the authority (host), not part of the
+     * path — confirmed live (phpnitro://settings landed on host="settings",
+     * path="", which a naive uri.path-only read silently treated as "/" and
+     * opened the home screen instead of Réglages). Host and path are
+     * concatenated back into one route instead.
+     */
+    private fun deepLinkPath(intent: Intent?): String? {
+        val uri: Uri = intent?.data ?: return null
+        if (uri.scheme != "phpnitro") return null
+
+        val path = "/${uri.host.orEmpty()}${uri.path.orEmpty()}"
+        return if (path == "/") "/" else path
     }
 
     override fun onDestroy() {
