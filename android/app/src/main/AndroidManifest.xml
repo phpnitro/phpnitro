@@ -21,10 +21,6 @@
             android:theme="@style/Theme.App.Starting"
             android:exported="true"
             android:launchMode="singleTask">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
             <!-- Custom-scheme deep link (phpnitro://<path>), e.g.
                  phpnitro://product/42 opens /product/42 — see
                  MainActivity.kt's deepLinkPath(). A real HTTPS App Link
@@ -38,5 +34,39 @@
                 <data android:scheme="phpnitro" />
             </intent-filter>
         </activity>
+
+        <!-- Dynamic app icon: the MAIN/LAUNCHER entry point moved here (off
+             MainActivity itself) so it can switch between two mutually
+             exclusive icons at runtime — Engine\Device\AppIcon::onClick()
+             -> WebAppInterface.kt's setAppIcon() calls
+             PackageManager.setComponentEnabledSetting() to enable one alias
+             and disable the other. Both target the same MainActivity, so
+             this doesn't change what actually launches, only which
+             home-screen icon/label a tap resolves through. -->
+        <activity-alias
+            android:name=".MainActivityDefault"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MainActivityAlt"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_alt"
+            android:roundIcon="@mipmap/ic_launcher_alt_round"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
     </application>
 </manifest>

@@ -4,6 +4,7 @@ namespace Engine\App;
 
 use Engine\Button;
 use Engine\Column;
+use Engine\Device\AppIcon;
 use Engine\Device\Camera;
 use Engine\Device\Fingerprint;
 use Engine\Device\ImagePicker;
@@ -67,6 +68,10 @@ final class DevicePage extends Screen
                 onClick: Share::onClick('Regarde cette app faite avec PhpNitro !', 'PhpNitro Demo'),
                 classes: self::BUTTON_CLASSES,
             ),
+            Row::make([
+                Button::make('Icône bleue', onClick: AppIcon::onClick('alt'), classes: self::BUTTON_CLASSES),
+                Button::make('Icône par défaut', onClick: AppIcon::onClick('default'), classes: self::BUTTON_CLASSES),
+            ], 'flex gap-2'),
             Column::make([
                 ImagePicker::hiddenField('photo', 'photo_field'),
                 Button::make(

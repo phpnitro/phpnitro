@@ -214,6 +214,17 @@ window.phpxDevice = {
     }
   },
 
+  // Switches the home-screen launcher icon (Android activity-alias
+  // toggle, see WebAppInterface.kt's setAppIcon()) — no web/browser
+  // equivalent exists (a page can't change what icon its own PWA/tab uses
+  // from JS), so this is a silent no-op outside a native shell.
+  setAppIcon(iconKey) {
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.setAppIcon) {
+      bridge.setAppIcon(iconKey);
+    }
+  },
+
   // Native print pipeline (WebView.createPrintDocumentAdapter + PrintManager
   // on Android, UIPrintInteractionController on iOS — the system "Save as
   // PDF"/AirPrint flow), falls back to window.print() in a browser.

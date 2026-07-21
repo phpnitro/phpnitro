@@ -2,6 +2,7 @@
 
 namespace Engine\Device\Tests;
 
+use Engine\Device\AppIcon;
 use Engine\Device\Camera;
 use Engine\Device\Fingerprint;
 use Engine\Device\ImagePicker;
@@ -127,5 +128,10 @@ final class DeviceTest extends TestCase
     public function testShareOnClickDefaultsTitleToEmptyString(): void
     {
         $this->assertSame('phpxDevice.share("x", "")', Share::onClick('x'));
+    }
+
+    public function testAppIconOnClickEncodesKey(): void
+    {
+        $this->assertSame('phpxDevice.setAppIcon("alt")', AppIcon::onClick('alt'));
     }
 }

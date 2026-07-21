@@ -3,6 +3,7 @@ package com.mobile.engine
 import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -273,6 +274,34 @@ class WebAppInterface(
             val chooserTitle = title.ifEmpty { null }
             context.startActivity(Intent.createChooser(sendIntent, chooserTitle))
         }
+    }
+
+    /**
+     * Switches the home-screen launcher icon at runtime — enables one of
+     * the two mutually-exclusive activity-alias entries declared in
+     * AndroidManifest.xml (both targeting MainActivity, see the manifest's
+     * comment) and disables the other. DONT_KILL_APP keeps this process
+     * alive; most launchers still re-read the icon/label immediately, some
+     * only after the next home-screen refresh — expected OS-level behavior
+     * for this feature, not a bug here.
+     */
+    @JavascriptInterface
+    fun setAppIcon(iconKey: String) {
+        val packageManager = context.packageManager
+        val defaultAlias = ComponentName(context, "com.mobile.engine.MainActivityDefault")
+        val altAlias = ComponentName(context, "com.mobile.engine.MainActivityAlt")
+        val (enable, disable) = if (iconKey == "alt") altAlias to defaultAlias else defaultAlias to altAlias
+
+        packageManager.setComponentEnabledSetting(
+            enable,
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+            PackageManager.DONT_KILL_APP,
+        )
+        packageManager.setComponentEnabledSetting(
+            disable,
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+            PackageManager.DONT_KILL_APP,
+        )
     }
 
     @JavascriptInterface
