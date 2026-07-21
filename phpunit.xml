@@ -28,5 +28,8 @@
         <testsuite name="countries">
             <directory>packages/countries/tests</directory>
         </testsuite>
+        <testsuite name="preferences">
+            <directory>packages/preferences/tests</directory>
+        </testsuite>
     </testsuites>
 </phpunit>
