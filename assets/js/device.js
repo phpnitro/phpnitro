@@ -199,6 +199,21 @@ window.phpxDevice = {
     }
   },
 
+  // Native share sheet (Intent.ACTION_SEND chooser on Android,
+  // UIActivityViewController on iOS) — a plain WebView page has no way to
+  // trigger this on its own, unlike a real browser tab's Web Share API
+  // (navigator.share), which is the fallback here for browser testing.
+  share(text, title) {
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.share) {
+      bridge.share(text, title || '');
+      return;
+    }
+    if (navigator.share) {
+      navigator.share({ text, title: title || undefined }).catch(() => {});
+    }
+  },
+
   // Native print pipeline (WebView.createPrintDocumentAdapter + PrintManager
   // on Android, UIPrintInteractionController on iOS — the system "Save as
   // PDF"/AirPrint flow), falls back to window.print() in a browser.

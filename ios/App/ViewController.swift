@@ -66,6 +66,9 @@ final class ViewController: UIViewController, WKUIDelegate, WKNavigationDelegate
                 printPage: function () {
                     window.webkit.messageHandlers.phpxNative.postMessage({ action: 'printPage' });
                 },
+                share: function (text, title) {
+                    window.webkit.messageHandlers.phpxNative.postMessage({ action: 'share', text: text, title: title });
+                },
                 showAlertDialog: function (title, message) {
                     window.webkit.messageHandlers.phpxNative.postMessage({ action: 'showAlertDialog', title: title, message: message });
                 },

@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.media.MediaPlayer
@@ -250,6 +251,27 @@ class WebAppInterface(
             val jobName = "Document"
             val adapter = webView.createPrintDocumentAdapter(jobName)
             printManager.print(jobName, adapter, PrintAttributes.Builder().build())
+        }
+    }
+
+    /**
+     * The real Android share sheet (Intent.ACTION_SEND + createChooser) —
+     * lets the user send text/a link to any app that registers as a share
+     * target (Messages, WhatsApp, Gmail...), not something a WebView page
+     * can invoke on its own the way it can navigator.share() in a real
+     * Chrome tab (Web Share API is unavailable inside a plain WebView).
+     */
+    @JavascriptInterface
+    fun share(text: String, title: String) {
+        val activity = context as? Activity ?: return
+
+        activity.runOnUiThread {
+            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, text)
+            }
+            val chooserTitle = title.ifEmpty { null }
+            context.startActivity(Intent.createChooser(sendIntent, chooserTitle))
         }
     }
 

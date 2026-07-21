@@ -75,6 +75,10 @@ final class WebAppInterface: NSObject, WKScriptMessageHandler,
             showNotification(title: body["title"] as? String ?? "", message: body["message"] as? String ?? "")
         case "printPage":
             printPage()
+        case "share":
+            if let text = body["text"] as? String {
+                share(text: text)
+            }
         case "showAlertDialog":
             showAlertDialog(title: body["title"] as? String ?? "", message: body["message"] as? String ?? "")
         case "showConfirmDialog":
@@ -282,6 +286,20 @@ final class WebAppInterface: NSObject, WKScriptMessageHandler,
         controller.printInfo = printInfo
         controller.printFormatter = webView.viewPrintFormatter()
         controller.present(animated: true, completionHandler: nil)
+    }
+
+    // MARK: - Share
+
+    /// UIActivityViewController — the real iOS share sheet, same idea as
+    /// Android's Intent.ACTION_SEND chooser (WebAppInterface.kt's share()).
+    /// title is accepted for call-shape parity with Android (which passes it
+    /// as the chooser dialog's own title) but unused here: UIActivityViewController
+    /// has no equivalent "chooser title" parameter, only the shared items.
+    private func share(text: String) {
+        guard let presenter = presentingViewController else { return }
+
+        let activity = UIActivityViewController(activityItems: [text], applicationActivities: nil)
+        presenter.present(activity, animated: true)
     }
 
     // MARK: - Dialogs (Engine\Dialogs\)

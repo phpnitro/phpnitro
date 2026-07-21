@@ -8,6 +8,7 @@ use Engine\Device\ImagePicker;
 use Engine\Device\Microphone;
 use Engine\Device\Notify;
 use Engine\Device\Printer;
+use Engine\Device\Share;
 use Engine\Device\Sound;
 use Engine\Device\Vibrate;
 use PHPUnit\Framework\TestCase;
@@ -113,5 +114,18 @@ final class DeviceTest extends TestCase
 
         $this->assertStringContainsString('<img', $html);
         $this->assertStringContainsString('id="preview1"', $html);
+    }
+
+    public function testShareOnClickEncodesTextAndTitle(): void
+    {
+        $this->assertSame(
+            'phpxDevice.share("Look at this", "Title \"quoted\"")',
+            Share::onClick('Look at this', 'Title "quoted"'),
+        );
+    }
+
+    public function testShareOnClickDefaultsTitleToEmptyString(): void
+    {
+        $this->assertSame('phpxDevice.share("x", "")', Share::onClick('x'));
     }
 }

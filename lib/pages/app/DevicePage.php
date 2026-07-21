@@ -10,6 +10,7 @@ use Engine\Device\ImagePicker;
 use Engine\Device\Microphone;
 use Engine\Device\Notify;
 use Engine\Device\Printer;
+use Engine\Device\Share;
 use Engine\Device\Sound;
 use Engine\Device\Vibrate;
 use Engine\Link;
@@ -61,6 +62,11 @@ final class DevicePage extends Screen
             ),
             Button::make('Jouer un son', onClick: Sound::onClick('/assets/audio/beep.wav'), classes: self::BUTTON_CLASSES),
             Button::make('Imprimer', onClick: Printer::onClick(), classes: self::BUTTON_CLASSES),
+            Button::make(
+                'Partager',
+                onClick: Share::onClick('Regarde cette app faite avec PhpNitro !', 'PhpNitro Demo'),
+                classes: self::BUTTON_CLASSES,
+            ),
             Column::make([
                 ImagePicker::hiddenField('photo', 'photo_field'),
                 Button::make(
