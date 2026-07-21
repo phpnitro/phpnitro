@@ -12,40 +12,34 @@
 namespace Engine\SocialAuth;
 
 /**
- * google_sign_in equivalent — standard OAuth2 Authorization Code flow
- * (see OAuthProvider), not the Google Identity Services JS SDK: one
- * consistent mechanism across every provider in this package rather than
- * a different client-side SDK per provider.
- *
- * UNVERIFIED: no real Google Cloud OAuth client ID/secret available in
- * this environment — same confidence tier as Mapbox/Firebase.
+ * UNVERIFIED — no real Facebook App available in this environment.
  */
-final class GoogleSignIn extends OAuthProvider
+final class FacebookSignIn extends OAuthProvider
 {
     protected static function authorizeEndpoint(): string
     {
-        return 'https://accounts.google.com/o/oauth2/v2/auth';
+        return 'https://www.facebook.com/v19.0/dialog/oauth';
     }
 
     protected static function tokenEndpoint(): string
     {
-        return 'https://oauth2.googleapis.com/token';
+        return 'https://graph.facebook.com/v19.0/oauth/access_token';
     }
 
     protected static function userInfoEndpoint(): ?string
     {
-        return 'https://www.googleapis.com/oauth2/v3/userinfo';
+        return 'https://graph.facebook.com/me?fields=id,name,email';
     }
 
     protected static function defaultScope(): string
     {
-        return 'openid email profile';
+        return 'email public_profile';
     }
 
     protected static function normalize(array $tokenResponse, ?array $userInfoResponse): array
     {
         return [
-            'id' => (string) ($userInfoResponse['sub'] ?? ''),
+            'id' => (string) ($userInfoResponse['id'] ?? ''),
             'email' => $userInfoResponse['email'] ?? null,
             'name' => $userInfoResponse['name'] ?? null,
         ];

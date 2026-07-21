@@ -12,29 +12,25 @@
 namespace Engine\SocialAuth;
 
 /**
- * google_sign_in equivalent — standard OAuth2 Authorization Code flow
- * (see OAuthProvider), not the Google Identity Services JS SDK: one
- * consistent mechanism across every provider in this package rather than
- * a different client-side SDK per provider.
- *
- * UNVERIFIED: no real Google Cloud OAuth client ID/secret available in
- * this environment — same confidence tier as Mapbox/Firebase.
+ * "Sign in with Slack" (OpenID Connect on top of Slack's OAuth) — needs
+ * the openid/email/profile scopes, not Slack's older bot/workspace scopes.
+ * UNVERIFIED — no real Slack App available in this environment.
  */
-final class GoogleSignIn extends OAuthProvider
+final class SlackSignIn extends OAuthProvider
 {
     protected static function authorizeEndpoint(): string
     {
-        return 'https://accounts.google.com/o/oauth2/v2/auth';
+        return 'https://slack.com/openid/connect/authorize';
     }
 
     protected static function tokenEndpoint(): string
     {
-        return 'https://oauth2.googleapis.com/token';
+        return 'https://slack.com/api/openid.connect.token';
     }
 
     protected static function userInfoEndpoint(): ?string
     {
-        return 'https://www.googleapis.com/oauth2/v3/userinfo';
+        return 'https://slack.com/api/openid.connect.userInfo';
     }
 
     protected static function defaultScope(): string
