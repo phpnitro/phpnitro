@@ -22,16 +22,26 @@ final class FloatingActionButton extends Widget
         private readonly string $label,
         private readonly ?string $action = null,
         private readonly string $classes = self::DEFAULT_CLASSES,
+        private readonly string $ariaLabel = '',
     ) {
     }
 
-    public static function make(string $label, ?string $action = null, string $classes = self::DEFAULT_CLASSES): self
-    {
-        return new self($label, $action, $classes);
+    public static function make(
+        string $label,
+        ?string $action = null,
+        string $classes = self::DEFAULT_CLASSES,
+        string $ariaLabel = '',
+    ): self {
+        return new self($label, $action, $classes, $ariaLabel);
     }
 
     public function render(): string
     {
-        return $this->renderActionableButton($this->label, $this->action, $this->classes);
+        // $label is usually a bare glyph ("+", "✎"...) — real text, but not
+        // a meaningful accessible name on its own (confirmed with a real
+        // TalkBack accessibility dump: the FAB was announced as literally
+        // "plus"). $ariaLabel lets a caller supply what should actually be
+        // spoken instead, same idiom as IconButton's $ariaLabel.
+        return $this->renderActionableButton($this->label, $this->action, $this->classes, ariaLabel: $this->ariaLabel);
     }
 }

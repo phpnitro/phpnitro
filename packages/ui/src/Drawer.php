@@ -58,7 +58,7 @@ final class Drawer extends Widget
                     flex flex-col gap-1 p-4 overflow-y-auto">
           <div class="flex items-center justify-between mb-3">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{$title}</h2>
-            <label for="phpx-drawer" class="p-1 -mr-1 cursor-pointer text-gray-500 dark:text-gray-400" aria-label="Fermer">✕</label>
+            <label for="phpx-drawer" class="p-1 -mr-1 cursor-pointer text-gray-500 dark:text-gray-400" role="button" tabindex="0" aria-label="Fermer">✕</label>
           </div>
           {$links}
         </nav>

@@ -25,7 +25,16 @@ final class DrawerToggle extends Widget
 
     public function render(): string
     {
-        return '<label for="phpx-drawer" class="p-1 -ml-1 cursor-pointer text-gray-600 dark:text-gray-300" aria-label="Menu">'
+        // role="button" + tabindex: a bare <label> (even with a `for` and an
+        // aria-label) isn't exposed as an interactive/focusable control by
+        // Chromium's accessibility tree bridged into Android — confirmed
+        // with a real accessibility dump (`uiautomator dump` under
+        // TalkBack): the hamburger didn't appear in the tree AT ALL, not
+        // even as an unlabeled node. Native click-through-label behavior
+        // (toggling #phpx-drawer) still works unchanged, this only adds
+        // the semantics a screen reader needs to find and activate it.
+        return '<label for="phpx-drawer" class="p-1 -ml-1 cursor-pointer text-gray-600 dark:text-gray-300" '
+            . 'role="button" tabindex="0" aria-label="Menu">'
             . Icon::hamburger()
             . '</label>';
     }

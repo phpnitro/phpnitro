@@ -81,7 +81,7 @@ final class HomePage extends Screen
             ], 'flex flex-col gap-4'),
             appBar: AppBar::make('Mon application', leading: DrawerToggle::make()),
             hasBottomNav: true,
-            floatingActionButton: FloatingActionButton::make('+', action: 'increment'),
+            floatingActionButton: FloatingActionButton::make('+', action: 'increment', ariaLabel: 'Incrémenter'),
             drawer: Drawer::make([
                 ['label' => 'Accueil', 'href' => '/'],
                 ['label' => 'Réglages', 'href' => '/settings'],
