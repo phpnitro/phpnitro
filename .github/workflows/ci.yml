@@ -30,3 +30,41 @@ jobs:
           extensions: dom, pdo_sqlite
           coverage: none
       - run: bash bin/test.sh
+
+  phpstan:
+    name: PHPStan (static analysis)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, pdo_sqlite
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+      - run: vendor/bin/phpstan analyse
+
+  android-build:
+    name: Android APK (assembleDebug)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, pdo_sqlite
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      # jniLibs (libphp.so / libsqlite3.so, ~30MB) are committed as-is —
+      # see android/README.md — so this is a real APK, native runtime included.
+      - run: php bin/phpx bundle:android
+      - uses: gradle/actions/setup-gradle@v4
+      - run: cd android && gradle :app:assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk

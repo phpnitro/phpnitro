@@ -1,0 +1,14 @@
+parameters:
+    level: 1
+    paths:
+        - packages/ui/src
+        - packages/database/src
+        - packages/payments/src
+        - packages/maps/src
+        - packages/dialogs/src
+        - packages/firebase/src
+        - packages/device/src
+        - lib/pages/app
+        - lib/backend/src
+        - public/index.php
+        - public/router.php

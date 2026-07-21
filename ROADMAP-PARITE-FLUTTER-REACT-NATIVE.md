@@ -38,12 +38,11 @@ Aucun widget d'animation n'existe (`Alignment.php`, `Align.php` positionnent sta
 ### 5. Pas de vrai moteur de layout avancé
 Vérifié dans `packages/ui/src/` : aucun `Stack`/`Positioned` (superposition libre d'éléments), aucun `Wrap` (retour à la ligne automatique façon flexbox `flex-wrap`), pas de `CustomPaint`/Canvas. Le layout actuel est entièrement du flexbox Tailwind linéaire (`Column`/`Row`/`Container`) — suffisant pour des écrans de formulaire/liste, insuffisant pour des interfaces complexes (superpositions, badges positionnés, graphiques dessinés à la main).
 
-### 6. Aucun test automatisé de bout en bout, aucune build Android en CI
-`.github/workflows/ci.yml` existe et lance réellement `vendor/bin/phpunit` + `bin/test.sh` à chaque push/PR — **ce n'est pas rien**, mais ça reste limité :
-- Aucun job ne build l'APK (`gradle :app:assembleDebug`) en CI — une régression Kotlin/Gradle ne serait jamais détectée automatiquement.
-- Aucun test E2E automatisé sur émulateur/device (l'équivalent de `integration_test` de Flutter ou Detox/Maestro pour React Native) — toute la vérification "ça marche sur device" de ce projet a été manuelle, un écran à la fois, sur **un seul appareil physique** (Infinix X6532, Android 14).
-- Aucun test de non-régression visuelle (screenshot diffing).
-- Aucune analyse statique PHP (PHPStan/Psalm) dans la CI — actuellement zéro configuré dans `composer.json`.
+### 6. Aucun test automatisé de bout en bout, build Android et analyse statique ajoutées en CI — **partiellement traité**
+`.github/workflows/ci.yml` lance `vendor/bin/phpunit` + `bin/test.sh` à chaque push/PR — **ce n'est pas rien**, mais ça restait limité. Deux jobs ajoutés cette session :
+- **`android-build`** : nouveau job qui exécute `php bin/phpx bundle:android` puis `gradle :app:assembleDebug` (via `gradle/actions/setup-gradle`, pas de wrapper commité — aucun `gradlew` n'existait dans `android/`) et upload l'APK en artefact. Les binaires natifs (`jniLibs/*/libphp.so`, `libsqlite3.so`, ~30 Mo) sont bien commités dans le dépôt (vérifié via `git ls-files`, contrairement à ce que laissait entendre `android/README.md`), donc c'est une vraie build APK avec le runtime PHP embarqué, pas un squelette vide. **Non vérifié de bout en bout ici** : le sandbox de ce dépôt n'a ni PHP 8.4 (seul 8.2 est installé), ni SDK Android (platforms/build-tools absents), donc ni `composer install` ni la build Gradle elle-même n'ont pu tourner localement — la confiance repose sur le fait que `ubuntu-latest` de GitHub Actions fournit nativement PHP via `shivammathur/setup-php` (déjà utilisé et fonctionnel dans les jobs `phpunit`/`phpx-smoke-test`) et un SDK Android préinstallé. **À surveiller au premier run réel en CI.**
+- **`phpstan`** : `phpstan/phpstan` ^2.1 ajouté à `composer.json` (`require-dev`), avec `phpstan.neon.dist` à la racine couvrant `packages/*/src`, `lib/pages/app`, `lib/backend/src` et `public/`. Configuré au **niveau 1** (le plus permissif après le niveau 0) délibérément — **pas de baseline générée**, faute de pouvoir exécuter PHPStan localement (même blocage PHP 8.4). Il est probable que le premier run en CI remonte des erreurs jamais vues jusqu'ici ; à corriger ou à basculer en baseline (`vendor/bin/phpstan analyse --generate-baseline`) selon ce que révèle ce premier run.
+- Reste non traité : aucun test E2E automatisé sur émulateur/device (l'équivalent de `integration_test` de Flutter ou Detox/Maestro pour React Native) — toute la vérification "ça marche sur device" de ce projet reste manuelle, un écran à la fois, sur **un seul appareil physique** (Infinix X6532, Android 14). Aucun test de non-régression visuelle (screenshot diffing).
 
 ---
 
@@ -122,5 +121,5 @@ Dans l'ordre, ce qui débloque le plus de valeur réelle le plus vite :
 1. Signer une vraie release Android (#3) — sans ça, aucune app construite avec ce framework n'est publiable.
 2. Vérifier au moins 2-3 gateways de paiement contre un vrai sandbox (#7) — sans ça, aucun vrai commerce n'est possible.
 3. Tester sur 3-4 devices Android différents (#12) — la confiance actuelle repose sur un seul appareil.
-4. Ajouter un job CI qui build l'APK (#6) — le filet de sécurité le moins cher à mettre en place.
+4. ~~Ajouter un job CI qui build l'APK (#6)~~ — fait cette session (`android-build` + `phpstan`), non vérifié en conditions réelles (voir #6).
 5. iOS et l'obfuscation du code (#1, #2) restent les deux chantiers les plus lourds — le pont natif iOS (#1) a une longueur d'avance (code écrit, capacité par capacité), mais le PHP embarqué et la compilation/tests sur un vrai Mac n'ont pas commencé. À traiter sérieusement une fois la base Android solide en production.
