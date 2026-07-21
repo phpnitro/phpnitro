@@ -22,14 +22,14 @@ cd android && gradle :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-L'icône du launcher et le nom natif (`strings.xml`) sont générés depuis `phpnitro.yml`'s `icon`/`icon_background`/`name` par `bundle-android.sh` (voir la section `phpnitro.yml` du [README racine](../../README.md)) — `assets/icon.png` ici est un **placeholder généré** (à remplacer par un vrai logo, il suffit de changer le chemin dans `phpnitro.yml`). Vérifié sur device réel : l'icône du launcher et l'icône animée de l'écran de démarrage (`themes.xml`) reflètent bien le PNG source.
+L'icône du launcher et le nom natif (`strings.xml`) sont générés depuis `phpnitro.yml`'s `icon`/`icon_background`/`name` par `bundle-android.sh` (voir la section `phpnitro.yml` de [docs/cli.md](../../docs/cli.md)) — `assets/icon.png` ici est un **placeholder généré** (à remplacer par un vrai logo, il suffit de changer le chemin dans `phpnitro.yml`). Vérifié sur device réel : l'icône du launcher et l'icône animée de l'écran de démarrage (`themes.xml`) reflètent bien le PNG source.
 
 ## Ce que ça démontre
 
 | Écran | Route | Widgets / fonctionnalités |
 |---|---|---|
 | Catalogue | `/` | Grille de produits (`Column` en mode grid), `LinkWrap`, `Image`, produits stockés en SQLite (Doctrine DBAL) |
-| Détail produit | `/product/{id}` | `Maps\MapView` (retrait en magasin — voir [Cartes](../../README.md#cartes)), `Button` avec action, `SingleScrollView` |
+| Détail produit | `/product/{id}` | `Maps\MapView` (retrait en magasin — voir [Cartes](../../docs/integrations.md#cartes)), `Button` avec action, `SingleScrollView` |
 | Panier | `/cart` | `ListView`, `Form` + champ caché pour retirer un article, état partagé entre écrans (`Cart`, session) |
 | Paiement | `/checkout` | `Form`, `TextField`, `SelectBox`, `Checkbox`, `Button` + `Device\Fingerprint::onClick()` (biométrie), un gateway de paiement réel parmi 7 selon `.env` (sinon mode démo sans paiement — voir [Paiement](#paiement)), validation + redirection programmatique |
 | Confirmation | `/order/{id}` | `StreamBuilder` — le statut de la commande progresse tout seul (confirmée → en préparation → expédiée → livrée) sans rechargement de page |
@@ -42,7 +42,7 @@ L'icône du launcher et le nom natif (`strings.xml`) sont générés depuis `php
 
 ## Paiement
 
-Par défaut (`.env` sans aucune clé de paiement), `/checkout` reste en **mode démo** : bouton "Valider la commande (mode démo, sans paiement)", exactement le comportement d'avant. `CheckoutPage::selectPaymentWidgets()` choisit le **premier** gateway configuré, dans cet ordre — voir `.env` pour les noms exacts de variables de chacun. Cinq des sept gateways sont des **services** (`Engine\Payments\Kkiapay`/`Fedapay`/`Feexpay`/`IziChangePay`/`TresorPay`) : un `scriptTag()` + un `payOnClick()` attaché à un `Button::make(...)` ordinaire, pas un widget pré-stylé — voir [le README racine](../../README.md#paiement) pour le détail de cette architecture :
+Par défaut (`.env` sans aucune clé de paiement), `/checkout` reste en **mode démo** : bouton "Valider la commande (mode démo, sans paiement)", exactement le comportement d'avant. `CheckoutPage::selectPaymentWidgets()` choisit le **premier** gateway configuré, dans cet ordre — voir `.env` pour les noms exacts de variables de chacun. Cinq des sept gateways sont des **services** (`Engine\Payments\Kkiapay`/`Fedapay`/`Feexpay`/`IziChangePay`/`TresorPay`) : un `scriptTag()` + un `payOnClick()` attaché à un `Button::make(...)` ordinaire, pas un widget pré-stylé — voir [docs/payments.md](../../docs/payments.md) pour le détail de cette architecture :
 
 1. **Kkiapay** — service (`scriptTag()` + `payOnClick()` + `onSuccess()`), callback `transaction_id`. Confiance élevée dans le pattern, non testé contre un vrai sandbox.
 2. **PayPal** — vrai JS SDK (`paypal.Buttons()`), reste un widget (`PaypalButton`, exception documentée — le SDK dessine lui-même son bouton). Vérification serveur = vrai flux OAuth2 + capture. Confiance élevée, non testé contre une vraie app sandbox.
