@@ -110,8 +110,15 @@ Le README est dense et honnête (bon point), mais il manque : une référence AP
 ### 17. Pas de couverture de tests widgets complète
 `packages/ui/tests/WidgetsTest.php` ne teste qu'une partie des ~60 widgets/services existants — le reste n'est vérifié que visuellement sur `/widgets`, pas par un test automatisé qui échouerait en cas de régression.
 
-### 18. Pas de mesure de performance réelle
-Aucun benchmark chiffré n'existe (temps de démarrage, taille d'APK, consommation mémoire, FPS de scroll) comparé à une app Flutter/RN équivalente. Toute affirmation sur "la taille de l'app" ou "la fluidité" reste qualitative, jamais mesurée avec des outils comme Android Studio Profiler ou Xcode Instruments.
+### 18. Pas de mesure de performance réelle — **premiers chiffres réels obtenus, pas encore de comparatif Flutter/RN**
+**Mise à jour** : premières mesures chiffrées sur le téléphone connecté (Infinix X6532, Android 14), via `adb` — pas des outils de profiling dédiés (Android Studio Profiler non disponible dans cet environnement), mais des chiffres réels, pas des estimations :
+- **Taille de l'APK debug** : 11 383 295 octets (≈ 10,9 Mio), confirmée identique sur le téléphone (`pm path` + `ls`) et en local — non signé release, non minifié (`isMinifyEnabled = false`, voir #3), donc probablement réductible.
+- **Démarrage à froid** (`adb shell am force-stop` puis `am start -W`, 4 mesures) : **1,3 à 2,0 s** (`TotalTime`), moyenne ≈ 1,58 s — couvre le lancement du binaire PHP embarqué, l'init de la WebView, et le premier rendu.
+- **Démarrage à chaud** (processus déjà vivant, juste ramené au premier plan) : **232 ms** — le serveur PHP embarqué tourne déjà, seule la WebView reprend.
+- **Mémoire (PSS)** : ≈ 146 Mo (`adb shell dumpsys meminfo`) une fois l'app chargée — dans la fourchette attendue pour une app basée WebView/Chromium (le moteur de rendu lui-même en consomme une bonne partie, indépendamment de PhpNitro), mais pas mesuré face à un équivalent Flutter/RN pour relativiser.
+- Non mesurable ici : taille des données sur disque après premier lancement (`/data/data/...` refusé, device non rooté), FPS de scroll (pas d'outil de profiling GPU disponible).
+
+Reste à faire pour que ce soit un vrai comparatif : mesurer une app Flutter/RN équivalente dans les mêmes conditions (même device, même méthode `adb`) pour avoir un point de comparaison réel plutôt que des chiffres isolés.
 
 ---
 
