@@ -131,5 +131,5 @@ Dans l'ordre, ce qui débloque le plus de valeur réelle le plus vite :
 1. Signer une vraie release Android (#3) — sans ça, aucune app construite avec ce framework n'est publiable.
 2. Vérifier au moins 2-3 gateways de paiement contre un vrai sandbox (#7) — sans ça, aucun vrai commerce n'est possible.
 3. Tester sur 3-4 devices Android différents (#12) — la confiance actuelle repose sur un seul appareil.
-4. ~~Ajouter un job CI qui build l'APK (#6)~~ — fait cette session (`android-build` + `phpstan`), non vérifié en conditions réelles (voir #6).
+4. ~~Ajouter un job CI qui build l'APK (#6)~~ — fait cette session (`android-build` + `phpstan`), et la chaîne de build elle-même (`bundle:android` + `assembleDebug`) a été rejouée avec succès en dehors de CI (PHP 8.4 + device réels) ; seul le run GitHub Actions lui-même (image `ubuntu-latest` + `gradle/actions/setup-gradle`) reste à observer en conditions réelles (voir #6).
 5. iOS et l'obfuscation du code (#1, #2) restent les deux chantiers les plus lourds — le pont natif iOS (#1) a une longueur d'avance (code écrit, capacité par capacité), mais le PHP embarqué et la compilation/tests sur un vrai Mac n'ont pas commencé. À traiter sérieusement une fois la base Android solide en production.
