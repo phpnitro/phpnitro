@@ -1,6 +1,6 @@
 # Feuille de route — atteindre le niveau de Flutter / React Native
 
-Ce document liste, honnêtement et sans enjoliver, ce qu'il reste à faire pour que PhpNitro soit un concurrent sérieux de Flutter/React Native — pas juste un prototype qui marche sur un device. Chaque point a été vérifié dans le code actuel avant d'être listé ici (pas de supposition).
+Ce document liste, honnêtement et sans enjoliver, ce qu'il reste à faire pour que PhpNitro soit un concurrent sérieux de Flutter/React Native — pas juste un prototype qui marche sur un device. Chaque point a été vérifié dans le code actuel avant d'être listé ici (pas de supposition). Une section dédiée ("Kivy — écarts spécifiques", plus bas) compare aussi à Kivy (Python) là où ses points forts ne recoupent pas la liste Flutter/RN.
 
 **Cadrage honnête au départ** : Flutter et React Native sont développés par des centaines d'ingénieurs payés (Google, Meta) depuis 8-10 ans, avec des millions d'apps en production. Cette liste n'est pas "quelques semaines de travail" — certains points (moteur de rendu, iOS réel, sécurité du binaire) sont des chantiers de plusieurs mois chacun, réalistes seulement avec une équipe, pas un seul développeur.
 
@@ -68,14 +68,16 @@ Toujours absent : pas de `CustomPaint`/Canvas (graphiques dessinés à la main),
 - **Partage natif** (`Engine\Device\Share`) : Android (`Intent.ACTION_SEND` + `createChooser`, `WebAppInterface.kt`), iOS (`UIActivityViewController`, écrit mais non compilé — même statut que le reste d'`ios/`), repli `navigator.share()` en navigateur. **Vérifié en vrai** : bouton "Partager" tapé sur `/device` sur l'Infinix X6532, le vrai share sheet Android s'est ouvert avec le texte exact envoyé depuis PHP.
 - **Deep linking** (schéma personnalisé `phpnitro://<path>`, pas de vrais App Links HTTPS — voir plus bas) : intent-filter `VIEW`/`BROWSABLE` + `android:launchMode="singleTask"` pour que l'app déjà ouverte réutilise son instance (`onNewIntent`) plutôt que d'en empiler une seconde. **Bug réel trouvé et corrigé en testant en vrai** : `uri.host`, pas `uri.path`, contient le premier segment d'une URI `scheme://autorité/chemin` — `phpnitro://settings` atterrissait sur `host="settings"`, `path=""`, ce qu'une lecture naïve de `uri.path` seul résolvait silencieusement en `/` et ouvrait l'accueil au lieu de Réglages. Corrigé (host+path concaténés), puis revérifié : lancement à froid **et** re-tap pendant que l'app tourne déjà (`onNewIntent`) confirmés tous les deux, sur device réel.
 
-Manque toujours, par rapport à l'écosystème de plugins Flutter/RN :
+Manque toujours, par rapport à l'écosystème de plugins Flutter/RN (et, pour certains, à ce que Kivy couvre nativement via Plyer) :
 - Capteurs (accéléromètre, gyroscope, boussole).
 - Bluetooth / NFC.
 - Contacts, calendrier.
 - Achats intégrés (in-app purchase, obligatoire pour certains modèles économiques sur les stores).
-- Tâches en arrière-plan (background execution, geofencing).
+- Tâches en arrière-plan (background execution, geofencing) — `AlarmScheduler` ne couvre que "réveiller à un instant donné", pas une tâche continue en fond.
 - Vrais App Links HTTPS (`android:autoVerify` + `.well-known/assetlinks.json` hébergé sur un domaine vérifié) — le schéma personnalisé actuel n'est pas cliquable depuis un lien web/SMS/email comme le serait un vrai App Link, seulement invocable par une autre app ou `adb`.
 - Stockage sécurisé type Keychain/Keystore (aujourd'hui : SQLite + session PHP, pas un coffre-fort chiffré dédié aux tokens sensibles).
+- Lampe torche (flash indépendant de la capture photo), luminosité d'écran, niveau de batterie, identifiant unique du device — couverts par Plyer côté Kivy, absents ici.
+- Gestes multi-touch avancés (pincer-zoomer, rotation à deux doigts) — `GestureDetector` ne reconnaît que le double-clic et le swipe à un doigt ; Kivy a un framework multitouch dédié pour ça.
 
 ### 9. Notifications push non vérifiées en conditions réelles
 Le stockage des tokens et l'envoi serveur (`FirebaseMessaging::send()`) sont codés, mais **jamais testés contre un vrai projet Firebase** (aucun compte de service disponible ici). La réception Android (`FcmService.kt.example`) est désactivée par défaut et nécessite un `google-services.json` réel. Rien de tout ça n'existe côté iOS (APNs).
@@ -142,6 +144,23 @@ Le README est dense et honnête (bon point), mais il manque : une référence AP
 - Non mesurable ici : taille des données sur disque après premier lancement (`/data/data/...` refusé, device non rooté), FPS de scroll (pas d'outil de profiling GPU disponible).
 
 Reste à faire pour que ce soit un vrai comparatif : mesurer une app Flutter/RN équivalente dans les mêmes conditions (même device, même méthode `adb`) pour avoir un point de comparaison réel plutôt que des chiffres isolés.
+
+### 19. Pas de tooling de build automatique façon Buildozer
+Vérifié en le vivant directement cette session : builder l'APK a demandé d'installer/retrouver le SDK Android, de télécharger Gradle dans la bonne version (le projet exige ≥ 8.9, aucun wrapper commité), de configurer `ANDROID_HOME`/`JAVA_HOME`/`local.properties` à la main, et de relancer plusieurs fois après un reset d'environnement. Kivy résout exactement ce problème avec `buildozer android debug` : un seul fichier `buildozer.spec` déclare la config, Buildozer télécharge et installe lui-même tout le toolchain (NDK, SDK, python-for-android) au premier lancement — l'équivalent le plus proche ici serait un `phpx build android` qui vérifie/installe le SDK et une version de Gradle compatible tout seul, au lieu de documenter la procédure manuelle (`android/README.md`) et de compter sur l'environnement de l'utilisateur.
+
+---
+
+## Kivy — écarts spécifiques (au-delà de Flutter/React Native)
+
+Kivy est un framework Python, architecturalement très différent (rendu OpenGL ES direct via son propre moteur graphique, pas de DOM/WebView) — certains de ses points forts ne recoupent pas la liste Flutter/RN ci-dessus :
+
+- **Support desktop réel et mature** (Windows/macOS/Linux, même code qu'sur mobile) — PhpNitro n'a **aucun** support desktop, pas même un stub (voir le README : "pas implémentés, ni même stubbés"). Kivy est même historiquement plus mature sur desktop que sur mobile ; PhpNitro est strictement l'inverse.
+- **Dessin bas niveau réel** (canvas OpenGL ES, shaders GLSL accessibles directement) — encore plus loin que le `CustomPaint`/Canvas déjà noté manquant en #5 : même un `<canvas>` HTML5 basique (accéléré mais pas programmable au niveau shader) n'existe pas encore ici.
+- **Framework multitouch dédié** (pincer-zoomer, rotation, gestes multi-doigts) — voir l'ajout dans #8 ci-dessus.
+- **Buildozer** (packaging Android/iOS en une commande, toolchain auto-installé) — voir le nouveau #19 ci-dessus.
+- **Kivy Garden**, l'écosystème de widgets communautaires — recoupe le #15 déjà noté (zéro écosystème tiers ici).
+
+Ce que PhpNitro n'a pas besoin d'envier à Kivy : Kivy ne fait ni SSR ni routing HTTP natif, n'a pas de backend intégré, et son rendu custom impose de tout redessiner à la main (pas de HTML/CSS/Tailwind gratuits) — deux philosophies différentes, pas un simple retard de l'une sur l'autre.
 
 ---
 
