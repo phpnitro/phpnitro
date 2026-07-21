@@ -10,6 +10,7 @@ parameters:
         - packages/device/src
         - packages/countries/src
         - packages/preferences/src
+        - packages/connectivity/src
         - lib/pages/app
         - lib/backend/src
         - public/index.php

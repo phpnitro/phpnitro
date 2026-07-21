@@ -31,5 +31,8 @@
         <testsuite name="preferences">
             <directory>packages/preferences/tests</directory>
         </testsuite>
+        <testsuite name="connectivity">
+            <directory>packages/connectivity/tests</directory>
+        </testsuite>
     </testsuites>
 </phpunit>

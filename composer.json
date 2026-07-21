@@ -22,6 +22,7 @@
             "Engine\\Device\\": "packages/device/src/",
             "Engine\\Countries\\": "packages/countries/src/",
             "Engine\\Preferences\\": "packages/preferences/src/",
+            "Engine\\Connectivity\\": "packages/connectivity/src/",
             "Engine\\App\\": "lib/pages/app/",
             "Backend\\": "lib/backend/src/"
         }
@@ -37,6 +38,7 @@
             "Engine\\Device\\Tests\\": "packages/device/tests/",
             "Engine\\Countries\\Tests\\": "packages/countries/tests/",
             "Engine\\Preferences\\Tests\\": "packages/preferences/tests/",
+            "Engine\\Connectivity\\Tests\\": "packages/connectivity/tests/",
             "Engine\\Payments\\Tests\\": "packages/payments/tests/"
         }
     }
