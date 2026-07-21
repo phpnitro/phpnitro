@@ -8,10 +8,12 @@ use Engine\Column;
 use Engine\DatePicker;
 use Engine\Divider;
 use Engine\Form;
+use Engine\Html;
 use Engine\Icon;
 use Engine\IconButton;
 use Engine\Link;
 use Engine\ProgressBar;
+use Engine\Row;
 use Engine\Screen;
 use Engine\SelectBox;
 use Engine\SingleScrollView;
@@ -65,6 +67,29 @@ final class WidgetsFormsPage extends Screen
             Divider::make(),
 
             $this->section('IconButton', IconButton::make(Icon::bolt(), ariaLabel: 'Action rapide')),
+            $this->section(
+                'Icon — jeu étendu (check, close, search, heart, star, trash, edit, download, upload, share, calendar, clock, mail, phone, lock, bell, plus, minus, chevrons, arrows, info, eye)',
+                Row::make([
+                    Html::raw(Icon::check('w-5 h-5 text-gray-700 dark:text-gray-300')),
+                    Html::raw(Icon::close('w-5 h-5 text-gray-700 dark:text-gray-300')),
+                    Html::raw(Icon::search('w-5 h-5 text-gray-700 dark:text-gray-300')),
+                    Html::raw(Icon::heart('w-5 h-5 text-gray-700 dark:text-gray-300')),
+                    Html::raw(Icon::star('w-5 h-5 text-gray-700 dark:text-gray-300')),
+                    Html::raw(Icon::trash('w-5 h-5 text-gray-700 dark:text-gray-300')),
+                    Html::raw(Icon::edit('w-5 h-5 text-gray-700 dark:text-gray-300')),
+                    Html::raw(Icon::download('w-5 h-5 text-gray-700 dark:text-gray-300')),
+                    Html::raw(Icon::upload('w-5 h-5 text-gray-700 dark:text-gray-300')),
+                    Html::raw(Icon::share('w-5 h-5 text-gray-700 dark:text-gray-300')),
+                    Html::raw(Icon::calendar('w-5 h-5 text-gray-700 dark:text-gray-300')),
+                    Html::raw(Icon::clock('w-5 h-5 text-gray-700 dark:text-gray-300')),
+                    Html::raw(Icon::mail('w-5 h-5 text-gray-700 dark:text-gray-300')),
+                    Html::raw(Icon::phone('w-5 h-5 text-gray-700 dark:text-gray-300')),
+                    Html::raw(Icon::lock('w-5 h-5 text-gray-700 dark:text-gray-300')),
+                    Html::raw(Icon::bell('w-5 h-5 text-gray-700 dark:text-gray-300')),
+                    Html::raw(Icon::info('w-5 h-5 text-gray-700 dark:text-gray-300')),
+                    Html::raw(Icon::eye('w-5 h-5 text-gray-700 dark:text-gray-300')),
+                ], 'flex flex-row flex-wrap gap-3'),
+            ),
             $this->section('ProgressBar — 65%', ProgressBar::make(0.65)),
             $this->section('CircularProgress — 40%', CircularProgress::make(0.4)),
 
