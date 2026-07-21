@@ -16,15 +16,18 @@ use Engine\Form;
 use Engine\Html;
 use Engine\IconButton;
 use Engine\ListView;
+use Engine\Positioned;
 use Engine\Rounded;
 use Engine\Row;
 use Engine\Scaffold;
 use Engine\SelectBox;
+use Engine\Stack;
 use Engine\Stepper;
 use Engine\Text;
 use Engine\Textarea;
 use Engine\TextField;
 use Engine\TextSize;
+use Engine\Wrap;
 use PHPUnit\Framework\TestCase;
 
 final class WidgetsTest extends TestCase
@@ -254,5 +257,33 @@ final class WidgetsTest extends TestCase
         $html = Container::make(Text::make('x'))->render();
 
         $this->assertStringContainsString('class="p-4"', $html);
+    }
+
+    public function testStackFillsPlainChildrenAndPositionsPositionedOnes(): void
+    {
+        $html = Stack::make([
+            Text::make('fond'),
+            Positioned::make(Text::make('badge'), top: 4, right: 8),
+        ])->render();
+
+        $this->assertStringContainsString('class="relative"', $html);
+        $this->assertStringContainsString('<div class="absolute inset-0"><p', $html);
+        $this->assertStringContainsString('<div class="absolute" style="top:4px;right:8px;">', $html);
+    }
+
+    public function testPositionedOmitsUnsetOffsets(): void
+    {
+        $html = Positioned::make(Text::make('x'), left: 10)->render();
+
+        $this->assertStringContainsString('style="left:10px;"', $html);
+    }
+
+    public function testWrapRendersFlexWrapChildren(): void
+    {
+        $html = Wrap::make([Text::make('a'), Text::make('b')])->render();
+
+        $this->assertStringContainsString('flex-wrap', $html);
+        $this->assertStringContainsString('>a<', $html);
+        $this->assertStringContainsString('>b<', $html);
     }
 }

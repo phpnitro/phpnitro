@@ -15,14 +15,17 @@ use Engine\Link;
 use Engine\Margin;
 use Engine\Padding;
 use Engine\PageView;
+use Engine\Positioned;
 use Engine\Rounded;
 use Engine\Row;
 use Engine\Screen;
 use Engine\SingleScrollView;
+use Engine\Stack;
 use Engine\Table;
 use Engine\TableBorder;
 use Engine\Text;
 use Engine\Widget;
+use Engine\Wrap;
 
 final class WidgetsLayoutPage extends Screen
 {
@@ -112,6 +115,29 @@ final class WidgetsLayoutPage extends Screen
                         curve: Curves::OVERSHOOT,
                     ),
                 ], 'flex flex-row gap-3'),
+            ),
+
+            $this->section(
+                'Stack / Positioned — superposition libre (badge en incrustation)',
+                Stack::make([
+                    Container::make(Text::make(''), 'h-24 bg-blue-600 rounded-lg'),
+                    Positioned::make(
+                        Container::make(Text::make('3', 'text-white text-xs font-bold'), 'px-1.5 py-0.5 bg-red-600 rounded-full'),
+                        top: 4,
+                        right: 4,
+                    ),
+                ]),
+            ),
+
+            $this->section(
+                'Wrap — enfants qui passent à la ligne au lieu de déborder',
+                Wrap::make([
+                    Container::make(Text::make('tag-un', 'text-white'), 'px-3 py-1 bg-purple-600 rounded-full'),
+                    Container::make(Text::make('tag-deux', 'text-white'), 'px-3 py-1 bg-purple-600 rounded-full'),
+                    Container::make(Text::make('tag-trois', 'text-white'), 'px-3 py-1 bg-purple-600 rounded-full'),
+                    Container::make(Text::make('tag-quatre', 'text-white'), 'px-3 py-1 bg-purple-600 rounded-full'),
+                    Container::make(Text::make('tag-cinq', 'text-white'), 'px-3 py-1 bg-purple-600 rounded-full'),
+                ]),
             ),
 
             $this->section(
