@@ -51,10 +51,17 @@ html {
 /* Page-transition fade — nav.js wraps each freshly-swapped-in page body in
    a fresh element with this class, so the keyframe plays automatically on
    insertion (same mechanism as .phpx-animate above, fixed duration since
-   there's no per-page widget instance to carry --phpx-* values). */
+   there's no per-page widget instance to carry --phpx-* values).
+   Opacity-only, deliberately no transform: this wrapper can contain
+   anything a page renders, including a FloatingActionButton (position:
+   fixed) — any `transform` on an ancestor (even one that finishes at
+   translateY(0) via animation-fill-mode) makes it the fixed element's
+   containing block instead of the viewport, breaking "stays pinned to the
+   screen corner regardless of scroll" (confirmed live: the FAB drifted
+   after navigating to a page instead of staying put like in Flutter). */
 @keyframes phpx-page-enter {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .phpx-page-enter {

@@ -52,25 +52,32 @@
     }
 
     document.documentElement.classList.toggle('dark', payload.theme === 'dark');
-    // Wrapped in a fresh element (rather than applying the class to the
-    // persistent #phpx-content itself) so the .phpx-page-enter keyframe
-    // animation — which only plays on insertion, not on a class being
-    // re-applied to an existing node — actually fires on every navigation.
-    const wrappedHtml = '<div class="phpx-page-enter">' + payload.html + '</div>';
+
+    // Only a real navigation (path actually changing — a Link click, a
+    // redirect after login/checkout...) gets the fade transition. An
+    // action response that re-renders the SAME route (Button::make(...,
+    // action: 'increment') on "/", still "/" after) must NOT get wrapped:
+    // the wrapper wasn't there before, so its insertion always plays the
+    // keyframe, which reads as a distracting flicker/"reload" on every
+    // single button click otherwise — confirmed live (the home page's
+    // "Incrémenter" button visibly flashed on each click before this fix).
+    const current = window.location.pathname + window.location.search;
+    const isRealNavigation = Boolean(payload.path) && payload.path !== current;
+    const html = isRealNavigation ? '<div class="phpx-page-enter">' + payload.html + '</div>' : payload.html;
+
     const content = document.getElementById('phpx-content');
     if (content) {
-      content.innerHTML = wrappedHtml;
+      content.innerHTML = html;
       executeScripts(content);
     } else {
       // Full pages rendered before this content wrapper existed (or a
       // fragment route with no chrome at all) — fall back to the whole body.
-      document.body.innerHTML = wrappedHtml;
+      document.body.innerHTML = html;
       executeScripts(document.body);
     }
     updatePersistentNav(payload);
 
-    const current = window.location.pathname + window.location.search;
-    if (payload.path && payload.path !== current) {
+    if (isRealNavigation) {
       history.pushState({ phpxPartial: true }, '', payload.path);
     }
 
