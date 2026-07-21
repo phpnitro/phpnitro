@@ -716,13 +716,19 @@ function cmdBundleAndroid(): void
     copyDirectory(PHPX_ROOT . '/public', "{$staging}/public", minifyPhp: true);
     copyDirectory(PHPX_ROOT . '/lib/pages/app', "{$staging}/lib/pages/app", minifyPhp: true);
     copyDirectory(PHPX_ROOT . '/lib/backend/src', "{$staging}/lib/backend/src", minifyPhp: true);
-    copyDirectory(PHPX_ROOT . '/packages/ui/src', "{$staging}/packages/ui/src", minifyPhp: true);
-    copyDirectory(PHPX_ROOT . '/packages/database/src', "{$staging}/packages/database/src", minifyPhp: true);
-    copyDirectory(PHPX_ROOT . '/packages/payments/src', "{$staging}/packages/payments/src", minifyPhp: true);
-    copyDirectory(PHPX_ROOT . '/packages/maps/src', "{$staging}/packages/maps/src", minifyPhp: true);
-    copyDirectory(PHPX_ROOT . '/packages/dialogs/src', "{$staging}/packages/dialogs/src", minifyPhp: true);
-    copyDirectory(PHPX_ROOT . '/packages/firebase/src', "{$staging}/packages/firebase/src", minifyPhp: true);
-    copyDirectory(PHPX_ROOT . '/packages/device/src', "{$staging}/packages/device/src", minifyPhp: true);
+    // Was a hardcoded per-package list — every package added after it was
+    // last updated (this session: countries, preferences, connectivity,
+    // launcher, diagnostics, format, socialauth) silently shipped a
+    // composer.json autoload entry pointing at a directory that didn't
+    // exist in the bundle, so those classes failed to autoload at runtime
+    // only on-device (confirmed live: "Class ...\Preferences not found"),
+    // never caught by php -l or PHPUnit since both ran against the
+    // then-current package list, not a stale hardcoded one. glob() means
+    // this can't go stale again.
+    foreach (glob(PHPX_ROOT . '/packages/*/src', GLOB_ONLYDIR) ?: [] as $packageSrcDir) {
+        $packageName = basename(dirname($packageSrcDir));
+        copyDirectory($packageSrcDir, "{$staging}/packages/{$packageName}/src", minifyPhp: true);
+    }
     copy(PHPX_ROOT . '/composer.json', "{$staging}/composer.json");
 
     // "env" without the dot: AAPT silently drops hidden files from assets.
