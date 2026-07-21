@@ -9,6 +9,7 @@ use Engine\App\HomePage;
 use Engine\App\LoginPage;
 use Engine\App\ProductPage;
 use Engine\App\SettingsPage;
+use Engine\App\WidgetsCountriesPage;
 use Engine\App\WidgetsDialogsPage;
 use Engine\App\WidgetsFirebaseAuthPage;
 use Engine\App\WidgetsFormsPage;
@@ -130,6 +131,7 @@ $router = new Router([
     '/widgets/dialogs' => WidgetsDialogsPage::class,
     '/widgets/stepper' => WidgetsStepperPage::class,
     '/widgets/firebase-auth' => WidgetsFirebaseAuthPage::class,
+    '/widgets/countries' => WidgetsCountriesPage::class,
 ]);
 
 try {

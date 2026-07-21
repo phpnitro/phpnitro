@@ -8,6 +8,7 @@ parameters:
         - packages/dialogs/src
         - packages/firebase/src
         - packages/device/src
+        - packages/countries/src
         - lib/pages/app
         - lib/backend/src
         - public/index.php

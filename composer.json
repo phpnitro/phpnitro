@@ -20,6 +20,7 @@
             "Engine\\Dialogs\\": "packages/dialogs/src/",
             "Engine\\Firebase\\": "packages/firebase/src/",
             "Engine\\Device\\": "packages/device/src/",
+            "Engine\\Countries\\": "packages/countries/src/",
             "Engine\\App\\": "lib/pages/app/",
             "Backend\\": "lib/backend/src/"
         }
@@ -33,6 +34,7 @@
             "Engine\\Dialogs\\Tests\\": "packages/dialogs/tests/",
             "Engine\\Firebase\\Tests\\": "packages/firebase/tests/",
             "Engine\\Device\\Tests\\": "packages/device/tests/",
+            "Engine\\Countries\\Tests\\": "packages/countries/tests/",
             "Engine\\Payments\\Tests\\": "packages/payments/tests/"
         }
     }
