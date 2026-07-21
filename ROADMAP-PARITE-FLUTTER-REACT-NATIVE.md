@@ -109,8 +109,23 @@ Toute la validation "ça marche vraiment" de ce projet repose sur **un seul tél
 ### 14. Aucun DevTools/inspecteur
 Pas d'inspecteur d'arbre de widgets, pas de profiler de performance, pas d'inspecteur réseau dédié — l'équivalent de Flutter DevTools ou du panneau React Native Debugger n'existe pas. Le seul outil de debug est l'écran d'erreur PHP existant (`set_exception_handler`).
 
-### 15. Zéro écosystème de packages tiers
-Rien n'est publié sur Packagist sous un nom d'organisation dédié — chaque widget de ce projet a été écrit dans ce même dépôt monolithique. Flutter (pub.dev) et React Native (npm) ont des dizaines de milliers de packages communautaires. Sans écosystème, chaque développeur qui adopte PhpNitro doit tout réécrire lui-même.
+### 15. Zéro écosystème de packages tiers — **beaucoup plus de capacités de base couvertes en interne, toujours zéro écosystème externe**
+**Mise à jour** : gros lot de packages ajoutés cette session, équivalents fonctionnels de plugins Flutter courants — tous testés (PHPUnit) et, pour ceux qui touchent le natif, vérifiés en conditions réelles sur l'Infinix X6532 :
+- `Engine\Countries\` — données pays/villes/continents/drapeaux **offline** (194 états, `mledoze/countries` + GeoNames, licences documentées dans `packages/countries/DATA_LICENSE.md`).
+- `Engine\Device\AppIcon` — changement d'icône de lanceur à l'exécution (deux `activity-alias` Android mutuellement exclusifs) — **vérifié visuellement dans les deux sens** sur le téléphone.
+- `Engine\Preferences\` — stockage clé-valeur persistant (`shared_preferences`), backé par le même `Database::connection()` que le reste du framework.
+- `Engine\Connectivity\` — statut réseau live (`connectivity_plus`), type de connexion réel (wifi/cellulaire) via `ConnectivityManager` côté natif.
+- `Engine\Launcher\` — ouverture d'URL/tel/mailto/sms via intent natif (`url_launcher`) — a aussi révélé et corrigé un vrai bug : les liens externes/tel/mailto échouaient silencieusement dans la WebView faute de `shouldOverrideUrlLoading`.
+- `Engine\Diagnostics\CrashReporter` — remontée d'erreurs PHP + JS vers un endpoint auto-hébergé (équivalent Crashlytics/Sentry, aucun compte externe requis).
+- `Engine\Format\` — formatage nombres/devises/dates/temps relatif (équivalent `intl`), volontairement sans dépendre de `ext-intl` (présence non vérifiée dans le PHP cross-compilé Android).
+- `Engine\SocialAuth\` — boutons Google/Apple Sign-In ; vérification serveur réelle côté Google (appel REST `tokeninfo`), **explicitement non implémentée côté Apple** (nécessiterait une conversion JWKS→PEM jamais testée — indiqué honnêtement plutôt que livré à moitié vérifié).
+- `Engine\Device\AlarmScheduler` — alarme planifiée survivant à la fermeture de l'app (`android_alarm_manager_plus`), notification via un nouveau `BroadcastReceiver`.
+- `Engine\AutoSizeText`, `Engine\AnimatedText`, `Engine\InfiniteScrollList`, `Engine\LottieView` (lottie-web vendorisé en local, MIT, pas de CDN) — équivalents `auto_size_text`/`animated_text_kit`/`infinite_scroll_pagination`/`lottie`.
+- `Icon` étendu de 11 à 36 icônes (équivalent partiel `font_awesome_flutter` — un set courant construit à la main, pas un port des ~2000 glyphes Font Awesome).
+
+**Bug réel trouvé et corrigé en testant sur device** : `bin/phpx bundle:android` copiait les packages via une liste codée en dur — tous les nouveaux packages ci-dessus étaient absents du bundle Android tant que la liste n'était pas mise à jour manuellement (`Class Engine\Preferences\Preferences not found` en conditions réelles, invisible en local/CI). Corrigé en découvrant les packages via `glob()`.
+
+**Ce que ça ne change pas** : ce sont des packages **internes au monorepo**, pas publiés sur Packagist sous un nom d'organisation dédié — le vrai écosystème tiers (des milliers de packages communautaires comme pub.dev/npm) reste à zéro. `go_router` (déjà couvert par `Engine\Router`) et `flutter_native_splash` (déjà implémenté avant cette session) n'ont pas eu besoin d'équivalent. `path_provider` et `bloc` n'ont pas d'équivalent construit : le premier est sans objet ici (le PHP tournant sur le device a déjà un accès filesystem direct, pas besoin de canal de plateforme pour connaître les chemins), le second est déjà couvert conceptuellement par le modèle d'état de `Screen` (`initialState()`/`onXxx()`/`$this->state`), qui joue le même rôle côté serveur.
 
 ### 16. Documentation incomplète face à un vrai framework
 Le README est dense et honnête (bon point), mais il manque : une référence API générée automatiquement (type dartdoc/TypeDoc), des tutoriels pas-à-pas au-delà du README, une galerie d'exemples au-delà d'`examples/ecom`, un changelog versionné (aucune release taguée `v1.0.0` n'existe), des templates de contribution/issues.
