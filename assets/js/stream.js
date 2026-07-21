@@ -1,4 +1,9 @@
 (function () {
+  // Keyed by element rather than a dataset string: comparing raw fetched
+  // HTML avoids re-diffing the DOM, and keeps arbitrarily large fragment
+  // markup out of a data-* attribute.
+  const lastHtml = new WeakMap();
+
   function poll(el) {
     // A partial-navigation swap (see nav.js) can detach this element from
     // the DOM while a poll cycle is still in flight — without this check,
@@ -14,8 +19,14 @@
     fetch(endpoint)
       .then((r) => r.text())
       .then((html) => {
-        if (document.body.contains(el)) {
-          el.innerHTML = html;
+        // Skip the re-render entirely when the poll returns identical
+        // markup — otherwise every tick would re-trigger .phpx-animate's
+        // keyframe (see future.js) even though nothing actually changed,
+        // which would read as a distracting flicker rather than a
+        // meaningful update.
+        if (document.body.contains(el) && lastHtml.get(el) !== html) {
+          lastHtml.set(el, html);
+          el.innerHTML = '<div class="phpx-animate">' + html + '</div>';
         }
       })
       .catch(() => {})

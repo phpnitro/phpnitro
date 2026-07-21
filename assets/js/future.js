@@ -5,8 +5,13 @@
     fetch(endpoint)
       .then((r) => r.text())
       .then((html) => {
+        // .phpx-animate (see assets/css/input.css) is FadeIn's own class,
+        // reused here as-is (its CSS custom properties fall back to
+        // sensible defaults with none set inline) — a resolved future is a
+        // one-shot reveal, so there's no repeat-animation risk to gate
+        // against the way stream.js's recurring poll has to.
         if (document.body.contains(el)) {
-          el.innerHTML = html;
+          el.innerHTML = '<div class="phpx-animate">' + html + '</div>';
         }
       })
       .catch(() => {
