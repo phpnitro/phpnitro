@@ -5,6 +5,7 @@ namespace Engine\App;
 use Engine\Align;
 use Engine\Alignment;
 use Engine\Center;
+use Engine\Color;
 use Engine\Column;
 use Engine\Container;
 use Engine\Curves;
@@ -14,6 +15,7 @@ use Engine\Link;
 use Engine\Margin;
 use Engine\Padding;
 use Engine\PageView;
+use Engine\Rounded;
 use Engine\Row;
 use Engine\Screen;
 use Engine\SingleScrollView;
@@ -62,6 +64,11 @@ final class WidgetsLayoutPage extends Screen
             $this->section(
                 'Container — padding + fond + coins arrondis',
                 Container::make(Text::make('Contenu', 'text-gray-900 dark:text-gray-100'), 'p-6 bg-gray-100 dark:bg-gray-800 rounded-xl'),
+            ),
+
+            $this->section(
+                'Container — background/rounded typés (Color/Rounded), ajoutés par-dessus les classes brutes',
+                Container::make(Text::make('typé', 'text-white'), 'h-16 flex items-center justify-center', background: Color::blue(600), rounded: Rounded::FULL),
             ),
 
             $this->section(

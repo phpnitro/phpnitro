@@ -7,6 +7,7 @@ use Engine\Button;
 use Engine\Checkbox;
 use Engine\Color;
 use Engine\Column;
+use Engine\Container;
 use Engine\Curves;
 use Engine\ErrorBanner;
 use Engine\FadeIn;
@@ -15,6 +16,7 @@ use Engine\Form;
 use Engine\Html;
 use Engine\IconButton;
 use Engine\ListView;
+use Engine\Rounded;
 use Engine\Row;
 use Engine\Scaffold;
 use Engine\SelectBox;
@@ -238,5 +240,19 @@ final class WidgetsTest extends TestCase
         $html = FadeIn::make(Text::make('x'), curve: '"><script>alert(1)</script>')->render();
 
         $this->assertStringNotContainsString('<script>alert(1)</script>', $html);
+    }
+
+    public function testContainerTypedStyleIsAddedOnTopOfRawClasses(): void
+    {
+        $html = Container::make(Text::make('x'), 'h-24 flex', background: Color::blue(600), rounded: Rounded::XL)->render();
+
+        $this->assertStringContainsString('class="h-24 flex bg-blue-600 rounded-xl"', $html);
+    }
+
+    public function testContainerWithoutTypedStyleKeepsRawClassesOnly(): void
+    {
+        $html = Container::make(Text::make('x'))->render();
+
+        $this->assertStringContainsString('class="p-4"', $html);
     }
 }
