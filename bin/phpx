@@ -620,7 +620,14 @@ function resetPagesForNewProject(string $targetDir): void
 /**
  * @param string[] $skip Directory/file names to skip entirely.
  */
-function copyDirectory(string $source, string $destination, array $skip = []): void
+/**
+ * $minifyPhp is off by default (used as-is by cmdNew(), which is scaffolding
+ * a project a developer is meant to read/edit — minifying there would be
+ * actively hostile) and only turned on by cmdBundleAndroid(), where the
+ * goal is exactly the opposite: ship as little readable source as possible
+ * in the APK (see ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md item #2).
+ */
+function copyDirectory(string $source, string $destination, array $skip = [], bool $minifyPhp = false): void
 {
     if (!is_dir($source)) {
         return;
@@ -637,11 +644,52 @@ function copyDirectory(string $source, string $destination, array $skip = []): v
         $destinationPath = "{$destination}/{$entry}";
 
         if (is_dir($sourcePath)) {
-            copyDirectory($sourcePath, $destinationPath, $skip);
+            copyDirectory($sourcePath, $destinationPath, $skip, $minifyPhp);
+        } elseif ($minifyPhp && str_ends_with($entry, '.php')) {
+            file_put_contents($destinationPath, minifyPhpSource(file_get_contents($sourcePath)));
         } else {
             copy($sourcePath, $destinationPath);
         }
     }
+}
+
+/**
+ * Strips comments/docblocks and collapses whitespace via PHP's own
+ * tokenizer — NOT a real obfuscator (no identifier renaming, no string
+ * encoding: a decompressed APK's .php files are still fully readable PHP,
+ * just without the comments), see ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md
+ * item #2 for what real protection would require. Whitespace is collapsed
+ * to a single space/newline rather than removed outright: PHP requires
+ * separating whitespace between some adjacent tokens (`function foo`,
+ * `return $x`), and token_get_all() never breaks up a string/heredoc body
+ * into whitespace tokens, so this never touches content inside one.
+ */
+function minifyPhpSource(string $code): string
+{
+    $output = '';
+
+    foreach (token_get_all($code) as $token) {
+        if (!is_array($token)) {
+            $output .= $token;
+            continue;
+        }
+
+        [$id, $text] = $token;
+
+        if ($id === T_COMMENT || $id === T_DOC_COMMENT) {
+            $output .= str_contains($text, "\n") ? "\n" : '';
+            continue;
+        }
+
+        if ($id === T_WHITESPACE) {
+            $output .= str_contains($text, "\n") ? "\n" : ' ';
+            continue;
+        }
+
+        $output .= $text;
+    }
+
+    return $output;
 }
 
 function cmdBundleAndroid(): void
@@ -665,16 +713,16 @@ function cmdBundleAndroid(): void
     // composer.json's autoload paths resolve identically between dev and the
     // bundle — no path rewriting, no vendor symlinks to flatten (there are
     // none: nothing here is a Composer path repository anymore).
-    copyDirectory(PHPX_ROOT . '/public', "{$staging}/public");
-    copyDirectory(PHPX_ROOT . '/lib/pages/app', "{$staging}/lib/pages/app");
-    copyDirectory(PHPX_ROOT . '/lib/backend/src', "{$staging}/lib/backend/src");
-    copyDirectory(PHPX_ROOT . '/packages/ui/src', "{$staging}/packages/ui/src");
-    copyDirectory(PHPX_ROOT . '/packages/database/src', "{$staging}/packages/database/src");
-    copyDirectory(PHPX_ROOT . '/packages/payments/src', "{$staging}/packages/payments/src");
-    copyDirectory(PHPX_ROOT . '/packages/maps/src', "{$staging}/packages/maps/src");
-    copyDirectory(PHPX_ROOT . '/packages/dialogs/src', "{$staging}/packages/dialogs/src");
-    copyDirectory(PHPX_ROOT . '/packages/firebase/src', "{$staging}/packages/firebase/src");
-    copyDirectory(PHPX_ROOT . '/packages/device/src', "{$staging}/packages/device/src");
+    copyDirectory(PHPX_ROOT . '/public', "{$staging}/public", minifyPhp: true);
+    copyDirectory(PHPX_ROOT . '/lib/pages/app', "{$staging}/lib/pages/app", minifyPhp: true);
+    copyDirectory(PHPX_ROOT . '/lib/backend/src', "{$staging}/lib/backend/src", minifyPhp: true);
+    copyDirectory(PHPX_ROOT . '/packages/ui/src', "{$staging}/packages/ui/src", minifyPhp: true);
+    copyDirectory(PHPX_ROOT . '/packages/database/src', "{$staging}/packages/database/src", minifyPhp: true);
+    copyDirectory(PHPX_ROOT . '/packages/payments/src', "{$staging}/packages/payments/src", minifyPhp: true);
+    copyDirectory(PHPX_ROOT . '/packages/maps/src', "{$staging}/packages/maps/src", minifyPhp: true);
+    copyDirectory(PHPX_ROOT . '/packages/dialogs/src', "{$staging}/packages/dialogs/src", minifyPhp: true);
+    copyDirectory(PHPX_ROOT . '/packages/firebase/src', "{$staging}/packages/firebase/src", minifyPhp: true);
+    copyDirectory(PHPX_ROOT . '/packages/device/src', "{$staging}/packages/device/src", minifyPhp: true);
     copy(PHPX_ROOT . '/composer.json', "{$staging}/composer.json");
 
     // "env" without the dot: AAPT silently drops hidden files from assets.

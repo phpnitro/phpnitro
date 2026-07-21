@@ -63,6 +63,15 @@ test -d "$WORKDIR/demo-app/android/app/src/main/assets/www/public" || { echo "FA
 test -d "$WORKDIR/demo-app/android/app/src/main/assets/www/vendor" || { echo "FAIL: vendor/ not bundled"; exit 1; }
 test -f "$WORKDIR/demo-app/android/app/src/main/assets/www/env" || { echo "FAIL: env not bundled"; exit 1; }
 test -z "$(find "$WORKDIR/demo-app/android/app/src/main/assets/www" -type l)" || { echo "FAIL: bundle should contain no symlinks (Android's AssetManager can't follow them)"; exit 1; }
+# Every bundled .php file (framework source, minified — see
+# copyDirectory()'s minifyPhp param — AND vendor/, composer-installed
+# fresh and untouched by it) must still be syntactically valid: a real,
+# not merely smaller, safety net against a minifier bug shipping broken
+# PHP to a device.
+while IFS= read -r -d '' phpFile; do
+  php -l "$phpFile" > /dev/null || { echo "FAIL: bundled file has a syntax error: $phpFile"; exit 1; }
+done < <(find "$WORKDIR/demo-app/android/app/src/main/assets/www" -name "*.php" -print0)
+grep -q '/\*\*' "$WORKDIR/demo-app/android/app/src/main/assets/www/packages/ui/src/PageRenderer.php" && { echo "FAIL: bundled PageRenderer.php still has a docblock — minification isn't running"; exit 1; }
 echo "OK"
 
 echo
