@@ -52,14 +52,19 @@
     }
 
     document.documentElement.classList.toggle('dark', payload.theme === 'dark');
+    // Wrapped in a fresh element (rather than applying the class to the
+    // persistent #phpx-content itself) so the .phpx-page-enter keyframe
+    // animation — which only plays on insertion, not on a class being
+    // re-applied to an existing node — actually fires on every navigation.
+    const wrappedHtml = '<div class="phpx-page-enter">' + payload.html + '</div>';
     const content = document.getElementById('phpx-content');
     if (content) {
-      content.innerHTML = payload.html;
+      content.innerHTML = wrappedHtml;
       executeScripts(content);
     } else {
       // Full pages rendered before this content wrapper existed (or a
       // fragment route with no chrome at all) — fall back to the whole body.
-      document.body.innerHTML = payload.html;
+      document.body.innerHTML = wrappedHtml;
       executeScripts(document.body);
     }
     updatePersistentNav(payload);

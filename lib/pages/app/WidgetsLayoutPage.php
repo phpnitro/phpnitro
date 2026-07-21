@@ -7,7 +7,9 @@ use Engine\Alignment;
 use Engine\Center;
 use Engine\Column;
 use Engine\Container;
+use Engine\Curves;
 use Engine\Divider;
+use Engine\FadeIn;
 use Engine\Link;
 use Engine\Margin;
 use Engine\Padding;
@@ -86,6 +88,23 @@ final class WidgetsLayoutPage extends Screen
                     headers: ['Produit', 'Prix'],
                     border: TableBorder::ALL,
                 ),
+            ),
+
+            $this->section(
+                'FadeIn — animation d\'entrée au montage (fondu + léger glissement), pas de tween sur changement de propriété',
+                Row::make([
+                    FadeIn::make(
+                        Container::make(Text::make('400ms ease-out', 'text-white'), 'p-3 bg-blue-600 rounded'),
+                    ),
+                    FadeIn::make(
+                        Container::make(Text::make('délai 200ms', 'text-white'), 'p-3 bg-emerald-600 rounded'),
+                        delayMs: 200,
+                    ),
+                    FadeIn::make(
+                        Container::make(Text::make('overshoot', 'text-white'), 'p-3 bg-purple-600 rounded'),
+                        curve: Curves::OVERSHOOT,
+                    ),
+                ], 'flex flex-row gap-3'),
             ),
 
             $this->section(

@@ -32,8 +32,14 @@ Vérifié dans `android/app/build.gradle.kts` : le `buildType release` existe ma
 - Documenter/scripter la publication sur le Play Store (fiche store, captures d'écran, politique de confidentialité — obligatoire pour les permissions caméra/micro/localisation demandées).
 - Idem côté iOS : compte Apple Developer, certificats, provisioning profiles, App Store Connect — rien de tout ça n'existe.
 
-### 4. Zéro moteur d'animation
-Aucun widget d'animation n'existe (`Alignment.php`, `Align.php` positionnent statiquement — pas d'`AnimatedContainer`, pas de `Hero`/shared element transition, pas de courbes d'easing). Les transitions entre écrans sont un remplacement `innerHTML` instantané et brut. Flutter et React Native construisent des interfaces où l'animation est un citoyen de première classe (Animated API de RN, `AnimationController`/`Tween` de Flutter). Sans ça, toute app construite avec PhpNitro aura un rendu visuellement "statique/web" et non "app native fluide" — c'est la différence la plus visible pour un utilisateur final.
+### 4. Zéro moteur d'animation — **premier jalon posé, très loin de la parité**
+**Mise à jour** : trois choses ajoutées cette session, toutes vérifiées (rendu testé en standalone PHP + tests PHPUnit ajoutés + `npm run build` exécuté réellement, sortie de `public/tailwind.css` inspectée pour confirmer que les nouvelles règles y sont bien compilées) :
+- `Curves.php` : constantes de courbes d'easing nommées à la Flutter (`EASE_IN_OUT`, `FAST_OUT_SLOW_IN`, `OVERSHOOT`...), qui ne sont que des chaînes CSS `timing-function` — pas un vrai système de courbes appliqué à des valeurs animables.
+- `FadeIn.php` (`packages/ui/src/`) : widget qui fait jouer un fondu + léger glissement au **montage** via une pure animation CSS keyframe (`@keyframes phpx-fade-in` dans `assets/css/input.css`), sans JS — le même principe que `FlashMessage`/`phpx-flash` qui existait déjà. Configurable (durée, délai, courbe, distance) via des custom properties CSS injectées en `style` inline.
+- Transition de page dans `nav.js` : le contenu injecté par `applyPayload()` est maintenant enveloppé dans un `<div class="phpx-page-enter">` frais à chaque swap, ce qui déclenche automatiquement un fondu de 200 ms à l'insertion — remplace le "remplacement `innerHTML` instantané et brut" décrit plus haut par une vraie transition, pour la première fois.
+- `@media (prefers-reduced-motion: reduce)` ajouté pour désactiver ces animations (et `phpx-flash`) chez les utilisateurs qui l'ont demandé au niveau OS — lié à l'item #11 (accessibilité jamais auditée).
+
+**Ce que ça n'est toujours PAS**, pour rester honnête : il n'y a **aucune reactivité/diffing côté client** dans ce projet (vérifié — chaque interaction est un aller-retour serveur complet + remplacement `innerHTML`, voir `nav.js`/`stream.js`/`future.js`). Un vrai `AnimatedContainer` Flutter (qui anime la transition **entre deux valeurs** d'une propriété quand elle change) n'est donc pas faisable sans un système de réactivité/diffing bien plus gros que ce chantier — ce que `FadeIn` fait est une animation d'entrée qui joue une fois au montage, rien de plus. Toujours absents : `Hero`/shared element transition, `AnimationController`/`Tween` programmable, animation de sortie (exit), tout ce qui touche au geste (drag-to-dismiss animé, etc.).
 
 ### 5. Pas de vrai moteur de layout avancé
 Vérifié dans `packages/ui/src/` : aucun `Stack`/`Positioned` (superposition libre d'éléments), aucun `Wrap` (retour à la ligne automatique façon flexbox `flex-wrap`), pas de `CustomPaint`/Canvas. Le layout actuel est entièrement du flexbox Tailwind linéaire (`Column`/`Row`/`Container`) — suffisant pour des écrans de formulaire/liste, insuffisant pour des interfaces complexes (superpositions, badges positionnés, graphiques dessinés à la main).
@@ -112,6 +118,7 @@ Pour être honnête dans les deux sens : ces briques sont réelles, fonctionnell
 - Les services device/paiement (refactorisés cette session en architecture "service", pas "widget imposé") sont une bonne décision d'architecture, alignée avec la façon dont Flutter/RN structurent leurs plugins.
 - La CI existe et tourne réellement (PHPUnit + smoke test) à chaque push.
 - Le backend en-process (Symfony HttpFoundation + Doctrine DBAL/SQLite) est un vrai choix d'architecture cohérent, pas un placeholder.
+- `FadeIn`/`Curves` (widget d'animation d'entrée + courbes d'easing, session en cours) et la transition de fondu sur `nav.js` sont réels et vérifiés (rendu + build Tailwind) — mais c'est un tout premier jalon sur l'item #4, pas une réponse à "zéro moteur d'animation".
 
 ---
 

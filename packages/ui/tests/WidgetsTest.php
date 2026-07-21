@@ -7,7 +7,9 @@ use Engine\Button;
 use Engine\Checkbox;
 use Engine\Color;
 use Engine\Column;
+use Engine\Curves;
 use Engine\ErrorBanner;
+use Engine\FadeIn;
 use Engine\FontWeight;
 use Engine\Form;
 use Engine\Html;
@@ -217,5 +219,24 @@ final class WidgetsTest extends TestCase
         // The currently active tab's rendered class should match its own active-class data attribute.
         preg_match('/<a href="\/settings" class="([^"]+)" data-active-class="([^"]+)"/', $html, $matches);
         $this->assertSame($matches[2], $matches[1]);
+    }
+
+    public function testFadeInRendersChildWrappedWithAnimationCustomProperties(): void
+    {
+        $html = FadeIn::make(Text::make('salut'), durationMs: 250, delayMs: 50, curve: Curves::EASE_IN_OUT, distancePx: 8)->render();
+
+        $this->assertStringContainsString('class="phpx-animate"', $html);
+        $this->assertStringContainsString('--phpx-duration:250ms;', $html);
+        $this->assertStringContainsString('--phpx-delay:50ms;', $html);
+        $this->assertStringContainsString('--phpx-curve:ease-in-out;', $html);
+        $this->assertStringContainsString('--phpx-distance:8px;', $html);
+        $this->assertStringContainsString('>salut<', $html);
+    }
+
+    public function testFadeInEscapesCurveValue(): void
+    {
+        $html = FadeIn::make(Text::make('x'), curve: '"><script>alert(1)</script>')->render();
+
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $html);
     }
 }

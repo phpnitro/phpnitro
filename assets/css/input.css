@@ -36,3 +36,34 @@ html {
 .phpx-flash {
   animation: phpx-flash-out 3.5s ease-in-out forwards;
 }
+
+/* FadeIn widget — plays once on mount, driven by the --phpx-* custom
+   properties FadeIn::render() sets inline per instance. */
+@keyframes phpx-fade-in {
+  from { opacity: 0; transform: translateY(var(--phpx-distance, 12px)); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.phpx-animate {
+  animation: phpx-fade-in var(--phpx-duration, 400ms) var(--phpx-curve, ease-out) var(--phpx-delay, 0ms) both;
+}
+
+/* Page-transition fade — nav.js wraps each freshly-swapped-in page body in
+   a fresh element with this class, so the keyframe plays automatically on
+   insertion (same mechanism as .phpx-animate above, fixed duration since
+   there's no per-page widget instance to carry --phpx-* values). */
+@keyframes phpx-page-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.phpx-page-enter {
+  animation: phpx-page-enter 200ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phpx-flash, .phpx-animate, .phpx-page-enter {
+    animation-duration: 1ms;
+    animation-delay: 0ms;
+  }
+}
