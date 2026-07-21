@@ -732,11 +732,13 @@ function cmdBundleAndroid(): void
     copy(PHPX_ROOT . '/composer.json', "{$staging}/composer.json");
 
     // "env" without the dot: AAPT silently drops hidden files from assets.
-    // Force APP_DEBUG=false in the shipped bundle regardless of the dev .env.
+    // APP_DEBUG is copied as-is from the dev .env (no longer forced to
+    // false) — a crash on-device with APP_DEBUG=false only ever showed
+    // "Erreur interne" with the real reason logged via error_log(),
+    // wherever that ends up on Android (not easily readable without adb/
+    // root). Set APP_DEBUG=false in .env yourself before a real release
+    // build once you're done testing on-device.
     $env = file_get_contents(PHPX_ROOT . '/.env');
-    $env = preg_match('/^APP_DEBUG=/m', $env)
-        ? preg_replace('/^APP_DEBUG=.*$/m', 'APP_DEBUG=false', $env)
-        : $env . "\nAPP_DEBUG=false\n";
     file_put_contents($staging . '/env', $env);
 
     passthruOrFail(
