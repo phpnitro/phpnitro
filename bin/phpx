@@ -553,6 +553,27 @@ function cmdNew(string $directory): void
         echo "Copied {$file} to {$targetDir}/{$file}\n";
     }
 
+    // copy() never preserves the source's permission bits — bin/phpx would
+    // otherwise land non-executable, breaking the "bin/phpx serve" this
+    // command's own next-steps hint suggests running. Set explicitly rather
+    // than read back from the source: fileperms() on a phar:// source (when
+    // this command itself runs from a packaged phpx.phar) reports a
+    // synthetic 0444 for every entry regardless of the real file mode, so
+    // copying that value forward would make the destination read-only too.
+    chmod($targetDir . '/bin/phpx', 0755);
+
+    // When this command itself runs from a packaged phpx.phar, box strips
+    // bin/phpx's shebang line from the copy it bundles as the phar's "main"
+    // entry point (it's invoked via require from the phar's own stub, not
+    // executed directly) — so the copy landing in the new project is
+    // missing the "#!/usr/bin/env php" line the shell needs to run
+    // ./bin/phpx directly, even with the executable bit set above.
+    $binPhpxPath = $targetDir . '/bin/phpx';
+    $binPhpxContent = file_get_contents($binPhpxPath);
+    if ($binPhpxContent !== false && !str_starts_with($binPhpxContent, "#!")) {
+        file_put_contents($binPhpxPath, "#!/usr/bin/env php\n" . $binPhpxContent);
+    }
+
     resetPagesForNewProject($targetDir);
 
     echo "Project scaffolded at {$targetDir}\n";
