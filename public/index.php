@@ -86,8 +86,22 @@ if ($path === '/fragment/server-time') {
 }
 
 if ($debug && $path === '/_dev/version') {
+    // packages/*/src previously wasn't watched at all — editing a widget
+    // (Container.php, FadeIn.php...) took effect on the next PHP request
+    // like everything else here, but the WebView never auto-reloaded to
+    // show it. Only source directories PHP reads directly on every
+    // request belong here — NOT assets/, which only gets copied into
+    // public/assets/ once at `phpx serve` startup (syncAssets()), so a
+    // reload triggered by an assets/ edit would just show the stale copy.
     $latest = 0;
-    foreach (['lib/pages/app', 'lib/backend/src', 'public'] as $dir) {
+    $watchedDirs = array_merge(
+        ['lib/pages/app', 'lib/backend/src', 'public'],
+        array_map(
+            static fn (string $dir) => 'packages/' . basename(dirname($dir)) . '/src',
+            glob(dirname(__DIR__) . '/packages/*/src', GLOB_ONLYDIR) ?: [],
+        ),
+    );
+    foreach ($watchedDirs as $dir) {
         $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(
             dirname(__DIR__) . '/' . $dir,
             FilesystemIterator::SKIP_DOTS,
