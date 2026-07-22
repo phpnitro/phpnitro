@@ -68,6 +68,27 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.GetContent(),
     ) { uri -> webAppInterface.deliverPickedImage(uri) }
 
+    /**
+     * A WebView PermissionRequest (mic/camera via getUserMedia) held here
+     * while its matching Android runtime permission is requested — see
+     * onPermissionRequest()'s comment for why this exists at all.
+     */
+    private var pendingWebPermissionRequest: PermissionRequest? = null
+
+    private val requestWebMediaPermissions = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { results ->
+        val request = pendingWebPermissionRequest
+        pendingWebPermissionRequest = null
+        if (request == null) return@registerForActivityResult
+
+        if (results.values.all { it }) {
+            request.grant(request.resources)
+        } else {
+            request.deny()
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
@@ -131,8 +152,45 @@ class MainActivity : AppCompatActivity() {
             }
         }
         webView.webChromeClient = object : WebChromeClient() {
+            /**
+             * request.grant() alone is NOT enough for microphone/camera:
+             * WebChromeClient can only grant a resource whose matching
+             * Android runtime permission is ALREADY granted — it never
+             * triggers the system permission dialog itself. The upfront
+             * ActivityCompat.requestPermissions() call in onCreate() covers
+             * the common case (user responds before ever tapping a mic/
+             * camera button), but if they dismissed/denied it, or simply
+             * hadn't answered yet, every later getUserMedia() call would
+             * silently fail here with no recovery — confirmed as the real
+             * cause of the microphone demo not working. Now requests the
+             * exact permission on demand, right when the WebView actually
+             * needs it, same as a real browser tab would.
+             */
             override fun onPermissionRequest(request: PermissionRequest) {
-                request.grant(request.resources)
+                val androidPermissions = request.resources.mapNotNull {
+                    when (it) {
+                        PermissionRequest.RESOURCE_AUDIO_CAPTURE -> Manifest.permission.RECORD_AUDIO
+                        PermissionRequest.RESOURCE_VIDEO_CAPTURE -> Manifest.permission.CAMERA
+                        else -> null
+                    }
+                }
+
+                val alreadyGranted = androidPermissions.isNotEmpty() && androidPermissions.all {
+                    ActivityCompat.checkSelfPermission(this@MainActivity, it) == PackageManager.PERMISSION_GRANTED
+                }
+
+                if (alreadyGranted) {
+                    request.grant(request.resources)
+                    return
+                }
+
+                if (androidPermissions.isEmpty()) {
+                    request.deny()
+                    return
+                }
+
+                pendingWebPermissionRequest = request
+                requestWebMediaPermissions.launch(androidPermissions.toTypedArray())
             }
 
             override fun onGeolocationPermissionsShowPrompt(

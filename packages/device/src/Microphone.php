@@ -15,16 +15,21 @@ use Engine\Html;
 use Engine\Widget;
 
 /**
- * Activates the microphone (getUserMedia audio) and writes its result
- * text into the element $outputId names — the developer places
+ * Records $durationMs of real audio via native MediaRecorder (see
+ * WebAppInterface.kt's recordAudioClip — confirmed on real hardware that
+ * the WebView-mediated getUserMedia({audio:true}) unreliably fails with
+ * "Could not start audio source" on some devices, even with the
+ * permission already granted) and plays it back, writing status text into
+ * the element $outputId names. Falls back to plain getUserMedia only if
+ * no native bridge is present (browser testing). The developer places
  * outputElement() wherever they want and attaches onClick() to their own
  * button, instead of a widget rendering both together.
  */
 final class Microphone
 {
-    public static function onClick(string $outputId): string
+    public static function onClick(string $outputId, int $durationMs = 3000): string
     {
-        return sprintf("phpxDevice.openMicrophone('%s')", $outputId);
+        return sprintf("phpxDevice.recordAudioClip('%s', %d)", $outputId, $durationMs);
     }
 
     public static function outputElement(string $id, string $classes = 'text-sm text-gray-500 dark:text-gray-400'): Widget

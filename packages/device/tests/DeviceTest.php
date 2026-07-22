@@ -46,7 +46,12 @@ final class DeviceTest extends TestCase
 
     public function testMicrophoneOnClickReferencesOutputId(): void
     {
-        $this->assertSame("phpxDevice.openMicrophone('mic1')", Microphone::onClick('mic1'));
+        $this->assertSame("phpxDevice.recordAudioClip('mic1', 3000)", Microphone::onClick('mic1'));
+    }
+
+    public function testMicrophoneOnClickAcceptsCustomDuration(): void
+    {
+        $this->assertSame("phpxDevice.recordAudioClip('mic1', 5000)", Microphone::onClick('mic1', 5000));
     }
 
     public function testMicrophoneOutputElementRendersSpanWithId(): void

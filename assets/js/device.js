@@ -63,7 +63,9 @@ window.phpxDevice = {
 
   async openCamera(videoElementId) {
     const el = document.getElementById(videoElementId);
-    if (!el || !navigator.mediaDevices) {
+    if (!el) return;
+    if (!navigator.mediaDevices) {
+      el.insertAdjacentText('afterend', "Caméra indisponible (navigator.mediaDevices absent — contexte non sécurisé ou WebView trop ancienne).");
       return;
     }
 
@@ -76,9 +78,46 @@ window.phpxDevice = {
     }
   },
 
+  // Prefers the native bridge (MediaRecorder, see WebAppInterface.kt's
+  // recordAudioClip) FIRST — confirmed live on a real device that
+  // getUserMedia({audio:true}) fails with "Could not start audio source"
+  // even with RECORD_AUDIO already granted, a WebView/Chromium audio
+  // capture limitation on some OEM builds. Every other capability here
+  // already tries the native bridge before the Web API; the microphone
+  // was the one exception, which is exactly why it silently didn't work.
+  // Records durationMs of real audio and plays it back — proof the mic
+  // genuinely works, not just a permission/API-availability check.
+  recordAudioClip(outputElementId, durationMs = 3000) {
+    const el = document.getElementById(outputElementId);
+    if (!el) return;
+
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.recordAudioClip) {
+      el.textContent = `Enregistrement (${(durationMs / 1000).toFixed(1)} s)...`;
+      window.onNativeAudioRecorded = (dataUrl, error) => {
+        if (!dataUrl) {
+          el.textContent = 'Erreur micro : ' + (error || 'inconnue');
+          return;
+        }
+        el.textContent = 'Micro activé — lecture de l’enregistrement';
+        new Audio(dataUrl).play().catch(() => {});
+      };
+      bridge.recordAudioClip(durationMs);
+      return;
+    }
+
+    this.openMicrophone(outputElementId);
+  },
+
+  // Fallback for browser testing / a native shell without this bridge
+  // method (e.g. iOS before it grows a matching one) — the plain Web API,
+  // known unreliable in some Android WebView builds (see recordAudioClip
+  // above), kept only as a last resort now instead of the first attempt.
   async openMicrophone(outputElementId) {
     const el = document.getElementById(outputElementId);
-    if (!el || !navigator.mediaDevices) {
+    if (!el) return;
+    if (!navigator.mediaDevices) {
+      el.textContent = 'Micro indisponible (navigator.mediaDevices absent — contexte non sécurisé ou WebView trop ancienne).';
       return;
     }
 

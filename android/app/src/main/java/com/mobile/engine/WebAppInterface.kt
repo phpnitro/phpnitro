@@ -11,8 +11,11 @@ import android.graphics.Bitmap
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.media.MediaPlayer
+import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -31,6 +34,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
+import java.io.File
 
 /**
  * Bridge exposed to the JS running inside the WebView as `window.AndroidNative`.
@@ -66,6 +70,91 @@ class WebAppInterface(
         }
 
         vibrator.vibrate(VibrationEffect.createOneShot(milliseconds, VibrationEffect.DEFAULT_AMPLITUDE))
+    }
+
+    /**
+     * Real native microphone capture (MediaRecorder), NOT
+     * navigator.mediaDevices.getUserMedia({audio: true}) — confirmed live
+     * on a real device (Infinix X6532) that WebView's getUserMedia fails
+     * with "Could not start audio source" even with RECORD_AUDIO already
+     * granted, a known Chromium/WebView audio-capture limitation on some
+     * OEM builds, not something fixable from the JS side. Every other
+     * capability in device.js already prefers this native bridge first —
+     * the microphone was the one exception, going straight to the (broken,
+     * here) Web API; this closes that gap the same way Camera's native
+     * still-capture already works around the same class of WebView limits.
+     * Records to a temp file, base64-encodes it, and hands it back via
+     * window.onNativeAudioRecorded so the caller can play it back —
+     * proof the mic genuinely works, not just a permission check.
+     */
+    @JavascriptInterface
+    fun recordAudioClip(durationMs: Int) {
+        if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            webView.post {
+                webView.evaluateJavascript(
+                    "window.onNativeAudioRecorded && window.onNativeAudioRecorded(null, 'permission_denied')",
+                    null,
+                )
+            }
+            return
+        }
+
+        val outputFile = File(context.cacheDir, "phpx_mic_clip.m4a")
+        val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            MediaRecorder(context)
+        } else {
+            @Suppress("DEPRECATION")
+            MediaRecorder()
+        }
+
+        try {
+            recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            recorder.setOutputFile(outputFile.absolutePath)
+            recorder.prepare()
+            recorder.start()
+        } catch (e: Exception) {
+            webView.post {
+                webView.evaluateJavascript(
+                    "window.onNativeAudioRecorded && window.onNativeAudioRecorded(null, " +
+                        JSONObject.quote(e.message ?: "erreur inconnue") + ")",
+                    null,
+                )
+            }
+            return
+        }
+
+        Handler(Looper.getMainLooper()).postDelayed({
+            try {
+                recorder.stop()
+            } catch (_: Exception) {
+                // A recorder that never actually received audio (stopped
+                // too fast, hardware busy) throws here instead of on
+                // start() — treated as silence below, not a crash.
+            }
+            recorder.release()
+
+            if (!outputFile.exists() || outputFile.length() == 0L) {
+                webView.post {
+                    webView.evaluateJavascript(
+                        "window.onNativeAudioRecorded && window.onNativeAudioRecorded(null, 'empty_recording')",
+                        null,
+                    )
+                }
+                return@postDelayed
+            }
+
+            val base64 = Base64.encodeToString(outputFile.readBytes(), Base64.NO_WRAP)
+            webView.post {
+                webView.evaluateJavascript(
+                    "window.onNativeAudioRecorded && window.onNativeAudioRecorded('data:audio/mp4;base64,$base64', null)",
+                    null,
+                )
+            }
+        }, durationMs.toLong())
     }
 
     @JavascriptInterface
