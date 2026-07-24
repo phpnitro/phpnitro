@@ -18,6 +18,8 @@ final class GestureDetector extends Widget
         private readonly ?string $onDoubleClick = null,
         private readonly ?string $onSwipeLeft = null,
         private readonly ?string $onSwipeRight = null,
+        private readonly ?string $onPinch = null,
+        private readonly ?string $onRotate = null,
         private readonly string $classes = '',
     ) {
     }
@@ -27,9 +29,11 @@ final class GestureDetector extends Widget
         ?string $onDoubleClick = null,
         ?string $onSwipeLeft = null,
         ?string $onSwipeRight = null,
+        ?string $onPinch = null,
+        ?string $onRotate = null,
         string $classes = '',
     ): self {
-        return new self($child, $onDoubleClick, $onSwipeLeft, $onSwipeRight, $classes);
+        return new self($child, $onDoubleClick, $onSwipeLeft, $onSwipeRight, $onPinch, $onRotate, $classes);
     }
 
     public function render(): string
@@ -46,6 +50,18 @@ final class GestureDetector extends Widget
 
         if ($this->onSwipeRight !== null) {
             $attrs[] = 'data-on-swipe-right="' . htmlspecialchars($this->onSwipeRight, ENT_QUOTES) . '"';
+        }
+
+        // Pinch/rotate report their live delta as extra POST fields
+        // ("scale"/"angle") rather than firing per pixel — the handler
+        // receives the gesture's end state once, like a swipe, not a
+        // stream of updates a stateless server round-trip can't keep up with.
+        if ($this->onPinch !== null) {
+            $attrs[] = 'data-on-pinch="' . htmlspecialchars($this->onPinch, ENT_QUOTES) . '"';
+        }
+
+        if ($this->onRotate !== null) {
+            $attrs[] = 'data-on-rotate="' . htmlspecialchars($this->onRotate, ENT_QUOTES) . '"';
         }
 
         return sprintf(
