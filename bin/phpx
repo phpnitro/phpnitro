@@ -15,6 +15,7 @@
  *   phpx maps                         List phpnitro.yml's declared map providers and their .env status
  *   phpx icon                         Regenerate the Android launcher icon from phpnitro.yml's `icon`
  *   phpx firebase                     List phpnitro.yml's declared Firebase config and their .env status
+ *   phpx docs:api                     Generate docs/api/*.md from every public class's docblocks + signatures
  *
  * phpnitro.yml (project root) is the app manifest — name/description/version,
  * the payment gateways and map providers the app declares, and optionally
@@ -505,6 +506,161 @@ function cmdFirebase(): void
     }
 }
 
+/**
+ * Reflects over every public class reachable from composer.json's own
+ * autoload map (skipping Engine\App\/Backend\, which are app-specific, not
+ * "the framework's API") and writes one docs/api/{package}.md per
+ * packages/*\/src directory, plus an docs/api.md index — a docblock- and
+ * signature-derived reference, not hand-written, so it can't silently
+ * drift the way hand-maintained API docs do (see
+ * ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md item #16).
+ */
+function cmdGenerateApiDocs(): void
+{
+    require_once PHPX_ROOT . '/vendor/autoload.php';
+
+    $composer = json_decode((string) file_get_contents(PHPX_ROOT . '/composer.json'), true, flags: JSON_THROW_ON_ERROR);
+    $namespaces = $composer['autoload']['psr-4'] ?? [];
+
+    $apiDir = PHPX_ROOT . '/docs/api';
+    foreach (glob("{$apiDir}/*.md") ?: [] as $stale) {
+        unlink($stale);
+    }
+    if (!is_dir($apiDir)) {
+        mkdir($apiDir, 0777, true);
+    }
+
+    $packages = [];
+
+    foreach ($namespaces as $prefix => $relativeDir) {
+        if (in_array($prefix, ['Engine\\App\\', 'Backend\\'], true)) {
+            continue;
+        }
+
+        $dir = PHPX_ROOT . '/' . rtrim($relativeDir, '/');
+        if (!is_dir($dir)) {
+            continue;
+        }
+
+        $packageName = basename(dirname($relativeDir));
+        $packages[$packageName] ??= [];
+
+        foreach (glob("{$dir}/*.php") ?: [] as $file) {
+            $className = $prefix . basename($file, '.php');
+            if (class_exists($className) || interface_exists($className) || enum_exists($className)) {
+                $packages[$packageName][] = $className;
+            }
+        }
+    }
+
+    ksort($packages);
+    $index = ["# Référence API\n", "Générée automatiquement (`phpx docs:api`) depuis les docblocks et signatures réels — jamais à éditer à la main, elle serait écrasée au prochain run.\n"];
+
+    $totalClasses = 0;
+    foreach ($packages as $packageName => $classNames) {
+        sort($classNames);
+        $totalClasses += count($classNames);
+        $classCount = count($classNames);
+        $index[] = "- [{$packageName}](api/{$packageName}.md) ({$classCount} " . ($classCount > 1 ? 'classes' : 'classe') . ')';
+
+        $page = ["# Package `{$packageName}`\n"];
+        foreach ($classNames as $className) {
+            $page[] = renderClassApiDoc($className);
+        }
+
+        file_put_contents("{$apiDir}/{$packageName}.md", implode("\n", $page));
+    }
+
+    file_put_contents(PHPX_ROOT . '/docs/api.md', implode("\n", $index) . "\n");
+
+    echo "Generated API reference for {$totalClasses} classes across " . count($packages) . " packages into docs/api/\n";
+}
+
+function renderClassApiDoc(string $className): string
+{
+    $reflection = new ReflectionClass($className);
+    $kind = match (true) {
+        $reflection->isInterface() => 'interface',
+        $reflection->isEnum() => 'enum',
+        default => 'class',
+    };
+
+    $lines = ["## `{$className}` ({$kind})\n"];
+    $summary = docCommentSummary($reflection->getDocComment());
+    if ($summary !== '') {
+        $lines[] = "{$summary}\n";
+    }
+
+    foreach ($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
+        // Only this class's own methods — an inherited method belongs on
+        // its declaring class's page, listing it here too would just be
+        // noise repeated on every subclass.
+        if ($method->getDeclaringClass()->getName() !== $className) {
+            continue;
+        }
+        if (str_starts_with($method->getName(), '__') && $method->getName() !== '__construct') {
+            continue;
+        }
+
+        $lines[] = '### `' . renderMethodSignature($method) . "`\n";
+        $methodSummary = docCommentSummary($method->getDocComment());
+        if ($methodSummary !== '') {
+            $lines[] = "{$methodSummary}\n";
+        }
+    }
+
+    return implode("\n", $lines);
+}
+
+function renderMethodSignature(ReflectionMethod $method): string
+{
+    $params = array_map(static function (ReflectionParameter $param): string {
+        $type = $param->hasType() ? $param->getType() . ' ' : '';
+        $default = '';
+        if ($param->isDefaultValueAvailable()) {
+            try {
+                $default = ' = ' . var_export($param->getDefaultValue(), true);
+            } catch (\Throwable) {
+                $default = ' = ...';
+            }
+        }
+
+        return "{$type}\${$param->getName()}{$default}";
+    }, $method->getParameters());
+
+    $returnType = $method->hasReturnType() ? ': ' . $method->getReturnType() : '';
+    $static = $method->isStatic() ? 'static ' : '';
+
+    return "{$static}{$method->getName()}(" . implode(', ', $params) . "){$returnType}";
+}
+
+/**
+ * First paragraph of a docblock, tags stripped, comment markers stripped,
+ * wrapped onto one line — a summary line for an index/method list, not the
+ * full docblock (which usually explains design rationale a one-line
+ * reference table has no room for).
+ */
+function docCommentSummary(string|false $docComment): string
+{
+    if ($docComment === false) {
+        return '';
+    }
+
+    $summary = [];
+    foreach (preg_split('/\r?\n/', $docComment) ?: [] as $line) {
+        $line = trim($line, " \t*/");
+        if ($line === '' && $summary !== []) {
+            break;
+        }
+        if ($line === '' || str_starts_with($line, '@')) {
+            continue;
+        }
+        $summary[] = $line;
+    }
+
+    return implode(' ', $summary);
+}
+
 function cmdIcon(): void
 {
     $manifest = loadManifest();
@@ -952,6 +1108,9 @@ switch ($command) {
     case 'firebase':
         cmdFirebase();
         break;
+    case 'docs:api':
+        cmdGenerateApiDocs();
+        break;
     default:
-        phpxFail('usage: phpx <make:page|make:entity|serve|new|bundle:android|payments|maps|icon|firebase> ...');
+        phpxFail('usage: phpx <make:page|make:entity|serve|new|bundle:android|payments|maps|icon|firebase|docs:api> ...');
 }

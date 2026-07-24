@@ -83,6 +83,8 @@ Ouvre `http://127.0.0.1:8090/`. C'est tout — pas de build step, pas de simulat
 | [CLI (`phpx`)](docs/cli.md) | Toutes les commandes, `phpnitro.yml`, packaging `.phar` |
 | [Builds mobiles](docs/mobile-builds.md) | APK Android (PHP embarqué), état iOS |
 | [Architecture interne](docs/architecture.md) | Rendu, navigation SPA, backend, base de données |
+| [Référence API](docs/api.md) | Générée automatiquement (`phpx docs:api`) — 137 classes, 14 packages |
+| [Tutoriels](docs/tutorials/) | Guides pas-à-pas, du zéro à une fonctionnalité complète |
 | [Changelog](CHANGELOG.md) | Historique des changements notables |
 | [Contribuer](CONTRIBUTING.md) | Installation, conventions, structure du code |
 

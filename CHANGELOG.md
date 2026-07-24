@@ -7,6 +7,15 @@ is informal while the project is pre-1.0 (see `phpnitro.yml`'s `version`).
 ## Unreleased
 
 ### Added
+- `Engine\AnimatedContainer` and `Engine\Hero` — FLIP-technique tween between two
+  server renders and Flutter-Hero-style shared element flight, on top of a new
+  `phpx:beforeSwap` event in `nav.js`. Respects `prefers-reduced-motion`.
+- `phpx docs:api` — generates `docs/api/*.md` (one page per package) from every
+  public class's docblocks and real method signatures via Reflection, plus an
+  index at `docs/api.md`. Regenerate after any public API change; never hand-edit.
+- `docs/tutorials/` — two step-by-step guides (building a feature end-to-end,
+  wiring a real social sign-in button).
+- GitHub issue/PR templates (`.github/ISSUE_TEMPLATE/`, `PULL_REQUEST_TEMPLATE.md`).
 - Device services: `Sensors` (accelerometer/gyroscope/magnetic field), `Torch`,
   `Brightness`, `Battery`, `DeviceId`, `Bluetooth` (bonded devices), `SecureStorage`
   (Android Keystore-backed), `Contacts` and `CalendarEvents` (read-only),
