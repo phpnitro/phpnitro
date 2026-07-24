@@ -2,6 +2,7 @@
 
 namespace Backend;
 
+use Backend\Controller\FcmController;
 use Backend\Controller\ProductController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -19,10 +20,12 @@ final class Kernel
     public function handle(Request $request): Response
     {
         $products = new ProductController();
+        $fcm = new FcmController();
 
         return match ($request->getPathInfo()) {
             '/api/health' => new JsonResponse(['status' => 'ok']),
             '/api/products' => $products->list($request),
+            '/api/fcm/register' => $fcm->register($request),
             default => new JsonResponse(['error' => 'Not found'], 404),
         };
     }
