@@ -23,15 +23,16 @@ final class BottomNavigation extends Widget
     public function __construct(
         private readonly array $items,
         private readonly string $variant = self::VARIANT_DEFAULT,
+        private readonly ?Color $activeColor = null,
     ) {
     }
 
     /**
      * @param array<int, array{label: string, href: string, icon?: string}> $items
      */
-    public static function make(array $items, string $variant = self::VARIANT_DEFAULT): self
+    public static function make(array $items, string $variant = self::VARIANT_DEFAULT, ?Color $activeColor = null): self
     {
-        return new self($items, $variant);
+        return new self($items, $variant, $activeColor);
     }
 
     public function render(): string
@@ -104,24 +105,35 @@ final class BottomNavigation extends Widget
     }
 
     /**
+     * $activeColor only overrides the light-mode shade — the dark-mode
+     * pairing (blue-400/blue-950) and the pills' light background shade
+     * (blue-50) aren't a fixed offset from an arbitrary base shade the way
+     * Button's hover shade is, so they're left as the framework default
+     * rather than guessing a mapping that could come out wrong in dark
+     * mode — deliberately NOT wired to Theme::primary() by default for that
+     * reason (unlike FloatingActionButton/ProgressBar), only settable
+     * explicitly per call.
+     *
      * @return array{0: string, 1: string, 2: string} base classes, classes added when active, classes added when inactive
      */
     private function itemClassParts(): array
     {
+        $activeColorClass = $this->activeColor?->textClass();
+
         return match ($this->variant) {
             self::VARIANT_PILLS => [
                 'flex flex-col items-center justify-center gap-0.5 rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors',
-                'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950',
+                ($activeColorClass ?? 'text-blue-600') . ' dark:text-blue-400 bg-blue-50 dark:bg-blue-950',
                 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200',
             ],
             self::VARIANT_COMPACT => [
                 'flex items-center justify-center p-3 text-xl transition-colors',
-                'text-blue-600 dark:text-blue-400',
+                ($activeColorClass ?? 'text-blue-600') . ' dark:text-blue-400',
                 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200',
             ],
             default => [
                 'flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-xs font-medium transition-colors',
-                'text-blue-600 dark:text-blue-400',
+                ($activeColorClass ?? 'text-blue-600') . ' dark:text-blue-400',
                 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200',
             ],
         };
