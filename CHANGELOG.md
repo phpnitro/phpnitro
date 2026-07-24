@@ -34,6 +34,21 @@ is informal while the project is pre-1.0 (see `phpnitro.yml`'s `version`).
 - `LICENSE` (MIT) and copyright headers across `packages/*/src`.
 
 ### Fixed
+- **No outbound HTTPS ever worked from the on-device PHP binary** — the
+  cross-compiled `php-ndk` build has neither `curl` nor `openssl`, confirmed by
+  running the actual binary on a real device. Not Feexpay-specific: this broke
+  every `file_get_contents('https://...')` call in the framework (Stripe,
+  OAuth, Firebase) that hadn't yet been exercised on-device. Fixed by
+  cross-compiling OpenSSL statically into the binary (`android/php-ndk-patch/`)
+  and bundling Mozilla's CA store (`assets/cacert.pem`) since Android has no
+  OpenSSL-readable system trust store of its own. Verified against Feexpay's
+  real API (`HTTP 200`/`201`) on an Infinix X6532.
+- `Engine\Payments\Feexpay` rewritten to call the REST API directly via
+  streams instead of the `feexpay/feexpay-php` vendor SDK, which calls `curl_*`
+  directly and could never have worked on-device regardless of the fix above.
+  Also fixed: Feexpay rejects a non-integer `amount` ("amount must be an
+  integer number"), only visible once the HTTPS call itself stopped failing
+  first — now rounded explicitly before sending.
 - Microphone recording (`getUserMedia` unreliably failing on-device with
   "Could not start audio source") — now uses a native `MediaRecorder` capture
   path by default, with the old browser API kept only as a fallback.
