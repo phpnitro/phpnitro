@@ -16,7 +16,7 @@ Uniquement ce qui reste à faire. Pas d'historique de vérification ici (voir CH
 ## Niveau 2 — Important
 
 7. **Paiements non vérifiés** — Feexpay partiellement testé (bloqué en sandbox, statut succès non confirmé). iZiChangePay/TresorPay jamais vérifiés (gabarits avec TODO). Kkiapay/FedaPay jamais exercés contre un sandbox réel. Pas d'Apple Pay/Google Pay natifs, pas de remboursements, pas de webhooks asynchrones.
-8. ~~**Capacités device manquantes**~~ — fait : `Engine\Device\Nfc` (lecture NDEF, foreground dispatch), `Engine\Device\InAppPurchase` (Play Billing, jamais exercé contre un vrai produit Play Console — aucun compte disponible), `Engine\Device\Geofence` (zone + entrée/sortie réels, `GeofencingClient`), App Links HTTPS (`assetlinks.json` + `autoVerify`, domaine placeholder à remplacer — voir `docs/mobile-builds.md`), pincer-zoomer/rotation sur `GestureDetector`. Écrit, non testé sur device (voir #12).
+8. ~~**Capacités device manquantes**~~ — fait, et vérifié sur l'Infinix X6532 : NFC (mode écoute activé, "En attente d'un tag NFC..." affiché, aucun tag physique disponible pour tester une vraie lecture), InAppPurchase (connexion Play Billing réelle établie, requête produit exécutée, "Aucun produit trouvé" — honnête, `demo_product` n'existe pas dans un vrai Play Console), Geofence (zone ajoutée sans erreur ni crash, permissions fine+background location accordées). Pincer-zoomer/rotation sur `GestureDetector` : couvert par test unitaire uniquement — `adb input` ne simule pas le multi-touch, jamais confirmé à l'écran avec de vrais doigts. App Links HTTPS toujours pas vérifiable (domaine placeholder, voir `docs/mobile-builds.md`).
 9. **Notifications push non vérifiées** — jamais testées contre un vrai projet Firebase/APNs.
 10. **API de style typée très partielle** — `Container`/`Button` + maintenant `Theme` (registre injectable primary/secondary), `FloatingActionButton`, `ProgressBar`, `BottomNavigation`, `Checkbox`, `SwitchToggle`. Les ~50 autres widgets utilisent encore des chaînes Tailwind brutes.
 11. **Accessibilité peu auditée** — seul l'écran d'accueil vérifié avec TalkBack. Formulaires, dialogues, Stepper, cartes non audités. VoiceOver (iOS) inexistant. Aucune méthode répétable/CI.
@@ -28,7 +28,7 @@ Uniquement ce qui reste à faire. Pas d'historique de vérification ici (voir CH
 14. **DevTools basique** — lecteur route/temps/mémoire/état seulement. Pas d'inspecteur d'arbre de widgets, pas de profiler, pas d'inspecteur réseau.
 15. **Zéro écosystème tiers** — packages internes au monorepo uniquement, rien publié sur Packagist.
 16. **Documentation incomplète** — pas de référence API générée, pas de tutoriels au-delà de `docs/`, pas de galerie d'exemples au-delà d'`examples/ecom`, pas de templates GitHub issues/PR.
-17. **Couverture de tests widgets incomplète** — plusieurs widgets/services (dont tous les nouveaux `Engine\Device\*`) vérifiés seulement manuellement, pas par test automatisé.
+17. **Couverture de tests widgets incomplète** — largement comblée : ~30 widgets UI (Align, Center, CircularProgress, Table, GestureDetector, StreamBuilder/FutureBuilder...), Navigation/Navigator, tous les nouveaux `Engine\Device\*`, et PaypalButton ont maintenant des tests (185 → 253). Restent délibérément non testés (documenté inline, pas un oubli) : `PageRenderer` (`exit()`), `StripeCheckout`/`Feexpay` (vrais appels HTTP).
 18. **Pas de comparatif de performance réel** — chiffres PhpNitro isolés (taille APK, démarrage, mémoire), jamais mesurés face à une app Flutter/RN équivalente dans les mêmes conditions.
 19. ~~**SDK Android non auto-installé**~~ — fait : `resolveOrInstallAndroidSdk()` télécharge les cmdline-tools et installe platform-tools/platform/build-tools (versions lues depuis `build.gradle.kts`) si aucun SDK n'est trouvé. Écrit, non encore vérifié par une vraie installation from scratch (le SDK est déjà présent sur cette machine — voir #12).
 
@@ -46,6 +46,6 @@ Uniquement ce qui reste à faire. Pas d'historique de vérification ici (voir CH
 ## Priorité si l'objectif est une v1 production (pas la parité totale)
 
 1. Vérifier 2-3 gateways de paiement contre un vrai sandbox (#7) — blocage n°1 pour un vrai commerce.
-2. Tester sur device réel tout ce qui vient d'être écrit sans vérification (#8 : NFC/IAP/geofencing/App Links/gestes ; #19 : install SDK from scratch) et sur 3-4 devices Android différents (#12).
+2. Tester sur 3-4 devices Android différents (#12) — confiance actuelle toujours sur un seul appareil. Reste aussi : confirmer pincer-zoomer/rotation avec de vrais doigts (adb ne simule pas le multi-touch), tester une vraie installation SDK from scratch (#19), et vérifier un vrai App Link HTTPS une fois un domaine disponible (#8).
 3. Publier la release sur le Play Store (#3).
 4. iOS et obfuscation (#1, #2) — chantiers les plus lourds, nécessitent un Mac.
