@@ -1,0 +1,44 @@
+# Contribuer à PhpNitro
+
+## Installation
+
+```bash
+composer install
+npm install   # uniquement pour reconstruire tailwind.css
+```
+
+Voir [docs/getting-started.md](docs/getting-started.md) pour la structure complète d'un projet.
+
+## Lancer les vérifications
+
+```bash
+vendor/bin/phpunit                          # tests, tous les packages (autoload-dev PSR-4)
+php -l chemin/vers/fichier.php               # vérification syntaxique rapide
+vendor/bin/phpstan analyse packages lib      # analyse statique
+```
+
+Un `bin/phpx serve` local + un test manuel dans le navigateur reste le moyen le plus sûr de valider un changement touchant au rendu ou à `nav.js`. Pour tout ce qui touche au pont natif Android (`WebAppInterface.kt`, permissions, capteurs...), il n'y a pas de substitut à un test sur device réel via `adb` — les tests PHPUnit ne couvrent que la génération des trigger JS côté PHP, jamais le code Kotlin lui-même.
+
+## Où va le code
+
+- `packages/ui/src/` — le widget SDK (`Text`, `Button`, `Column`...). Chaque widget est une classe finale, `render(): string`, un `make()` statique en façade du constructeur.
+- `packages/*/src/` — un package = un domaine (`device`, `payments`, `maps`, `socialauth`...), namespace dédié, déclaré dans `composer.json` (`autoload` **et** `autoload-dev`).
+- `android/app/src/main/java/com/mobile/engine/` — le pont natif. Toute méthode exposée à `window.AndroidNative` doit être annotée `@JavascriptInterface` **et** couverte par la règle `-keepclassmembers` de `proguard-rules.pro` (sinon R8 la supprime silencieusement en release).
+- `assets/js/` — un fichier par capacité (`device.js`, `canvas.js`...), chacun listé explicitement dans `public/index.php` pour être servi.
+- `docs/` — référence détaillée par sujet ; le `README.md` reste court, c'est la vitrine.
+
+## Conventions
+
+- Un widget/service = une classe, `final`, un constructeur avec des paramètres nommés + un `make()` statique équivalent.
+- Les "services" (`Engine\Device\*`, `Engine\SocialAuth\*`) ne rendent jamais de HTML : ils exposent des méthodes qui renvoient une chaîne JS (`onClick(): string`), attachable à *n'importe quel* bouton via `Button::make($label, onClick: Torch::onClick())` — jamais de widget pré-stylé imposé à l'utilisateur.
+- Toute sortie interpolée dans du HTML passe par `htmlspecialchars(..., ENT_QUOTES)`. Toute donnée interpolée dans un attribut `data-*` JSON passe par `json_encode` puis `htmlspecialchars`.
+- Un commentaire n'explique jamais *quoi* (le code le dit déjà) — seulement *pourquoi*, quand ce n'est pas évident (contrainte cachée, workaround, piège déjà rencontré).
+- Pas d'abstraction ajoutée par anticipation d'un besoin futur — trois lignes similaires valent mieux qu'une fausse généralisation.
+
+## Commits et PR
+
+Un commit = un changement atomique et cohérent (pas de mélange fix + feature). Message au format impératif court, dans le style de l'historique existant (`git log --oneline`). Toute PR touchant à l'Android natif doit préciser si elle a été vérifiée sur un device réel ou seulement compilée.
+
+## Licence
+
+En contribuant, tu acceptes que ton code soit distribué sous licence MIT (voir [LICENSE](LICENSE)).

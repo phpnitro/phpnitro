@@ -28,6 +28,15 @@ Installation sur téléphone : `adb install -r app-debug.apk`, ou transfère le 
 | Démarrage à chaud | ~232 ms |
 | Mémoire (PSS) | ~146 Mo |
 
+### App Links HTTPS réels (au lieu du schéma `phpnitro://`)
+
+`AndroidManifest.xml` déclare déjà un `<intent-filter android:autoVerify="true">` pour `https://app.example.com` — remplace `app.example.com` par ton vrai domaine, puis :
+1. Copie `docs/assetlinks.json.example` vers `https://ton-domaine/.well-known/assetlinks.json` (hébergé, en HTTPS).
+2. Remplace `REPLACE_WITH_YOUR_RELEASE_KEYSTORE_SHA256_FINGERPRINT` par l'empreinte réelle : `keytool -list -v -keystore android/app/release.keystore -alias phpnitro` (champ SHA256).
+3. Réinstalle l'app — Android vérifie le fichier au moment de l'installation, pas à chaque lancement.
+
+Tant que ce fichier n'est pas hébergé avec la bonne empreinte, ce lien ne sera jamais un vrai App Link cliquable — le schéma `phpnitro://` reste le seul qui fonctionne.
+
 ### Erreurs en développement
 
 `APP_DEBUG` (dans `.env`) est copié tel quel dans le bundle Android — mets-le à `true` pendant que tu développes pour voir la classe/message/fichier/trace complète de toute erreur directement dans l'app, pas juste "Erreur interne". Repasse-le à `false` avant une vraie release.

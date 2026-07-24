@@ -83,10 +83,12 @@ Ouvre `http://127.0.0.1:8090/`. C'est tout — pas de build step, pas de simulat
 | [CLI (`phpx`)](docs/cli.md) | Toutes les commandes, `phpnitro.yml`, packaging `.phar` |
 | [Builds mobiles](docs/mobile-builds.md) | APK Android (PHP embarqué), état iOS |
 | [Architecture interne](docs/architecture.md) | Rendu, navigation SPA, backend, base de données |
+| [Changelog](CHANGELOG.md) | Historique des changements notables |
+| [Contribuer](CONTRIBUTING.md) | Installation, conventions, structure du code |
 
 ## État du projet
 
-Honnêtement : **le runtime Android fonctionne réellement, vérifié sur device physique** (biométrie, navigation complète, animations, partage natif, deep linking) — ce n'est pas un prototype qui ne marche qu'en démo. Les paiements, eux, ne sont vérifiés qu'en mode démo : 5 des 7 gateways n'ont jamais tourné contre un vrai compte sandbox (voir [docs/payments.md](docs/payments.md)). iOS a un pont natif complet mais non compilé (pas de Mac disponible pendant son développement). Aucune obfuscation du code, aucun écosystème de packages tiers, aucune release signée pour l'instant.
+Honnêtement : **le runtime Android fonctionne réellement, vérifié sur device physique** (biométrie, navigation complète, animations, partage natif, deep linking) — ce n'est pas un prototype qui ne marche qu'en démo. Les paiements, eux, ne sont vérifiés qu'en mode démo : 5 des 7 gateways n'ont jamais tourné contre un vrai compte sandbox (voir [docs/payments.md](docs/payments.md)). iOS a un pont natif complet mais non compilé (pas de Mac disponible pendant son développement). Aucune obfuscation du code, aucun écosystème de packages tiers. Le signing de release (keystore, R8/ProGuard) et le build one-command (`phpx build:android`) sont câblés mais pas encore vérifiés par un vrai build signé de bout en bout.
 
 Le détail complet, sans enjoliver, de ce qui est vérifié vs supposé, et de ce qu'il reste pour rivaliser avec Flutter/React Native, est dans **[ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md](ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md)**.
 
