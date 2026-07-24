@@ -67,6 +67,14 @@
 
     const content = document.getElementById('phpx-content');
     if (content) {
+      // Fired with the OLD DOM still in place, one tick before it's
+      // destroyed — AnimatedContainer/Hero use this to snapshot current
+      // style/position (FLIP technique: capture First, swap happens, then
+      // Last/Invert/Play against the freshly-inserted replacement element).
+      // Without this, a full innerHTML replacement gives the browser
+      // nothing to transition FROM — the new node just appears already in
+      // its final state.
+      document.dispatchEvent(new CustomEvent('phpx:beforeSwap', { detail: { root: content } }));
       content.innerHTML = html;
       executeScripts(content);
     } else {

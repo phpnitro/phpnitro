@@ -4,10 +4,12 @@ namespace Engine\Tests;
 
 use Engine\Align;
 use Engine\Alignment;
+use Engine\AnimatedContainer;
 use Engine\AppBar;
 use Engine\AudioPlayer;
 use Engine\Center;
 use Engine\CircularProgress;
+use Engine\Color;
 use Engine\DatePicker;
 use Engine\Divider;
 use Engine\Dropdown;
@@ -16,6 +18,7 @@ use Engine\FlashMessage;
 use Engine\FutureBuilder;
 use Engine\GestureDetector;
 use Engine\GoogleTranslate;
+use Engine\Hero;
 use Engine\Image;
 use Engine\Link;
 use Engine\LinkWrap;
@@ -23,6 +26,7 @@ use Engine\LocationButton;
 use Engine\Margin;
 use Engine\Padding;
 use Engine\PageView;
+use Engine\Rounded;
 use Engine\SingleScrollView;
 use Engine\StreamBuilder;
 use Engine\Table;
@@ -347,5 +351,55 @@ final class MoreWidgetsTest extends TestCase
         $this->assertStringNotContainsString('data-on-pinch', $html);
         $this->assertStringNotContainsString('data-on-rotate', $html);
         $this->assertStringNotContainsString('data-on-dblclick', $html);
+    }
+
+    public function testAnimatedContainerRendersKeyDurationAndCurve(): void
+    {
+        $html = AnimatedContainer::make(Text::make('box'), key: 'card-1', durationMs: 250, curve: 'ease-out')->render();
+
+        $this->assertStringContainsString('data-animated-container="card-1"', $html);
+        $this->assertStringContainsString('data-duration="250"', $html);
+        $this->assertStringContainsString('data-curve="ease-out"', $html);
+        $this->assertStringContainsString('>box<', $html);
+    }
+
+    public function testAnimatedContainerAddsBackgroundAndRoundedOnTopOfClasses(): void
+    {
+        $html = AnimatedContainer::make(
+            Text::make('box'),
+            key: 'card-1',
+            classes: 'h-24',
+            background: Color::of('emerald', 600),
+            rounded: Rounded::LG,
+        )->render();
+
+        $this->assertStringContainsString('h-24', $html);
+        $this->assertStringContainsString('bg-emerald-600', $html);
+        $this->assertStringContainsString('rounded-lg', $html);
+    }
+
+    public function testAnimatedContainerDefaultsToThreeHundredMsEaseInOut(): void
+    {
+        $html = AnimatedContainer::make(Text::make('box'), key: 'card-1')->render();
+
+        $this->assertStringContainsString('data-duration="300"', $html);
+        $this->assertStringContainsString('data-curve="ease-in-out"', $html);
+    }
+
+    public function testHeroRendersTagDurationAndCurve(): void
+    {
+        $html = Hero::make(Text::make('photo'), tag: 'product-42', durationMs: 500, curve: 'ease')->render();
+
+        $this->assertStringContainsString('data-hero="product-42"', $html);
+        $this->assertStringContainsString('data-duration="500"', $html);
+        $this->assertStringContainsString('data-curve="ease"', $html);
+        $this->assertStringContainsString('>photo<', $html);
+    }
+
+    public function testHeroEscapesTag(): void
+    {
+        $html = Hero::make(Text::make('photo'), tag: '"><script>alert(1)</script>')->render();
+
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $html);
     }
 }

@@ -233,6 +233,8 @@ PageRenderer::render($widgetTree, $path, $_ENV['APP_NAME'] ?? 'PHP Engine', [
     '/assets/js/vendor/lottie.min.js',
     '/assets/js/lottie-view.js',
     '/assets/js/canvas.js',
+    '/assets/js/animated-container.js',
+    '/assets/js/hero.js',
     '/assets/js/dialogs.js',
     '/assets/js/stream.js',
     '/assets/js/future.js',

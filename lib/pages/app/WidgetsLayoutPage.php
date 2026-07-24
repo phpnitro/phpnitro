@@ -4,6 +4,7 @@ namespace Engine\App;
 
 use Engine\Align;
 use Engine\Alignment;
+use Engine\AnimatedContainer;
 use Engine\Button;
 use Engine\Canvas;
 use Engine\Center;
@@ -13,6 +14,7 @@ use Engine\Container;
 use Engine\Curves;
 use Engine\Divider;
 use Engine\FadeIn;
+use Engine\Hero;
 use Engine\Link;
 use Engine\Margin;
 use Engine\Padding;
@@ -33,7 +35,12 @@ final class WidgetsLayoutPage extends Screen
 {
     protected function initialState(): array
     {
-        return [];
+        return ['boxExpanded' => false];
+    }
+
+    protected function onToggleBox(): void
+    {
+        $this->state['boxExpanded'] = !$this->state['boxExpanded'];
     }
 
     private function section(string $caption, Widget $example): Widget
@@ -117,6 +124,42 @@ final class WidgetsLayoutPage extends Screen
                         curve: Curves::OVERSHOOT,
                     ),
                 ], 'flex flex-row gap-3'),
+            ),
+
+            $this->section(
+                'AnimatedContainer — tween entre deux rendus serveur (FLIP, pas de diffing réel — voir docblock)',
+                Column::make([
+                    Button::make(
+                        'Agrandir / réduire',
+                        action: 'toggleBox',
+                        classes: 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-medium px-4 py-2 rounded-lg w-fit',
+                    ),
+                    AnimatedContainer::make(
+                        Text::make(''),
+                        key: 'demo-box',
+                        classes: ($this->state['boxExpanded'] ? 'h-32' : 'h-12') . ' w-full',
+                        background: $this->state['boxExpanded'] ? Color::of('purple', 600) : Color::blue(600),
+                        rounded: $this->state['boxExpanded'] ? Rounded::FULL : Rounded::LG,
+                        durationMs: 400,
+                    ),
+                ], 'flex flex-col gap-2'),
+            ),
+
+            $this->section(
+                'Hero — élément partagé qui "vole" de sa position/taille de départ vers l\'arrivée (FLIP sur getBoundingClientRect)',
+                Row::make(
+                    [
+                        Hero::make(
+                            Container::make(
+                                Text::make('★', 'text-white text-lg'),
+                                $this->state['boxExpanded'] ? 'w-20 h-20 flex items-center justify-center bg-amber-500' : 'w-10 h-10 flex items-center justify-center bg-amber-500',
+                                rounded: Rounded::FULL,
+                            ),
+                            tag: 'demo-hero',
+                        ),
+                    ],
+                    $this->state['boxExpanded'] ? 'flex justify-end' : 'flex justify-start',
+                ),
             ),
 
             $this->section(
