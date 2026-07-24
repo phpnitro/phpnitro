@@ -53,6 +53,7 @@ class PhpServer(private val context: Context) {
             .apply()
 
         val www = copyAssets()
+        val cacert = copyCacert()
         val nativeDir = context.applicationInfo.nativeLibraryDir
         val php = File(nativeDir, "libphp.so")
         val sessions = File(context.filesDir, "sessions").apply { mkdirs() }
@@ -65,6 +66,7 @@ class PhpServer(private val context: Context) {
             "-d", "session.save_path=${sessions.absolutePath}",
             "-d", "sys_temp_dir=${tmp.absolutePath}",
             "-d", "error_log=${File(context.filesDir, "php-error.log").absolutePath}",
+            "-d", "openssl.cafile=${cacert.absolutePath}",
             File(www, "public/router.php").absolutePath,
         )
             .redirectErrorStream(true)
@@ -92,6 +94,25 @@ class PhpServer(private val context: Context) {
         val target = File(context.filesDir, "www")
         target.deleteRecursively()
         copyAssetDir("www", target)
+
+        return target
+    }
+
+    /**
+     * The cross-compiled PHP binary has no system CA store to fall back on
+     * (Android keeps its trust store in a format OpenSSL can't read
+     * directly, unlike a normal Linux distro's /etc/ssl/certs) — without
+     * this, every outbound https:// call fails with "certificate verify
+     * failed" even though TLS itself negotiates fine. Mozilla's bundle
+     * (assets/cacert.pem, same one curl/most distros ship) is copied out of
+     * the read-only APK assets once per launch and pointed to via
+     * openssl.cafile above.
+     */
+    private fun copyCacert(): File {
+        val target = File(context.filesDir, "cacert.pem")
+        context.assets.open("cacert.pem").use { input ->
+            target.outputStream().use { output -> input.copyTo(output) }
+        }
 
         return target
     }

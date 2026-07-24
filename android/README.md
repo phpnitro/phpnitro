@@ -11,15 +11,19 @@
 
 ## Compiler les binaires PHP (déjà fait, généré dans `jniLibs/` — gitignored, gros fichiers)
 
-Les binaires PHP ne sont **pas commités** (trop volumineux, ~14 Mo chacun). Pour les régénérer :
+Les binaires PHP ne sont **pas commités** (trop volumineux, ~17 Mo chacun une fois OpenSSL statiquement lié). `android/php-ndk-patch/` contient un `Dockerfile` (+ `Makefile` + patches) **modifié par rapport à l'upstream** (`v3l0c1r4pt0r/php-ndk`) : la version d'origine ne compile ni `openssl` ni `curl`, ce qui rendait **tout appel HTTPS sortant impossible** depuis le PHP embarqué sur device (confirmé en conditions réelles : Feexpay échouait avec "Undefined constant CURLOPT_POST" faute de `curl`, et même en le contournant via `file_get_contents`, `https://` n'était pas un wrapper enregistré faute d'`openssl`). Notre version ajoute OpenSSL 3.0.15 cross-compilé statiquement (`no-shared`, cible officielle `android-arm`/`android-arm64`) et le câble via `--with-openssl` — voir le commentaire en tête du `Dockerfile` pour le détail.
 
 ```bash
 git clone https://github.com/v3l0c1r4pt0r/php-ndk.git /tmp/php-ndk
+cp android/php-ndk-patch/* /tmp/php-ndk/   # remplace Dockerfile/Makefile par notre version avec openssl
 cd /tmp/php-ndk
-make install DESTDIR=/tmp/php-ndk-output   # nécessite Docker, télécharge le NDK (~1 Go) + compile PHP
+make armv7a && make install-armv7a DESTDIR=/tmp/php-ndk-output   # nécessite Docker, télécharge le NDK (~1 Go) + compile OpenSSL + PHP
+make aarch64 && make install-aarch64 DESTDIR=/tmp/php-ndk-output
 ```
 
-Puis copier et renommer (`php.so` → `libphp.so`, pour rester sur la convention `lib*.so`) dans `android/app/src/main/jniLibs/<abi>/`, avec `libsqlite3.so` à côté. Un strip (`llvm-strip`, fourni par le NDK) réduit la taille de moitié sans rien casser.
+Puis copier et renommer (`php.so` → `libphp.so`, pour rester sur la convention `lib*.so`) dans `android/app/src/main/jniLibs/<abi>/` (et le même chemin sous `examples/ecom/android/`), avec `libsqlite3.so` à côté. Un strip (`llvm-strip`, fourni par le NDK) réduit la taille d'environ moitié sans rien casser.
+
+**cacert.pem, indispensable en plus du binaire** : OpenSSL cross-compilé n'a aucun magasin de certificats racine à sa disposition (Android garde le sien dans un format qu'OpenSSL ne sait pas lire directement) — sans ça, toute requête HTTPS échoue quand même avec `certificate verify failed`, TLS négocié ou pas. `android/app/src/main/assets/cacert.pem` (le bundle Mozilla, celui que curl/la plupart des distros embarquent aussi) est copié une fois par lancement vers le stockage de l'app par `PhpServer.kt`, et pointé via `-d openssl.cafile=...` au démarrage du process PHP.
 
 ## Build & install
 
@@ -36,6 +40,8 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 - **Crash immédiat au lancement (`IllegalStateException: You need to use a Theme.AppCompat theme`)** : `MainActivity` étend `AppCompatActivity` mais l'app n'avait pas de thème `Theme.AppCompat` déclaré. Fix : `android:theme="@style/Theme.AppCompat.DayNight.NoActionBar"` sur `<application>` dans `AndroidManifest.xml`.
 - **`== MALI DEBUG === BAD ALLOC` dans logcat** : warnings du driver GPU Mali lors du rendu WebView, observés mais sans impact (l'app fonctionne normalement) — à surveiller si des soucis d'affichage apparaissent sur d'autres devices.
 - Ne jamais lancer un émulateur Android accéléré (KVM) en parallèle de builds Docker lourds sur une machine qui peut elle-même être une VM — a provoqué un crash complet de la machine de dev pendant ce projet. Préférer un test direct sur device réel via `adb install` quand c'est possible.
+- **Aucun appel HTTPS sortant ne fonctionnait depuis le PHP embarqué** (trouvé en testant Feexpay en conditions réelles, `SANDBOX=false`, une vraie clé de prod) : le binaire `php-ndk` upstream n'a ni `curl` ni `openssl` — confirmé directement sur device (`php -m`, `stream_get_wrappers()`). Ça cassait silencieusement Feexpay (SDK vendeur basé sur `curl_*`, échec immédiat avec "Undefined constant CURLOPT_POST", avalé par son propre `try/catch`) mais aussi, plus largement, tout `file_get_contents('https://...')` du reste du framework (Stripe, OAuth, Firebase) — jamais vérifié sur device avant. Fixé en cross-compilant OpenSSL statiquement dans le binaire (voir section ci-dessus) + `cacert.pem` embarqué. **Vérifié pour de vrai** : appel réel contre `api-v2.feexpay.me` depuis le binaire tournant sur l'Infinix X6532, `HTTP/1.1 200 OK`.
+- **Feexpay rejette un `amount` non entier** ("Validation failed" / "amount must be an integer number") — trouvé seulement en envoyant un vrai `POST` une fois HTTPS réparé. `Engine\Payments\Feexpay` arrondit maintenant explicitement avant l'envoi (`(int) round($amount)`), le paramètre public reste `float` pour rester cohérent avec les autres gateways du package.
 
 ## Permissions et capacités device
 

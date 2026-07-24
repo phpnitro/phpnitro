@@ -78,7 +78,7 @@ final class Feexpay
     ): string|false {
         $data = self::post(self::BASE_URL . '/transactions/requesttopay/integration', $apiKey, [
             'phoneNumber' => $phone,
-            'amount' => $amount,
+            'amount' => self::wholeAmount($amount),
             'reseau' => $network,
             'shop' => $shopId,
             'first_name' => $fullName,
@@ -89,6 +89,18 @@ final class Feexpay
         ]);
 
         return $data['reference'] ?? false;
+    }
+
+    /**
+     * Real finding from live testing: Feexpay's API rejects a non-integer
+     * `amount` outright ("Validation failed" / "amount must be an integer
+     * number") — it wants whole units (XOF has no subunit in practice
+     * anyway), not the float this class's public signature accepts for
+     * consistency with every other gateway in this package.
+     */
+    private static function wholeAmount(float $amount): int
+    {
+        return (int) round($amount);
     }
 
     /**
@@ -112,7 +124,7 @@ final class Feexpay
     ): array|false {
         $data = self::post(self::BASE_URL . '/transactions/requesttopay/integration', $apiKey, [
             'phoneNumber' => $phone,
-            'amount' => $amount,
+            'amount' => self::wholeAmount($amount),
             'reseau' => $network,
             'shop' => $shopId,
             'first_name' => $fullName,
