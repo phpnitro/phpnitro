@@ -5,6 +5,7 @@ namespace Engine\Payments\Tests;
 use Engine\Payments\Fedapay;
 use Engine\Payments\IziChangePay;
 use Engine\Payments\Kkiapay;
+use Engine\Payments\PaypalButton;
 use Engine\Payments\Stripe;
 use Engine\Payments\TresorPay;
 use PHPUnit\Framework\TestCase;
@@ -86,4 +87,25 @@ final class PaymentsTest extends TestCase
         $this->assertStringContainsString('window.__phpxStripe.stripe.confirmCardPayment', $js);
         $this->assertStringContainsString("submitForm(window.__phpxPaymentForm, 'confirmStripeCard'", $js);
     }
+
+    public function testPaypalButtonRendersSdkScriptWithClientIdAndCurrency(): void
+    {
+        $html = PaypalButton::make('client_123', 19.9, 'confirmPaypal', 'USD')->render();
+
+        $this->assertStringContainsString('client-id=client_123&currency=USD', $html);
+        $this->assertStringContainsString('value: "19.90", currency_code: \'USD\'', $html);
+    }
+
+    public function testPaypalButtonOnApprovePostsOrderIdToAction(): void
+    {
+        $html = PaypalButton::make('client_123', 10.0, 'confirmPaypal')->render();
+
+        $this->assertStringContainsString("submitForm(form, 'confirmPaypal', { paypal_order_id: data.orderID })", $html);
+    }
+
+    // StripeCheckout has no unit test here, same reasoning as Feexpay above:
+    // every public method makes a real HTTP call to api.stripe.com, nothing
+    // left to assert without hitting the network or mocking file_get_contents
+    // itself — neither fits this suite. Never exercised against a real
+    // Stripe account in this environment (no sandbox credentials available).
 }
