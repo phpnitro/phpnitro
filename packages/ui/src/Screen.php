@@ -31,6 +31,17 @@ abstract class Screen
     abstract public function build(): Widget;
 
     /**
+     * Read-only view of this screen's current state — used by
+     * PageRenderer's DevTools panel to show live state instead of just
+     * route/timing. Not for app logic (that's what $this->state is for
+     * inside the screen itself).
+     */
+    public function state(): array
+    {
+        return $this->state;
+    }
+
+    /**
      * Whether the persistent bottom nav (rendered once by PageRenderer,
      * see index.php) should be visible on this screen — override to
      * false for screens like login/checkout that don't want it at all.

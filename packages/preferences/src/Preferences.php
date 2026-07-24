@@ -86,6 +86,25 @@ final class Preferences
         Database::connection()->executeStatement('DELETE FROM preferences');
     }
 
+    /**
+     * @return array<string, mixed> every stored key, decoded — used by
+     * PageRenderer's DevTools panel to show current preference state, not
+     * meant for hot paths (one query, whole table).
+     */
+    public static function all(): array
+    {
+        self::ensureSchema();
+
+        $rows = Database::connection()->fetchAllAssociative('SELECT pref_key, pref_value FROM preferences');
+
+        $result = [];
+        foreach ($rows as $row) {
+            $result[$row['pref_key']] = json_decode((string) $row['pref_value'], true);
+        }
+
+        return $result;
+    }
+
     private static function ensureSchema(): void
     {
         if (self::$schemaEnsured) {

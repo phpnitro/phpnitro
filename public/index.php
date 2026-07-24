@@ -19,12 +19,49 @@ use Engine\App\WidgetsMapsPage;
 use Engine\App\WidgetsMediaPage;
 use Engine\App\WidgetsStepperPage;
 use Engine\BottomNavigation;
+use Engine\Center;
+use Engine\Column;
+use Engine\Container;
 use Engine\Csrf;
 use Engine\Database\Database;
+use Engine\Html;
+use Engine\Icon;
+use Engine\Link;
 use Engine\Navigation;
 use Engine\PageRenderer;
 use Engine\Router;
+use Engine\Text;
 use Symfony\Component\Dotenv\Dotenv;
+
+/**
+ * Shared by both 404 sites below (initial route resolution, and a partial
+ * action's redirect target resolving to nothing) — replaces a bare,
+ * unstyled `<h1>` with a properly centered page matching the rest of the
+ * app's look. Also fixes a real bug: the partial-mode call site used to
+ * echo raw HTML while nav.js's request() always does `await
+ * response.json()` on that path — a 404 after a redirect would throw a
+ * JSON parse error client-side instead of showing anything. Routing
+ * through PageRenderer::render() means it now respects
+ * Navigation::isPartial() like every other response.
+ */
+function renderNotFound(bool $debug): never
+{
+    $body = Container::make(
+        Center::make(Container::make(
+            Column::make([
+                Html::raw(Icon::warning('w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto')),
+                Text::make('404', 'text-5xl font-bold text-gray-900 dark:text-gray-100 text-center'),
+                Text::make('Cette page n\'existe pas.', 'text-gray-500 dark:text-gray-400 text-center'),
+                Link::make("Retour à l'accueil", '/'),
+            ], 'flex flex-col items-center gap-3'),
+            'p-8',
+        )),
+        'min-h-screen',
+    );
+
+    http_response_code(404);
+    PageRenderer::render($body, '/404', $_ENV['APP_NAME'] ?? 'PHP Engine', [], $debug, showBottomNav: false);
+}
 
 // ".env" in dev; "env" (no dot) in the Android bundle, because AAPT drops
 // hidden files from APK assets. One level up either way: public -> project
@@ -137,9 +174,7 @@ $router = new Router([
 try {
     $resolved = $router->resolve($path);
 } catch (\RuntimeException $e) {
-    http_response_code(404);
-    echo '<h1>404 — page introuvable</h1>';
-    exit;
+    renderNotFound($debug);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -180,9 +215,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $resolved = $router->resolve($path);
         } catch (\RuntimeException $e) {
-            http_response_code(404);
-            echo '<h1>404 — page introuvable</h1>';
-            exit;
+            renderNotFound($debug);
         }
     }
 }
@@ -199,8 +232,9 @@ PageRenderer::render($widgetTree, $path, $_ENV['APP_NAME'] ?? 'PHP Engine', [
     '/assets/js/infinite-scroll.js',
     '/assets/js/vendor/lottie.min.js',
     '/assets/js/lottie-view.js',
+    '/assets/js/canvas.js',
     '/assets/js/dialogs.js',
     '/assets/js/stream.js',
     '/assets/js/future.js',
     '/assets/js/nav.js',
-], $debug, BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS), $screen->showsBottomNav());
+], $debug, BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS), $screen->showsBottomNav(), $screen);

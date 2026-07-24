@@ -77,6 +77,19 @@
     }
     updatePersistentNav(payload);
 
+    // DevTools' data used to be embedded once at full-page-load time and
+    // never refreshed on a partial swap — every route/theme/state change
+    // after that first load silently went stale. PageRenderer now sends
+    // the same payload under "devtools" on every partial response too;
+    // forwarding it here (before the phpx:navigated event below, which
+    // devtools.js listens for to re-render) is what makes it live.
+    if (payload.devtools) {
+      const devtoolsRoot = document.getElementById('phpx-devtools-root');
+      if (devtoolsRoot) {
+        devtoolsRoot.dataset.phpxDevtools = JSON.stringify(payload.devtools);
+      }
+    }
+
     if (isRealNavigation) {
       history.pushState({ phpxPartial: true }, '', payload.path);
     }

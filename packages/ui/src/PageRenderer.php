@@ -63,15 +63,27 @@ final class PageRenderer
         bool $debug,
         ?Widget $persistentNav = null,
         bool $showBottomNav = true,
+        ?Screen $screen = null,
     ): never {
+        $renderStartedAt = microtime(true);
+
         if (Navigation::isPartial()) {
-            header('Content-Type: application/json');
-            echo json_encode([
-                'html' => $widgetTree->render(),
+            $html = $widgetTree->render();
+            $theme = $_SESSION['theme'] ?? 'light';
+
+            $payload = [
+                'html' => $html,
                 'path' => $path,
-                'theme' => $_SESSION['theme'] ?? 'light',
+                'theme' => $theme,
                 'showBottomNav' => $showBottomNav,
-            ]);
+            ];
+
+            if ($debug) {
+                $payload['devtools'] = self::devToolsData($path, $theme, $renderStartedAt, $screen);
+            }
+
+            header('Content-Type: application/json');
+            echo json_encode($payload);
             exit;
         }
 
@@ -85,6 +97,7 @@ final class PageRenderer
         ));
         $devReloadTag = $debug ? '<script src="/assets/js/dev-reload.js" defer></script>' : '';
         $body = $widgetTree->render();
+        $devToolsHtml = $debug ? self::devToolsPanel(self::devToolsData($path, $theme, $renderStartedAt, $screen)) : '';
         $navWrapperClass = $showBottomNav ? '' : 'hidden';
         $navHtml = $persistentNav !== null
             ? "<div id=\"phpx-bottom-nav-wrapper\" class=\"{$navWrapperClass}\">{$persistentNav->render()}</div>"
@@ -107,10 +120,49 @@ final class PageRenderer
             <body class="bg-gray-50 dark:bg-gray-900 dark:text-gray-100 min-h-screen">
                 <div id="phpx-content">{$body}</div>
                 {$navHtml}
+                {$devToolsHtml}
             </body>
 
             </html>
             HTML;
         exit;
+    }
+
+    /**
+     * Shared by both the full-page and partial (nav.js) response paths —
+     * a nav.js swap now carries this same payload under "devtools" so the
+     * panel updates on every route/theme change, not just a full reload.
+     * $screen->state() exposes the current screen's session state;
+     * Preferences::all() is included only when that optional package is
+     * actually installed (packages/ui has no hard dependency on it).
+     *
+     * @return array<string, mixed>
+     */
+    private static function devToolsData(string $path, string $theme, float $renderStartedAt, ?Screen $screen): array
+    {
+        $preferences = class_exists(\Engine\Preferences\Preferences::class)
+            ? \Engine\Preferences\Preferences::all()
+            : null;
+
+        return [
+            'path' => $path,
+            'theme' => $theme,
+            'renderMs' => round((microtime(true) - $renderStartedAt) * 1000, 2),
+            'memoryKb' => round(memory_get_peak_usage(true) / 1024),
+            'phpVersion' => PHP_VERSION,
+            'state' => $screen?->state() ?? [],
+            'preferences' => $preferences,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private static function devToolsPanel(array $data): string
+    {
+        $encoded = htmlspecialchars(json_encode($data, JSON_THROW_ON_ERROR), ENT_QUOTES);
+
+        return "<div id=\"phpx-devtools-root\" data-phpx-devtools=\"{$encoded}\"></div>"
+            . '<script src="/assets/js/devtools.js" defer></script>';
     }
 }
