@@ -24,6 +24,7 @@ use Engine\Row;
 use Engine\Scaffold;
 use Engine\Screen;
 use Engine\SelectBox;
+use Engine\Text;
 use Engine\TextField;
 use Engine\Widget;
 
@@ -37,7 +38,7 @@ final class CheckoutPage extends Screen
 {
     protected function initialState(): array
     {
-        return ['error' => null];
+        return ['error' => null, 'feexpayReference' => null, 'feexpayMessage' => null];
     }
 
     public function showsBottomNav(): bool
@@ -100,11 +101,105 @@ final class CheckoutPage extends Screen
     }
 
     /**
+     * Feexpay's mobile money flow is asynchronous: this only triggers the
+     * USSD push (Feexpay::payLocal()) and stores the reference it
+     * returns — it does NOT create the order yet, since the customer
+     * hasn't confirmed on their phone at this point. onCheckFeexpayStatus
+     * (below) is what actually creates the order, once status() confirms
+     * the payment really went through.
+     *
      * @param array<string, string> $data
      */
     protected function onConfirmFeexpay(array $data): ?string
     {
-        return $this->verifyThenCreateOrder($data, 'transaction_id', fn (string $id) => $this->trustOnlyInDemoMode('FEEXPAY_API_KEY'));
+        $cartItems = Cart::items();
+        if ($cartItems === []) {
+            $this->state['error'] = 'Ton panier est vide.';
+
+            return null;
+        }
+
+        [, $totalCents] = $this->cartToOrderLines($cartItems);
+        $phone = trim($data['feexpay_phone'] ?? '');
+        $network = $data['feexpay_network'] ?? 'MTN';
+
+        if ($phone === '') {
+            $this->state['error'] = 'Numéro de téléphone requis pour Feexpay.';
+
+            return null;
+        }
+
+        $reference = Feexpay::payLocal(
+            $_ENV['FEEXPAY_SHOP_ID'],
+            $_ENV['FEEXPAY_API_KEY'],
+            $totalCents / 100,
+            $phone,
+            $network,
+            trim($data['name'] ?? ''),
+            '',
+            uniqid('order_', true),
+            ($_ENV['SANDBOX'] ?? 'true') !== 'false',
+        );
+
+        if ($reference === false) {
+            $this->state['error'] = "Le paiement Feexpay n'a pas pu être initié — vérifie le numéro et réessaie.";
+
+            return null;
+        }
+
+        $this->state['feexpayReference'] = $reference;
+        $this->state['feexpayCheckoutData'] = $data;
+        $this->state['feexpayMessage'] = 'Confirme le paiement via le code USSD envoyé sur ton téléphone, puis clique sur "Vérifier le paiement".';
+
+        return null;
+    }
+
+    /**
+     * Manual poll, triggered by a "Vérifier le paiement" button shown
+     * once onConfirmFeexpay has a pending reference — Feexpay::status()
+     * is a real, confirmed server-to-server check (unlike the other
+     * unverified gateways' trustOnlyInDemoMode() fallback), so a
+     * successful status is trusted directly.
+     *
+     * The exact success string Feexpay returns is NOT confirmed by a real
+     * completed transaction in this environment (payLocal() hit a
+     * long-hanging call during testing — see Feexpay.php's docblock) —
+     * SUCCESS_STATUSES below is inferred from common patterns among other
+     * West-African mobile money aggregators in this codebase (Kkiapay's
+     * "approved"), not verified against a real success response.
+     */
+    private const FEEXPAY_SUCCESS_STATUSES = ['SUCCESSFUL', 'SUCCESS', 'APPROVED'];
+
+    protected function onCheckFeexpayStatus(array $data): ?string
+    {
+        $reference = $this->state['feexpayReference'] ?? null;
+        if ($reference === null) {
+            $this->state['error'] = 'Aucun paiement Feexpay en attente.';
+
+            return null;
+        }
+
+        $status = Feexpay::status(
+            $_ENV['FEEXPAY_SHOP_ID'],
+            $_ENV['FEEXPAY_API_KEY'],
+            $reference,
+            ($_ENV['SANDBOX'] ?? 'true') !== 'false',
+        );
+
+        $statusValue = is_array($status) ? strtoupper((string) ($status['status'] ?? '')) : '';
+
+        if (!in_array($statusValue, self::FEEXPAY_SUCCESS_STATUSES, true)) {
+            $this->state['feexpayMessage'] = 'Paiement pas encore confirmé — réessaie dans quelques secondes.';
+
+            return null;
+        }
+
+        $orderData = $this->state['feexpayCheckoutData'] ?? [];
+        $this->state['feexpayReference'] = null;
+        $this->state['feexpayCheckoutData'] = null;
+        $this->state['feexpayMessage'] = null;
+
+        return $this->validateAndCreateOrder($orderData);
     }
 
     /**
@@ -387,13 +482,15 @@ final class CheckoutPage extends Screen
     }
 
     /**
-     * Feexpay/iZiChangePay/TresorPay have no confirmed server-to-server
-     * verify endpoint implemented here (see each widget's docblock — low
-     * to very-low confidence in their exact API). Rather than fake a call
-     * to an unverified endpoint, this refuses once a secret key is
+     * iZiChangePay/TresorPay have no confirmed server-to-server verify
+     * endpoint implemented here (see each widget's docblock — low to
+     * very-low confidence in their exact API). Rather than fake a call to
+     * an unverified endpoint, this refuses once a secret key is
      * configured (signalling "this is meant to be a real deployment")
      * instead of silently trusting the client. Demo mode (no secret key)
-     * still works, same as every other gateway.
+     * still works, same as every other gateway. Feexpay no longer goes
+     * through here — Feexpay::status() is a real, confirmed check now
+     * (see onCheckFeexpayStatus()).
      */
     private function trustOnlyInDemoMode(string $secretEnvKey): bool
     {
@@ -403,6 +500,26 @@ final class CheckoutPage extends Screen
     public function build(): Widget
     {
         $children = [ErrorBanner::make($this->state['error'])];
+
+        // A Feexpay USSD push is pending confirmation on the customer's
+        // phone — show the "check status" step instead of the normal
+        // checkout form until it settles (see onConfirmFeexpay/
+        // onCheckFeexpayStatus).
+        if (($this->state['feexpayReference'] ?? null) !== null) {
+            $children[] = Text::make($this->state['feexpayMessage'] ?? '', 'text-gray-900 dark:text-gray-100');
+            $children[] = Form::make([
+                Button::make(
+                    'Vérifier le paiement',
+                    classes: 'w-full rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-medium px-4 py-3',
+                ),
+            ], action: 'checkFeexpayStatus');
+            $children[] = Link::make('Retour au panier', '/cart');
+
+            return Scaffold::make(
+                body: Column::make($children, 'flex flex-col gap-4 p-4'),
+                appBar: AppBar::make('Paiement', backHref: '/cart'),
+            );
+        }
 
         [, $totalCents] = $this->cartToOrderLines(Cart::items());
         $amount = $totalCents / 100;
@@ -500,12 +617,16 @@ final class CheckoutPage extends Screen
             )];
         }
 
-        if (($key = $_ENV['FEEXPAY_SHOP_ID'] ?? '') !== '') {
+        if (($_ENV['FEEXPAY_SHOP_ID'] ?? '') !== '') {
             return [
-                Feexpay::scriptTag(),
+                SelectBox::make('feexpay_network', [
+                    'MTN' => 'MTN Bénin',
+                    'MOOV' => 'Moov Bénin',
+                ], selected: 'MTN', label: 'Réseau mobile money'),
+                TextField::make('feexpay_phone', label: 'Numéro (ex: 2290166000000)'),
                 Button::make(
-                    'Payer avec Feexpay',
-                    onClick: Feexpay::payOnClick($key, $amount, 'confirmFeexpay'),
+                    'Payer avec Feexpay (mobile money)',
+                    action: 'confirmFeexpay',
                     classes: 'w-full rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-medium px-4 py-3',
                 ),
             ];

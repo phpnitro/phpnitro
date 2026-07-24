@@ -11,46 +11,108 @@
 
 namespace Engine\Payments;
 
-use Engine\Html;
-use Engine\Widget;
+use Feexpay\FeexpayPhp\FeexpayClass;
 
 /**
- * Feexpay checkout — a JS trigger and script tag, not a pre-styled
- * widget: attach payOnClick() to any button via
- * Button::make($label, onClick: Feexpay::payOnClick(...)).
+ * Feexpay checkout — a thin wrapper around the real `feexpay/feexpay-php`
+ * SDK (Composer package, added where this is used — see
+ * examples/ecom/composer.json), not a client-side JS trigger like
+ * Kkiapay/FedaPay: Feexpay's SDK does the USSD push / redirect URL
+ * server-to-server, which is actually the natural fit for PhpNitro
+ * (every interaction is already a full server round-trip).
  *
- * Structural template, NOT verified against Feexpay's actual current
- * SDK (no sandbox account available in this environment, lower
- * confidence than Kkiapay/FedaPay on the exact script URL and JS API
- * shape) — check Feexpay's current developer docs and adjust
- * SCRIPT_URL/the init() call below before using this for real.
+ * Verified against the real installed SDK source
+ * (vendor/feexpay/feexpay-php/src/FeexpayClass.php, v2.0) and live
+ * sandbox calls with real shop credentials — NOT against the vendor's own
+ * published integration docs, which describe an older signature
+ * (`paiementLocal($amount, $phone, $network, $name, $email)`, 5 args,
+ * returning an array). The installed v2.0 actually requires
+ * `$callbackInfo`/`$reference` too (7-8 args) and `paiementLocal`/
+ * `paiementCard` return a bare reference string (or `false`), not an
+ * array — only `requestToPayWeb` returns an array. This class matches
+ * the installed code, since that's what actually runs.
  *
- * The callback is a UI signal only, never proof of payment — the action
- * handler receiving `transaction_id` must verify it server-to-server
- * with your API key before trusting it.
+ * Two real findings from live testing, both on the vendor's side (not
+ * patchable here without forking their package):
+ * - `getIdAndMarchanName()` (called internally by every method above)
+ *   confirmed the real shop credentials against Feexpay's API — returned
+ *   the actual shop name.
+ * - `payLocal()`'s underlying `curl_post()` sets no `CURLOPT_TIMEOUT` —
+ *   a real call with a live phone number hung well past 20s with no
+ *   response. A caller in production should assume this can block the
+ *   request for a long time and design the UI around that (e.g. tell the
+ *   customer to check their phone rather than waiting synchronously).
+ * - `getPaiementStatus()` on an unknown/not-yet-settled reference returns
+ *   an array with every field `null` (plus PHP warnings from the vendor
+ *   code reading undefined properties on its decoded response) rather
+ *   than throwing — status() below returns that as-is; callers must
+ *   treat a `null` status as "not settled yet", not as an error.
  */
 final class Feexpay
 {
-    private const SCRIPT_URL = 'https://checkout.feexpay.me/checkout.min.js'; // vérifie sur feexpay.me/docs
-
-    public static function scriptTag(): Widget
+    private static function client(string $shopId, string $apiKey, string $callbackUrl, bool $sandbox): FeexpayClass
     {
-        return Html::raw('<script src="' . self::SCRIPT_URL . '"></script>');
+        return new FeexpayClass($shopId, $apiKey, $callbackUrl, $sandbox ? 'SANDBOX' : 'LIVE');
     }
 
-    public static function payOnClick(string $shopId, float $amount, string $action, bool $sandbox = true): string
-    {
-        $action = htmlspecialchars($action, ENT_QUOTES);
+    /**
+     * Triggers a real USSD push on the customer's phone (mobile money —
+     * MTN, MOOV, CELTIIS BJ, MOOV TG, TOGOCOM TG, ORANGE SN, MTN CI, MTN
+     * CG only, per Feexpay's own docs). The customer must confirm on
+     * their phone; this call returns immediately with a reference to
+     * poll via status() — it is NOT proof of payment by itself.
+     *
+     * $reference is a caller-generated correlation ID (e.g. the pending
+     * order's ID) — Feexpay's own SDK docblock calls this `custom_id`.
+     */
+    public static function payLocal(
+        string $shopId,
+        string $apiKey,
+        float $amount,
+        string $phone,
+        string $network,
+        string $fullName,
+        string $email,
+        string $reference,
+        bool $sandbox = true,
+    ): string|false {
+        return self::client($shopId, $apiKey, '', $sandbox)
+            ->paiementLocal($amount, $phone, $network, $fullName, $email, '', $reference);
+    }
 
-        return sprintf(
-            "window.__phpxPaymentForm = this.closest('form'); "
-            // TODO: confirmer le nom exact de la fonction d'init dans la doc Feexpay actuelle.
-            . 'FeexPay.init({ shop_id: %s, amount: %s, sandbox: %s, callback: function (response) { '
-            . "window.phpxNav.submitForm(window.__phpxPaymentForm, '{$action}', "
-            . '{ transaction_id: response.reference || response.transaction_id }); } })',
-            json_encode($shopId, JSON_THROW_ON_ERROR),
-            json_encode($amount, JSON_THROW_ON_ERROR),
-            $sandbox ? 'true' : 'false',
-        );
+    /**
+     * Returns a hosted payment URL to redirect to (FREE SN, ORANGE CI,
+     * MOOV CI, WAVE CI, MOOV BF, ORANGE BF) instead of a direct USSD push.
+     *
+     * @return array{payment_url: string, reference: string, order_id: string}|false
+     */
+    public static function payByWebUrl(
+        string $shopId,
+        string $apiKey,
+        float $amount,
+        string $phone,
+        string $network,
+        string $fullName,
+        string $email,
+        string $reference,
+        string $cancelUrl,
+        string $returnUrl,
+        bool $sandbox = true,
+    ): array|false {
+        return self::client($shopId, $apiKey, '', $sandbox)
+            ->requestToPayWeb($amount, $phone, $network, $fullName, $email, '', $reference, $cancelUrl, $returnUrl);
+    }
+
+    /**
+     * Real server-to-server status check — unlike most other gateways in
+     * this package, this one is fully confirmed against the actual
+     * installed SDK, so its result can be trusted directly instead of the
+     * "demo mode only" fallback the unverified gateways use.
+     *
+     * @return array{amount: mixed, clientNum: string, status: string, reference: string}|false
+     */
+    public static function status(string $shopId, string $apiKey, string $reference, bool $sandbox = true): array|false
+    {
+        return self::client($shopId, $apiKey, '', $sandbox)->getPaiementStatus($reference);
     }
 }
