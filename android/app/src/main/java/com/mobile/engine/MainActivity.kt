@@ -2,10 +2,15 @@ package com.mobile.engine
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.nfc.NfcAdapter
+import android.nfc.Tag
+import android.nfc.tech.Ndef
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -21,6 +26,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import org.json.JSONObject
 
 /**
  * Hosts the PHP-served UI in a native WebView, backed by PhpServer — a
@@ -40,16 +46,27 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
  */
 class MainActivity : AppCompatActivity() {
 
-    private val requestedPermissions = arrayOf(
-        Manifest.permission.CAMERA,
-        Manifest.permission.RECORD_AUDIO,
-        Manifest.permission.ACCESS_FINE_LOCATION,
-        Manifest.permission.POST_NOTIFICATIONS,
-    )
+    private val requestedPermissions = buildList {
+        add(Manifest.permission.CAMERA)
+        add(Manifest.permission.RECORD_AUDIO)
+        add(Manifest.permission.ACCESS_FINE_LOCATION)
+        add(Manifest.permission.POST_NOTIFICATIONS)
+        add(Manifest.permission.READ_CONTACTS)
+        add(Manifest.permission.READ_CALENDAR)
+        // BLUETOOTH_CONNECT/SCAN are new (API 31+) runtime permissions —
+        // requesting them pre-31 would just be an unknown-permission no-op
+        // on older platforms, but requestPermissions() rejects an array
+        // containing a permission string the running OS doesn't define.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            add(Manifest.permission.BLUETOOTH_CONNECT)
+            add(Manifest.permission.BLUETOOTH_SCAN)
+        }
+    }.toTypedArray()
 
     private lateinit var webAppInterface: WebAppInterface
     private lateinit var phpServer: PhpServer
     private lateinit var webView: WebView
+    private var nfcAdapter: NfcAdapter? = null
 
     @Volatile
     private var serverReady = false
@@ -96,6 +113,8 @@ class MainActivity : AppCompatActivity() {
         splashScreen.setKeepOnScreenCondition { !(serverReady && pageLoaded) }
 
         ActivityCompat.requestPermissions(this, requestedPermissions, 0)
+
+        nfcAdapter = NfcAdapter.getDefaultAdapter(this)
 
         webView = WebView(this)
         webAppInterface = WebAppInterface(this, webView) { takePicturePreview.launch(null) }
@@ -242,10 +261,89 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
 
+        if (handleNfcIntent(intent)) {
+            return
+        }
+
         val path = deepLinkPath(intent) ?: return
         if (serverReady) {
             webView.loadUrl("http://127.0.0.1:$port$path")
         }
+    }
+
+    /**
+     * Foreground dispatch (enabled only while the Activity is in front,
+     * see onResume/onPause) routes any tag scan through onNewIntent instead
+     * of launching a separate Activity — this only forwards it to JS when
+     * Engine\Device\Nfc's start/stop-listening flag is on, so an app that
+     * never asked for NFC never sees these intents do anything.
+     */
+    private fun handleNfcIntent(intent: Intent): Boolean {
+        if (!webAppInterface.isNfcListening()) {
+            return false
+        }
+
+        if (intent.action !in setOf(
+                NfcAdapter.ACTION_NDEF_DISCOVERED,
+                NfcAdapter.ACTION_TECH_DISCOVERED,
+                NfcAdapter.ACTION_TAG_DISCOVERED,
+            )
+        ) {
+            return false
+        }
+
+        @Suppress("DEPRECATION")
+        val tag: Tag? = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
+        val tagId = tag?.id?.joinToString("") { String.format("%02X", it) } ?: ""
+
+        // NDEF text records start with a status byte + language-code length
+        // header before the actual text — dropping the first
+        // (statusByte and 0x3F) + 1 bytes strips that header for the common
+        // case (UTF-8, short language code) without pulling in a full NDEF
+        // text-record parser for what is meant to be a basic read.
+        val text = try {
+            Ndef.get(tag)?.let { ndef ->
+                ndef.connect()
+                val payload = ndef.cachedNdefMessage?.records?.firstOrNull()?.payload
+                ndef.close()
+                payload?.let { bytes ->
+                    val languageCodeLength = bytes[0].toInt() and 0x3F
+                    String(bytes, 1 + languageCodeLength, bytes.size - 1 - languageCodeLength, Charsets.UTF_8)
+                } ?: ""
+            } ?: ""
+        } catch (e: Exception) {
+            ""
+        }
+
+        val json = JSONObject().apply {
+            put("id", tagId)
+            put("text", text)
+        }.toString()
+
+        webView.evaluateJavascript(
+            "window.onNativeNfcTag && window.onNativeNfcTag(${JSONObject.quote(json)})",
+            null,
+        )
+        return true
+    }
+
+    override fun onResume() {
+        super.onResume()
+        nfcAdapter?.let { adapter ->
+            val intent = Intent(this, javaClass).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            val pendingIntent = PendingIntent.getActivity(
+                this,
+                0,
+                intent,
+                PendingIntent.FLAG_MUTABLE,
+            )
+            adapter.enableForegroundDispatch(this, pendingIntent, null, null)
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        nfcAdapter?.disableForegroundDispatch(this)
     }
 
     /**

@@ -3,16 +3,24 @@ package com.mobile.engine
 import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.database.Cursor
 import android.graphics.Bitmap
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.net.Uri
+import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -21,6 +29,9 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.print.PrintAttributes
 import android.print.PrintManager
+import android.provider.CalendarContract
+import android.provider.ContactsContract
+import android.provider.Settings
 import android.util.Base64
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
@@ -32,6 +43,9 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -458,6 +472,397 @@ class WebAppInterface(
         val triggerAt = System.currentTimeMillis() + delaySeconds * 1000L
 
         alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+    }
+
+    // --- Sensors (accelerometer/gyroscope/compass) ---
+
+    private val sensorManager by lazy { context.getSystemService(Context.SENSOR_SERVICE) as SensorManager }
+    private val activeSensorListeners = mutableMapOf<Int, SensorEventListener>()
+
+    /**
+     * Streams live readings via window.onNativeSensorReading(type, x, y, z)
+     * until stopSensor() is called — one JS callback for all three sensor
+     * types (accelerometer/gyroscope/magnetic field for compass heading),
+     * $sensorType is the Android Sensor.TYPE_* constant so JS doesn't need
+     * its own copy of that mapping.
+     */
+    @JavascriptInterface
+    fun startSensor(sensorType: Int) {
+        val sensor = sensorManager.getDefaultSensor(sensorType) ?: return
+        stopSensor(sensorType)
+
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent) {
+                webView.post {
+                    webView.evaluateJavascript(
+                        "window.onNativeSensorReading && window.onNativeSensorReading(" +
+                            "$sensorType, ${event.values[0]}, ${event.values[1]}, ${event.values[2]})",
+                        null,
+                    )
+                }
+            }
+
+            override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {}
+        }
+        activeSensorListeners[sensorType] = listener
+        sensorManager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_UI)
+    }
+
+    @JavascriptInterface
+    fun stopSensor(sensorType: Int) {
+        activeSensorListeners.remove(sensorType)?.let { sensorManager.unregisterListener(it) }
+    }
+
+    // --- Torch, brightness, battery, device ID ---
+
+    private var torchOn = false
+
+    @JavascriptInterface
+    fun toggleTorch(): Boolean {
+        val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as android.hardware.camera2.CameraManager
+        val cameraId = cameraManager.cameraIdList.firstOrNull {
+            cameraManager.getCameraCharacteristics(it)
+                .get(android.hardware.camera2.CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+        } ?: return false
+
+        torchOn = !torchOn
+        cameraManager.setTorchMode(cameraId, torchOn)
+        return torchOn
+    }
+
+    /** 0.0–1.0, only affects THIS Activity's window, not the system-wide setting. */
+    @JavascriptInterface
+    fun setScreenBrightness(level: Float) {
+        val activity = context as? Activity ?: return
+        activity.runOnUiThread {
+            val params = activity.window.attributes
+            params.screenBrightness = level.coerceIn(0.01f, 1.0f)
+            activity.window.attributes = params
+        }
+    }
+
+    @JavascriptInterface
+    fun getBatteryLevel(): Int {
+        val batteryManager = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+        return batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+    }
+
+    /**
+     * Settings.Secure.ANDROID_ID, not the IMEI — resettable on factory
+     * reset, different per app signing key since Android 8, but doesn't
+     * require any dangerous permission or user-facing privacy prompt the
+     * way a hardware serial/IMEI would.
+     */
+    @JavascriptInterface
+    fun getDeviceId(): String {
+        return Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) ?: ""
+    }
+
+    // --- Bluetooth ---
+
+    /** "unsupported" | "off" | "on" — never triggers pairing/scanning UI on its own. */
+    @JavascriptInterface
+    fun getBluetoothState(): String {
+        val adapter = (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
+            ?: return "unsupported"
+        return if (adapter.isEnabled) "on" else "off"
+    }
+
+    /**
+     * Bonded (already-paired) devices only — a full BLE discovery scan
+     * needs a foreground service + location context beyond this bridge's
+     * scope for now (see ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md).
+     */
+    @JavascriptInterface
+    fun getBondedBluetoothDevices(): String {
+        if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.BLUETOOTH_CONNECT)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return "[]"
+        }
+        val adapter = (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
+            ?: return "[]"
+
+        val devices = JSONArray()
+        adapter.bondedDevices?.forEach { device ->
+            devices.put(JSONObject().apply {
+                put("name", device.name ?: "")
+                put("address", device.address)
+            })
+        }
+        return devices.toString()
+    }
+
+    // --- NFC (read-only NDEF tag scanning) ---
+    //
+    // Push-based, not poll-based: there's no "read now" call, only a
+    // listening flag MainActivity checks in onNewIntent() when a foreground
+    // NFC dispatch delivers a scanned tag. isNfcListening() is exposed to
+    // MainActivity (same class package, no @JavascriptInterface needed
+    // there) rather than duplicating the flag.
+    private var nfcListening = false
+
+    @JavascriptInterface
+    fun startNfc() {
+        nfcListening = true
+    }
+
+    @JavascriptInterface
+    fun stopNfc() {
+        nfcListening = false
+    }
+
+    fun isNfcListening(): Boolean = nfcListening
+
+    // --- In-app purchase (Google Play Billing, one-time products only) ---
+    //
+    // Never exercised against a real Play Console product — there's no
+    // sandbox reachable outside a real Play Console account. Written to
+    // compile and follow the documented Billing Library v7 flow, not
+    // verified end-to-end (see ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md).
+    private val billingClient by lazy {
+        com.android.billingclient.api.BillingClient.newBuilder(context)
+            .setListener { _, _ -> }
+            .enablePendingPurchases(
+                com.android.billingclient.api.PendingPurchasesParams.newBuilder()
+                    .enableOneTimeProducts()
+                    .build(),
+            )
+            .build()
+    }
+
+    @JavascriptInterface
+    fun queryProducts(productIdsJson: String, outputElementId: String) {
+        val ids = JSONArray(productIdsJson)
+        val productList = (0 until ids.length()).map { i ->
+            com.android.billingclient.api.QueryProductDetailsParams.Product.newBuilder()
+                .setProductId(ids.getString(i))
+                .setProductType(com.android.billingclient.api.BillingClient.ProductType.INAPP)
+                .build()
+        }
+        val params = com.android.billingclient.api.QueryProductDetailsParams.newBuilder()
+            .setProductList(productList)
+            .build()
+
+        billingClient.startConnection(object : com.android.billingclient.api.BillingClientStateListener {
+            override fun onBillingSetupFinished(result: com.android.billingclient.api.BillingResult) {
+                billingClient.queryProductDetailsAsync(params) { _, productDetailsList ->
+                    val summary = productDetailsList.joinToString(", ") { details ->
+                        "${details.title}: ${details.oneTimePurchaseOfferDetails?.formattedPrice ?: "?"}"
+                    }.ifEmpty { "Aucun produit trouvé." }
+
+                    webView.post {
+                        webView.evaluateJavascript(
+                            "(function(el){ if (el) el.textContent = ${JSONObject.quote(summary)}; })" +
+                                "(document.getElementById(${JSONObject.quote(outputElementId)}))",
+                            null,
+                        )
+                    }
+                }
+            }
+
+            override fun onBillingServiceDisconnected() {}
+        })
+    }
+
+    @JavascriptInterface
+    fun purchaseProduct(productId: String) {
+        val product = com.android.billingclient.api.QueryProductDetailsParams.Product.newBuilder()
+            .setProductId(productId)
+            .setProductType(com.android.billingclient.api.BillingClient.ProductType.INAPP)
+            .build()
+        val params = com.android.billingclient.api.QueryProductDetailsParams.newBuilder()
+            .setProductList(listOf(product))
+            .build()
+
+        billingClient.startConnection(object : com.android.billingclient.api.BillingClientStateListener {
+            override fun onBillingSetupFinished(result: com.android.billingclient.api.BillingResult) {
+                billingClient.queryProductDetailsAsync(params) { _, productDetailsList ->
+                    val details = productDetailsList.firstOrNull() ?: return@queryProductDetailsAsync
+                    val offerParams = com.android.billingclient.api.BillingFlowParams.ProductDetailsParams
+                        .newBuilder()
+                        .setProductDetails(details)
+                        .build()
+                    val flowParams = com.android.billingclient.api.BillingFlowParams.newBuilder()
+                        .setProductDetailsParamsList(listOf(offerParams))
+                        .build()
+                    (context as? Activity)?.let { activity ->
+                        billingClient.launchBillingFlow(activity, flowParams)
+                    }
+                }
+            }
+
+            override fun onBillingServiceDisconnected() {}
+        })
+    }
+
+    // --- Geofencing (real zone + enter/exit, Play Services GeofencingClient) ---
+    private val geofencingClient by lazy {
+        com.google.android.gms.location.LocationServices.getGeofencingClient(context)
+    }
+
+    private fun geofencePendingIntent(): android.app.PendingIntent {
+        val intent = Intent(context, GeofenceReceiver::class.java)
+        return android.app.PendingIntent.getBroadcast(
+            context,
+            0,
+            intent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_MUTABLE,
+        )
+    }
+
+    @JavascriptInterface
+    fun addGeofence(id: String, latitude: Double, longitude: Double, radiusMeters: Float) {
+        if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
+        val geofence = com.google.android.gms.location.Geofence.Builder()
+            .setRequestId(id)
+            .setCircularRegion(latitude, longitude, radiusMeters)
+            .setExpirationDuration(com.google.android.gms.location.Geofence.NEVER_EXPIRE)
+            .setTransitionTypes(
+                com.google.android.gms.location.Geofence.GEOFENCE_TRANSITION_ENTER or
+                    com.google.android.gms.location.Geofence.GEOFENCE_TRANSITION_EXIT,
+            )
+            .build()
+
+        val request = com.google.android.gms.location.GeofencingRequest.Builder()
+            .setInitialTrigger(com.google.android.gms.location.GeofencingRequest.INITIAL_TRIGGER_ENTER)
+            .addGeofence(geofence)
+            .build()
+
+        geofencingClient.addGeofences(request, geofencePendingIntent())
+    }
+
+    @JavascriptInterface
+    fun removeGeofence(id: String) {
+        geofencingClient.removeGeofences(listOf(id))
+    }
+
+    // --- Secure storage (Android Keystore-backed, for tokens that shouldn't sit in plain SQLite) ---
+
+    private val encryptedPrefs by lazy {
+        val masterKey = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
+        EncryptedSharedPreferences.create(
+            context,
+            "phpx_secure_storage",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
+    }
+
+    @JavascriptInterface
+    fun secureStore(key: String, value: String) {
+        encryptedPrefs.edit().putString(key, value).apply()
+    }
+
+    @JavascriptInterface
+    fun secureRetrieve(key: String): String {
+        return encryptedPrefs.getString(key, "") ?: ""
+    }
+
+    @JavascriptInterface
+    fun secureRemove(key: String) {
+        encryptedPrefs.edit().remove(key).apply()
+    }
+
+    // --- Contacts / calendar (read-only) ---
+
+    /** [{name, phone}], empty if permission not granted — no exception thrown into JS. */
+    @JavascriptInterface
+    fun getContacts(): String {
+        if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.READ_CONTACTS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return "[]"
+        }
+
+        val contacts = JSONArray()
+        val cursor: Cursor? = context.contentResolver.query(
+            ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+            arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER),
+            null,
+            null,
+            "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} ASC LIMIT 200",
+        )
+        cursor?.use {
+            val nameIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+            val numberIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+            while (it.moveToNext()) {
+                contacts.put(JSONObject().apply {
+                    put("name", it.getString(nameIdx) ?: "")
+                    put("phone", it.getString(numberIdx) ?: "")
+                })
+            }
+        }
+        return contacts.toString()
+    }
+
+    /** [{title, start, end}] for events in the next 30 days, empty if permission not granted. */
+    @JavascriptInterface
+    fun getUpcomingEvents(): String {
+        if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.READ_CALENDAR)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return "[]"
+        }
+
+        val events = JSONArray()
+        val now = System.currentTimeMillis()
+        val projection = arrayOf(
+            CalendarContract.Events.TITLE,
+            CalendarContract.Events.DTSTART,
+            CalendarContract.Events.DTEND,
+        )
+        val cursor: Cursor? = context.contentResolver.query(
+            CalendarContract.Events.CONTENT_URI,
+            projection,
+            "${CalendarContract.Events.DTSTART} BETWEEN ? AND ?",
+            arrayOf(now.toString(), (now + 30L * 24 * 60 * 60 * 1000).toString()),
+            "${CalendarContract.Events.DTSTART} ASC LIMIT 100",
+        )
+        cursor?.use {
+            while (it.moveToNext()) {
+                events.put(JSONObject().apply {
+                    put("title", it.getString(0) ?: "")
+                    put("start", it.getLong(1))
+                    put("end", it.getLong(2))
+                })
+            }
+        }
+        return events.toString()
+    }
+
+    // --- Background work ---
+
+    /**
+     * Periodic background task (WorkManager, min 15 minutes — an Android
+     * platform floor, not a choice made here) that POSTs to $endpoint every
+     * time it fires, even if the app isn't in the foreground. Not
+     * geofencing (that needs Play Services' FusedLocationProvider
+     * geofencing APIs, a separate dependency not pulled in here — see
+     * ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md) — a periodic ping, the other
+     * common "background execution" need.
+     */
+    @JavascriptInterface
+    fun scheduleBackgroundTask(endpoint: String, intervalMinutes: Int) {
+        val data = androidx.work.Data.Builder().putString("endpoint", endpoint).build()
+        val request = androidx.work.PeriodicWorkRequestBuilder<BackgroundPingWorker>(
+            intervalMinutes.coerceAtLeast(15).toLong(),
+            java.util.concurrent.TimeUnit.MINUTES,
+        ).setInputData(data).build()
+
+        androidx.work.WorkManager.getInstance(context)
+            .enqueueUniquePeriodicWork("phpx_background_ping", androidx.work.ExistingPeriodicWorkPolicy.KEEP, request)
+    }
+
+    @JavascriptInterface
+    fun cancelBackgroundTask() {
+        androidx.work.WorkManager.getInstance(context).cancelUniqueWork("phpx_background_ping")
     }
 
     @JavascriptInterface

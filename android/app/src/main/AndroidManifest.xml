@@ -10,8 +10,26 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.NFC" />
+    <!-- Billing (Engine\Device\InAppPurchase) requires this exact permission
+         string — Play Billing silently no-ops purchase flows without it. -->
+    <uses-permission android:name="com.android.vending.BILLING" />
+    <!-- Geofencing (Engine\Device\Geofence) needs fine location for the
+         geofence itself; background location is only required for
+         enter/exit transitions to fire while the app isn't in the
+         foreground — Play Store review requires a declared justification
+         for this permission, not added lightly. -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="false" />
+    <uses-feature android:name="android.hardware.sensor.gyroscope" android:required="false" />
+    <uses-feature android:name="android.hardware.sensor.compass" android:required="false" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+    <uses-feature android:name="android.hardware.nfc" android:required="false" />
 
     <application
         android:label="@string/app_name"
@@ -36,6 +54,31 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="phpnitro" />
             </intent-filter>
+
+            <!-- Real HTTPS App Link — android:autoVerify makes the OS check
+                 https://app.example.com/.well-known/assetlinks.json at
+                 install time before letting this filter claim the link
+                 (docs/assetlinks.json.example has the exact format/SHA-256
+                 fingerprint instructions). Replace "app.example.com" with a
+                 real domain you control and host that file there — this
+                 placeholder alone verifies against nothing. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="app.example.com" />
+            </intent-filter>
+
+            <!-- NFC foreground dispatch (MainActivity.onResume) intercepts
+                 tag scans before this filter ever matches while the app is
+                 in front; TECH_DISCOVERED + NDEF catches any NDEF-formatted
+                 tag without requiring a specific registered MIME type. -->
+            <intent-filter>
+                <action android:name="android.nfc.action.TECH_DISCOVERED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.nfc.action.TECH_DISCOVERED"
+                android:resource="@xml/nfc_tech_filter" />
         </activity>
 
         <!-- Dynamic app icon: the MAIN/LAUNCHER entry point moved here (off
@@ -73,5 +116,6 @@
         </activity-alias>
 
         <receiver android:name=".AlarmReceiver" android:exported="false" />
+        <receiver android:name=".GeofenceReceiver" android:exported="false" />
     </application>
 </manifest>

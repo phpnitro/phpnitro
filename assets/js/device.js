@@ -335,4 +335,226 @@ window.phpxDevice = {
     };
     input.click();
   },
+
+  // Sensor type constants mirror Android's Sensor.TYPE_* (1/4/2) so a
+  // single window.onNativeSensorReading callback works for all three
+  // without either side needing a name<->int translation table.
+  SENSOR_ACCELEROMETER: 1,
+  SENSOR_GYROSCOPE: 4,
+  SENSOR_MAGNETIC_FIELD: 2,
+
+  // No web fallback: browsers don't expose raw accelerometer/gyroscope/
+  // magnetometer streams the way DeviceMotionEvent approximates only the
+  // first, and inconsistently across browsers — native-only capability.
+  startSensor(sensorType, outputElementId) {
+    const el = document.getElementById(outputElementId);
+    const bridge = phpxNativeBridge();
+    if (!bridge || !bridge.startSensor) {
+      if (el) el.textContent = 'Capteur indisponible (aucun pont natif).';
+      return;
+    }
+    window.onNativeSensorReading = (type, x, y, z) => {
+      if (type === sensorType && el) {
+        el.textContent = `x=${x.toFixed(2)} y=${y.toFixed(2)} z=${z.toFixed(2)}`;
+      }
+    };
+    bridge.startSensor(sensorType);
+  },
+
+  stopSensor(sensorType) {
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.stopSensor) bridge.stopSensor(sensorType);
+  },
+
+  // NFC is push-based: startNfc() just arms native foreground dispatch,
+  // the actual tag arrives later via window.onNativeNfcTag whenever a scan
+  // happens (see MainActivity.kt's handleNfcIntent).
+  startNfc(outputElementId) {
+    const el = document.getElementById(outputElementId);
+    const bridge = phpxNativeBridge();
+    if (!bridge || !bridge.startNfc) {
+      if (el) el.textContent = 'NFC indisponible (aucun pont natif).';
+      return;
+    }
+    window.onNativeNfcTag = (json) => {
+      if (!el) return;
+      try {
+        const tag = JSON.parse(json);
+        el.textContent = `tag ${tag.id}${tag.text ? ': ' + tag.text : ''}`;
+      } catch (e) {
+        el.textContent = 'Tag lu (contenu illisible).';
+      }
+    };
+    if (el) el.textContent = 'En attente d\'un tag NFC...';
+    bridge.startNfc();
+  },
+
+  stopNfc() {
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.stopNfc) bridge.stopNfc();
+  },
+
+  // Play Billing round-trip: queryProducts() asks native to fetch details
+  // for a list of SKUs and writes a plain-text summary into outputElementId
+  // itself (native side, not this JS) since the query is async and this
+  // bridge has no promise-based call convention yet — see WebAppInterface.kt.
+  queryProducts(productIds, outputElementId) {
+    const bridge = phpxNativeBridge();
+    if (!bridge || !bridge.queryProducts) {
+      const el = document.getElementById(outputElementId);
+      if (el) el.textContent = 'Achats intégrés indisponibles (aucun pont natif).';
+      return;
+    }
+    bridge.queryProducts(JSON.stringify(productIds), outputElementId);
+  },
+
+  purchaseProduct(productId) {
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.purchaseProduct) bridge.purchaseProduct(productId);
+  },
+
+  addGeofence(id, latitude, longitude, radiusMeters) {
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.addGeofence) bridge.addGeofence(id, latitude, longitude, radiusMeters);
+  },
+
+  removeGeofence(id) {
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.removeGeofence) bridge.removeGeofence(id);
+  },
+
+  // Returns the new state (true = on) — no web fallback, browsers have no
+  // torch API outside a getUserMedia video track's ImageCapture, itself
+  // spotty support.
+  toggleTorch() {
+    const bridge = phpxNativeBridge();
+    return bridge && bridge.toggleTorch ? bridge.toggleTorch() : false;
+  },
+
+  setScreenBrightness(level) {
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.setScreenBrightness) bridge.setScreenBrightness(level);
+  },
+
+  getBatteryLevel() {
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.getBatteryLevel) return bridge.getBatteryLevel();
+    // Battery Status API is deprecated/removed from most browsers; no
+    // reliable web fallback left.
+    return null;
+  },
+
+  showBatteryLevel(outputElementId) {
+    const el = document.getElementById(outputElementId);
+    if (!el) return;
+    const level = this.getBatteryLevel();
+    el.textContent = level === null ? 'Batterie indisponible' : `${level}%`;
+  },
+
+  getDeviceId() {
+    const bridge = phpxNativeBridge();
+    return bridge && bridge.getDeviceId ? bridge.getDeviceId() : null;
+  },
+
+  showDeviceId(outputElementId) {
+    const el = document.getElementById(outputElementId);
+    if (el) el.textContent = this.getDeviceId() || 'Identifiant indisponible';
+  },
+
+  getBluetoothState() {
+    const bridge = phpxNativeBridge();
+    return bridge && bridge.getBluetoothState ? bridge.getBluetoothState() : 'unsupported';
+  },
+
+  getBondedBluetoothDevices() {
+    const bridge = phpxNativeBridge();
+    if (!bridge || !bridge.getBondedBluetoothDevices) return [];
+    try {
+      return JSON.parse(bridge.getBondedBluetoothDevices());
+    } catch {
+      return [];
+    }
+  },
+
+  showBluetoothInfo(outputElementId) {
+    const el = document.getElementById(outputElementId);
+    if (!el) return;
+    const state = this.getBluetoothState();
+    const devices = this.getBondedBluetoothDevices();
+    el.textContent = `${state} — ${devices.length} appareil(s) apparié(s)`;
+  },
+
+  // Android Keystore-backed encrypted storage (see WebAppInterface.kt's
+  // EncryptedSharedPreferences use) — for tokens that shouldn't sit in
+  // Engine\Preferences\'s plain SQLite table. No web fallback: there's no
+  // equivalent-strength encrypted store in a browser context, so this is
+  // silently a no-op/empty read outside a native shell rather than a fake
+  // "secure" storage backed by plain localStorage.
+  secureStore(key, value) {
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.secureStore) bridge.secureStore(key, value);
+  },
+
+  secureRetrieve(key) {
+    const bridge = phpxNativeBridge();
+    return bridge && bridge.secureRetrieve ? bridge.secureRetrieve(key) : null;
+  },
+
+  showSecureValue(key, outputElementId) {
+    const el = document.getElementById(outputElementId);
+    if (el) el.textContent = this.secureRetrieve(key) || '(vide)';
+  },
+
+  secureRemove(key) {
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.secureRemove) bridge.secureRemove(key);
+  },
+
+  getContacts() {
+    const bridge = phpxNativeBridge();
+    if (!bridge || !bridge.getContacts) return [];
+    try {
+      return JSON.parse(bridge.getContacts());
+    } catch {
+      return [];
+    }
+  },
+
+  listContacts(outputElementId) {
+    const el = document.getElementById(outputElementId);
+    if (!el) return;
+    const contacts = this.getContacts();
+    el.textContent = contacts.length === 0
+      ? 'Aucun contact (permission refusée ou liste vide)'
+      : contacts.slice(0, 5).map((c) => `${c.name}: ${c.phone}`).join(', ');
+  },
+
+  getUpcomingEvents() {
+    const bridge = phpxNativeBridge();
+    if (!bridge || !bridge.getUpcomingEvents) return [];
+    try {
+      return JSON.parse(bridge.getUpcomingEvents());
+    } catch {
+      return [];
+    }
+  },
+
+  listUpcomingEvents(outputElementId) {
+    const el = document.getElementById(outputElementId);
+    if (!el) return;
+    const events = this.getUpcomingEvents();
+    el.textContent = events.length === 0
+      ? 'Aucun événement (permission refusée ou agenda vide)'
+      : events.slice(0, 5).map((e) => e.title).join(', ');
+  },
+
+  scheduleBackgroundTask(endpoint, intervalMinutes) {
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.scheduleBackgroundTask) bridge.scheduleBackgroundTask(endpoint, intervalMinutes);
+  },
+
+  cancelBackgroundTask() {
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.cancelBackgroundTask) bridge.cancelBackgroundTask();
+  },
 };
