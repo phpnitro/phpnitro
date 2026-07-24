@@ -42,7 +42,10 @@ is informal while the project is pre-1.0 (see `phpnitro.yml`'s `version`).
   cross-compiling OpenSSL statically into the binary (`android/php-ndk-patch/`)
   and bundling Mozilla's CA store (`assets/cacert.pem`) since Android has no
   OpenSSL-readable system trust store of its own. Verified against Feexpay's
-  real API (`HTTP 200`/`201`) on an Infinix X6532.
+  real API (`HTTP 200`/`201`) on an Infinix X6532, then confirmed with a real
+  end-to-end mobile money transaction (real account, real phone number, real
+  USSD confirmation, real MTN MoMo debit SMS) all the way to the app's own
+  order confirmation screen.
 - `Engine\Payments\Feexpay` rewritten to call the REST API directly via
   streams instead of the `feexpay/feexpay-php` vendor SDK, which calls `curl_*`
   directly and could never have worked on-device regardless of the fix above.
