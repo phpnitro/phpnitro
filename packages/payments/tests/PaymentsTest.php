@@ -49,12 +49,11 @@ final class PaymentsTest extends TestCase
         $this->assertStringContainsString("submitForm(window.__phpxPaymentForm, 'confirmFedapay'", $js);
     }
 
-    // Feexpay has no unit test here: since it's now a thin wrapper around
-    // the real feexpay/feexpay-php SDK (Engine\Payments\Feexpay), every
-    // method makes a real HTTP call — nothing left to assert without
-    // either hitting the network in a test run or mocking the vendor SDK,
-    // neither of which fits this suite. Verified instead by live sandbox
-    // calls during development — see Feexpay.php's docblock.
+    // Feexpay has no unit test here: every method makes a real HTTP call
+    // (file_get_contents against Feexpay's API) — nothing left to assert
+    // without either hitting the network in a test run or mocking
+    // file_get_contents itself, neither of which fits this suite.
+    // Verified instead by live device testing — see Feexpay.php's docblock.
 
     public function testIziChangePayPayOnClickCallsInitWithOnSuccess(): void
     {

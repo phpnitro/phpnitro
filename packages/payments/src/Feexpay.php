@@ -11,49 +11,45 @@
 
 namespace Engine\Payments;
 
-use Feexpay\FeexpayPhp\FeexpayClass;
-
 /**
- * Feexpay checkout — a thin wrapper around the real `feexpay/feexpay-php`
- * SDK (Composer package, added where this is used — see
- * examples/ecom/composer.json), not a client-side JS trigger like
- * Kkiapay/FedaPay: Feexpay's SDK does the USSD push / redirect URL
- * server-to-server, which is actually the natural fit for PhpNitro
- * (every interaction is already a full server round-trip).
+ * Feexpay checkout — talks to Feexpay's REST API directly via
+ * file_get_contents()/stream_context_create(), the same idiom every other
+ * server-to-server call in this codebase uses (StripeCheckout,
+ * Engine\SocialAuth\OAuthProvider), instead of depending on the
+ * `feexpay/feexpay-php` vendor SDK this class used previously.
  *
- * Verified against the real installed SDK source
- * (vendor/feexpay/feexpay-php/src/FeexpayClass.php, v2.0) and live
- * sandbox calls with real shop credentials — NOT against the vendor's own
- * published integration docs, which describe an older signature
- * (`paiementLocal($amount, $phone, $network, $name, $email)`, 5 args,
- * returning an array). The installed v2.0 actually requires
- * `$callbackInfo`/`$reference` too (7-8 args) and `paiementLocal`/
- * `paiementCard` return a bare reference string (or `false`), not an
- * array — only `requestToPayWeb` returns an array. This class matches
- * the installed code, since that's what actually runs.
+ * That switch isn't a style preference: the vendor SDK calls raw
+ * `curl_*` functions, and the PHP binary cross-compiled for Android
+ * (`android/README.md`'s php-ndk build) has no `curl` extension —
+ * confirmed on a real device (Infinix X6532), where every call failed
+ * instantly with "Undefined constant ... CURLOPT_POST" (curl's constants
+ * don't exist without the extension), silently swallowed by the vendor
+ * SDK's own try/catch into a bare `false`. The `https://` stream wrapper
+ * this class relies on instead needs the `openssl` extension, which the
+ * same php-ndk build didn't have either — both gaps closed together (see
+ * the Dockerfile change alongside this file). A `curl`-based fix alone
+ * would only have fixed Feexpay; the streams approach also matches what
+ * already works for Stripe/OAuth on this platform.
  *
- * Two real findings from live testing, both on the vendor's side (not
- * patchable here without forking their package):
- * - `getIdAndMarchanName()` (called internally by every method above)
- *   confirmed the real shop credentials against Feexpay's API — returned
- *   the actual shop name.
- * - `payLocal()`'s underlying `curl_post()` sets no `CURLOPT_TIMEOUT` —
- *   a real call with a live phone number hung well past 20s with no
- *   response. A caller in production should assume this can block the
- *   request for a long time and design the UI around that (e.g. tell the
- *   customer to check their phone rather than waiting synchronously).
- * - `getPaiementStatus()` on an unknown/not-yet-settled reference returns
- *   an array with every field `null` (plus PHP warnings from the vendor
- *   code reading undefined properties on its decoded response) rather
- *   than throwing — status() below returns that as-is; callers must
+ * Endpoints and field names below are copied from the installed
+ * `vendor/feexpay/feexpay-php` v2.0 source (`FeexpayClass.php`), not from
+ * Feexpay's own published docs (which describe an older, different
+ * signature) — that vendor source remains the source of truth for the
+ * wire format even though this class no longer depends on the package
+ * itself.
+ *
+ * Two vendor-API quirks carried over as-is:
+ * - `$sandbox` is accepted for API stability (call sites already pass it)
+ *   but changes nothing: the vendor SDK's own `$mode` ('SANDBOX'/'LIVE')
+ *   is only ever read by its client-side JS widget helper, never by the
+ *   REST calls this class makes — there is only one real API base URL.
+ * - `status()` on an unknown/not-yet-settled reference returns an array
+ *   with fields present in the raw JSON but likely `null` — callers must
  *   treat a `null` status as "not settled yet", not as an error.
  */
 final class Feexpay
 {
-    private static function client(string $shopId, string $apiKey, string $callbackUrl, bool $sandbox): FeexpayClass
-    {
-        return new FeexpayClass($shopId, $apiKey, $callbackUrl, $sandbox ? 'SANDBOX' : 'LIVE');
-    }
+    private const BASE_URL = 'https://api-v2.feexpay.me/api';
 
     /**
      * Triggers a real USSD push on the customer's phone (mobile money —
@@ -64,6 +60,10 @@ final class Feexpay
      *
      * $reference is a caller-generated correlation ID (e.g. the pending
      * order's ID) — Feexpay's own SDK docblock calls this `custom_id`.
+     *
+     * A 10s timeout is set explicitly (see post() below) — the vendor
+     * SDK's underlying curl call set none at all and was observed to hang
+     * past 20s with no response in earlier testing.
      */
     public static function payLocal(
         string $shopId,
@@ -76,8 +76,19 @@ final class Feexpay
         string $reference,
         bool $sandbox = true,
     ): string|false {
-        return self::client($shopId, $apiKey, '', $sandbox)
-            ->paiementLocal($amount, $phone, $network, $fullName, $email, '', $reference);
+        $data = self::post(self::BASE_URL . '/transactions/requesttopay/integration', $apiKey, [
+            'phoneNumber' => $phone,
+            'amount' => $amount,
+            'reseau' => $network,
+            'shop' => $shopId,
+            'first_name' => $fullName,
+            'email' => $email,
+            'callback_info' => '',
+            'reference' => $reference,
+            'otp' => '',
+        ]);
+
+        return $data['reference'] ?? false;
     }
 
     /**
@@ -99,20 +110,98 @@ final class Feexpay
         string $returnUrl,
         bool $sandbox = true,
     ): array|false {
-        return self::client($shopId, $apiKey, '', $sandbox)
-            ->requestToPayWeb($amount, $phone, $network, $fullName, $email, '', $reference, $cancelUrl, $returnUrl);
+        $data = self::post(self::BASE_URL . '/transactions/requesttopay/integration', $apiKey, [
+            'phoneNumber' => $phone,
+            'amount' => $amount,
+            'reseau' => $network,
+            'shop' => $shopId,
+            'first_name' => $fullName,
+            'email' => $email,
+            'callback_info' => '',
+            'reference' => $reference,
+            'return_url' => $returnUrl,
+            'cancel_url' => $cancelUrl,
+        ]);
+
+        if ($data === null || ($data['status'] ?? null) === 'FAILED') {
+            return false;
+        }
+
+        return [
+            'payment_url' => $data['payment_url'] ?? '',
+            'reference' => $data['reference'] ?? '',
+            'order_id' => $data['order_id'] ?? '',
+        ];
     }
 
     /**
-     * Real server-to-server status check — unlike most other gateways in
-     * this package, this one is fully confirmed against the actual
-     * installed SDK, so its result can be trusted directly instead of the
-     * "demo mode only" fallback the unverified gateways use.
+     * Real server-to-server status check.
      *
      * @return array{amount: mixed, clientNum: string, status: string, reference: string}|false
      */
     public static function status(string $shopId, string $apiKey, string $reference, bool $sandbox = true): array|false
     {
-        return self::client($shopId, $apiKey, '', $sandbox)->getPaiementStatus($reference);
+        $data = self::get(self::BASE_URL . '/transactions/public/single/status/' . rawurlencode($reference), $apiKey);
+
+        if ($data === null) {
+            return false;
+        }
+
+        return [
+            'amount' => $data['amount'] ?? null,
+            'clientNum' => $data['phoneNumber'] ?? $data['phone_number'] ?? '',
+            'status' => $data['status'] ?? null,
+            'reference' => $data['reference'] ?? $reference,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $fields
+     * @return array<string, mixed>|null
+     */
+    private static function post(string $url, string $apiKey, array $fields): ?array
+    {
+        $response = @file_get_contents($url, false, stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'header' => "Content-Type: application/x-www-form-urlencoded\r\n"
+                    . "Accept: application/json\r\n"
+                    . "Authorization: Bearer {$apiKey}\r\n",
+                'content' => http_build_query($fields),
+                'timeout' => 10,
+                'ignore_errors' => true,
+            ],
+        ]));
+
+        if ($response === false) {
+            return null;
+        }
+
+        $data = json_decode($response, true);
+
+        return is_array($data) ? $data : null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function get(string $url, string $apiKey): ?array
+    {
+        $response = @file_get_contents($url, false, stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'header' => "Accept: application/json\r\nAuthorization: Bearer {$apiKey}\r\n",
+                'timeout' => 10,
+                'ignore_errors' => true,
+            ],
+        ]));
+
+        if ($response === false) {
+            return null;
+        }
+
+        $data = json_decode($response, true);
+
+        return is_array($data) ? $data : null;
     }
 }
