@@ -4,6 +4,8 @@ namespace Engine\App;
 
 use Engine\Align;
 use Engine\Alignment;
+use Engine\Button;
+use Engine\Canvas;
 use Engine\Center;
 use Engine\Color;
 use Engine\Column;
@@ -138,6 +140,23 @@ final class WidgetsLayoutPage extends Screen
                     Container::make(Text::make('tag-quatre', 'text-white'), 'px-3 py-1 bg-purple-600 rounded-full'),
                     Container::make(Text::make('tag-cinq', 'text-white'), 'px-3 py-1 bg-purple-600 rounded-full'),
                 ]),
+            ),
+
+            $this->section(
+                'Button — background/foreground typés (Color), hover dérivé automatiquement',
+                Row::make([
+                    Button::make('Emerald', background: Color::of('emerald', 600)),
+                    Button::make('Jaune / texte sombre', background: Color::of('yellow', 300), foreground: Color::of('slate', 900)),
+                ], 'flex gap-3'),
+            ),
+
+            $this->section(
+                'Canvas — équivalent basique de CustomPaint (rect/circle/line/text, dessin unique au montage)',
+                Canvas::make(200, 100)
+                    ->rect(0, 0, 60, 100, '#2563eb')
+                    ->circle(100, 50, 30, '#16a34a')
+                    ->line(140, 10, 190, 90, '#dc2626', 3)
+                    ->text(10, 95, 'Canvas', '#111827'),
             ),
 
             $this->section(
