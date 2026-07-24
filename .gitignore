@@ -11,6 +11,8 @@ composer.lock
 /lib/backend/var/uploads/
 /.tools/
 /android/local.properties
+/android/app/*.keystore
+/android/keystore.properties
 /android/.kotlin/
 /android/app/src/main/assets/www/
 /dist/

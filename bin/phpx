@@ -10,6 +10,7 @@
  *   phpx serve [port]                 Serve public/ (defaults to 8090)
  *   phpx new <directory>              Scaffold a new project: android/ ios/ lib/ packages/ public/ assets/ bin/
  *   phpx bundle:android               Copy public/ + lib/ + packages/ + .env into the Android app
+ *   phpx build:android [debug|release] Bundle + gradle assemble, auto-installing Gradle if needed
  *   phpx payments                     List phpnitro.yml's declared payment gateways and their .env status
  *   phpx maps                         List phpnitro.yml's declared map providers and their .env status
  *   phpx icon                         Regenerate the Android launcher icon from phpnitro.yml's `icon`
@@ -22,7 +23,16 @@
  * the native app label (strings.xml) and regenerates the launcher icon.
  */
 
-define('PHPX_ROOT', dirname(__DIR__));
+// PHPX_TOOL_ROOT is where this script itself lives — used only by cmdNew()
+// to locate the framework's own checkout as the template it scaffolds a new
+// project from. PHPX_ROOT is the project phpx operates ON, and is always the
+// caller's current directory (like `composer`/`artisan`/`flutter`): every
+// other command assumes you've `cd`ed into the project first, so a phpx
+// installed once globally (symlinked into PATH, or a phpx.phar) works
+// against whichever project you're standing in, not wherever phpx itself
+// happens to be installed.
+define('PHPX_TOOL_ROOT', dirname(__DIR__));
+define('PHPX_ROOT', getcwd());
 
 function phpxFail(string $message): never
 {
@@ -540,7 +550,7 @@ function cmdNew(string $directory): void
     // and phpnitro/database are on Packagist, new projects won't need this
     // local copy at all.
     foreach (['lib', 'packages', 'android', 'ios', 'assets', 'bin', 'public'] as $part) {
-        $source = PHPX_ROOT . '/' . $part;
+        $source = PHPX_TOOL_ROOT . '/' . $part;
         $destination = $targetDir . '/' . $part;
         copyDirectory($source, $destination, [
             'vendor', 'node_modules', '.gradle', 'build', '.kotlin', 'local.properties', 'var',
@@ -549,7 +559,7 @@ function cmdNew(string $directory): void
     }
 
     foreach (['.env', 'composer.json', 'package.json', 'package-lock.json', 'phpnitro.yml'] as $file) {
-        copy(PHPX_ROOT . '/' . $file, $targetDir . '/' . $file);
+        copy(PHPX_TOOL_ROOT . '/' . $file, $targetDir . '/' . $file);
         echo "Copied {$file} to {$targetDir}/{$file}\n";
     }
 
@@ -585,7 +595,7 @@ function cmdNew(string $directory): void
  * phpx itself — but a new project should start with an empty canvas, the
  * developer creates their own pages via `phpx make:page`. Strips the demo
  * pages + their routes from the freshly-copied scaffold (never touches
- * PHPX_ROOT itself).
+ * PHPX_TOOL_ROOT itself).
  */
 function resetPagesForNewProject(string $targetDir): void
 {
@@ -609,7 +619,7 @@ function resetPagesForNewProject(string $targetDir): void
     // no pages yet, so drop those two trailing PageRenderer::render() args
     // entirely rather than pointing at a class that no longer exists.
     $content = preg_replace(
-        '/,\s*BottomNavigation::make\([^;]*?\),\s*\$screen->showsBottomNav\(\)(?=\);)/',
+        '/,\s*BottomNavigation::make\([^;]*?\),\s*\$screen->showsBottomNav\(\)(,\s*\$screen)?(?=\);)/',
         '',
         $content,
     );
@@ -749,6 +759,166 @@ function cmdBundleAndroid(): void
     echo "Bundled into {$staging}\n";
 }
 
+/**
+ * Buildozer-style one-command build: bundle + assemble, auto-installing
+ * Gradle (into ~/.phpx/tools, cached across projects/runs) if none of the
+ * required version is already on PATH — closes the exact gap this project
+ * hit firsthand (manually locating/installing the SDK, downloading a
+ * compatible Gradle, wiring ANDROID_HOME/JAVA_HOME by hand). Also
+ * auto-installs the Android SDK itself (platform-tools + the exact
+ * platform/build-tools this project targets) if none is found, accepting
+ * Google's SDK license non-interactively — see resolveOrInstallAndroidSdk().
+ */
+function cmdBuildAndroid(string $variant): void
+{
+    if (!in_array($variant, ['debug', 'release'], true)) {
+        phpxFail("unknown build variant: {$variant} (expected debug or release)");
+    }
+
+    $sdkRoot = resolveOrInstallAndroidSdk();
+    $gradleBin = resolveOrInstallGradle();
+
+    cmdBundleAndroid();
+
+    echo "Running gradle :app:assemble" . ucfirst($variant) . "...\n";
+    passthruOrFail(sprintf(
+        '%s :app:assemble%s --console=plain --project-dir=%s -Dorg.gradle.project.android.sdk.dir=%s',
+        escapeshellarg($gradleBin),
+        ucfirst($variant),
+        escapeshellarg(PHPX_ROOT . '/android'),
+        escapeshellarg($sdkRoot),
+    ));
+
+    $apkPath = "android/app/build/outputs/apk/{$variant}/app-{$variant}.apk";
+    echo "Built: {$apkPath}\n";
+}
+
+/**
+ * Checks the usual places (ANDROID_HOME/ANDROID_SDK_ROOT env, ~/Android/Sdk,
+ * ~/Library/Android/sdk) first and uses that as-is if found. Otherwise
+ * downloads Google's command-line tools straight into
+ * ~/.local/share/phpnitro-tools/android-sdk (same persistent, XDG-honoring
+ * location as resolveOrInstallGradle()) and uses `sdkmanager` to fetch
+ * exactly the components this project needs: platform-tools, the exact
+ * compileSdk platform, and a matching build-tools version — read straight
+ * out of android/app/build.gradle.kts so this can never silently drift out
+ * of sync with what the project actually targets. Accepts Google's SDK
+ * license non-interactively (piped "y" answers) since there's no human
+ * available to click through Android Studio's license dialog in a CI/build
+ * context — this is the same license a developer would otherwise accept by
+ * hand in Android Studio's SDK Manager once.
+ */
+function resolveOrInstallAndroidSdk(): string
+{
+    $sdkRoot = $_ENV['ANDROID_HOME'] ?? $_ENV['ANDROID_SDK_ROOT'] ?? null;
+    foreach ([$sdkRoot, getenv('HOME') . '/Android/Sdk', getenv('HOME') . '/Library/Android/sdk'] as $candidate) {
+        if ($candidate !== null && is_dir($candidate)) {
+            return $candidate;
+        }
+    }
+
+    $buildGradle = file_get_contents(PHPX_ROOT . '/android/app/build.gradle.kts');
+    if ($buildGradle === false) {
+        phpxFail('android/app/build.gradle.kts not found — is this a phpx project?');
+    }
+    preg_match('/compileSdk\s*=\s*(\d+)/', $buildGradle, $compileSdkMatch);
+    $compileSdk = $compileSdkMatch[1] ?? phpxFail('could not read compileSdk from android/app/build.gradle.kts');
+    $buildToolsVersion = "{$compileSdk}.0.0";
+
+    $dataHome = getenv('XDG_DATA_HOME') ?: (getenv('HOME') . '/.local/share');
+    $sdkRoot = "{$dataHome}/phpnitro-tools/android-sdk";
+    $cmdlineToolsBin = "{$sdkRoot}/cmdline-tools/latest/bin";
+    $sdkManager = "{$cmdlineToolsBin}/sdkmanager";
+
+    if (!is_file($sdkManager)) {
+        echo "No Android SDK found — installing command-line tools into {$sdkRoot} (one-time)...\n";
+        mkdir($sdkRoot, 0777, true);
+        $zipPath = "{$sdkRoot}/cmdline-tools.zip";
+        // Version number in the URL is Google's internal build id for this
+        // package, unrelated to any Android/AGP version — pinned to a known
+        // working release rather than "latest" (no stable latest-alias URL
+        // exists for this specific artifact).
+        passthruOrFail(sprintf(
+            'curl -L --retry 5 --retry-delay 3 -o %s %s',
+            escapeshellarg($zipPath),
+            escapeshellarg('https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip'),
+        ));
+        $extractedDir = "{$sdkRoot}/cmdline-tools-extracted";
+        passthruOrFail('unzip -q ' . escapeshellarg($zipPath) . ' -d ' . escapeshellarg($extractedDir));
+        unlink($zipPath);
+        // The zip's own top-level folder is named "cmdline-tools" — sdkmanager
+        // requires it to live specifically at .../cmdline-tools/latest/ (its
+        // own relative-path lookups break if it's directly at cmdline-tools/).
+        mkdir("{$sdkRoot}/cmdline-tools", 0777, true);
+        rename("{$extractedDir}/cmdline-tools", "{$sdkRoot}/cmdline-tools/latest");
+        rmdir($extractedDir);
+    }
+
+    echo "Installing platform-tools, platforms;android-{$compileSdk}, build-tools;{$buildToolsVersion}...\n";
+    $components = escapeshellarg('platform-tools')
+        . ' ' . escapeshellarg("platforms;android-{$compileSdk}")
+        . ' ' . escapeshellarg("build-tools;{$buildToolsVersion}");
+    passthruOrFail(sprintf(
+        'yes | %s --sdk_root=%s --licenses > /dev/null 2>&1; %s --sdk_root=%s %s',
+        escapeshellarg($sdkManager),
+        escapeshellarg($sdkRoot),
+        escapeshellarg($sdkManager),
+        escapeshellarg($sdkRoot),
+        $components,
+    ));
+
+    return $sdkRoot;
+}
+
+/**
+ * A `gradle` already on PATH satisfying the project's minimum (read from
+ * android/build.gradle.kts's AGP version — AGP 8.7+ requires Gradle 8.9+)
+ * is used as-is. Otherwise downloads the pinned version straight into
+ * ~/.local/share/phpnitro-tools/gradle-<version>, once — every later call
+ * across every project on this machine reuses it, never re-downloaded,
+ * never left in a wiped /tmp scratch dir (XDG_DATA_HOME is honored since
+ * that's the standard override for "persistent app data" on Linux).
+ */
+function resolveOrInstallGradle(): string
+{
+    $pinnedVersion = '8.10.2';
+    $minMajorMinor = '8.9';
+
+    $existing = trim((string) shell_exec('command -v gradle 2>/dev/null'));
+    if ($existing !== '') {
+        $versionOutput = (string) shell_exec(escapeshellarg($existing) . ' --version 2>/dev/null');
+        if (preg_match('/Gradle (\d+\.\d+)/', $versionOutput, $m) && version_compare($m[1], $minMajorMinor, '>=')) {
+            return $existing;
+        }
+    }
+
+    $dataHome = getenv('XDG_DATA_HOME') ?: (getenv('HOME') . '/.local/share');
+    $toolsDir = "{$dataHome}/phpnitro-tools";
+    $gradleHome = "{$toolsDir}/gradle-{$pinnedVersion}";
+    $gradleBin = "{$gradleHome}/bin/gradle";
+
+    if (is_file($gradleBin)) {
+        return $gradleBin;
+    }
+
+    echo "No compatible Gradle found (need >= {$minMajorMinor}) — downloading {$pinnedVersion} into {$toolsDir} (one-time)...\n";
+    mkdir($toolsDir, 0777, true);
+    $zipPath = "{$toolsDir}/gradle-{$pinnedVersion}-bin.zip";
+    passthruOrFail(sprintf(
+        'curl -L --retry 5 --retry-delay 3 -o %s %s',
+        escapeshellarg($zipPath),
+        escapeshellarg("https://services.gradle.org/distributions/gradle-{$pinnedVersion}-bin.zip"),
+    ));
+    passthruOrFail('unzip -q ' . escapeshellarg($zipPath) . ' -d ' . escapeshellarg($toolsDir));
+    unlink($zipPath);
+
+    if (!is_file($gradleBin)) {
+        phpxFail("Gradle download succeeded but {$gradleBin} is missing — corrupt archive?");
+    }
+
+    return $gradleBin;
+}
+
 $command = $argv[1] ?? null;
 
 switch ($command) {
@@ -766,6 +936,9 @@ switch ($command) {
         break;
     case 'bundle:android':
         cmdBundleAndroid();
+        break;
+    case 'build:android':
+        cmdBuildAndroid($argv[2] ?? 'debug');
         break;
     case 'payments':
         cmdPayments();
