@@ -78,7 +78,7 @@ final class NativeDocumentsScreen
                     EdgeInsets::all(Tokens::SPACE_XL),
                     RenderFlex::column([
                         RenderFlex::row([
-                            $iconCircle('arrow_back', Tokens::surfaceMuted(), Tokens::ink()),
+                            new RenderTappable($iconCircle('arrow_back', Tokens::surfaceMuted(), Tokens::ink()), action: 'back'),
                             new Flexible(new RenderPadding(
                                 EdgeInsets::only(left: Tokens::SPACE_MD, top: 18),
                                 new RenderContainer(height: 3, radius: 2, background: Tokens::ink()),
@@ -135,7 +135,13 @@ final class NativeDocumentsScreen
                                         background: Tokens::ink(),
                                         radius: Tokens::RADIUS_PILL,
                                     ),
-                                    action: 'increment',
+                                    // Once both required documents are
+                                    // marked done, "Continuer" pushes a
+                                    // real navigation (NativeRenderPocActivity
+                                    // intercepts "navigate:" client-side and
+                                    // switches screens) instead of just
+                                    // incrementing forever.
+                                    action: $requiredDone >= 2 ? 'navigate:otp' : 'increment',
                                 ),
                             ),
                         ], crossAxisAlignment: CrossAxisAlignment::STRETCH),

@@ -172,12 +172,14 @@ if ($path === '/native/layout-demo') {
     // function per screen added.
     $tree = match ($screen) {
         'otp' => \Engine\App\NativeOtpScreen::build($screenWidth, $screenHeight),
+        'settings' => \Engine\App\NativeSettingsScreen::build($screenWidth),
         default => \Engine\App\NativeDocumentsScreen::build($screenWidth, $tapCount),
     };
 
-    $tree->layout(new Constraints($screenWidth, $screenWidth, 0, Constraints::INFINITY));
+    $contentSize = $tree->layout(new Constraints($screenWidth, $screenWidth, 0, Constraints::INFINITY));
 
     $canvas = new NativeCanvas();
+    $canvas->setContentHeight($contentSize->height);
     $tree->paint($canvas, 0, 0);
     echo $canvas->toJson();
     exit;

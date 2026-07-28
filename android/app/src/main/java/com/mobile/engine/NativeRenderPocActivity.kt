@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import java.net.HttpURLConnection
 import java.net.URL
@@ -24,38 +25,76 @@ import kotlin.concurrent.thread
  * embedded PHP process, and hands them to NativeCanvasView — the whole
  * point being to prove PHP can drive a real native Canvas paint with zero
  * WebView involved anywhere in this Activity.
+ *
+ * Navigation: a hit region's action starting with "navigate:" (e.g.
+ * "navigate:otp") pushes that screen name onto a local back stack and
+ * re-fetches — this Activity is what owns "which screen is current", not
+ * PHP (each /native/layout-demo request is a stateless render of
+ * whichever ?screen= it's given). Plain "back" — or the hardware back
+ * button, via the OnBackPressedCallback below — pops the stack. Anything
+ * else is a normal server round-trip (increment, etc.), same as before.
  */
 class NativeRenderPocActivity : AppCompatActivity() {
 
     private lateinit var phpServer: PhpServer
     private lateinit var canvasView: NativeCanvasView
     private var serverPort: Int = 0
+    private val screenStack = mutableListOf<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        screenStack.add(intent.getStringExtra("screen") ?: "documents")
 
         canvasView = NativeCanvasView(this)
         canvasView.density = resources.displayMetrics.density
         canvasView.onAction = { action -> onTap(action) }
         setContentView(canvasView)
 
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (screenStack.size > 1) {
+                    screenStack.removeAt(screenStack.size - 1)
+                    refetch(action = null)
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
+
         phpServer = PhpServer(this)
         thread {
             val port = phpServer.start()
             serverPort = port
             Log.i(TAG, "PhpServer started on port $port")
-            fetchDrawCommands(port, action = null)
+            refetch(action = null)
         }
     }
 
     // A hit region's action fired — same round-trip shape as nav.js's
     // phpxNav.submitAction() in the HTML pipeline (tell PHP what happened,
     // get back whatever should be on screen now), just fetching a fresh
-    // draw-command list instead of swapping innerHTML.
+    // draw-command list instead of swapping innerHTML. "navigate:X" and
+    // "back" are intercepted here rather than sent to PHP as an action —
+    // they're this Activity's concern (which screen is current), not a
+    // server-side state change.
     private fun onTap(action: String) {
-        if (serverPort == 0) {
-            return
+        when {
+            action.startsWith("navigate:") -> {
+                screenStack.add(action.removePrefix("navigate:"))
+                refetch(action = null)
+            }
+            action == "back" -> {
+                if (screenStack.size > 1) screenStack.removeAt(screenStack.size - 1)
+                refetch(action = null)
+            }
+            else -> refetch(action)
         }
+    }
+
+    private fun refetch(action: String?) {
+        if (serverPort == 0) return
         thread { fetchDrawCommands(serverPort, action) }
     }
 
@@ -73,15 +112,12 @@ class NativeRenderPocActivity : AppCompatActivity() {
         val density = resources.displayMetrics.density
         val screenWidthDp = resources.displayMetrics.widthPixels / density
         val screenHeightDp = resources.displayMetrics.heightPixels / density
-        // Which reference screen to render — defaults to the checklist
-        // (the one reachable from Settings); adb can override for testing
-        // other screens: `adb shell am start ... --es screen otp`.
-        val screen = intent.getStringExtra("screen") ?: "documents"
+        val screen = screenStack.last()
         val actionParam = if (action != null) "&action=${java.net.URLEncoder.encode(action, "UTF-8")}" else ""
         try {
             val connection = URL("http://127.0.0.1:$port/native/layout-demo?width=$screenWidthDp&height=$screenHeightDp&screen=$screen$actionParam").openConnection() as HttpURLConnection
             connection.connectTimeout = 5000
-            Log.i(TAG, "Fetching /native/layout-demo (action=$action), response code ${connection.responseCode}")
+            Log.i(TAG, "Fetching /native/layout-demo (screen=$screen, action=$action), response code ${connection.responseCode}")
             val json = connection.inputStream.bufferedReader().use { it.readText() }
             connection.disconnect()
             Log.i(TAG, "Draw commands: $json")

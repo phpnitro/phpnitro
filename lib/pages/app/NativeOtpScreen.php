@@ -12,6 +12,7 @@ use Engine\Native\RenderIcon;
 use Engine\Native\RenderNode;
 use Engine\Native\RenderPadding;
 use Engine\Native\RenderSizedBox;
+use Engine\Native\RenderTappable;
 use Engine\Native\RenderText;
 use Engine\Native\Tokens;
 
@@ -37,6 +38,14 @@ final class NativeOtpScreen
 
         $backCircle = new RenderContainer(
             new RenderCenter(new RenderIcon('arrow_back', 20, Tokens::ink()->toHex())),
+            width: 40,
+            height: 40,
+            radius: 20,
+            background: Tokens::surfaceMuted(),
+        );
+
+        $settingsCircle = new RenderContainer(
+            new RenderCenter(new RenderIcon('settings', 20, Tokens::ink()->toHex())),
             width: 40,
             height: 40,
             radius: 20,
@@ -88,7 +97,14 @@ final class NativeOtpScreen
             new RenderPadding(
                 EdgeInsets::all(Tokens::SPACE_XL),
                 RenderFlex::column([
-                    $backCircle,
+                    RenderFlex::row([
+                        new RenderTappable($backCircle, action: 'back'),
+                        // Real navigation to a third screen — showing
+                        // genuinely live server data (packages/ui/src/Native/
+                        // Tokens-styled), not another synthetic mockup.
+                        new Flexible(new RenderContainer()),
+                        new RenderTappable($settingsCircle, action: 'navigate:settings'),
+                    ]),
                     new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_XXL * 1.5), new RenderCenter($badge)),
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_LG),

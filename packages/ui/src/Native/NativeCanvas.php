@@ -43,6 +43,20 @@ final class NativeCanvas
      */
     private array $hitRegions = [];
 
+    private float $contentHeight = 0.0;
+
+    /**
+     * The full laid-out content height (which can exceed the viewport) —
+     * NativeCanvasView needs this to know how far there is to scroll.
+     * Called once with the root RenderNode::layout()'s returned Size.
+     */
+    public function setContentHeight(float $height): self
+    {
+        $this->contentHeight = $height;
+
+        return $this;
+    }
+
     public function rect(
         float $x,
         float $y,
@@ -112,6 +126,30 @@ final class NativeCanvas
         return $this;
     }
 
+    /**
+     * A bitmap loaded asynchronously by NativeCanvasView (HTTP fetch +
+     * decode off the main thread, in-memory LRU cache keyed by URL) — the
+     * layout engine reserves the box eagerly since it can't know the
+     * image's intrinsic size ahead of a network round-trip, same
+     * constraint Image.network() has in Flutter. Nothing is drawn for
+     * this box until the bitmap finishes loading; the view just
+     * invalidates itself when it does.
+     */
+    public function image(float $x, float $y, float $width, float $height, string $url, float $radius = 0.0): self
+    {
+        $this->commands[] = array_filter([
+            'type' => 'image',
+            'x' => $x,
+            'y' => $y,
+            'width' => $width,
+            'height' => $height,
+            'url' => $url,
+            'radius' => $radius,
+        ], static fn (mixed $value): bool => $value !== null);
+
+        return $this;
+    }
+
     public function hitRegion(float $x, float $y, float $width, float $height, string $action): self
     {
         $this->hitRegions[] = [
@@ -130,6 +168,7 @@ final class NativeCanvas
         return json_encode([
             'commands' => $this->commands,
             'hitRegions' => $this->hitRegions,
+            'contentHeight' => $this->contentHeight,
         ], JSON_THROW_ON_ERROR);
     }
 }

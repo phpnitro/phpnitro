@@ -2,9 +2,12 @@ package com.mobile.engine
 
 import android.animation.ValueAnimator
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Shader
@@ -12,10 +15,13 @@ import android.graphics.Typeface
 import android.util.Log
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
+import android.view.VelocityTracker
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.animation.DecelerateInterpolator
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.abs
 
 /**
  * Phase 0 of docs/proposals/moteur-rendu-natif.md: proof that PHP-driven
@@ -82,6 +88,21 @@ class NativeCanvasView(context: Context) : View(context) {
     private var fadeProgress: Float = 1f
     var onAction: ((String) -> Unit)? = null
 
+    // Scrolling: page-level only (the whole screen scrolls together, not
+    // independent nested lists — see docs/proposals/moteur-rendu-natif.md's
+    // phased plan for what a real per-widget ListView would need beyond
+    // this). PHP reports how tall the laid-out content actually is
+    // (contentHeight); scrollY is clamped to [0, contentHeight - viewport].
+    private var contentHeight: Float = 0f
+    private var scrollY: Float = 0f
+    private var scrollAnimator: ValueAnimator? = null
+    private var velocityTracker: VelocityTracker? = null
+    private var touchDownX = 0f
+    private var touchDownY = 0f
+    private var lastTouchY = 0f
+    private var isDragging = false
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+
     fun setCommands(json: String) {
         // A PHP warning/notice ahead of the JSON (a bad file path, an
         // undefined-variable notice in debug mode, etc.) turns this into
@@ -92,14 +113,21 @@ class NativeCanvasView(context: Context) : View(context) {
             val payload = JSONObject(json)
             val newCommands = payload.getJSONArray("commands")
             hitRegions = payload.optJSONArray("hitRegions") ?: JSONArray()
+            contentHeight = payload.optDouble("contentHeight", 0.0).toFloat()
+            scrollY = scrollY.coerceIn(0f, maxScrollY())
 
             previousCommands = if (commands.length() > 0) commands else null
             commands = newCommands
-            Log.i("NativeCanvasView", "setCommands: ${commands.length()} commands, ${hitRegions.length()} hit regions, view size ${width}x${height}")
+            Log.i("NativeCanvasView", "setCommands: ${commands.length()} commands, ${hitRegions.length()} hit regions, contentHeight=$contentHeight, view size ${width}x${height}")
             startCrossfade()
         } catch (e: org.json.JSONException) {
             Log.e("NativeCanvasView", "setCommands: response wasn't valid JSON: $json", e)
         }
+    }
+
+    private fun maxScrollY(): Float {
+        val viewportDp = if (density > 0) height / density else 0f
+        return (contentHeight - viewportDp).coerceAtLeast(0f)
     }
 
     private fun startCrossfade() {
@@ -117,15 +145,83 @@ class NativeCanvasView(context: Context) : View(context) {
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (event.action != MotionEvent.ACTION_UP) {
-            return true
+        val maxScroll = maxScrollY()
+
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                scrollAnimator?.cancel()
+                touchDownX = event.x
+                touchDownY = event.y
+                lastTouchY = event.y
+                isDragging = false
+                velocityTracker?.recycle()
+                velocityTracker = VelocityTracker.obtain().also { it.addMovement(event) }
+            }
+
+            MotionEvent.ACTION_MOVE -> {
+                velocityTracker?.addMovement(event)
+                val totalDelta = event.y - touchDownY
+                if (!isDragging && maxScroll > 0f && abs(totalDelta) > touchSlop && abs(totalDelta) > abs(event.x - touchDownX)) {
+                    isDragging = true
+                }
+                if (isDragging) {
+                    val deltaDp = (lastTouchY - event.y) / density
+                    scrollY = (scrollY + deltaDp).coerceIn(0f, maxScroll)
+                    lastTouchY = event.y
+                    invalidate()
+                }
+            }
+
+            MotionEvent.ACTION_UP -> {
+                if (isDragging) {
+                    velocityTracker?.let {
+                        it.addMovement(event)
+                        it.computeCurrentVelocity(1000)
+                        flingScroll(-it.yVelocity / density, maxScroll)
+                    }
+                } else {
+                    handleTap(event)
+                }
+                velocityTracker?.recycle()
+                velocityTracker = null
+            }
+
+            MotionEvent.ACTION_CANCEL -> {
+                velocityTracker?.recycle()
+                velocityTracker = null
+            }
         }
 
+        return true
+    }
+
+    // Momentum scrolling: a decelerating ValueAnimator from the release
+    // velocity down to 0, same shape as Flutter's default ScrollPhysics
+    // (a real fling, not a hard stop the instant the finger lifts).
+    private fun flingScroll(velocityDpPerSec: Float, maxScroll: Float) {
+        if (abs(velocityDpPerSec) < 50f || maxScroll <= 0f) return
+
+        scrollAnimator?.cancel()
+        val startScroll = scrollY
+        val distance = velocityDpPerSec * 0.35f
+        val target = (startScroll + distance).coerceIn(0f, maxScroll)
+        scrollAnimator = ValueAnimator.ofFloat(startScroll, target).apply {
+            duration = 350
+            interpolator = DecelerateInterpolator()
+            addUpdateListener {
+                scrollY = it.animatedValue as Float
+                invalidate()
+            }
+            start()
+        }
+    }
+
+    private fun handleTap(event: MotionEvent) {
         // Touch coordinates arrive in real device pixels; hitRegions are in
         // the same dp space the draw commands use, so this has to undo the
-        // same scale onDraw applies before comparing.
+        // same scale (and scroll offset) onDraw applies before comparing.
         val touchX = event.x / density
-        val touchY = event.y / density
+        val touchY = event.y / density + scrollY
 
         for (index in 0 until hitRegions.length()) {
             val region = hitRegions.getJSONObject(index)
@@ -138,11 +234,9 @@ class NativeCanvasView(context: Context) : View(context) {
                 Log.i("NativeCanvasView", "tap hit region: ${region.getString("action")}")
                 performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                 onAction?.invoke(region.getString("action"))
-                return true
+                return
             }
         }
-
-        return true
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -150,6 +244,7 @@ class NativeCanvasView(context: Context) : View(context) {
 
         val savedState = canvas.save()
         canvas.scale(density, density)
+        canvas.translate(0f, -scrollY)
 
         val previous = previousCommands
         if (previous != null && fadeProgress < 1f) {
@@ -167,6 +262,7 @@ class NativeCanvasView(context: Context) : View(context) {
                 "rect" -> drawRectCommand(canvas, command, alpha)
                 "text" -> drawTextCommand(canvas, command, alpha)
                 "icon" -> drawIconCommand(canvas, command, alpha)
+                "image" -> drawImageCommand(canvas, command, alpha)
             }
         }
     }
@@ -279,6 +375,48 @@ class NativeCanvasView(context: Context) : View(context) {
         val baselineY = y + size * 0.86f
 
         canvas.drawText(glyph, cx, baselineY, paint)
+    }
+
+    // ImageLoader owns the actual network fetch + decode + cache; this
+    // just asks for whatever's cached and draws it if present, or kicks
+    // off a load and redraws once ImageLoader has it. BitmapShader (not
+    // a clip path) for rounded corners — cheaper, and avoids a second
+    // offscreen layer on top of the software layer this view already
+    // uses for shadows.
+    private fun drawImageCommand(canvas: Canvas, command: JSONObject, alpha: Float) {
+        val url = command.getString("url")
+        val x = command.getDouble("x").toFloat()
+        val y = command.getDouble("y").toFloat()
+        val width = command.getDouble("width").toFloat()
+        val height = command.getDouble("height").toFloat()
+        val radius = command.optDouble("radius", 0.0).toFloat()
+        val rect = RectF(x, y, x + width, y + height)
+
+        val bitmap = ImageLoader.get(url)
+        if (bitmap == null) {
+            ImageLoader.load(url) { invalidate() }
+            return
+        }
+
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.alpha = (255 * alpha).toInt()
+            if (radius > 0) {
+                shader = BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply {
+                    val scale = maxOf(width / bitmap.width, height / bitmap.height)
+                    setLocalMatrix(Matrix().apply {
+                        setScale(scale, scale)
+                        postTranslate(x, y)
+                    })
+                }
+            }
+        }
+
+        if (radius > 0) {
+            canvas.drawRoundRect(rect, radius, radius, paint)
+        } else {
+            val srcRect = android.graphics.Rect(0, 0, bitmap.width, bitmap.height)
+            canvas.drawBitmap(bitmap, srcRect, rect, paint)
+        }
     }
 
     companion object {
