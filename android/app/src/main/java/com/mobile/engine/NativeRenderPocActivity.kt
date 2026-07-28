@@ -60,17 +60,26 @@ class NativeRenderPocActivity : AppCompatActivity() {
     }
 
     private fun fetchDrawCommands(port: Int, action: String?) {
-        // dp-space width, not raw device pixels — every size the PHP side
-        // hands back (font sizes, radii, button heights, Tokens' whole
-        // scale) is authored as a dp-like number, and NativeCanvasView
-        // scales its Canvas by the real density before replaying, so the
-        // layout math needs to run against the same dp width or a phone
-        // with more physical pixels per dp would just get a narrower
-        // logical screen instead of correctly-sized content.
-        val screenWidthDp = resources.displayMetrics.widthPixels / resources.displayMetrics.density
+        // dp-space width/height, not raw device pixels — every size the
+        // PHP side hands back (font sizes, radii, button heights, Tokens'
+        // whole scale) is authored as a dp-like number, and
+        // NativeCanvasView scales its Canvas by the real density before
+        // replaying, so the layout math needs to run against the same dp
+        // dimensions or a phone with more physical pixels per dp would
+        // just get a narrower/shorter logical screen instead of
+        // correctly-sized content. Height matters for screens (like
+        // NativeOtpScreen) that use a Flexible spacer to pin content to
+        // the true bottom of the screen.
+        val density = resources.displayMetrics.density
+        val screenWidthDp = resources.displayMetrics.widthPixels / density
+        val screenHeightDp = resources.displayMetrics.heightPixels / density
+        // Which reference screen to render — defaults to the checklist
+        // (the one reachable from Settings); adb can override for testing
+        // other screens: `adb shell am start ... --es screen otp`.
+        val screen = intent.getStringExtra("screen") ?: "documents"
         val actionParam = if (action != null) "&action=${java.net.URLEncoder.encode(action, "UTF-8")}" else ""
         try {
-            val connection = URL("http://127.0.0.1:$port/native/layout-demo?width=$screenWidthDp$actionParam").openConnection() as HttpURLConnection
+            val connection = URL("http://127.0.0.1:$port/native/layout-demo?width=$screenWidthDp&height=$screenHeightDp&screen=$screen$actionParam").openConnection() as HttpURLConnection
             connection.connectTimeout = 5000
             Log.i(TAG, "Fetching /native/layout-demo (action=$action), response code ${connection.responseCode}")
             val json = connection.inputStream.bufferedReader().use { it.readText() }
