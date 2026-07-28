@@ -33,11 +33,14 @@ use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\Flexible;
 use Engine\Native\NativeCanvas;
+use Engine\Native\RenderCenter;
 use Engine\Native\RenderContainer;
 use Engine\Native\RenderFlex;
+use Engine\Native\RenderIcon;
 use Engine\Native\RenderPadding;
 use Engine\Native\RenderTappable;
 use Engine\Native\RenderText;
+use Engine\Native\Tokens;
 use Engine\Navigation;
 use Engine\PageRenderer;
 use Engine\Router;
@@ -173,103 +176,123 @@ if ($path === '/native/layout-demo') {
     }
     $tapCount = is_file($tapCountFile) ? (int) file_get_contents($tapCountFile) : 0;
 
-    // A small "elevated card" is the one visual unit Material/Flutter
-    // screens are built from — background white, rounded corners, a soft
-    // shadow instead of a hard border. Factored out because the stat row
-    // below needs two of them with only the accent/label/value changing.
-    // Slate (not plain gray) for every neutral tone and a single indigo
-    // accent (amber only as a deliberate second note on one stat) reads
-    // calmer than a different saturated hue per card — that was the
-    // biggest complaint on the previous version.
-    $card = static function (\Engine\Native\RenderNode $child, EdgeInsets $padding = new EdgeInsets(18.0, 18.0, 18.0, 18.0)): RenderContainer {
+    // Modeled directly on captures/Documents.png — a minimalist checklist
+    // screen: near-black ink on white, thin gray borders instead of
+    // shadows, a pill-radius black CTA at the bottom. $tapCount stands in
+    // for "how many required documents are done" so the tappable button
+    // still demonstrates a genuine server round-trip.
+    $requiredDone = min($tapCount, 2);
+
+    $iconCircle = static fn (string $icon, Color $background, Color $iconColor, float $diameter = 40.0): RenderContainer => new RenderContainer(
+        new RenderCenter(new RenderIcon($icon, $diameter * 0.5, $iconColor->toHex())),
+        width: $diameter,
+        height: $diameter,
+        radius: $diameter / 2,
+        background: $background,
+    );
+
+    $documentRow = static function (string $title, string $subtitle, bool $required, bool $done) use ($iconCircle): RenderContainer {
         return new RenderContainer(
-            new RenderPadding($padding, $child),
-            background: Color::white(),
-            radius: 20,
-            elevation: 4,
+            new RenderPadding(
+                EdgeInsets::symmetric(Tokens::SPACE_LG, Tokens::SPACE_MD),
+                RenderFlex::row([
+                    $done
+                        ? $iconCircle('check_circle', Tokens::successMuted(), Tokens::success(), 36)
+                        : $iconCircle('document', Tokens::surfaceMuted(), Tokens::inkSecondary(), 36),
+                    new Flexible(new RenderPadding(EdgeInsets::only(left: Tokens::SPACE_MD), RenderFlex::column([
+                        new RenderText($title, Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true),
+                        new RenderPadding(
+                            EdgeInsets::only(top: 3),
+                            $required
+                                ? new RenderText('OBLIGATOIRE', Tokens::TEXT_CAPTION, Tokens::danger()->toHex(), bold: true, letterSpacing: 0.04)
+                                : new RenderText($subtitle, Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
+                        ),
+                    ]))),
+                    $done
+                        ? $iconCircle('check', Tokens::successMuted(), Tokens::success(), 30)
+                        : $iconCircle('plus', Tokens::ink(), Color::white(), 30),
+                ], crossAxisAlignment: CrossAxisAlignment::CENTER),
+            ),
+            background: Tokens::surface(),
+            radius: Tokens::RADIUS_LG,
+            borderColor: $done ? Color::green(400) : Tokens::border(),
+            borderWidth: $done ? 1.5 : 1.0,
         );
     };
 
-    // Small tracked uppercase caption — the "WIDGETS PORTÉS" style label
-    // under a big number in most polished dashboards. Needs letterSpacing
-    // (phase 4) to not look cramped at this size.
-    $caption = static fn (string $text): RenderText => new RenderText($text, 11, '#94A3B8', bold: true, letterSpacing: 0.06);
-
-    $statCard = static function (string $label, string $value, Color $chipFrom, Color $chipTo) use ($card, $caption): Flexible {
-        return new Flexible($card(RenderFlex::column([
-            new RenderContainer(width: 32, height: 32, radius: 10, gradientFrom: $chipFrom, gradientTo: $chipTo),
-            new RenderPadding(EdgeInsets::only(top: 12), new RenderText($value, 26, '#0F172A', bold: true)),
-            new RenderPadding(EdgeInsets::only(top: 2), $caption($label)),
-        ]), EdgeInsets::all(16)));
-    };
-
     $tree = new RenderContainer(
-        new RenderPadding(
-            EdgeInsets::all(20),
-            RenderFlex::column([
-                // Header: gradient avatar roundel + title/subtitle, like a
-                // Material app bar — a flat single-tone circle read as the
-                // most generic/placeholder-looking element in the previous
-                // pass, a subtle gradient fixes that cheaply.
-                RenderFlex::row([
-                    new RenderContainer(
-                        new RenderText('N', 21, '#FFFFFF', bold: true),
-                        width: 52,
-                        height: 52,
-                        radius: 26,
-                        gradientFrom: Color::indigo(500),
-                        gradientTo: Color::indigo(700),
-                        padding: EdgeInsets::only(left: 19, top: 15),
-                    ),
-                    new Flexible(new RenderPadding(EdgeInsets::only(left: 14), RenderFlex::column([
-                        new RenderText('PhpNitro', 19, '#0F172A', bold: true),
-                        new RenderPadding(EdgeInsets::only(top: 2), new RenderText('Moteur de rendu natif', 13, '#64748B')),
-                    ]))),
-                ]),
-                new RenderPadding(EdgeInsets::only(top: 22), $card(new RenderText(
-                    'Cette carte est un vrai moteur de contraintes (BoxConstraints, comme Flutter) exécuté en PHP, avec ombre portée, texte en gras et mise en page flexible, peint sur un android.graphics.Canvas natif — aucune WebView, aucun HTML, aucun CSS.',
-                    14,
-                    '#475569',
-                ))),
-                new RenderPadding(
-                    EdgeInsets::only(top: 14),
+        RenderFlex::column([
+            // Top bar: back circle + thin progress line, then a step caption.
+            new RenderPadding(
+                EdgeInsets::all(Tokens::SPACE_XL),
+                RenderFlex::column([
                     RenderFlex::row([
-                        $statCard('Widgets portés', '52', Color::indigo(400), Color::indigo(600)),
-                        new RenderPadding(EdgeInsets::only(left: 14), $statCard('FPS cible', '60', Color::amber(400), Color::amber(600))),
+                        $iconCircle('arrow_back', Tokens::surfaceMuted(), Tokens::ink()),
+                        new Flexible(new RenderPadding(
+                            EdgeInsets::only(left: Tokens::SPACE_MD, top: 18),
+                            new RenderContainer(height: 3, radius: 2, background: Tokens::ink()),
+                        )),
+                    ], crossAxisAlignment: CrossAxisAlignment::CENTER),
+                    new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_SM), new RenderText('Étape 3/4', Tokens::TEXT_CAPTION, Tokens::inkMuted()->toHex())),
+                    new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_LG), new RenderText('Documents requis', Tokens::TEXT_DISPLAY, Tokens::ink()->toHex(), bold: true)),
+                    new RenderPadding(
+                        EdgeInsets::only(top: 6),
+                        new RenderText('Formats acceptés : PDF, JPG, PNG — 10 Mo max par fichier.', Tokens::TEXT_BODY_SMALL, Tokens::inkSecondary()->toHex()),
+                    ),
+                ]),
+            ),
+            // Content area: light gray background, same as the capture.
+            new RenderContainer(
+                new RenderPadding(
+                    EdgeInsets::symmetric(Tokens::SPACE_XL, Tokens::SPACE_LG),
+                    RenderFlex::column([
+                        $documentRow('Permis de conduire', '', true, $requiredDone >= 1),
+                        new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_MD), $documentRow('Permis moto', 'si compétence moto', false, false)),
+                        new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_MD), $documentRow('Assurance professionnelle', '', true, false)),
+                        new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_MD), $documentRow('Pièce d\'identité', '', true, $requiredDone >= 2)),
+                        new RenderPadding(
+                            EdgeInsets::only(top: Tokens::SPACE_LG),
+                            new RenderContainer(
+                                new RenderPadding(
+                                    EdgeInsets::all(Tokens::SPACE_MD),
+                                    RenderFlex::row([
+                                        new RenderIcon('warning', 18, Tokens::danger()->toHex()),
+                                        new Flexible(new RenderPadding(
+                                            EdgeInsets::only(left: Tokens::SPACE_SM),
+                                            new RenderText('Veuillez ajouter les documents obligatoires pour continuer.', Tokens::TEXT_BODY_SMALL, Tokens::danger()->toHex()),
+                                        )),
+                                    ]),
+                                ),
+                                background: Color::red(50),
+                                radius: Tokens::RADIUS_MD,
+                            ),
+                        ),
+                        // Real tappable region — server-driven state, same
+                        // phase-3 round-trip as before, now standing in
+                        // for "mark the next required document done".
+                        new RenderPadding(
+                            EdgeInsets::only(top: Tokens::SPACE_XL),
+                            new RenderTappable(
+                                new RenderContainer(
+                                    new RenderCenter(new RenderText(
+                                        $requiredDone >= 2 ? 'Continuer' : "Valider un document ({$requiredDone}/2)",
+                                        Tokens::TEXT_BODY,
+                                        '#FFFFFF',
+                                        bold: true,
+                                    )),
+                                    height: 54,
+                                    background: Tokens::ink(),
+                                    radius: Tokens::RADIUS_PILL,
+                                ),
+                                action: 'increment',
+                            ),
+                        ),
                     ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
                 ),
-                // Phase 3: a real tappable region. NativeCanvasView.kt
-                // hit-tests the touch point against this box's absolute
-                // rect and fires 'increment' back to this same route —
-                // the count below is genuinely server-side state, not a
-                // client-side illusion of one.
-                new RenderPadding(
-                    EdgeInsets::only(top: 14),
-                    new RenderTappable(
-                        $card(RenderFlex::row([
-                            new Flexible(RenderFlex::column([
-                                new RenderText('Appuyez ici', 15, '#0F172A', bold: true),
-                                new RenderPadding(EdgeInsets::only(top: 4), RenderFlex::row([
-                                    $caption('TAPS CÔTÉ SERVEUR : '),
-                                    new RenderText((string) $tapCount, 12, '#4F46E5', bold: true),
-                                ])),
-                            ])),
-                            new RenderContainer(
-                                new RenderText('+1', 15, '#FFFFFF', bold: true),
-                                width: 44,
-                                height: 44,
-                                radius: 22,
-                                gradientFrom: Color::indigo(500),
-                                gradientTo: Color::indigo(700),
-                                padding: EdgeInsets::only(left: 12, top: 12),
-                            ),
-                        ], crossAxisAlignment: CrossAxisAlignment::CENTER), EdgeInsets::all(16)),
-                        action: 'increment',
-                    ),
-                ),
-            ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
-        ),
-        background: Color::slate(100),
+                background: Tokens::surfaceMuted(),
+            ),
+        ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
+        background: Tokens::surface(),
     );
 
     $tree->layout(new Constraints($screenWidth, $screenWidth, 0, Constraints::INFINITY));

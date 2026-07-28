@@ -140,6 +140,7 @@ class NativeCanvasView(context: Context) : View(context) {
             when (command.getString("type")) {
                 "rect" -> drawRectCommand(canvas, command, alpha)
                 "text" -> drawTextCommand(canvas, command, alpha)
+                "icon" -> drawIconCommand(canvas, command, alpha)
             }
         }
     }
@@ -220,6 +221,20 @@ class NativeCanvasView(context: Context) : View(context) {
             command.getDouble("x").toFloat(),
             command.getDouble("y").toFloat(),
             paint,
+        )
+    }
+
+    private fun drawIconCommand(canvas: Canvas, command: JSONObject, alpha: Float) {
+        val baseColor = Color.parseColor(command.optString("color", "#111827"))
+        val color = Color.argb((Color.alpha(baseColor) * alpha).toInt(), Color.red(baseColor), Color.green(baseColor), Color.blue(baseColor))
+        IconPainter.draw(
+            canvas,
+            command.getString("name"),
+            command.getDouble("x").toFloat(),
+            command.getDouble("y").toFloat(),
+            command.getDouble("size").toFloat(),
+            color,
+            command.optDouble("strokeWidth", 2.0).toFloat(),
         )
     }
 }

@@ -90,6 +90,27 @@ final class NativeCanvas
         return $this;
     }
 
+    /**
+     * A named vector icon drawn by NativeCanvasView's IconPainter (small
+     * icons built from Canvas line/arc primitives, not glyphs or bitmaps —
+     * see IconPainter.kt for the exact set). $x/$y are the icon's
+     * top-left corner, same convention as rect()/text().
+     */
+    public function icon(float $x, float $y, float $size, string $name, string $color = '#111827', float $strokeWidth = 2.0): self
+    {
+        $this->commands[] = [
+            'type' => 'icon',
+            'x' => $x,
+            'y' => $y,
+            'size' => $size,
+            'name' => $name,
+            'color' => $color,
+            'strokeWidth' => $strokeWidth,
+        ];
+
+        return $this;
+    }
+
     public function hitRegion(float $x, float $y, float $width, float $height, string $action): self
     {
         $this->hitRegions[] = [
