@@ -25,30 +25,45 @@ class NativeRenderPocActivity : AppCompatActivity() {
 
     private lateinit var phpServer: PhpServer
     private lateinit var canvasView: NativeCanvasView
+    private var serverPort: Int = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         canvasView = NativeCanvasView(this)
+        canvasView.onAction = { action -> onTap(action) }
         setContentView(canvasView)
 
         phpServer = PhpServer(this)
         thread {
             val port = phpServer.start()
+            serverPort = port
             Log.i(TAG, "PhpServer started on port $port")
-            fetchDrawCommands(port)
+            fetchDrawCommands(port, action = null)
         }
     }
 
-    private fun fetchDrawCommands(port: Int) {
+    // A hit region's action fired — same round-trip shape as nav.js's
+    // phpxNav.submitAction() in the HTML pipeline (tell PHP what happened,
+    // get back whatever should be on screen now), just fetching a fresh
+    // draw-command list instead of swapping innerHTML.
+    private fun onTap(action: String) {
+        if (serverPort == 0) {
+            return
+        }
+        thread { fetchDrawCommands(serverPort, action) }
+    }
+
+    private fun fetchDrawCommands(port: Int, action: String?) {
         // Real device pixel width — the layout engine's Constraints are in
         // the same absolute-pixel space Canvas draws in, so this has to
         // match resources.displayMetrics, not a dp value.
         val screenWidthPx = resources.displayMetrics.widthPixels
+        val actionParam = if (action != null) "&action=${java.net.URLEncoder.encode(action, "UTF-8")}" else ""
         try {
-            val connection = URL("http://127.0.0.1:$port/native/layout-demo?width=$screenWidthPx").openConnection() as HttpURLConnection
+            val connection = URL("http://127.0.0.1:$port/native/layout-demo?width=$screenWidthPx$actionParam").openConnection() as HttpURLConnection
             connection.connectTimeout = 5000
-            Log.i(TAG, "Fetching /native/demo, response code ${connection.responseCode}")
+            Log.i(TAG, "Fetching /native/layout-demo (action=$action), response code ${connection.responseCode}")
             val json = connection.inputStream.bufferedReader().use { it.readText() }
             connection.disconnect()
             Log.i(TAG, "Draw commands: $json")

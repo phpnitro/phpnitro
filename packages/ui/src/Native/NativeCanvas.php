@@ -23,6 +23,13 @@ namespace Engine\Native;
  * separate class rather than extending NativeDrawCommand because Phase 0's
  * demo route is intentionally frozen (docs/proposals/moteur-rendu-natif.md)
  * and shouldn't shift under a change meant for the layout engine.
+ *
+ * toJson()'s shape changed from a flat array to {commands, hitRegions} in
+ * phase 3 (hit-testing/actions) — RenderTappable needs somewhere to record
+ * "this absolute rect fires this action string" alongside the draw
+ * commands, so NativeCanvasView.kt has something to hit-test touches
+ * against. Only /native/layout-demo consumes this; Phase 0's /native/demo
+ * still uses the frozen flat-array NativeDrawCommand protocol.
  */
 final class NativeCanvas
 {
@@ -30,6 +37,11 @@ final class NativeCanvas
      * @var array<int, array<string, mixed>>
      */
     private array $commands = [];
+
+    /**
+     * @var array<int, array<string, mixed>>
+     */
+    private array $hitRegions = [];
 
     public function rect(
         float $x,
@@ -73,8 +85,24 @@ final class NativeCanvas
         return $this;
     }
 
+    public function hitRegion(float $x, float $y, float $width, float $height, string $action): self
+    {
+        $this->hitRegions[] = [
+            'x' => $x,
+            'y' => $y,
+            'width' => $width,
+            'height' => $height,
+            'action' => $action,
+        ];
+
+        return $this;
+    }
+
     public function toJson(): string
     {
-        return json_encode($this->commands, JSON_THROW_ON_ERROR);
+        return json_encode([
+            'commands' => $this->commands,
+            'hitRegions' => $this->hitRegions,
+        ], JSON_THROW_ON_ERROR);
     }
 }

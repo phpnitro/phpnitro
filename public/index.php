@@ -36,6 +36,7 @@ use Engine\Native\NativeCanvas;
 use Engine\Native\RenderContainer;
 use Engine\Native\RenderFlex;
 use Engine\Native\RenderPadding;
+use Engine\Native\RenderTappable;
 use Engine\Native\RenderText;
 use Engine\Navigation;
 use Engine\PageRenderer;
@@ -157,6 +158,21 @@ if ($path === '/native/layout-demo') {
 
     $screenWidth = (float) ($_GET['width'] ?? 360);
 
+    // php -S spawns a fresh process per request — no in-memory global
+    // survives between the initial render and a later tap — so the tap
+    // count has to live on disk to actually persist across the round-trip
+    // NativeCanvasView.kt -> NativeRenderPocActivity -> here. sys_temp_dir
+    // (not lib/backend/var, which cmdBundleAndroid() never copies into the
+    // APK's assets) is guaranteed to exist and be writable both in local
+    // dev and on-device — PhpServer.kt already points PHP's sys_temp_dir
+    // ini setting at the app's real cache directory.
+    $tapCountFile = sys_get_temp_dir() . '/phpnitro_native_demo_taps.txt';
+    if (($_GET['action'] ?? null) === 'increment') {
+        $current = is_file($tapCountFile) ? (int) file_get_contents($tapCountFile) : 0;
+        file_put_contents($tapCountFile, (string) ($current + 1));
+    }
+    $tapCount = is_file($tapCountFile) ? (int) file_get_contents($tapCountFile) : 0;
+
     // A small "elevated card" is the one visual unit Material/Flutter
     // screens are built from — background white, rounded corners, a soft
     // shadow instead of a hard border. Factored out because the stat row
@@ -209,6 +225,31 @@ if ($path === '/native/layout-demo') {
                         $statCard('Widgets portés', '52', Color::blue(500)),
                         new RenderPadding(EdgeInsets::only(left: 14), $statCard('FPS cible', '60', Color::green(500))),
                     ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
+                ),
+                // Phase 3: a real tappable region. NativeCanvasView.kt
+                // hit-tests the touch point against this box's absolute
+                // rect and fires 'increment' back to this same route —
+                // the count below is genuinely server-side state, not a
+                // client-side illusion of one.
+                new RenderPadding(
+                    EdgeInsets::only(top: 16),
+                    new RenderTappable(
+                        $card(RenderFlex::row([
+                            new Flexible(RenderFlex::column([
+                                new RenderText('Appuyez ici', 15, '#111827', bold: true),
+                                new RenderPadding(EdgeInsets::only(top: 4), new RenderText("Taps côté serveur : {$tapCount}", 13, '#6B7280')),
+                            ])),
+                            new RenderContainer(
+                                new RenderText('+1', 15, '#FFFFFF', bold: true),
+                                width: 44,
+                                height: 44,
+                                background: Color::blue(600),
+                                radius: 22,
+                                padding: EdgeInsets::only(left: 12, top: 12),
+                            ),
+                        ], crossAxisAlignment: CrossAxisAlignment::CENTER), EdgeInsets::all(16)),
+                        action: 'increment',
+                    ),
                 ),
             ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
         ),
