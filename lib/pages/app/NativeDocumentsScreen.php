@@ -49,7 +49,7 @@ final class NativeDocumentsScreen
                     RenderFlex::row([
                         $done
                             ? $iconCircle('check_circle', Tokens::successMuted(), Tokens::success(), 36)
-                            : $iconCircle('document', Tokens::surfaceMuted(), Tokens::inkSecondary(), 36),
+                            : $iconCircle('description', Tokens::surfaceMuted(), Tokens::inkSecondary(), 36),
                         new Flexible(new RenderPadding(EdgeInsets::only(left: Tokens::SPACE_MD), RenderFlex::column([
                             new RenderText($title, Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true),
                             new RenderPadding(
@@ -61,7 +61,7 @@ final class NativeDocumentsScreen
                         ]))),
                         $done
                             ? $iconCircle('check', Tokens::successMuted(), Tokens::success(), 30)
-                            : $iconCircle('plus', Tokens::ink(), Color::white(), 30),
+                            : $iconCircle('add', Tokens::ink(), Color::white(), 30),
                     ], crossAxisAlignment: CrossAxisAlignment::CENTER),
                 ),
                 background: Tokens::surface(),

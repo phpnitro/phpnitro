@@ -12,22 +12,22 @@
 namespace Engine\Native;
 
 /**
- * A fixed-size square icon — one of NativeCanvasView's IconPainter names
- * (arrow_back, edit, check, check_circle, document, plus, chevron_up,
- * chevron_down, hourglass, shield, warning, info, close). Not an SVG/font
- * glyph pipeline: each icon is a handful of Canvas line/arc primitives
- * drawn natively, which is what makes this safe to hand-roll without a
- * vector asset pipeline while still looking like a real icon, not a
- * placeholder box.
+ * A fixed-size square icon, drawn from the real Material Icons font
+ * (2235 names — anything at https://fonts.google.com/icons, e.g.
+ * 'arrow_back', 'shopping_cart', 'notifications', 'settings'). See
+ * MaterialIcons::codepoint() for the name -> glyph lookup and
+ * NativeCanvasView.kt for how the glyph actually gets painted.
  */
 final class RenderIcon implements RenderNode
 {
+    private readonly int $codepoint;
+
     public function __construct(
-        private readonly string $name,
+        string $name,
         private readonly float $size = 24.0,
         private readonly string $color = '#111827',
-        private readonly float $strokeWidth = 2.0,
     ) {
+        $this->codepoint = MaterialIcons::codepoint($name);
     }
 
     public function layout(Constraints $constraints): Size
@@ -37,6 +37,6 @@ final class RenderIcon implements RenderNode
 
     public function paint(NativeCanvas $canvas, float $x, float $y): void
     {
-        $canvas->icon($x, $y, $this->size, $this->name, $this->color, $this->strokeWidth);
+        $canvas->icon($x, $y, $this->size, $this->codepoint, $this->color);
     }
 }

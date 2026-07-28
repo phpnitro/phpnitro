@@ -250,17 +250,45 @@ class NativeCanvasView(context: Context) : View(context) {
         )
     }
 
+    // An icon is a single glyph drawn against the bundled Material Icons
+    // font — the same technique Flutter's own Icons class uses
+    // internally — rather than a bitmap or a hand-drawn path, which is
+    // what makes ~2235 icons (packages/ui/src/Native/MaterialIcons.php)
+    // available for the cost of one font file instead of one Kotlin
+    // function per icon.
     private fun drawIconCommand(canvas: Canvas, command: JSONObject, alpha: Float) {
         val baseColor = Color.parseColor(command.optString("color", "#111827"))
         val color = Color.argb((Color.alpha(baseColor) * alpha).toInt(), Color.red(baseColor), Color.green(baseColor), Color.blue(baseColor))
-        IconPainter.draw(
-            canvas,
-            command.getString("name"),
-            command.getDouble("x").toFloat(),
-            command.getDouble("y").toFloat(),
-            command.getDouble("size").toFloat(),
-            color,
-            command.optDouble("strokeWidth", 2.0).toFloat(),
-        )
+        val size = command.getDouble("size").toFloat()
+        val glyph = String(Character.toChars(command.getInt("codepoint")))
+
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = color
+            textSize = size
+            typeface = materialIconsTypeface(context)
+            textAlign = Paint.Align.CENTER
+        }
+
+        val x = command.getDouble("x").toFloat()
+        val y = command.getDouble("y").toFloat()
+        val cx = x + size / 2
+        // Material Icons glyphs are drawn to roughly fill their em box —
+        // baseline = top + ~86% of size centers them well inside the
+        // requested size x size box, the standard trick for treating an
+        // icon font as a square icon instead of as running text.
+        val baselineY = y + size * 0.86f
+
+        canvas.drawText(glyph, cx, baselineY, paint)
+    }
+
+    companion object {
+        @Volatile
+        private var cachedMaterialIconsTypeface: Typeface? = null
+
+        private fun materialIconsTypeface(context: Context): Typeface {
+            return cachedMaterialIconsTypeface ?: Typeface.createFromAsset(context.assets, "fonts/MaterialIcons-Regular.ttf").also {
+                cachedMaterialIconsTypeface = it
+            }
+        }
     }
 }

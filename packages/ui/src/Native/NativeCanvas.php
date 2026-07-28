@@ -91,21 +91,22 @@ final class NativeCanvas
     }
 
     /**
-     * A named vector icon drawn by NativeCanvasView's IconPainter (small
-     * icons built from Canvas line/arc primitives, not glyphs or bitmaps —
-     * see IconPainter.kt for the exact set). $x/$y are the icon's
-     * top-left corner, same convention as rect()/text().
+     * A Material Icons glyph — NativeCanvasView draws it with
+     * Canvas.drawText() against the bundled MaterialIcons-Regular.ttf,
+     * exactly the technique Flutter's own Icons class uses internally
+     * (an icon is a character, not a bitmap or a hand-drawn path). $x/$y
+     * are the icon's top-left corner, same convention as rect()/text();
+     * $codepoint comes from MaterialIcons::codepoint($name).
      */
-    public function icon(float $x, float $y, float $size, string $name, string $color = '#111827', float $strokeWidth = 2.0): self
+    public function icon(float $x, float $y, float $size, int $codepoint, string $color = '#111827'): self
     {
         $this->commands[] = [
             'type' => 'icon',
             'x' => $x,
             'y' => $y,
             'size' => $size,
-            'name' => $name,
+            'codepoint' => $codepoint,
             'color' => $color,
-            'strokeWidth' => $strokeWidth,
         ];
 
         return $this;
