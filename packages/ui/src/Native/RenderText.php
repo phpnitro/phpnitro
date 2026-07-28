@@ -29,12 +29,12 @@ final class RenderText implements RenderNode
 
     public function layout(Constraints $constraints): Size
     {
-        $maxWidth = $constraints->hasBoundedWidth() ? $constraints->maxWidth : TextMetrics::width($this->text, $this->fontSize, $this->letterSpacing);
-        $this->lines = TextMetrics::wrap($this->text, $this->fontSize, $maxWidth, $this->letterSpacing);
+        $maxWidth = $constraints->hasBoundedWidth() ? $constraints->maxWidth : TextMetrics::width($this->text, $this->fontSize, $this->letterSpacing, $this->bold);
+        $this->lines = TextMetrics::wrap($this->text, $this->fontSize, $maxWidth, $this->letterSpacing, $this->bold);
 
         $width = 0.0;
         foreach ($this->lines as $line) {
-            $width = max($width, TextMetrics::width($line, $this->fontSize, $this->letterSpacing));
+            $width = max($width, TextMetrics::width($line, $this->fontSize, $this->letterSpacing, $this->bold));
         }
 
         $height = count($this->lines) * TextMetrics::lineHeight($this->fontSize);
