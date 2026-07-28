@@ -137,6 +137,74 @@ if ($path === '/native/demo') {
     exit;
 }
 
+// Phase 2: a real widget tree (Column/Row/Container/Text, flex, padding,
+// text wrapping) run through the packages/ui/src/Native layout engine —
+// proves the constraint-based layout algorithm itself, not just that a
+// hardcoded rect/text pair can reach a Canvas. See
+// docs/proposals/moteur-rendu-natif.md for the phased plan this belongs to.
+if ($path === '/native/layout-demo') {
+    header('Content-Type: application/json');
+
+    $screenWidth = (float) ($_GET['width'] ?? 360);
+
+    $tree = new \Engine\Native\RenderPadding(
+        \Engine\Native\EdgeInsets::all(20),
+        \Engine\Native\RenderFlex::column([
+            new \Engine\Native\RenderContainer(
+                new \Engine\Native\RenderText('Moteur de rendu natif', 22, '#FFFFFF'),
+                background: \Engine\Color::blue(600),
+                radius: 16,
+                padding: \Engine\Native\EdgeInsets::symmetric(16, 14),
+            ),
+            new \Engine\Native\RenderPadding(
+                \Engine\Native\EdgeInsets::only(top: 16),
+                \Engine\Native\RenderFlex::row([
+                    new \Engine\Native\Flexible(new \Engine\Native\RenderContainer(
+                        new \Engine\Native\RenderPadding(
+                            \Engine\Native\EdgeInsets::all(10),
+                            new \Engine\Native\RenderText('Flex 1', 14, '#065F46'),
+                        ),
+                        height: 64,
+                        background: \Engine\Color::green(200),
+                        radius: 12,
+                        borderColor: \Engine\Color::green(600),
+                        borderWidth: 2,
+                    )),
+                    new \Engine\Native\Flexible(new \Engine\Native\RenderPadding(
+                        \Engine\Native\EdgeInsets::only(left: 12),
+                        new \Engine\Native\RenderContainer(
+                            new \Engine\Native\RenderPadding(
+                                \Engine\Native\EdgeInsets::all(10),
+                                new \Engine\Native\RenderText('Flex 2', 14, '#7F1D1D'),
+                            ),
+                            height: 64,
+                            background: \Engine\Color::red(200),
+                            radius: 12,
+                            borderColor: \Engine\Color::red(600),
+                            borderWidth: 2,
+                        ),
+                    ), flex: 2),
+                ], crossAxisAlignment: \Engine\Native\CrossAxisAlignment::STRETCH),
+            ),
+            new \Engine\Native\RenderPadding(
+                \Engine\Native\EdgeInsets::only(top: 16),
+                new \Engine\Native\RenderText(
+                    'Ce texte est mis en page par un vrai moteur de contraintes (BoxConstraints, comme Flutter) exécuté en PHP, puis peint sur un android.graphics.Canvas natif — aucune WebView, aucun HTML, aucun CSS.',
+                    14,
+                    '#374151',
+                ),
+            ),
+        ], crossAxisAlignment: \Engine\Native\CrossAxisAlignment::STRETCH),
+    );
+
+    $tree->layout(new \Engine\Native\Constraints(0, $screenWidth, 0, \Engine\Native\Constraints::INFINITY));
+
+    $canvas = new \Engine\Native\NativeCanvas();
+    $tree->paint($canvas, 0, 0);
+    echo $canvas->toJson();
+    exit;
+}
+
 if ($debug && $path === '/_dev/version') {
     // packages/*/src previously wasn't watched at all — editing a widget
     // (Container.php, FadeIn.php...) took effect on the next PHP request

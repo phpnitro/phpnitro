@@ -3,6 +3,7 @@ package com.mobile.engine
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import java.net.HttpURLConnection
 import java.net.URL
@@ -34,23 +35,34 @@ class NativeRenderPocActivity : AppCompatActivity() {
         phpServer = PhpServer(this)
         thread {
             val port = phpServer.start()
+            Log.i(TAG, "PhpServer started on port $port")
             fetchDrawCommands(port)
         }
     }
 
     private fun fetchDrawCommands(port: Int) {
+        // Real device pixel width — the layout engine's Constraints are in
+        // the same absolute-pixel space Canvas draws in, so this has to
+        // match resources.displayMetrics, not a dp value.
+        val screenWidthPx = resources.displayMetrics.widthPixels
         try {
-            val connection = URL("http://127.0.0.1:$port/native/demo").openConnection() as HttpURLConnection
+            val connection = URL("http://127.0.0.1:$port/native/layout-demo?width=$screenWidthPx").openConnection() as HttpURLConnection
             connection.connectTimeout = 5000
+            Log.i(TAG, "Fetching /native/demo, response code ${connection.responseCode}")
             val json = connection.inputStream.bufferedReader().use { it.readText() }
             connection.disconnect()
+            Log.i(TAG, "Draw commands: $json")
 
             Handler(Looper.getMainLooper()).post {
                 canvasView.setCommands(json)
             }
         } catch (e: Exception) {
-            // Phase 0 proof of concept — a real error UI isn't the point yet.
+            Log.e(TAG, "Failed to fetch draw commands", e)
         }
+    }
+
+    companion object {
+        private const val TAG = "NativeRenderPoc"
     }
 
     override fun onDestroy() {

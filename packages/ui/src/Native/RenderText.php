@@ -1,0 +1,57 @@
+<?php
+
+/*
+ * This file is part of the PhpNitro package.
+ *
+ * (c) Ronaldo AWADEME <awademeronaldoo@gmail.com>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Engine\Native;
+
+final class RenderText implements RenderNode
+{
+    /**
+     * @var array<int, string>
+     */
+    private array $lines = [];
+
+    public function __construct(
+        private readonly string $text,
+        private readonly float $fontSize = 16.0,
+        private readonly string $color = '#000000',
+    ) {
+    }
+
+    public function layout(Constraints $constraints): Size
+    {
+        $maxWidth = $constraints->hasBoundedWidth() ? $constraints->maxWidth : TextMetrics::width($this->text, $this->fontSize);
+        $this->lines = TextMetrics::wrap($this->text, $this->fontSize, $maxWidth);
+
+        $width = 0.0;
+        foreach ($this->lines as $line) {
+            $width = max($width, TextMetrics::width($line, $this->fontSize));
+        }
+
+        $height = count($this->lines) * TextMetrics::lineHeight($this->fontSize);
+
+        return $constraints->constrain(new Size($width, $height));
+    }
+
+    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    {
+        $lineHeight = TextMetrics::lineHeight($this->fontSize);
+        // Canvas.drawText's y is the text baseline, not the top of the glyph
+        // box — offsetting by ~80% of the line height approximates where
+        // the baseline sits for Roboto at this size, keeping the text
+        // vertically inside the box layout computed instead of hanging
+        // above it.
+        $baselineOffset = $this->fontSize * 0.8;
+
+        foreach ($this->lines as $index => $line) {
+            $canvas->text($x, $y + $index * $lineHeight + $baselineOffset, $line, $this->color, $this->fontSize);
+        }
+    }
+}

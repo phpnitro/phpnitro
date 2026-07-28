@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
+import android.util.Log
 import android.view.View
 import org.json.JSONArray
 import org.json.JSONObject
@@ -28,11 +29,13 @@ class NativeCanvasView(context: Context) : View(context) {
 
     fun setCommands(json: String) {
         commands = JSONArray(json)
+        Log.i("NativeCanvasView", "setCommands: ${commands.length()} commands, view size ${width}x${height}")
         invalidate()
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        Log.i("NativeCanvasView", "onDraw: replaying ${commands.length()} commands")
 
         for (index in 0 until commands.length()) {
             val command = commands.getJSONObject(index)
@@ -44,10 +47,6 @@ class NativeCanvasView(context: Context) : View(context) {
     }
 
     private fun drawRectCommand(canvas: Canvas, command: JSONObject) {
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(command.getString("color"))
-            style = Paint.Style.FILL
-        }
         val rect = RectF(
             command.getDouble("x").toFloat(),
             command.getDouble("y").toFloat(),
@@ -56,10 +55,31 @@ class NativeCanvasView(context: Context) : View(context) {
         )
         val radius = command.optDouble("radius", 0.0).toFloat()
 
-        if (radius > 0) {
-            canvas.drawRoundRect(rect, radius, radius, paint)
-        } else {
-            canvas.drawRect(rect, paint)
+        // NativeCanvas.php (the layout-engine paint target) omits "color"
+        // entirely for a border-only box — a Container with borderColor but
+        // no background shouldn't paint a fake fill underneath the stroke.
+        if (command.has("color")) {
+            val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(command.getString("color"))
+                style = Paint.Style.FILL
+            }
+            if (radius > 0) canvas.drawRoundRect(rect, radius, radius, fillPaint) else canvas.drawRect(rect, fillPaint)
+        }
+
+        if (command.has("borderColor")) {
+            val borderWidth = command.optDouble("borderWidth", 0.0).toFloat()
+            val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(command.getString("borderColor"))
+                style = Paint.Style.STROKE
+                strokeWidth = borderWidth
+            }
+            // Stroke is centered on the rect's edge — inset by half the
+            // stroke width so the border is fully contained within the box
+            // the layout engine computed, matching how Android's border
+            // drawables (and Flutter's BoxDecoration) render it.
+            val inset = borderWidth / 2
+            val strokeRect = RectF(rect.left + inset, rect.top + inset, rect.right - inset, rect.bottom - inset)
+            if (radius > 0) canvas.drawRoundRect(strokeRect, radius, radius, borderPaint) else canvas.drawRect(strokeRect, borderPaint)
         }
     }
 
