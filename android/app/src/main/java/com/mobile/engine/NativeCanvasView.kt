@@ -1,5 +1,6 @@
 package com.mobile.engine
 
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
@@ -7,8 +8,10 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.util.Log
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
+import android.view.animation.DecelerateInterpolator
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -31,6 +34,16 @@ import org.json.JSONObject
  * inside a hit region fires onAction with that region's action string; the
  * caller (NativeRenderPocActivity) is the one that actually talks to PHP
  * about it, this view only knows about pixels and rects.
+ *
+ * Phase 5 (animation): PHP has no concept of "the previous frame" — every
+ * response is a fresh full draw-command list, computed from scratch. A
+ * server-driven UI update would otherwise be a hard cut (old frame this
+ * vsync, entirely new one the next). setCommands() keeps the outgoing
+ * frame around and ValueAnimator (itself Choreographer-driven — every
+ * update tick is a real vsync-synced frame callback, not a timer) blends
+ * old-fading-out under new-fading-in over ~220ms, which is what makes a
+ * counter update or a re-render read as "the UI changed" instead of "the
+ * screen flickered".
  */
 class NativeCanvasView(context: Context) : View(context) {
 
@@ -47,6 +60,9 @@ class NativeCanvasView(context: Context) : View(context) {
 
     private var commands: JSONArray = JSONArray()
     private var hitRegions: JSONArray = JSONArray()
+    private var previousCommands: JSONArray? = null
+    private var fadeAnimator: ValueAnimator? = null
+    private var fadeProgress: Float = 1f
     var onAction: ((String) -> Unit)? = null
 
     fun setCommands(json: String) {
@@ -57,12 +73,29 @@ class NativeCanvasView(context: Context) : View(context) {
         // logging it and leaving the last good frame on screen.
         try {
             val payload = JSONObject(json)
-            commands = payload.getJSONArray("commands")
+            val newCommands = payload.getJSONArray("commands")
             hitRegions = payload.optJSONArray("hitRegions") ?: JSONArray()
+
+            previousCommands = if (commands.length() > 0) commands else null
+            commands = newCommands
             Log.i("NativeCanvasView", "setCommands: ${commands.length()} commands, ${hitRegions.length()} hit regions, view size ${width}x${height}")
-            invalidate()
+            startCrossfade()
         } catch (e: org.json.JSONException) {
             Log.e("NativeCanvasView", "setCommands: response wasn't valid JSON: $json", e)
+        }
+    }
+
+    private fun startCrossfade() {
+        fadeAnimator?.cancel()
+        fadeProgress = 0f
+        fadeAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 220
+            interpolator = DecelerateInterpolator()
+            addUpdateListener {
+                fadeProgress = it.animatedValue as Float
+                invalidate()
+            }
+            start()
         }
     }
 
@@ -80,6 +113,7 @@ class NativeCanvasView(context: Context) : View(context) {
 
             if (event.x >= left && event.x <= right && event.y >= top && event.y <= bottom) {
                 Log.i("NativeCanvasView", "tap hit region: ${region.getString("action")}")
+                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                 onAction?.invoke(region.getString("action"))
                 return true
             }
@@ -90,18 +124,25 @@ class NativeCanvasView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        Log.i("NativeCanvasView", "onDraw: replaying ${commands.length()} commands")
 
-        for (index in 0 until commands.length()) {
-            val command = commands.getJSONObject(index)
+        val previous = previousCommands
+        if (previous != null && fadeProgress < 1f) {
+            drawCommands(canvas, previous, 1f - fadeProgress)
+        }
+        drawCommands(canvas, commands, fadeProgress)
+    }
+
+    private fun drawCommands(canvas: Canvas, list: JSONArray, alpha: Float) {
+        for (index in 0 until list.length()) {
+            val command = list.getJSONObject(index)
             when (command.getString("type")) {
-                "rect" -> drawRectCommand(canvas, command)
-                "text" -> drawTextCommand(canvas, command)
+                "rect" -> drawRectCommand(canvas, command, alpha)
+                "text" -> drawTextCommand(canvas, command, alpha)
             }
         }
     }
 
-    private fun drawRectCommand(canvas: Canvas, command: JSONObject) {
+    private fun drawRectCommand(canvas: Canvas, command: JSONObject, alpha: Float) {
         val rect = RectF(
             command.getDouble("x").toFloat(),
             command.getDouble("y").toFloat(),
@@ -117,6 +158,7 @@ class NativeCanvasView(context: Context) : View(context) {
             val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor(command.getString("color"))
                 style = Paint.Style.FILL
+                this.alpha = (this.alpha * alpha).toInt()
             }
 
             val elevation = command.optDouble("elevation", 0.0).toFloat()
@@ -126,12 +168,8 @@ class NativeCanvasView(context: Context) : View(context) {
                 // canvas op needed. Blur/offset scale with elevation so
                 // higher values read as "further off the page", same
                 // convention as Flutter's Material elevation.
-                fillPaint.setShadowLayer(
-                    elevation * 2.2f,
-                    0f,
-                    elevation * 0.9f,
-                    Color.argb((40 + elevation * 5).toInt().coerceAtMost(140), 0, 0, 0),
-                )
+                val shadowAlpha = ((40 + elevation * 5).toInt().coerceAtMost(140) * alpha).toInt()
+                fillPaint.setShadowLayer(elevation * 2.2f, 0f, elevation * 0.9f, Color.argb(shadowAlpha, 0, 0, 0))
             }
 
             if (radius > 0) canvas.drawRoundRect(rect, radius, radius, fillPaint) else canvas.drawRect(rect, fillPaint)
@@ -143,6 +181,7 @@ class NativeCanvasView(context: Context) : View(context) {
                 color = Color.parseColor(command.getString("borderColor"))
                 style = Paint.Style.STROKE
                 strokeWidth = borderWidth
+                this.alpha = (this.alpha * alpha).toInt()
             }
             // Stroke is centered on the rect's edge — inset by half the
             // stroke width so the border is fully contained within the box
@@ -154,12 +193,13 @@ class NativeCanvasView(context: Context) : View(context) {
         }
     }
 
-    private fun drawTextCommand(canvas: Canvas, command: JSONObject) {
+    private fun drawTextCommand(canvas: Canvas, command: JSONObject, alpha: Float) {
         val bold = command.optBoolean("bold", false)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor(command.optString("color", "#000000"))
             textSize = command.optDouble("size", 16.0).toFloat()
             typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+            this.alpha = (this.alpha * alpha).toInt()
         }
         canvas.drawText(
             command.getString("text"),
