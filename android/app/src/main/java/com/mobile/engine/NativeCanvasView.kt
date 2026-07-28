@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.Typeface
 import android.util.Log
 import android.view.View
 import org.json.JSONArray
@@ -24,6 +25,16 @@ import org.json.JSONObject
  * hardcoded for this phase.
  */
 class NativeCanvasView(context: Context) : View(context) {
+
+    init {
+        // Paint.setShadowLayer (used for elevation below) only renders
+        // reliably on a software-composited layer — hardware acceleration
+        // silently drops arbitrary-shape blur shadows on many API levels.
+        // This view is a handful of rects/text per frame, not a
+        // performance-sensitive scroll surface, so the software cost is a
+        // non-issue.
+        setLayerType(LAYER_TYPE_SOFTWARE, null)
+    }
 
     private var commands: JSONArray = JSONArray()
 
@@ -63,6 +74,22 @@ class NativeCanvasView(context: Context) : View(context) {
                 color = Color.parseColor(command.getString("color"))
                 style = Paint.Style.FILL
             }
+
+            val elevation = command.optDouble("elevation", 0.0).toFloat()
+            if (elevation > 0) {
+                // setShadowLayer draws the shadow behind whatever this same
+                // paint's draw call renders, in the same pass — no second
+                // canvas op needed. Blur/offset scale with elevation so
+                // higher values read as "further off the page", same
+                // convention as Flutter's Material elevation.
+                fillPaint.setShadowLayer(
+                    elevation * 2.2f,
+                    0f,
+                    elevation * 0.9f,
+                    Color.argb((40 + elevation * 5).toInt().coerceAtMost(140), 0, 0, 0),
+                )
+            }
+
             if (radius > 0) canvas.drawRoundRect(rect, radius, radius, fillPaint) else canvas.drawRect(rect, fillPaint)
         }
 
@@ -84,9 +111,11 @@ class NativeCanvasView(context: Context) : View(context) {
     }
 
     private fun drawTextCommand(canvas: Canvas, command: JSONObject) {
+        val bold = command.optBoolean("bold", false)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor(command.optString("color", "#000000"))
             textSize = command.optDouble("size", 16.0).toFloat()
+            typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
         }
         canvas.drawText(
             command.getString("text"),

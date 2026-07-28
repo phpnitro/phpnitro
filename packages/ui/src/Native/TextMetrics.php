@@ -17,11 +17,10 @@ namespace Engine\Native;
  * per-glyph widths live in the font, and the font lives on the native side
  * (Android's default Roboto), not in this PHP process. Rather than block
  * the whole layout engine on a synchronous PHP<->native measurement
- * round-trip, this uses a calibrated average-character-width heuristic:
- * good enough to make Column/Row/Text/Container layout together correctly
- * today, with a known error margin (mixed-width fonts mean any given line
- * can be measured a few percent wide or narrow of what Canvas.drawText()
- * actually occupies).
+ * round-trip, this buckets characters by approximate Roboto advance width
+ * (narrow like "i"/"l", wide like "m"/"M", everything else in between)
+ * instead of a single flat average — noticeably tighter wrapping/box
+ * sizing than a uniform ratio, though still not exact glyph metrics.
  *
  * Revisit when a real native measurement pass is built (phase 4 of the
  * roadmap) — until then, this is the one place that approximation lives,
@@ -30,8 +29,20 @@ namespace Engine\Native;
  */
 final class TextMetrics
 {
-    private const AVG_CHAR_WIDTH_RATIO = 0.52;
     private const LINE_HEIGHT_RATIO = 1.25;
+
+    /** @var array<string, float> Advance width as a fraction of font size, by character bucket. */
+    private const WIDTH_BUCKETS = [
+        'narrow' => 0.24,   // i l j I . , ' ! | : ; ( ) [ ] " ` space
+        'compact' => 0.34,  // f t r - / \ 1
+        'regular' => 0.52,  // most lowercase, digits, default punctuation
+        'upperRegular' => 0.64, // most uppercase
+        'wide' => 0.82,     // m w M W % @ &
+    ];
+
+    private const NARROW_CHARS = " iIlj.,'!|:;()[]\"`";
+    private const COMPACT_CHARS = 'ftr-/\\1';
+    private const WIDE_CHARS = 'mwMW%@&';
 
     public static function lineHeight(float $fontSize): float
     {
@@ -40,7 +51,30 @@ final class TextMetrics
 
     public static function width(string $text, float $fontSize): float
     {
-        return mb_strlen($text) * $fontSize * self::AVG_CHAR_WIDTH_RATIO;
+        $total = 0.0;
+        foreach (mb_str_split($text) as $char) {
+            $total += self::charWidthRatio($char);
+        }
+
+        return $total * $fontSize;
+    }
+
+    private static function charWidthRatio(string $char): float
+    {
+        if (str_contains(self::NARROW_CHARS, $char)) {
+            return self::WIDTH_BUCKETS['narrow'];
+        }
+        if (str_contains(self::COMPACT_CHARS, $char)) {
+            return self::WIDTH_BUCKETS['compact'];
+        }
+        if (str_contains(self::WIDE_CHARS, $char)) {
+            return self::WIDTH_BUCKETS['wide'];
+        }
+        if (ctype_upper($char)) {
+            return self::WIDTH_BUCKETS['upperRegular'];
+        }
+
+        return self::WIDTH_BUCKETS['regular'];
     }
 
     /**

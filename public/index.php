@@ -24,9 +24,19 @@ use Engine\Column;
 use Engine\Container;
 use Engine\Csrf;
 use Engine\Database\Database;
+use Engine\Color;
 use Engine\Html;
 use Engine\Icon;
 use Engine\Link;
+use Engine\Native\Constraints;
+use Engine\Native\CrossAxisAlignment;
+use Engine\Native\EdgeInsets;
+use Engine\Native\Flexible;
+use Engine\Native\NativeCanvas;
+use Engine\Native\RenderContainer;
+use Engine\Native\RenderFlex;
+use Engine\Native\RenderPadding;
+use Engine\Native\RenderText;
 use Engine\Navigation;
 use Engine\PageRenderer;
 use Engine\Router;
@@ -147,59 +157,67 @@ if ($path === '/native/layout-demo') {
 
     $screenWidth = (float) ($_GET['width'] ?? 360);
 
-    $tree = new \Engine\Native\RenderPadding(
-        \Engine\Native\EdgeInsets::all(20),
-        \Engine\Native\RenderFlex::column([
-            new \Engine\Native\RenderContainer(
-                new \Engine\Native\RenderText('Moteur de rendu natif', 22, '#FFFFFF'),
-                background: \Engine\Color::blue(600),
-                radius: 16,
-                padding: \Engine\Native\EdgeInsets::symmetric(16, 14),
-            ),
-            new \Engine\Native\RenderPadding(
-                \Engine\Native\EdgeInsets::only(top: 16),
-                \Engine\Native\RenderFlex::row([
-                    new \Engine\Native\Flexible(new \Engine\Native\RenderContainer(
-                        new \Engine\Native\RenderPadding(
-                            \Engine\Native\EdgeInsets::all(10),
-                            new \Engine\Native\RenderText('Flex 1', 14, '#065F46'),
-                        ),
-                        height: 64,
-                        background: \Engine\Color::green(200),
-                        radius: 12,
-                        borderColor: \Engine\Color::green(600),
-                        borderWidth: 2,
-                    )),
-                    new \Engine\Native\Flexible(new \Engine\Native\RenderPadding(
-                        \Engine\Native\EdgeInsets::only(left: 12),
-                        new \Engine\Native\RenderContainer(
-                            new \Engine\Native\RenderPadding(
-                                \Engine\Native\EdgeInsets::all(10),
-                                new \Engine\Native\RenderText('Flex 2', 14, '#7F1D1D'),
-                            ),
-                            height: 64,
-                            background: \Engine\Color::red(200),
-                            radius: 12,
-                            borderColor: \Engine\Color::red(600),
-                            borderWidth: 2,
-                        ),
-                    ), flex: 2),
-                ], crossAxisAlignment: \Engine\Native\CrossAxisAlignment::STRETCH),
-            ),
-            new \Engine\Native\RenderPadding(
-                \Engine\Native\EdgeInsets::only(top: 16),
-                new \Engine\Native\RenderText(
-                    'Ce texte est mis en page par un vrai moteur de contraintes (BoxConstraints, comme Flutter) exécuté en PHP, puis peint sur un android.graphics.Canvas natif — aucune WebView, aucun HTML, aucun CSS.',
+    // A small "elevated card" is the one visual unit Material/Flutter
+    // screens are built from — background white, rounded corners, a soft
+    // shadow instead of a hard border. Factored out because the stat row
+    // below needs two of them with only the accent color/label/value
+    // changing.
+    $card = static function (\Engine\Native\RenderNode $child, EdgeInsets $padding = new EdgeInsets(18.0, 18.0, 18.0, 18.0)): RenderContainer {
+        return new RenderContainer(
+            new RenderPadding($padding, $child),
+            background: Color::white(),
+            radius: 16,
+            elevation: 6,
+        );
+    };
+
+    $statCard = static function (string $label, string $value, Color $accent) use ($card): Flexible {
+        return new Flexible($card(RenderFlex::column([
+            new RenderContainer(width: 28, height: 28, background: $accent, radius: 14),
+            new RenderPadding(EdgeInsets::only(top: 10), new RenderText($value, 24, '#111827', bold: true)),
+            new RenderText($label, 13, '#6B7280'),
+        ]), EdgeInsets::all(16)));
+    };
+
+    $tree = new RenderContainer(
+        new RenderPadding(
+            EdgeInsets::all(20),
+            RenderFlex::column([
+                // Header: avatar roundel + title/subtitle, like a Material app bar.
+                RenderFlex::row([
+                    new RenderContainer(
+                        new RenderText('N', 20, '#FFFFFF', bold: true),
+                        width: 48,
+                        height: 48,
+                        background: Color::blue(600),
+                        radius: 24,
+                        padding: EdgeInsets::only(left: 16, top: 12),
+                    ),
+                    new Flexible(new RenderPadding(EdgeInsets::only(left: 12), RenderFlex::column([
+                        new RenderText('PhpNitro', 18, '#111827', bold: true),
+                        new RenderText('Moteur de rendu natif', 13, '#6B7280'),
+                    ]))),
+                ]),
+                new RenderPadding(EdgeInsets::only(top: 20), $card(new RenderText(
+                    'Cette carte est un vrai moteur de contraintes (BoxConstraints, comme Flutter) exécuté en PHP, avec ombre portée, texte en gras et mise en page flexible, peint sur un android.graphics.Canvas natif — aucune WebView, aucun HTML, aucun CSS.',
                     14,
                     '#374151',
+                ))),
+                new RenderPadding(
+                    EdgeInsets::only(top: 16),
+                    RenderFlex::row([
+                        $statCard('Widgets portés', '52', Color::blue(500)),
+                        new RenderPadding(EdgeInsets::only(left: 14), $statCard('FPS cible', '60', Color::green(500))),
+                    ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
                 ),
-            ),
-        ], crossAxisAlignment: \Engine\Native\CrossAxisAlignment::STRETCH),
+            ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
+        ),
+        background: Color::gray(100),
     );
 
-    $tree->layout(new \Engine\Native\Constraints(0, $screenWidth, 0, \Engine\Native\Constraints::INFINITY));
+    $tree->layout(new Constraints($screenWidth, $screenWidth, 0, Constraints::INFINITY));
 
-    $canvas = new \Engine\Native\NativeCanvas();
+    $canvas = new NativeCanvas();
     $tree->paint($canvas, 0, 0);
     echo $canvas->toJson();
     exit;

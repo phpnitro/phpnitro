@@ -33,6 +33,7 @@ final class RenderContainer implements RenderNode
         private readonly float $radius = 0.0,
         private readonly ?Color $borderColor = null,
         private readonly float $borderWidth = 0.0,
+        private readonly float $elevation = 0.0,
         EdgeInsets $padding = new EdgeInsets(0.0, 0.0, 0.0, 0.0),
     ) {
         $this->content = $child !== null ? new RenderPadding($padding, $child) : null;
@@ -86,6 +87,7 @@ final class RenderContainer implements RenderNode
                 $this->radius,
                 $this->borderColor?->toHex(),
                 $this->borderWidth,
+                $this->elevation,
             );
         }
 

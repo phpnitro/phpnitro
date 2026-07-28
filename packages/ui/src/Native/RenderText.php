@@ -22,6 +22,7 @@ final class RenderText implements RenderNode
         private readonly string $text,
         private readonly float $fontSize = 16.0,
         private readonly string $color = '#000000',
+        private readonly bool $bold = false,
     ) {
     }
 
@@ -51,7 +52,7 @@ final class RenderText implements RenderNode
         $baselineOffset = $this->fontSize * 0.8;
 
         foreach ($this->lines as $index => $line) {
-            $canvas->text($x, $y + $index * $lineHeight + $baselineOffset, $line, $this->color, $this->fontSize);
+            $canvas->text($x, $y + $index * $lineHeight + $baselineOffset, $line, $this->color, $this->fontSize, $this->bold);
         }
     }
 }
