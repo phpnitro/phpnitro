@@ -7,6 +7,15 @@ is informal while the project is pre-1.0 (see `phpnitro.yml`'s `version`).
 ## Unreleased
 
 ### Added
+- Typed style params on 7 more widgets: `AppBar` (background), `Dropdown`
+  (background/foreground), `LocationButton` (background/foreground),
+  `IconButton` (foreground), `Divider` (color), `Stepper` (activeColor,
+  follows `Theme::primary()` by default like other themed widgets). Also
+  fixed `ProgressBar::$barColor`, previously a raw string despite being
+  listed as "typed" — now a real `?Color`.
+- `docs/proposals/editeur-visuel.md` — design notes on a possible drag & drop
+  visual builder (why Flutter itself never shipped one, three approaches with
+  their trade-offs). Proposal only, not implemented.
 - `Engine\AnimatedContainer` and `Engine\Hero` — FLIP-technique tween between two
   server renders and Flutter-Hero-style shared element flight, on top of a new
   `phpx:beforeSwap` event in `nav.js`. Respects `prefers-reduced-motion`.

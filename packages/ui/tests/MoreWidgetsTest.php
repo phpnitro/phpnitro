@@ -19,6 +19,7 @@ use Engine\FutureBuilder;
 use Engine\GestureDetector;
 use Engine\GoogleTranslate;
 use Engine\Hero;
+use Engine\IconButton;
 use Engine\Image;
 use Engine\Link;
 use Engine\LinkWrap;
@@ -26,11 +27,14 @@ use Engine\LocationButton;
 use Engine\Margin;
 use Engine\Padding;
 use Engine\PageView;
+use Engine\ProgressBar;
 use Engine\Rounded;
 use Engine\SingleScrollView;
+use Engine\Stepper;
 use Engine\StreamBuilder;
 use Engine\Table;
 use Engine\Text;
+use Engine\Theme;
 use Engine\ThemeToggle;
 use Engine\TimePicker;
 use Engine\VideoPlayer;
@@ -401,5 +405,102 @@ final class MoreWidgetsTest extends TestCase
         $html = Hero::make(Text::make('photo'), tag: '"><script>alert(1)</script>')->render();
 
         $this->assertStringNotContainsString('<script>alert(1)</script>', $html);
+    }
+
+    protected function tearDown(): void
+    {
+        Theme::reset();
+    }
+
+    public function testAppBarWithTypedBackground(): void
+    {
+        $html = AppBar::make('Titre', background: Color::of('emerald', 600))->render();
+
+        $this->assertStringContainsString('bg-emerald-600', $html);
+    }
+
+    public function testDropdownWithTypedBackgroundReplacesDefaultClasses(): void
+    {
+        $html = Dropdown::make('Trier', [], background: Color::of('purple', 600))->render();
+
+        $this->assertStringContainsString('bg-purple-600', $html);
+        $this->assertStringContainsString('text-white', $html);
+        $this->assertStringNotContainsString('bg-gray-200', $html);
+    }
+
+    public function testDropdownWithTypedForegroundOverridesDefaultWhite(): void
+    {
+        $html = Dropdown::make(
+            'Trier',
+            [],
+            background: Color::of('yellow', 300),
+            foreground: Color::of('slate', 900),
+        )->render();
+
+        $this->assertStringContainsString('text-slate-900', $html);
+    }
+
+    public function testLocationButtonWithTypedBackground(): void
+    {
+        $html = LocationButton::make(background: Color::of('emerald', 600))->render();
+
+        $this->assertStringContainsString('bg-emerald-600', $html);
+    }
+
+    public function testIconButtonWithTypedForegroundAddsOnTopOfDefaultClasses(): void
+    {
+        $html = IconButton::make('★', foreground: Color::of('red', 600))->render();
+
+        $this->assertStringContainsString('text-red-600', $html);
+        $this->assertStringContainsString('rounded-full', $html);
+    }
+
+    public function testDividerWithTypedColorReplacesDefaultBorderColor(): void
+    {
+        $html = Divider::make(color: Color::of('emerald', 600))->render();
+
+        $this->assertStringContainsString('border-emerald-600', $html);
+        $this->assertStringNotContainsString('border-gray-200', $html);
+    }
+
+    public function testDividerWithoutColorKeepsDefaultClasses(): void
+    {
+        $html = Divider::make()->render();
+
+        $this->assertStringContainsString('border-gray-200', $html);
+    }
+
+    public function testProgressBarAcceptsATypedColorInsteadOfARawString(): void
+    {
+        $html = ProgressBar::make(50, barColor: Color::of('purple', 600))->render();
+
+        $this->assertStringContainsString('bg-purple-600', $html);
+    }
+
+    public function testStepperWithTypedActiveColor(): void
+    {
+        $html = Stepper::make(
+            currentStep: 1,
+            totalSteps: 2,
+            stepLabels: ['A', 'B'],
+            body: Text::make('body'),
+            nextAction: 'next',
+            activeColor: Color::of('purple', 600),
+        )->render();
+
+        $this->assertStringContainsString('bg-purple-600', $html);
+    }
+
+    public function testStepperDefaultsToThemePrimary(): void
+    {
+        Theme::setPrimary(Color::of('emerald', 600));
+        $html = Stepper::make(
+            currentStep: 0,
+            totalSteps: 2,
+            stepLabels: ['A', 'B'],
+            body: Text::make('body'),
+        )->render();
+
+        $this->assertStringContainsString('bg-emerald-600', $html);
     }
 }

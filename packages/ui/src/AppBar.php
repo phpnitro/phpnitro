@@ -21,6 +21,7 @@ final class AppBar extends Widget
         private readonly ?string $backHref = null,
         private readonly string $classes = self::DEFAULT_CLASSES,
         private readonly ?Widget $leading = null,
+        private readonly ?Color $background = null,
     ) {
     }
 
@@ -29,8 +30,9 @@ final class AppBar extends Widget
         ?string $backHref = null,
         string $classes = self::DEFAULT_CLASSES,
         ?Widget $leading = null,
+        ?Color $background = null,
     ): self {
-        return new self($title, $backHref, $classes, $leading);
+        return new self($title, $backHref, $classes, $leading, $background);
     }
 
     public function render(): string
@@ -47,9 +49,11 @@ final class AppBar extends Widget
             default => '',
         };
 
+        $classes = implode(' ', array_filter([$this->classes, $this->background?->backgroundClass()]));
+
         return sprintf(
             '<header class="%s">%s<h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">%s</h1></header>',
-            htmlspecialchars($this->classes, ENT_QUOTES),
+            htmlspecialchars($classes, ENT_QUOTES),
             $leading,
             htmlspecialchars($this->title, ENT_QUOTES),
         );

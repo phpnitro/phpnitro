@@ -19,12 +19,31 @@ final class LocationButton extends Widget
     public function __construct(
         private readonly string $label = 'Localiser',
         private readonly string $classes = self::DEFAULT_CLASSES,
+        private readonly ?Color $background = null,
+        private readonly ?Color $foreground = null,
     ) {
     }
 
-    public static function make(string $label = 'Localiser', string $classes = self::DEFAULT_CLASSES): self
+    public static function make(
+        string $label = 'Localiser',
+        string $classes = self::DEFAULT_CLASSES,
+        ?Color $background = null,
+        ?Color $foreground = null,
+    ): self {
+        return new self($label, $classes, $background, $foreground);
+    }
+
+    private function resolvedClasses(): string
     {
-        return new self($label, $classes);
+        if ($this->background === null) {
+            return $this->classes;
+        }
+
+        return implode(' ', array_filter([
+            $this->background->backgroundClass(),
+            $this->foreground?->textClass() ?? 'text-white',
+            'font-medium px-4 py-2 rounded-lg',
+        ]));
     }
 
     public function render(): string
@@ -37,7 +56,7 @@ final class LocationButton extends Widget
             . '<span id="%s" class="text-sm text-gray-500 dark:text-gray-400"></span>'
             . '</div>',
             $id,
-            htmlspecialchars($this->classes, ENT_QUOTES),
+            htmlspecialchars($this->resolvedClasses(), ENT_QUOTES),
             htmlspecialchars($this->label, ENT_QUOTES),
             $id,
         );

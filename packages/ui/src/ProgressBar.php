@@ -24,14 +24,14 @@ final class ProgressBar extends Widget
     public function __construct(
         private readonly float $value,
         private readonly string $classes = self::DEFAULT_CLASSES,
-        private readonly ?string $barColor = null,
+        private readonly ?Color $barColor = null,
     ) {
     }
 
     public static function make(
         float $value,
         string $classes = self::DEFAULT_CLASSES,
-        ?string $barColor = null,
+        ?Color $barColor = null,
     ): self {
         return new self($value, $classes, $barColor);
     }
@@ -41,8 +41,8 @@ final class ProgressBar extends Widget
         $percent = max(0.0, min(100.0, $this->value));
         // null falls through to Theme::primary() — a project-wide
         // Theme::setPrimary() recolors every default ProgressBar; an
-        // explicit $barColor (raw Tailwind class) still wins.
-        $barColor = $this->barColor ?? Theme::primary()->backgroundClass();
+        // explicit $barColor still wins.
+        $barColor = ($this->barColor ?? Theme::primary())->backgroundClass();
 
         return sprintf(
             '<div class="%s" role="progressbar" aria-valuenow="%s" aria-valuemin="0" aria-valuemax="100">'

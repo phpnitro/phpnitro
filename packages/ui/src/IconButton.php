@@ -27,6 +27,7 @@ final class IconButton extends Widget
         private readonly string $classes = self::DEFAULT_CLASSES,
         private readonly string $ariaLabel = '',
         private readonly ?string $onClick = null,
+        private readonly ?Color $foreground = null,
     ) {
     }
 
@@ -36,13 +37,17 @@ final class IconButton extends Widget
         string $classes = self::DEFAULT_CLASSES,
         string $ariaLabel = '',
         ?string $onClick = null,
+        ?Color $foreground = null,
     ): self {
-        return new self($icon, $action, $classes, $ariaLabel, $onClick);
+        return new self($icon, $action, $classes, $ariaLabel, $onClick, $foreground);
     }
 
     public function render(): string
     {
-        $classes = htmlspecialchars($this->classes, ENT_QUOTES);
+        $resolvedClasses = $this->foreground === null
+            ? $this->classes
+            : implode(' ', array_filter([$this->classes, $this->foreground->textClass()]));
+        $classes = htmlspecialchars($resolvedClasses, ENT_QUOTES);
         $aria = $this->ariaLabel !== '' ? ' aria-label="' . htmlspecialchars($this->ariaLabel, ENT_QUOTES) . '"' : '';
 
         if ($this->onClick !== null) {

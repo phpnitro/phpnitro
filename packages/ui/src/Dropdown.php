@@ -26,6 +26,8 @@ final class Dropdown extends Widget
         private readonly array $items,
         private readonly string $classes = 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 '
             . 'font-medium px-4 py-2 rounded-lg',
+        private readonly ?Color $background = null,
+        private readonly ?Color $foreground = null,
     ) {
     }
 
@@ -36,8 +38,23 @@ final class Dropdown extends Widget
         string $label,
         array $items,
         string $classes = 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-medium px-4 py-2 rounded-lg',
+        ?Color $background = null,
+        ?Color $foreground = null,
     ): self {
-        return new self($label, $items, $classes);
+        return new self($label, $items, $classes, $background, $foreground);
+    }
+
+    private function resolvedClasses(): string
+    {
+        if ($this->background === null) {
+            return $this->classes;
+        }
+
+        return implode(' ', array_filter([
+            $this->background->backgroundClass(),
+            $this->foreground?->textClass() ?? 'text-white',
+            'font-medium px-4 py-2 rounded-lg',
+        ]));
     }
 
     public function render(): string
@@ -58,7 +75,7 @@ final class Dropdown extends Widget
             . '<div class="absolute right-0 mt-1 min-w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg '
             . 'border border-gray-100 dark:border-gray-700 overflow-hidden z-20">%s</div>'
             . '</details>',
-            htmlspecialchars($this->classes, ENT_QUOTES),
+            htmlspecialchars($this->resolvedClasses(), ENT_QUOTES),
             htmlspecialchars($this->label, ENT_QUOTES),
             Icon::chevronDown(),
             $links,

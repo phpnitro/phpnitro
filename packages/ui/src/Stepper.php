@@ -41,6 +41,7 @@ final class Stepper extends Widget
         private readonly ?string $nextAction = null,
         private readonly string $backLabel = 'Retour',
         private readonly string $nextLabel = 'Suivant',
+        private readonly ?Color $activeColor = null,
     ) {
     }
 
@@ -56,8 +57,19 @@ final class Stepper extends Widget
         ?string $nextAction = null,
         string $backLabel = 'Retour',
         string $nextLabel = 'Suivant',
+        ?Color $activeColor = null,
     ): self {
-        return new self($currentStep, $totalSteps, $stepLabels, $body, $backAction, $nextAction, $backLabel, $nextLabel);
+        return new self(
+            $currentStep,
+            $totalSteps,
+            $stepLabels,
+            $body,
+            $backAction,
+            $nextAction,
+            $backLabel,
+            $nextLabel,
+            $activeColor,
+        );
     }
 
     public function render(): string
@@ -83,9 +95,13 @@ final class Stepper extends Widget
                 default => 'upcoming',
             };
 
+            $active = $this->activeColor ?? Theme::primary();
+            $activeBg = $active->backgroundClass();
+            $activeRing = "ring-{$active->name}-300 dark:ring-{$active->name}-800";
+
             $circleClasses = match ($state) {
-                'done' => 'bg-blue-600 text-white',
-                'current' => 'bg-blue-600 text-white ring-2 ring-blue-300 dark:ring-blue-800',
+                'done' => "{$activeBg} text-white",
+                'current' => "{$activeBg} text-white ring-2 {$activeRing}",
                 default => 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400',
             };
             $labelClasses = $state === 'upcoming'
@@ -104,7 +120,7 @@ final class Stepper extends Widget
             );
 
             if ($index < $this->totalSteps - 1) {
-                $connectorClasses = $index < $this->currentStep ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700';
+                $connectorClasses = $index < $this->currentStep ? $activeBg : 'bg-gray-200 dark:bg-gray-700';
                 $items .= sprintf('<div class="flex-1 h-0.5 mt-4 %s"></div>', $connectorClasses);
             }
         }
@@ -127,10 +143,14 @@ final class Stepper extends Widget
             );
         }
         if ($this->nextAction !== null) {
+            $active = $this->activeColor ?? Theme::primary();
+            $hoverShade = min($active->shade + 100, 900);
+            $hover = Color::of($active->name, $hoverShade)->backgroundClass();
+
             $buttons .= $this->namedSubmitButton(
                 $this->nextAction,
                 $this->nextLabel,
-                'bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition-colors',
+                "{$active->backgroundClass()} hover:{$hover} text-white font-medium px-4 py-2 rounded-lg transition-colors",
             );
         }
 
