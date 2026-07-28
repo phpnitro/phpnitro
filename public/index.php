@@ -123,6 +123,20 @@ if ($path === '/fragment/server-time') {
     exit;
 }
 
+// Phase 0 of docs/proposals/moteur-rendu-natif.md — a parallel, experimental
+// rendering path that bypasses the HTML pipeline entirely: raw JSON draw
+// commands, fetched and replayed by NativeCanvasView.kt against a real
+// Android Canvas. Not part of the normal Router below on purpose.
+if ($path === '/native/demo') {
+    header('Content-Type: application/json');
+    echo \Engine\NativeDrawCommand::make()
+        ->rect(40, 200, 300, 120, '#2563EB', 24)
+        ->text(60, 260, 'Rendu natif (Canvas)', '#FFFFFF', 22)
+        ->text(60, 300, 'Phase 0 — pas de WebView ici', '#DBEAFE', 14)
+        ->toJson();
+    exit;
+}
+
 if ($debug && $path === '/_dev/version') {
     // packages/*/src previously wasn't watched at all — editing a widget
     // (Container.php, FadeIn.php...) took effect on the next PHP request

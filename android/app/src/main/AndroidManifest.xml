@@ -115,6 +115,14 @@
             </intent-filter>
         </activity-alias>
 
+        <!-- Phase 0 proof of concept (docs/proposals/moteur-rendu-natif.md) —
+             launched via adb during development only, not reachable from
+             any real app UI: `adb shell am start -n
+             com.mobile.engine/.NativeRenderPocActivity`. -->
+        <activity
+            android:name=".NativeRenderPocActivity"
+            android:exported="true" />
+
         <receiver android:name=".AlarmReceiver" android:exported="false" />
         <receiver android:name=".GeofenceReceiver" android:exported="false" />
     </application>
