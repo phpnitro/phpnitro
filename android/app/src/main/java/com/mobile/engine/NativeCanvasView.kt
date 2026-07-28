@@ -46,8 +46,23 @@ import org.json.JSONObject
  * old-fading-out under new-fading-in over ~220ms, which is what makes a
  * counter update or a re-render read as "the UI changed" instead of "the
  * screen flickered".
+ *
+ * Density: every coordinate in a draw command (position, font size,
+ * radius, stroke width...) is authored as a dp-like number on the PHP
+ * side (Tokens::TEXT_BODY = 15, a button height of 54, etc.) — the same
+ * mental model as Flutter/Android's own dp system. NativeRenderPocActivity
+ * passes a dp-space screen width to /native/layout-demo (not the raw
+ * pixel width), and this view scales its Canvas by the real device
+ * density before replaying anything, so "15" ends up the same physical
+ * size a Flutter app's 15dp text would be. Getting this wrong (drawing
+ * dp-authored numbers as raw pixels) is why an early version of this
+ * screen rendered with everything roughly half the intended size on a 2x
+ * density device — a real bug, not a style choice.
  */
 class NativeCanvasView(context: Context) : View(context) {
+
+    /** Set by the host Activity from resources.displayMetrics.density. */
+    var density: Float = 1f
 
     init {
         // Paint.setShadowLayer (used for elevation below) only renders
@@ -106,6 +121,12 @@ class NativeCanvasView(context: Context) : View(context) {
             return true
         }
 
+        // Touch coordinates arrive in real device pixels; hitRegions are in
+        // the same dp space the draw commands use, so this has to undo the
+        // same scale onDraw applies before comparing.
+        val touchX = event.x / density
+        val touchY = event.y / density
+
         for (index in 0 until hitRegions.length()) {
             val region = hitRegions.getJSONObject(index)
             val left = region.getDouble("x")
@@ -113,7 +134,7 @@ class NativeCanvasView(context: Context) : View(context) {
             val right = left + region.getDouble("width")
             val bottom = top + region.getDouble("height")
 
-            if (event.x >= left && event.x <= right && event.y >= top && event.y <= bottom) {
+            if (touchX >= left && touchX <= right && touchY >= top && touchY <= bottom) {
                 Log.i("NativeCanvasView", "tap hit region: ${region.getString("action")}")
                 performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                 onAction?.invoke(region.getString("action"))
@@ -127,11 +148,16 @@ class NativeCanvasView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
+        val savedState = canvas.save()
+        canvas.scale(density, density)
+
         val previous = previousCommands
         if (previous != null && fadeProgress < 1f) {
             drawCommands(canvas, previous, 1f - fadeProgress)
         }
         drawCommands(canvas, commands, fadeProgress)
+
+        canvas.restoreToCount(savedState)
     }
 
     private fun drawCommands(canvas: Canvas, list: JSONArray, alpha: Float) {

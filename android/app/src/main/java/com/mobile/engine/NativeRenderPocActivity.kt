@@ -35,6 +35,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         canvasView = NativeCanvasView(this)
+        canvasView.density = resources.displayMetrics.density
         canvasView.onAction = { action -> onTap(action) }
         setContentView(canvasView)
 
@@ -59,13 +60,17 @@ class NativeRenderPocActivity : AppCompatActivity() {
     }
 
     private fun fetchDrawCommands(port: Int, action: String?) {
-        // Real device pixel width — the layout engine's Constraints are in
-        // the same absolute-pixel space Canvas draws in, so this has to
-        // match resources.displayMetrics, not a dp value.
-        val screenWidthPx = resources.displayMetrics.widthPixels
+        // dp-space width, not raw device pixels — every size the PHP side
+        // hands back (font sizes, radii, button heights, Tokens' whole
+        // scale) is authored as a dp-like number, and NativeCanvasView
+        // scales its Canvas by the real density before replaying, so the
+        // layout math needs to run against the same dp width or a phone
+        // with more physical pixels per dp would just get a narrower
+        // logical screen instead of correctly-sized content.
+        val screenWidthDp = resources.displayMetrics.widthPixels / resources.displayMetrics.density
         val actionParam = if (action != null) "&action=${java.net.URLEncoder.encode(action, "UTF-8")}" else ""
         try {
-            val connection = URL("http://127.0.0.1:$port/native/layout-demo?width=$screenWidthPx$actionParam").openConnection() as HttpURLConnection
+            val connection = URL("http://127.0.0.1:$port/native/layout-demo?width=$screenWidthDp$actionParam").openConnection() as HttpURLConnection
             connection.connectTimeout = 5000
             Log.i(TAG, "Fetching /native/layout-demo (action=$action), response code ${connection.responseCode}")
             val json = connection.inputStream.bufferedReader().use { it.readText() }
