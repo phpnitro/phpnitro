@@ -3,6 +3,7 @@
 namespace Engine\App;
 
 use Engine\Button;
+use Engine\Color;
 use Engine\Column;
 use Engine\Connectivity\ConnectivityBadge;
 use Engine\Divider;
@@ -35,9 +36,23 @@ final class SettingsPage extends Screen
         return null;
     }
 
+    // Phase 7 of docs/proposals/moteur-rendu-natif.md: a Preferences-backed
+    // flag rather than a hardcoded constant — it's the mechanism the
+    // roadmap actually calls for ("widget migration behind a flag"), and
+    // Preferences already persists across restarts here for accent_color,
+    // so this reuses the same primitive instead of inventing a new one.
+    protected function onToggleNativePreview(array $data): ?string
+    {
+        $currentlyEnabled = Preferences::get('native_render_preview_enabled', '0') === '1';
+        Preferences::set('native_render_preview_enabled', $currentlyEnabled ? '0' : '1');
+
+        return null;
+    }
+
     public function build(): Widget
     {
         $accent = Preferences::get('accent_color', 'blue');
+        $nativePreviewEnabled = Preferences::get('native_render_preview_enabled', '0') === '1';
 
         return Column::make([
             Text::make('Réglages', 'text-2xl font-bold text-gray-900 dark:text-gray-100'),
@@ -62,6 +77,23 @@ final class SettingsPage extends Screen
                 ], selected: $accent),
                 Button::make('Enregistrer'),
             ], action: 'setAccent'),
+
+            Divider::make(),
+
+            Text::make(
+                'Moteur de rendu natif (expérimental) — layout à contraintes peint sur un Canvas natif, sans WebView.',
+                'text-sm text-gray-500 dark:text-gray-400',
+            ),
+            Form::make([
+                Button::make($nativePreviewEnabled ? 'Désactiver' : 'Activer'),
+            ], action: 'toggleNativePreview'),
+            $nativePreviewEnabled
+                ? Button::make(
+                    'Essayer le rendu natif',
+                    onClick: 'phpxDevice.openNativeRenderPreview()',
+                    background: Color::indigo(600),
+                )
+                : Text::make('Active le flag ci-dessus pour afficher le bouton.', 'text-xs text-gray-400 italic'),
 
             Link::make("Retour à l'accueil", '/'),
         ], 'flex flex-col gap-4 p-4');

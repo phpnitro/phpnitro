@@ -253,6 +253,18 @@ window.phpxDevice = {
     }
   },
 
+  // Phase 7 of docs/proposals/moteur-rendu-natif.md — opens the native
+  // render engine screen from inside the real app (SettingsPage.php's
+  // flag-gated button), not just via adb. No fallback: this is an
+  // Android-only native Canvas screen, not something a browser tab or
+  // WebView page could ever show on its own.
+  openNativeRenderPreview() {
+    const bridge = phpxNativeBridge();
+    if (bridge && bridge.openNativeRenderPreview) {
+      bridge.openNativeRenderPreview();
+    }
+  },
+
   // android_alarm_manager_plus equivalent — no web/browser fallback
   // exists (a page can't schedule work after it's been closed), so this
   // is a silent no-op outside a native shell.

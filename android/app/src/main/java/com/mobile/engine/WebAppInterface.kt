@@ -382,6 +382,24 @@ class WebAppInterface(
     }
 
     /**
+     * Phase 7 of docs/proposals/moteur-rendu-natif.md: the native render
+     * engine stops being an adb-only proof of concept the moment a real
+     * button inside the actual app UI can reach it — this is that button's
+     * bridge call. Settings gates it behind a Preferences-backed flag
+     * (SettingsPage.php) so it can be turned on/off without a rebuild,
+     * same "flag-gated, opt-in" rollout shape the roadmap describes for
+     * gradually migrating widgets off the WebView pipeline.
+     */
+    @JavascriptInterface
+    fun openNativeRenderPreview() {
+        val activity = context as? Activity ?: return
+
+        activity.runOnUiThread {
+            context.startActivity(Intent(context, NativeRenderPocActivity::class.java))
+        }
+    }
+
+    /**
      * Switches the home-screen launcher icon at runtime — enables one of
      * the two mutually-exclusive activity-alias entries declared in
      * AndroidManifest.xml (both targeting MainActivity, see the manifest's

@@ -115,9 +115,11 @@
             </intent-filter>
         </activity-alias>
 
-        <!-- Phase 0 proof of concept (docs/proposals/moteur-rendu-natif.md) —
-             launched via adb during development only, not reachable from
-             any real app UI: `adb shell am start -n
+        <!-- Native render engine preview (docs/proposals/moteur-rendu-natif.md).
+             Reachable from the real app UI as of phase 7 — SettingsPage.php's
+             flag-gated "Essayer le rendu natif" button, via
+             WebAppInterface.openNativeRenderPreview() — as well as directly
+             via adb: `adb shell am start -n
              com.mobile.engine/.NativeRenderPocActivity`. -->
         <activity
             android:name=".NativeRenderPocActivity"

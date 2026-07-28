@@ -10,16 +10,20 @@ import java.net.URL
 import kotlin.concurrent.thread
 
 /**
- * Phase 0 of docs/proposals/moteur-rendu-natif.md — launched directly via
- * adb during development (`adb shell am start -n
- * com.mobile.engine/.NativeRenderPocActivity`), not reachable from the
- * normal app UI. Starts its own PhpServer instance rather than reusing
- * MainActivity's (simpler, fully isolated — this is a throwaway proof of
- * concept, not something a real user path depends on), fetches
- * /native/demo's draw commands over plain HTTP from that embedded PHP
- * process, and hands them to NativeCanvasView — the whole point being to
- * prove PHP can drive a real native Canvas paint with zero WebView
- * involved anywhere in this Activity.
+ * Started life as a Phase 0 proof of concept, adb-launched only. As of
+ * phase 7 it's also reachable from the real app UI — SettingsPage.php's
+ * "Essayer le rendu natif" button, gated behind a Preferences flag —
+ * via WebAppInterface.openNativeRenderPreview(). Still adb-launchable
+ * directly too: `adb shell am start -n
+ * com.mobile.engine/.NativeRenderPocActivity`.
+ *
+ * Starts its own PhpServer instance rather than reusing MainActivity's
+ * (simpler, fully isolated — nothing about the existing WebView-based app
+ * changes or risks regressing while this is built out in parallel),
+ * fetches /native/layout-demo's draw commands over plain HTTP from that
+ * embedded PHP process, and hands them to NativeCanvasView — the whole
+ * point being to prove PHP can drive a real native Canvas paint with zero
+ * WebView involved anywhere in this Activity.
  */
 class NativeRenderPocActivity : AppCompatActivity() {
 
