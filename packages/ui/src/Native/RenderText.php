@@ -23,17 +23,18 @@ final class RenderText implements RenderNode
         private readonly float $fontSize = 16.0,
         private readonly string $color = '#000000',
         private readonly bool $bold = false,
+        private readonly float $letterSpacing = 0.0,
     ) {
     }
 
     public function layout(Constraints $constraints): Size
     {
-        $maxWidth = $constraints->hasBoundedWidth() ? $constraints->maxWidth : TextMetrics::width($this->text, $this->fontSize);
-        $this->lines = TextMetrics::wrap($this->text, $this->fontSize, $maxWidth);
+        $maxWidth = $constraints->hasBoundedWidth() ? $constraints->maxWidth : TextMetrics::width($this->text, $this->fontSize, $this->letterSpacing);
+        $this->lines = TextMetrics::wrap($this->text, $this->fontSize, $maxWidth, $this->letterSpacing);
 
         $width = 0.0;
         foreach ($this->lines as $line) {
-            $width = max($width, TextMetrics::width($line, $this->fontSize));
+            $width = max($width, TextMetrics::width($line, $this->fontSize, $this->letterSpacing));
         }
 
         $height = count($this->lines) * TextMetrics::lineHeight($this->fontSize);
@@ -52,7 +53,7 @@ final class RenderText implements RenderNode
         $baselineOffset = $this->fontSize * 0.8;
 
         foreach ($this->lines as $index => $line) {
-            $canvas->text($x, $y + $index * $lineHeight + $baselineOffset, $line, $this->color, $this->fontSize, $this->bold);
+            $canvas->text($x, $y + $index * $lineHeight + $baselineOffset, $line, $this->color, $this->fontSize, $this->bold, $this->letterSpacing);
         }
     }
 }

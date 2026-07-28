@@ -4,8 +4,10 @@ import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.Typeface
 import android.util.Log
 import android.view.HapticFeedbackConstants
@@ -154,11 +156,22 @@ class NativeCanvasView(context: Context) : View(context) {
         // NativeCanvas.php (the layout-engine paint target) omits "color"
         // entirely for a border-only box — a Container with borderColor but
         // no background shouldn't paint a fake fill underneath the stroke.
-        if (command.has("color")) {
+        if (command.has("color") || command.has("gradientFrom")) {
             val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor(command.getString("color"))
                 style = Paint.Style.FILL
-                this.alpha = (this.alpha * alpha).toInt()
+                if (command.has("gradientFrom")) {
+                    // Top-left to bottom-right diagonal reads as "premium
+                    // surface" (the direction most design systems default
+                    // to for a subtle brand gradient) without needing a
+                    // per-gradient angle parameter from PHP.
+                    val from = Color.parseColor(command.getString("gradientFrom"))
+                    val to = Color.parseColor(command.optString("gradientTo", command.getString("gradientFrom")))
+                    shader = LinearGradient(rect.left, rect.top, rect.right, rect.bottom, from, to, Shader.TileMode.CLAMP)
+                    this.alpha = (255 * alpha).toInt()
+                } else {
+                    color = Color.parseColor(command.getString("color"))
+                    this.alpha = (this.alpha * alpha).toInt()
+                }
             }
 
             val elevation = command.optDouble("elevation", 0.0).toFloat()
@@ -199,6 +212,7 @@ class NativeCanvasView(context: Context) : View(context) {
             color = Color.parseColor(command.optString("color", "#000000"))
             textSize = command.optDouble("size", 16.0).toFloat()
             typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+            letterSpacing = command.optDouble("letterSpacing", 0.0).toFloat()
             this.alpha = (this.alpha * alpha).toInt()
         }
         canvas.drawText(

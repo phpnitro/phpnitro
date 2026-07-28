@@ -34,6 +34,8 @@ final class RenderContainer implements RenderNode
         private readonly ?Color $borderColor = null,
         private readonly float $borderWidth = 0.0,
         private readonly float $elevation = 0.0,
+        private readonly ?Color $gradientFrom = null,
+        private readonly ?Color $gradientTo = null,
         EdgeInsets $padding = new EdgeInsets(0.0, 0.0, 0.0, 0.0),
     ) {
         $this->content = $child !== null ? new RenderPadding($padding, $child) : null;
@@ -77,7 +79,7 @@ final class RenderContainer implements RenderNode
 
     public function paint(NativeCanvas $canvas, float $x, float $y): void
     {
-        if ($this->background !== null || $this->borderColor !== null) {
+        if ($this->background !== null || $this->borderColor !== null || $this->gradientFrom !== null) {
             $canvas->rect(
                 $x,
                 $y,
@@ -88,6 +90,8 @@ final class RenderContainer implements RenderNode
                 $this->borderColor?->toHex(),
                 $this->borderWidth,
                 $this->elevation,
+                $this->gradientFrom?->toHex(),
+                $this->gradientTo?->toHex(),
             );
         }
 

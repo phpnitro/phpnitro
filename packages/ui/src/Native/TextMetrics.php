@@ -49,14 +49,19 @@ final class TextMetrics
         return $fontSize * self::LINE_HEIGHT_RATIO;
     }
 
-    public static function width(string $text, float $fontSize): float
+    public static function width(string $text, float $fontSize, float $letterSpacing = 0.0): float
     {
+        $chars = mb_str_split($text);
         $total = 0.0;
-        foreach (mb_str_split($text) as $char) {
+        foreach ($chars as $char) {
             $total += self::charWidthRatio($char);
         }
 
-        return $total * $fontSize;
+        // Android's Paint.letterSpacing is an em-per-character value added
+        // between glyphs — matching that here keeps tracked/uppercase
+        // caption labels (e.g. a small-caps section header) from
+        // under-measuring and wrapping too early.
+        return $total * $fontSize + count($chars) * $letterSpacing * $fontSize;
     }
 
     private static function charWidthRatio(string $char): float
@@ -86,7 +91,7 @@ final class TextMetrics
      *
      * @return array<int, string>
      */
-    public static function wrap(string $text, float $fontSize, float $maxWidth): array
+    public static function wrap(string $text, float $fontSize, float $maxWidth, float $letterSpacing = 0.0): array
     {
         $words = preg_split('/\s+/', trim($text)) ?: [];
         if ($words === ['']) {
@@ -98,7 +103,7 @@ final class TextMetrics
 
         foreach ($words as $word) {
             $candidate = $current === '' ? $word : $current . ' ' . $word;
-            if ($current !== '' && self::width($candidate, $fontSize) > $maxWidth) {
+            if ($current !== '' && self::width($candidate, $fontSize, $letterSpacing) > $maxWidth) {
                 $lines[] = $current;
                 $current = $word;
                 continue;

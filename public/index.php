@@ -176,22 +176,30 @@ if ($path === '/native/layout-demo') {
     // A small "elevated card" is the one visual unit Material/Flutter
     // screens are built from — background white, rounded corners, a soft
     // shadow instead of a hard border. Factored out because the stat row
-    // below needs two of them with only the accent color/label/value
-    // changing.
+    // below needs two of them with only the accent/label/value changing.
+    // Slate (not plain gray) for every neutral tone and a single indigo
+    // accent (amber only as a deliberate second note on one stat) reads
+    // calmer than a different saturated hue per card — that was the
+    // biggest complaint on the previous version.
     $card = static function (\Engine\Native\RenderNode $child, EdgeInsets $padding = new EdgeInsets(18.0, 18.0, 18.0, 18.0)): RenderContainer {
         return new RenderContainer(
             new RenderPadding($padding, $child),
             background: Color::white(),
-            radius: 16,
-            elevation: 6,
+            radius: 20,
+            elevation: 4,
         );
     };
 
-    $statCard = static function (string $label, string $value, Color $accent) use ($card): Flexible {
+    // Small tracked uppercase caption — the "WIDGETS PORTÉS" style label
+    // under a big number in most polished dashboards. Needs letterSpacing
+    // (phase 4) to not look cramped at this size.
+    $caption = static fn (string $text): RenderText => new RenderText($text, 11, '#94A3B8', bold: true, letterSpacing: 0.06);
+
+    $statCard = static function (string $label, string $value, Color $chipFrom, Color $chipTo) use ($card, $caption): Flexible {
         return new Flexible($card(RenderFlex::column([
-            new RenderContainer(width: 28, height: 28, background: $accent, radius: 14),
-            new RenderPadding(EdgeInsets::only(top: 10), new RenderText($value, 24, '#111827', bold: true)),
-            new RenderText($label, 13, '#6B7280'),
+            new RenderContainer(width: 32, height: 32, radius: 10, gradientFrom: $chipFrom, gradientTo: $chipTo),
+            new RenderPadding(EdgeInsets::only(top: 12), new RenderText($value, 26, '#0F172A', bold: true)),
+            new RenderPadding(EdgeInsets::only(top: 2), $caption($label)),
         ]), EdgeInsets::all(16)));
     };
 
@@ -199,31 +207,35 @@ if ($path === '/native/layout-demo') {
         new RenderPadding(
             EdgeInsets::all(20),
             RenderFlex::column([
-                // Header: avatar roundel + title/subtitle, like a Material app bar.
+                // Header: gradient avatar roundel + title/subtitle, like a
+                // Material app bar — a flat single-tone circle read as the
+                // most generic/placeholder-looking element in the previous
+                // pass, a subtle gradient fixes that cheaply.
                 RenderFlex::row([
                     new RenderContainer(
-                        new RenderText('N', 20, '#FFFFFF', bold: true),
-                        width: 48,
-                        height: 48,
-                        background: Color::blue(600),
-                        radius: 24,
-                        padding: EdgeInsets::only(left: 16, top: 12),
+                        new RenderText('N', 21, '#FFFFFF', bold: true),
+                        width: 52,
+                        height: 52,
+                        radius: 26,
+                        gradientFrom: Color::indigo(500),
+                        gradientTo: Color::indigo(700),
+                        padding: EdgeInsets::only(left: 19, top: 15),
                     ),
-                    new Flexible(new RenderPadding(EdgeInsets::only(left: 12), RenderFlex::column([
-                        new RenderText('PhpNitro', 18, '#111827', bold: true),
-                        new RenderText('Moteur de rendu natif', 13, '#6B7280'),
+                    new Flexible(new RenderPadding(EdgeInsets::only(left: 14), RenderFlex::column([
+                        new RenderText('PhpNitro', 19, '#0F172A', bold: true),
+                        new RenderPadding(EdgeInsets::only(top: 2), new RenderText('Moteur de rendu natif', 13, '#64748B')),
                     ]))),
                 ]),
-                new RenderPadding(EdgeInsets::only(top: 20), $card(new RenderText(
+                new RenderPadding(EdgeInsets::only(top: 22), $card(new RenderText(
                     'Cette carte est un vrai moteur de contraintes (BoxConstraints, comme Flutter) exécuté en PHP, avec ombre portée, texte en gras et mise en page flexible, peint sur un android.graphics.Canvas natif — aucune WebView, aucun HTML, aucun CSS.',
                     14,
-                    '#374151',
+                    '#475569',
                 ))),
                 new RenderPadding(
-                    EdgeInsets::only(top: 16),
+                    EdgeInsets::only(top: 14),
                     RenderFlex::row([
-                        $statCard('Widgets portés', '52', Color::blue(500)),
-                        new RenderPadding(EdgeInsets::only(left: 14), $statCard('FPS cible', '60', Color::green(500))),
+                        $statCard('Widgets portés', '52', Color::indigo(400), Color::indigo(600)),
+                        new RenderPadding(EdgeInsets::only(left: 14), $statCard('FPS cible', '60', Color::amber(400), Color::amber(600))),
                     ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
                 ),
                 // Phase 3: a real tappable region. NativeCanvasView.kt
@@ -232,19 +244,23 @@ if ($path === '/native/layout-demo') {
                 // the count below is genuinely server-side state, not a
                 // client-side illusion of one.
                 new RenderPadding(
-                    EdgeInsets::only(top: 16),
+                    EdgeInsets::only(top: 14),
                     new RenderTappable(
                         $card(RenderFlex::row([
                             new Flexible(RenderFlex::column([
-                                new RenderText('Appuyez ici', 15, '#111827', bold: true),
-                                new RenderPadding(EdgeInsets::only(top: 4), new RenderText("Taps côté serveur : {$tapCount}", 13, '#6B7280')),
+                                new RenderText('Appuyez ici', 15, '#0F172A', bold: true),
+                                new RenderPadding(EdgeInsets::only(top: 4), RenderFlex::row([
+                                    $caption('TAPS CÔTÉ SERVEUR : '),
+                                    new RenderText((string) $tapCount, 12, '#4F46E5', bold: true),
+                                ])),
                             ])),
                             new RenderContainer(
                                 new RenderText('+1', 15, '#FFFFFF', bold: true),
                                 width: 44,
                                 height: 44,
-                                background: Color::blue(600),
                                 radius: 22,
+                                gradientFrom: Color::indigo(500),
+                                gradientTo: Color::indigo(700),
                                 padding: EdgeInsets::only(left: 12, top: 12),
                             ),
                         ], crossAxisAlignment: CrossAxisAlignment::CENTER), EdgeInsets::all(16)),
@@ -253,7 +269,7 @@ if ($path === '/native/layout-demo') {
                 ),
             ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
         ),
-        background: Color::gray(100),
+        background: Color::slate(100),
     );
 
     $tree->layout(new Constraints($screenWidth, $screenWidth, 0, Constraints::INFINITY));

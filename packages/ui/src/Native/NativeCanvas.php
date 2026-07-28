@@ -53,6 +53,8 @@ final class NativeCanvas
         ?string $borderColor = null,
         float $borderWidth = 0.0,
         float $elevation = 0.0,
+        ?string $gradientFrom = null,
+        ?string $gradientTo = null,
     ): self {
         $this->commands[] = array_filter([
             'type' => 'rect',
@@ -65,12 +67,14 @@ final class NativeCanvas
             'borderColor' => $borderColor,
             'borderWidth' => $borderWidth,
             'elevation' => $elevation > 0.0 ? $elevation : null,
+            'gradientFrom' => $gradientFrom,
+            'gradientTo' => $gradientTo,
         ], static fn (mixed $value): bool => $value !== null);
 
         return $this;
     }
 
-    public function text(float $x, float $y, string $text, string $color = '#000000', float $size = 16.0, bool $bold = false): self
+    public function text(float $x, float $y, string $text, string $color = '#000000', float $size = 16.0, bool $bold = false, float $letterSpacing = 0.0): self
     {
         $this->commands[] = array_filter([
             'type' => 'text',
@@ -80,6 +84,7 @@ final class NativeCanvas
             'color' => $color,
             'size' => $size,
             'bold' => $bold ?: null,
+            'letterSpacing' => $letterSpacing > 0.0 ? $letterSpacing : null,
         ], static fn (mixed $value): bool => $value !== null);
 
         return $this;
