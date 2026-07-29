@@ -11,11 +11,13 @@ use Engine\Text;
 use Engine\Widget;
 
 /**
- * Every widget in packages/ui/src (plus the Maps/Dialogs/Payments service
- * packages) demonstrated somewhere, so "does it actually work" is a visual
- * check on a real device instead of a promise. Payment widgets need a real
- * gateway key to render meaningfully, so they're demonstrated in
- * examples/ecom's live checkout instead of duplicated here without keys.
+ * Every widget in packages/ui/src (plus the Maps/Dialogs packages)
+ * demonstrated somewhere, so "does it actually work" is a visual check on
+ * a real device instead of a promise. Payment widgets (Engine\Payments\)
+ * used to be demonstrated in examples/ecom's live checkout, which was
+ * removed once native became the app's real rendering engine — needing
+ * a real gateway key to render meaningfully, they were never duplicated
+ * here without one.
  */
 final class WidgetsIndexPage extends Screen
 {
@@ -46,8 +48,7 @@ final class WidgetsIndexPage extends Screen
             Link::make('Firebase Auth (Engine\\Firebase\\)', '/widgets/firebase-auth'),
             Button::make('Countries (Engine\\Countries\\, offline, 194 pays)', onClick: "phpxDevice.openNativeRenderPreviewAt('widgets-countries')", classes: 'text-blue-600 hover:underline text-left'),
             Text::make(
-                'Paiement (Engine\\Payments\\) : 7 gateways réels, testés en conditions réelles '
-                . "dans examples/ecom/checkout — pas dupliqués ici, ils ont besoin d'une vraie clé pour s'afficher.",
+                "Paiement (Engine\\Payments\\) : 7 gateways réels — voir packages/payments/, ils ont besoin d'une vraie clé pour s'afficher.",
                 'text-sm text-gray-500 dark:text-gray-400',
             ),
             // '/' has no WebView route anymore — see ProductPage.php's
