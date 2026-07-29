@@ -17,6 +17,7 @@ use Engine\Native\NativeProgressBar;
 use Engine\Native\NativeSelectBox;
 use Engine\Native\NativeSwitch;
 use Engine\Native\NativeTable;
+use Engine\Native\NativeTextField;
 use Engine\Native\NativeTimePicker;
 use Engine\Native\RenderContainer;
 use Engine\Native\RenderFlex;
@@ -44,6 +45,7 @@ final class NativeWidgetsFormsScreen
         $time = $_GET['meeting_time'] ?? '';
         $subscribed = ($_GET['subscribe'] ?? '') === '1';
         $notifications = ($_GET['notifications'] ?? '') === '1';
+        $note = $_GET['note'] ?? '';
 
         $caption = static fn (string $text): RenderNode => new RenderPadding(
             EdgeInsets::only(top: Tokens::SPACE_LG, bottom: Tokens::SPACE_SM),
@@ -100,10 +102,14 @@ final class NativeWidgetsFormsScreen
                         rows: [['Casque sans fil', '89,90 €'], ['Montre connectée', '149,00 €']],
                         headers: ['Produit', 'Prix'],
                     ),
+
+                    $caption('Textarea — EditText multiligne réel'),
+                    new NativeTextField('note', $note, 'Un commentaire...', multiline: true),
+
                     new NativeDivider(),
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_LG),
-                        new RenderText('Textarea et la vitrine étendue des icônes ne sont pas encore portées.', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
+                        new RenderText("La vitrine étendue des icônes n'est pas encore portée.", Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
                     ),
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),

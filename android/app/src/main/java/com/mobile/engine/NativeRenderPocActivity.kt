@@ -163,10 +163,12 @@ class NativeRenderPocActivity : AppCompatActivity() {
     private fun onTap(action: String, regionDp: RectF, meta: JSONObject?) {
         when {
             action.startsWith("focus:") -> {
-                val rest = action.removePrefix("focus:")
+                var rest = action.removePrefix("focus:")
+                val multiline = rest.startsWith("multiline:")
+                if (multiline) rest = rest.removePrefix("multiline:")
                 val secure = rest.startsWith("secure:")
                 val fieldName = if (secure) rest.removePrefix("secure:") else rest
-                showTextInput(fieldName, regionDp, secure)
+                showTextInput(fieldName, regionDp, secure, multiline)
             }
             action.startsWith("submit:") -> {
                 clearTextInput()
@@ -409,17 +411,20 @@ class NativeRenderPocActivity : AppCompatActivity() {
     // the actual text-entry surface; NativeCanvasView just draws the
     // field's *shape* underneath it. One at a time: switching fields
     // removes the previous overlay first.
-    private fun showTextInput(fieldName: String, regionDp: RectF, secure: Boolean) {
+    private fun showTextInput(fieldName: String, regionDp: RectF, secure: Boolean, multiline: Boolean = false) {
         activeEditText?.let { rootLayout.removeView(it) }
 
         val density = resources.displayMetrics.density
         val editText = EditText(this).apply {
             setText(fieldValues[fieldName] ?: "")
             setSelection(text.length)
-            inputType = if (secure) {
-                InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            } else {
-                InputType.TYPE_CLASS_TEXT
+            inputType = when {
+                secure -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+                multiline -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                else -> InputType.TYPE_CLASS_TEXT
+            }
+            if (multiline) {
+                gravity = android.view.Gravity.TOP or android.view.Gravity.START
             }
             textSize = 15f
             addTextChangedListener(object : TextWatcher {

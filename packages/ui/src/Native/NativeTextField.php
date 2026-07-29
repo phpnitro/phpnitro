@@ -26,30 +26,40 @@ final class NativeTextField implements RenderNode
 {
     private readonly RenderNode $content;
 
+    /**
+     * @param bool $multiline The native-tree equivalent of Engine\Textarea — same
+     *                        tap-to-overlay-a-real-EditText mechanism, just a taller
+     *                        box, top-aligned text, and InputType.TYPE_TEXT_FLAG_MULTI_LINE
+     *                        (see NativeRenderPocActivity.kt's showTextInput()).
+     */
     public function __construct(
         string $name,
         string $value = '',
         string $placeholder = '',
         bool $obscure = false,
+        bool $multiline = false,
         float $height = 52.0,
     ) {
+        $resolvedHeight = $multiline ? max($height, 120.0) : $height;
         $hasValue = $value !== '';
         $displayText = $hasValue ? ($obscure ? str_repeat('•', mb_strlen($value)) : $value) : $placeholder;
         $displayColor = $hasValue ? Tokens::ink() : Tokens::inkMuted();
 
         $box = new RenderContainer(
             new RenderPadding(
-                EdgeInsets::only(left: Tokens::SPACE_MD, top: $height / 2 - Tokens::TEXT_BODY * 0.6),
+                $multiline
+                    ? EdgeInsets::all(Tokens::SPACE_MD)
+                    : EdgeInsets::only(left: Tokens::SPACE_MD, top: $resolvedHeight / 2 - Tokens::TEXT_BODY * 0.6),
                 new RenderText($displayText, Tokens::TEXT_BODY, $displayColor->toHex()),
             ),
-            height: $height,
+            height: $resolvedHeight,
             background: Tokens::surface(),
             radius: Tokens::RADIUS_MD,
             borderColor: Tokens::border(),
             borderWidth: 1.0,
         );
 
-        $action = 'focus:' . ($obscure ? 'secure:' : '') . $name;
+        $action = 'focus:' . ($multiline ? 'multiline:' : '') . ($obscure ? 'secure:' : '') . $name;
         $this->content = new RenderTappable($box, $action);
     }
 
