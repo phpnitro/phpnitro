@@ -7,6 +7,7 @@ use Engine\Native\EdgeInsets;
 use Engine\Native\NativeAppBar;
 use Engine\Native\NativeButton;
 use Engine\Native\NativeScaffold;
+use Engine\Native\NativeSelectBox;
 use Engine\Native\NativeVideoPlayer;
 use Engine\Native\RenderContainer;
 use Engine\Native\RenderFlex;
@@ -30,10 +31,11 @@ use Engine\Native\Tokens;
  * showVideoOverlay()), same "no DOM element to attach to" idiom
  * NativeTextField's EditText already uses.
  *
- * GoogleTranslate is NOT ported — Google's JS/iframe website-translator
- * widget has no native equivalent short of embedding ML Kit Translate (a
- * different SDK entirely, not yet a project dependency) or a WebView
- * (which would defeat the point of this pipeline). Stays WebView-only.
+ * GoogleTranslate is real too — but not via Google's JS/iframe web
+ * widget. ML Kit Translate (NativeDeviceBridge.kt's translateText())
+ * does real on-device translation, no API key, no network dependency
+ * once the language model is cached — genuinely more "native" than what
+ * it replaces, not a workaround for it.
  */
 final class NativeWidgetsMediaScreen
 {
@@ -45,6 +47,9 @@ final class NativeWidgetsMediaScreen
         $contentWidth = $screenWidth - 2 * Tokens::SPACE_XL;
         // Same public-domain sample WidgetsMediaPage.php's VideoPlayer demo uses.
         $videoUrl = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4';
+        $sourceText = 'Bonjour le monde ! Ceci est PhpNitro.';
+        $targetLanguage = $_GET['translate_lang'] ?? 'en';
+        $translateOut = $_GET['translate_out'] ?? null;
 
         $caption = static fn (string $text): RenderNode => new RenderPadding(
             EdgeInsets::only(top: Tokens::SPACE_LG, bottom: Tokens::SPACE_SM),
@@ -62,14 +67,24 @@ final class NativeWidgetsMediaScreen
                     $caption('VideoPlayer — android.widget.VideoView réel'),
                     new NativeVideoPlayer($videoUrl, $contentWidth),
 
-                    $caption('GoogleTranslate'),
-                    new RenderText(
-                        "Nécessite ML Kit Translate (SDK non encore intégré) — reste sur le pipeline WebView pour l'instant.",
-                        Tokens::TEXT_BODY_SMALL,
-                        Tokens::inkMuted()->toHex(),
+                    $caption('GoogleTranslate — ML Kit Translate réel, sur l\'appareil'),
+                    new RenderText("« {$sourceText} »", Tokens::TEXT_BODY_SMALL, Tokens::inkSecondary()->toHex()),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeSelectBox('translate_lang', [
+                            'en' => 'Anglais',
+                            'es' => 'Espagnol',
+                            'de' => 'Allemand',
+                        ], $targetLanguage),
                     ),
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeButton('Traduire', "translate:{$targetLanguage}", meta: ['text' => $sourceText]),
+                    ),
+                    ...($translateOut !== null ? [new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_MD), new RenderText($translateOut, Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true))] : []),
+
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_XL),
                         new NativeButton('Voir sur WebView', 'webview:/widgets/media', background: Tokens::surfaceMuted(), foreground: Tokens::ink()),
                     ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),

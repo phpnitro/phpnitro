@@ -82,6 +82,11 @@ dependencies {
     // fallback already fetches directly, now behind a genuine MapView
     // instead of a single non-interactive image.
     implementation("org.osmdroid:osmdroid-android:6.1.20")
+    // On-device translation — no API key, no network dependency once the
+    // language model is downloaded once, unlike Engine\GoogleTranslate's
+    // web-based translate.google.com widget. Genuinely more "native" than
+    // what it replaces, not just a workaround.
+    implementation("com.google.mlkit:translate:17.0.3")
 
     // Push notifications — uncomment together with the plugin above and
     // google-services.json, see FcmService.kt.example.

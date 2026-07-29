@@ -581,4 +581,28 @@ class NativeDeviceBridge(private val context: Context) {
     fun cancelBackgroundTask() {
         androidx.work.WorkManager.getInstance(context).cancelUniqueWork("phpx_background_ping")
     }
+
+    /**
+     * ML Kit Translate — on-device, no API key, downloads the language
+     * model on first use over whatever network is available (kept
+     * simple: no Wi-Fi-only restriction for this demo). The real native
+     * equivalent of Engine\GoogleTranslate's web-based widget, not a
+     * workaround for it.
+     */
+    fun translateText(text: String, sourceLanguage: String, targetLanguage: String, onResult: (String) -> Unit) {
+        val options = com.google.mlkit.nl.translate.TranslatorOptions.Builder()
+            .setSourceLanguage(sourceLanguage)
+            .setTargetLanguage(targetLanguage)
+            .build()
+        val translator = com.google.mlkit.nl.translate.Translation.getClient(options)
+
+        val conditions = com.google.mlkit.common.model.DownloadConditions.Builder().build()
+        translator.downloadModelIfNeeded(conditions)
+            .addOnSuccessListener {
+                translator.translate(text)
+                    .addOnSuccessListener { translated -> onResult(translated) }
+                    .addOnFailureListener { onResult("Erreur de traduction") }
+            }
+            .addOnFailureListener { onResult("Téléchargement du modèle échoué") }
+    }
 }

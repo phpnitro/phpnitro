@@ -199,6 +199,14 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 val zoom = parts.getOrNull(2)?.toIntOrNull() ?: 14
                 showMapOverlay(lat, lon, zoom, regionDp)
             }
+            action.startsWith("translate:") -> {
+                val targetLanguage = action.removePrefix("translate:")
+                val text = meta?.optString("text") ?: ""
+                deviceBridge.translateText(text, "fr", targetLanguage) { translated ->
+                    fieldValues["translate_out"] = translated
+                    refetch(action = null, includeFields = true)
+                }
+            }
             action.startsWith("select:") -> showSelectDialog(action.removePrefix("select:"), meta)
             action.startsWith("datepicker:") -> showDatePickerDialog(action.removePrefix("datepicker:"), meta)
             action.startsWith("timepicker:") -> showTimePickerDialog(action.removePrefix("timepicker:"), meta)
