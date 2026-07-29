@@ -210,6 +210,29 @@ if ($path === '/native/layout-demo') {
         unset($_SESSION['auth_user']);
     }
 
+    // Mirrors WidgetsStepperPage.php's Screen::$state (itself session-backed)
+    // — the native pipeline has no per-request server object to hold step
+    // state in, so it lives in $_SESSION directly, keyed the same "merge
+    // this step's fields into the accumulated data, then move the step
+    // pointer" way onStepperBack()/onStepperNext() do.
+    $stepperStep = (int) ($_SESSION['widgets_stepper_step'] ?? 0);
+    $stepperData = $_SESSION['widgets_stepper_data'] ?? [];
+    if (in_array($action, ['stepper_next', 'stepper_back', 'stepper_reset'], true)) {
+        if ($action === 'stepper_reset') {
+            $stepperStep = 0;
+            $stepperData = [];
+        } else {
+            foreach (['name', 'email', 'plan'] as $field) {
+                if (isset($_GET[$field])) {
+                    $stepperData[$field] = $_GET[$field];
+                }
+            }
+            $stepperStep = $action === 'stepper_next' ? min($stepperStep + 1, 2) : max($stepperStep - 1, 0);
+        }
+        $_SESSION['widgets_stepper_step'] = $stepperStep;
+        $_SESSION['widgets_stepper_data'] = $stepperData;
+    }
+
     // Screen builders live in lib/pages/app/Native*.php — captures/ has
     // multiple reference screens, and this route just dispatches to
     // whichever one ?screen= asks for instead of growing one giant
@@ -228,6 +251,7 @@ if ($path === '/native/layout-demo') {
         'widgets-forms' => \Engine\App\NativeWidgetsFormsScreen::build($screenWidth),
         'widgets-layout' => \Engine\App\NativeWidgetsLayoutScreen::build($screenWidth, $screenHeight),
         'widgets-dialogs' => \Engine\App\NativeWidgetsDialogsScreen::build($screenWidth, $screenHeight),
+        'widgets-stepper' => \Engine\App\NativeWidgetsStepperScreen::build($screenWidth, $screenHeight, $stepperStep, $stepperData),
         default => \Engine\App\NativeHomeScreen::build($screenWidth, $screenHeight),
     };
 

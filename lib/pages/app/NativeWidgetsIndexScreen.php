@@ -47,6 +47,10 @@ final class NativeWidgetsIndexScreen
                     ),
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeListTile('Stepper', 'Assistant multi-étapes', 'linear_scale', trailingIcon: 'chevron_right', action: 'navigate:widgets-stepper'),
+                    ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
                         new NativeListTile('Backend PHP', 'Appel API en-process', 'api', trailingIcon: 'chevron_right', action: 'navigate:api'),
                     ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
