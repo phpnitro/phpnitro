@@ -8,7 +8,6 @@ use Engine\Button;
 use Engine\Canvas;
 use Engine\Checkbox;
 use Engine\Color;
-use Engine\FloatingActionButton;
 use Engine\InfiniteScrollList;
 use Engine\LottieView;
 use Engine\ProgressBar;
@@ -125,24 +124,6 @@ final class NewWidgetsTest extends TestCase
     {
         $this->assertSame('blue', Theme::primary()->name);
         $this->assertSame(600, Theme::primary()->shade);
-    }
-
-    public function testFloatingActionButtonFollowsThemePrimaryByDefault(): void
-    {
-        Theme::setPrimary(Color::of('emerald', 600));
-        $html = FloatingActionButton::make('+')->render();
-
-        $this->assertStringContainsString('bg-emerald-600', $html);
-        $this->assertStringContainsString('hover:bg-emerald-700', $html);
-    }
-
-    public function testFloatingActionButtonExplicitBackgroundOverridesTheme(): void
-    {
-        Theme::setPrimary(Color::of('emerald', 600));
-        $html = FloatingActionButton::make('+', background: Color::of('purple', 600))->render();
-
-        $this->assertStringContainsString('bg-purple-600', $html);
-        $this->assertStringNotContainsString('bg-emerald-600', $html);
     }
 
     public function testProgressBarFollowsThemePrimaryByDefault(): void

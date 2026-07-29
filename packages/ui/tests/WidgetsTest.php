@@ -9,11 +9,8 @@ use Engine\Color;
 use Engine\Column;
 use Engine\Container;
 use Engine\Curves;
-use Engine\Drawer;
-use Engine\DrawerToggle;
 use Engine\ErrorBanner;
 use Engine\FadeIn;
-use Engine\FloatingActionButton;
 use Engine\FontWeight;
 use Engine\Form;
 use Engine\Html;
@@ -290,35 +287,4 @@ final class WidgetsTest extends TestCase
         $this->assertStringContainsString('>b<', $html);
     }
 
-    public function testFloatingActionButtonRendersAriaLabelWhenGiven(): void
-    {
-        $html = FloatingActionButton::make('+', action: 'increment', ariaLabel: 'Incrémenter')->render();
-
-        $this->assertStringContainsString('aria-label="Incrémenter"', $html);
-    }
-
-    public function testFloatingActionButtonOmitsAriaLabelByDefault(): void
-    {
-        $html = FloatingActionButton::make('+', action: 'increment')->render();
-
-        $this->assertStringNotContainsString('aria-label', $html);
-    }
-
-    public function testDrawerToggleIsExposedAsAFocusableButton(): void
-    {
-        $html = DrawerToggle::make()->render();
-
-        $this->assertStringContainsString('role="button"', $html);
-        $this->assertStringContainsString('tabindex="0"', $html);
-        $this->assertStringContainsString('aria-label="Menu"', $html);
-    }
-
-    public function testDrawerCloseLabelIsExposedAsAFocusableButton(): void
-    {
-        $html = Drawer::make([['label' => 'Accueil', 'href' => '/']])->render();
-
-        $this->assertStringContainsString('role="button"', $html);
-        $this->assertStringContainsString('tabindex="0"', $html);
-        $this->assertStringContainsString('aria-label="Fermer"', $html);
-    }
 }

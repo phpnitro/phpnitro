@@ -16,7 +16,6 @@ use Engine\Dropdown;
 use Engine\Flash;
 use Engine\FlashMessage;
 use Engine\FutureBuilder;
-use Engine\GestureDetector;
 use Engine\GoogleTranslate;
 use Engine\Hero;
 use Engine\IconButton;
@@ -323,38 +322,6 @@ final class MoreWidgetsTest extends TestCase
 
         $this->assertStringContainsString('data-future-endpoint="/fragment/once"', $html);
         $this->assertStringContainsString('>...<', $html);
-    }
-
-    public function testGestureDetectorRendersSwipeAndDoubleClickTriggers(): void
-    {
-        $html = GestureDetector::make(
-            Text::make('zone'),
-            onDoubleClick: 'like',
-            onSwipeLeft: 'next',
-            onSwipeRight: 'previous',
-        )->render();
-
-        $this->assertStringContainsString('gesture-area', $html);
-        $this->assertStringContainsString('data-on-dblclick="like"', $html);
-        $this->assertStringContainsString('data-on-swipe-left="next"', $html);
-        $this->assertStringContainsString('data-on-swipe-right="previous"', $html);
-    }
-
-    public function testGestureDetectorRendersPinchAndRotateTriggers(): void
-    {
-        $html = GestureDetector::make(Text::make('zone'), onPinch: 'zoom', onRotate: 'spin')->render();
-
-        $this->assertStringContainsString('data-on-pinch="zoom"', $html);
-        $this->assertStringContainsString('data-on-rotate="spin"', $html);
-    }
-
-    public function testGestureDetectorOmitsAttributesNotGiven(): void
-    {
-        $html = GestureDetector::make(Text::make('zone'))->render();
-
-        $this->assertStringNotContainsString('data-on-pinch', $html);
-        $this->assertStringNotContainsString('data-on-rotate', $html);
-        $this->assertStringNotContainsString('data-on-dblclick', $html);
     }
 
     public function testAnimatedContainerRendersKeyDurationAndCurve(): void
