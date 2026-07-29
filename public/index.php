@@ -223,6 +223,7 @@ if ($path === '/native/layout-demo') {
         'product' => \Engine\App\NativeProductScreen::build($screenWidth, $_GET['id'] ?? '?'),
         'login' => \Engine\App\NativeLoginScreen::build($screenWidth, $loginError),
         'device' => \Engine\App\NativeDeviceScreen::build($screenWidth),
+        'api' => \Engine\App\NativeApiScreen::build($screenWidth),
         default => \Engine\App\NativeHomeScreen::build($screenWidth),
     };
 
