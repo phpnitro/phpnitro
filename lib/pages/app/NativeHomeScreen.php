@@ -14,6 +14,7 @@ use Engine\Native\RenderContainer;
 use Engine\Native\RenderFlex;
 use Engine\Native\RenderNode;
 use Engine\Native\RenderPadding;
+use Engine\Native\RenderTappable;
 use Engine\Native\RenderText;
 use Engine\Native\Tokens;
 use Engine\Preferences\Preferences;
@@ -60,11 +61,15 @@ final class NativeHomeScreen
                     ], crossAxisAlignment: CrossAxisAlignment::CENTER),
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_SM),
-                        new RenderText(
-                            $authUser !== null ? "Connecté : {$authUser}" : 'Non connecté',
-                            Tokens::TEXT_BODY_SMALL,
-                            ($authUser !== null ? Color::green(600) : Tokens::inkMuted())->toHex(),
-                        ),
+                        $authUser !== null
+                            ? new RenderTappable(
+                                new RenderText("Connecté : {$authUser} — se déconnecter", Tokens::TEXT_BODY_SMALL, Color::green(600)->toHex(), bold: true),
+                                'logout',
+                            )
+                            : new RenderTappable(
+                                new RenderText('Non connecté — se connecter', Tokens::TEXT_BODY_SMALL, Tokens::inkSecondary()->toHex(), bold: true),
+                                'navigate:login',
+                            ),
                     ),
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_XL),

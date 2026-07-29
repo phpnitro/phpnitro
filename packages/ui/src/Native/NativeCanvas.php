@@ -45,6 +45,7 @@ final class NativeCanvas
 
     private float $contentHeight = 0.0;
     private ?float $renderTimeMs = null;
+    private ?string $redirect = null;
 
     /**
      * The full laid-out content height (which can exceed the viewport) —
@@ -69,6 +70,22 @@ final class NativeCanvas
     public function setRenderTimeMs(float $ms): self
     {
         $this->renderTimeMs = $ms;
+
+        return $this;
+    }
+
+    /**
+     * Server-driven navigation — a NativeButton's "submit:" action can
+     * change what screen the client should be on (login succeeding, most
+     * obviously) the same way LoginPage.php's onLogin() returning a path
+     * redirects the HTML pipeline's router. There's no router to
+     * re-resolve here, so this just tells NativeRenderPocActivity which
+     * screen name to swap the top of its stack to before it re-fetches —
+     * see its handling of the "redirect" field.
+     */
+    public function setRedirect(string $screen): self
+    {
+        $this->redirect = $screen;
 
         return $this;
     }
@@ -186,6 +203,7 @@ final class NativeCanvas
             'hitRegions' => $this->hitRegions,
             'contentHeight' => $this->contentHeight,
             'renderTimeMs' => $this->renderTimeMs,
+            'redirect' => $this->redirect,
         ], static fn (mixed $value): bool => $value !== null), JSON_THROW_ON_ERROR);
     }
 }

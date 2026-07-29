@@ -183,6 +183,33 @@ if ($path === '/native/layout-demo') {
         \Engine\Preferences\Preferences::set('native_home_counter', (string) ((int) \Engine\Preferences\Preferences::get('native_home_counter', '0') + 1));
     }
 
+    // Mirrors LoginPage.php's onLogin(): a "submit:login" NativeButton
+    // collects both NativeTextField values client-side and sends them
+    // along with the request (see NativeRenderPocActivity's
+    // refetchWithFields()). Correct credentials set the real session key
+    // the rest of the app already reads ($_SESSION['auth_user'],
+    // HomePage.php/NativeHomeScreen both check it) and tell the client to
+    // redirect; wrong ones just re-render this same screen with an error.
+    $loginError = null;
+    $redirectScreen = null;
+    if ($screen === 'login' && $action === 'login') {
+        $username = $_GET['username'] ?? '';
+        $password = $_GET['password'] ?? '';
+        if ($username === 'demo' && $password === 'demo') {
+            $_SESSION['auth_user'] = $username;
+            $redirectScreen = 'home';
+        } else {
+            $loginError = 'Identifiants invalides (essaie demo / demo).';
+        }
+    }
+    // Logout stays on the home screen (matches HomePage.php's onLogout(),
+    // which doesn't redirect either) — no client-side redirect needed,
+    // the next line's rebuild of NativeHomeScreen just reflects the
+    // now-cleared session directly.
+    if ($action === 'logout') {
+        unset($_SESSION['auth_user']);
+    }
+
     // Screen builders live in lib/pages/app/Native*.php — captures/ has
     // multiple reference screens, and this route just dispatches to
     // whichever one ?screen= asks for instead of growing one giant
@@ -194,6 +221,7 @@ if ($path === '/native/layout-demo') {
         'settings' => \Engine\App\NativeSettingsScreen::build($screenWidth),
         'documents' => \Engine\App\NativeDocumentsScreen::build($screenWidth, $tapCount),
         'product' => \Engine\App\NativeProductScreen::build($screenWidth, $_GET['id'] ?? '?'),
+        'login' => \Engine\App\NativeLoginScreen::build($screenWidth, $loginError),
         default => \Engine\App\NativeHomeScreen::build($screenWidth),
     };
 
@@ -203,6 +231,9 @@ if ($path === '/native/layout-demo') {
     $canvas->setContentHeight($contentSize->height);
     $tree->paint($canvas, 0, 0);
     $canvas->setRenderTimeMs((microtime(true) - $renderStart) * 1000);
+    if ($redirectScreen !== null) {
+        $canvas->setRedirect($redirectScreen);
+    }
     echo $canvas->toJson();
     exit;
 }

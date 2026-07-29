@@ -86,7 +86,11 @@ class NativeCanvasView(context: Context) : View(context) {
     private var previousCommands: JSONArray? = null
     private var fadeAnimator: ValueAnimator? = null
     private var fadeProgress: Float = 1f
-    var onAction: ((String) -> Unit)? = null
+    // regionDp is the tapped hit region's own rect, in the same dp space
+    // as every draw command — NativeRenderPocActivity needs it for
+    // "focus:" actions, to position a real EditText overlay exactly over
+    // the tapped field (see its showTextInput()).
+    var onAction: ((action: String, regionDp: RectF) -> Unit)? = null
 
     // Scrolling: page-level only (the whole screen scrolls together, not
     // independent nested lists — see docs/proposals/moteur-rendu-natif.md's
@@ -233,7 +237,7 @@ class NativeCanvasView(context: Context) : View(context) {
             if (touchX >= left && touchX <= right && touchY >= top && touchY <= bottom) {
                 Log.i("NativeCanvasView", "tap hit region: ${region.getString("action")}")
                 performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                onAction?.invoke(region.getString("action"))
+                onAction?.invoke(region.getString("action"), RectF(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat()))
                 return
             }
         }
