@@ -93,4 +93,9 @@ final class Tokens
     {
         return Color::red(600);
     }
+
+    public static function dangerMuted(): Color
+    {
+        return Color::red(50);
+    }
 }

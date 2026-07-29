@@ -269,6 +269,7 @@ class NativeCanvasView(context: Context) : View(context) {
                 "image" -> drawImageCommand(canvas, command, alpha)
                 "circle" -> drawCircleCommand(canvas, command, alpha)
                 "line" -> drawLineCommand(canvas, command, alpha)
+                "arc" -> drawArcCommand(canvas, command, alpha)
             }
         }
     }
@@ -362,6 +363,25 @@ class NativeCanvasView(context: Context) : View(context) {
             }
             canvas.drawCircle(cx, cy, radius - borderWidth / 2, borderPaint)
         }
+    }
+
+    // NativeCircularProgress draws its track as a full-sweep arc and its
+    // filled portion as a partial-sweep one on top — RectF bounding box
+    // matches Android's Canvas.drawArc() convention (0° = 3 o'clock,
+    // clockwise), same as the PHP side's docblock promises.
+    private fun drawArcCommand(canvas: Canvas, command: JSONObject, alpha: Float) {
+        val cx = command.getDouble("cx").toFloat()
+        val cy = command.getDouble("cy").toFloat()
+        val radius = command.getDouble("radius").toFloat()
+        val rect = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            strokeWidth = command.getDouble("strokeWidth").toFloat()
+            color = Color.parseColor(command.getString("color"))
+            this.alpha = (this.alpha * alpha).toInt()
+        }
+        canvas.drawArc(rect, command.getDouble("startDegrees").toFloat(), command.getDouble("sweepDegrees").toFloat(), false, paint)
     }
 
     private fun drawLineCommand(canvas: Canvas, command: JSONObject, alpha: Float) {

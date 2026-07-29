@@ -5,13 +5,18 @@ namespace Engine\App;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\NativeAlertButton;
+use Engine\Native\NativeBanner;
+use Engine\Native\NativeCheckbox;
+use Engine\Native\NativeCircularProgress;
 use Engine\Native\NativeConfirmButton;
 use Engine\Native\NativeDatePicker;
 use Engine\Native\NativeDivider;
 use Engine\Native\NativeIconCircle;
 use Engine\Native\NativeProgressBar;
 use Engine\Native\NativeSelectBox;
+use Engine\Native\NativeSwitch;
 use Engine\Native\NativeTable;
+use Engine\Native\NativeTimePicker;
 use Engine\Native\RenderContainer;
 use Engine\Native\RenderFlex;
 use Engine\Native\RenderNode;
@@ -35,6 +40,9 @@ final class NativeWidgetsFormsScreen
         $contentWidth = $screenWidth - 2 * Tokens::SPACE_XL;
         $selected = $_GET['country'] ?? '';
         $date = $_GET['appointment'] ?? '';
+        $time = $_GET['meeting_time'] ?? '';
+        $subscribed = ($_GET['subscribe'] ?? '') === '1';
+        $notifications = ($_GET['notifications'] ?? '') === '1';
 
         $caption = static fn (string $text): RenderNode => new RenderPadding(
             EdgeInsets::only(top: Tokens::SPACE_LG, bottom: Tokens::SPACE_SM),
@@ -66,8 +74,19 @@ final class NativeWidgetsFormsScreen
                     $caption('DatePicker — DatePickerDialog'),
                     new NativeDatePicker('appointment', $date),
 
-                    $caption('ProgressBar'),
+                    $caption('TimePicker — TimePickerDialog'),
+                    new NativeTimePicker('meeting_time', $time),
+
+                    $caption('Checkbox / Switch'),
+                    new NativeCheckbox('subscribe', "S'abonner à la newsletter", $subscribed),
+                    new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_MD), new NativeSwitch('notifications', 'Notifications', $notifications)),
+
+                    $caption('ProgressBar / CircularProgress'),
                     new NativeProgressBar($contentWidth, 0.65),
+                    new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_MD), new NativeCircularProgress(0.42)),
+
+                    $caption('Banner (ErrorBanner)'),
+                    new NativeBanner('Ceci est un message de validation.'),
 
                     $caption('Dialogues (Engine\\Dialogs\\)'),
                     RenderFlex::row([

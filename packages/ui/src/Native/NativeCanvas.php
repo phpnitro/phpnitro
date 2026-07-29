@@ -221,6 +221,28 @@ final class NativeCanvas
     }
 
     /**
+     * A stroked arc — what NativeCircularProgress needs (a track ring plus
+     * a partial ring for the filled portion) since a plain circle() can't
+     * express "only part of the ring". $startDegrees/$sweepDegrees follow
+     * Android's Canvas.drawArc() convention (0° = 3 o'clock, clockwise).
+     */
+    public function arc(float $cx, float $cy, float $radius, float $startDegrees, float $sweepDegrees, string $color, float $strokeWidth): self
+    {
+        $this->commands[] = [
+            'type' => 'arc',
+            'cx' => $cx,
+            'cy' => $cy,
+            'radius' => $radius,
+            'startDegrees' => $startDegrees,
+            'sweepDegrees' => $sweepDegrees,
+            'color' => $color,
+            'strokeWidth' => $strokeWidth,
+        ];
+
+        return $this;
+    }
+
+    /**
      * @param ?array<string, mixed> $meta Extra data the client needs to handle this action
      *                                    without a second round-trip — a SelectBox's
      *                                    options, a dialog's message/title/confirm action.

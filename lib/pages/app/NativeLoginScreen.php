@@ -2,18 +2,17 @@
 
 namespace Engine\App;
 
-use Engine\Color;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
+use Engine\Native\NativeBanner;
 use Engine\Native\NativeButton;
-use Engine\Native\NativeCard;
+use Engine\Native\NativeCheckbox;
 use Engine\Native\NativeIconCircle;
 use Engine\Native\NativeTextField;
 use Engine\Native\RenderContainer;
 use Engine\Native\RenderFlex;
 use Engine\Native\RenderNode;
 use Engine\Native\RenderPadding;
-use Engine\Native\RenderSizedBox;
 use Engine\Native\RenderText;
 use Engine\Native\Tokens;
 
@@ -24,15 +23,13 @@ use Engine\Native\Tokens;
  * for how that actually works (a real android.widget.EditText overlaid
  * at the tapped field's exact rect — there's no DOM input for the OS
  * keyboard to attach to on a Canvas).
- *
- * Checkbox ("Se souvenir de moi" in the original) is dropped for this
- * pass — not a hard blocker like text input was, just not built yet.
  */
 final class NativeLoginScreen
 {
     public static function build(float $screenWidth, ?string $error): RenderNode
     {
         $contentWidth = $screenWidth - 2 * Tokens::SPACE_XL;
+        $rememberMe = $_GET['remember'] ?? '';
 
         return new RenderContainer(
             new RenderPadding(
@@ -47,18 +44,13 @@ final class NativeLoginScreen
                         EdgeInsets::only(top: 4),
                         new RenderText('demo / demo', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
                     ),
-                    $error !== null
-                        ? new RenderPadding(
-                            EdgeInsets::only(top: Tokens::SPACE_LG),
-                            new NativeCard(
-                                new RenderText($error, Tokens::TEXT_BODY_SMALL, Color::red(700)->toHex()),
-                                background: Color::red(50),
-                                borderColor: Color::red(200),
-                            ),
-                        )
-                        : new RenderSizedBox(0, 0),
+                    new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_LG), new NativeBanner($error)),
                     new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_XL), new NativeTextField('username', placeholder: 'Utilisateur')),
                     new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_MD), new NativeTextField('password', placeholder: 'Mot de passe', obscure: true)),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_LG),
+                        new NativeCheckbox('remember', 'Se souvenir de moi', $rememberMe === '1'),
+                    ),
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_XL),
                         new NativeButton('Se connecter', 'submit:login', width: $contentWidth),

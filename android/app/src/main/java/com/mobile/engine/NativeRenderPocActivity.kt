@@ -2,6 +2,7 @@ package com.mobile.engine
 
 import android.app.AlertDialog
 import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.graphics.RectF
 import android.os.Bundle
 import android.os.Handler
@@ -128,6 +129,11 @@ class NativeRenderPocActivity : AppCompatActivity() {
             action.startsWith("device:") -> handleDeviceAction(action.removePrefix("device:"))
             action.startsWith("select:") -> showSelectDialog(action.removePrefix("select:"), meta)
             action.startsWith("datepicker:") -> showDatePickerDialog(action.removePrefix("datepicker:"), meta)
+            action.startsWith("timepicker:") -> showTimePickerDialog(action.removePrefix("timepicker:"), meta)
+            action.startsWith("toggle:") -> {
+                fieldValues[action.removePrefix("toggle:")] = meta?.optString("next", "") ?: ""
+                refetch(action = null, includeFields = true)
+            }
             action == "dialog:alert" -> showAlertDialog(meta)
             action == "dialog:confirm" -> showConfirmDialog(meta)
             action.startsWith("navigate:") -> {
@@ -183,6 +189,28 @@ class NativeRenderPocActivity : AppCompatActivity() {
             calendar.get(Calendar.YEAR),
             calendar.get(Calendar.MONTH),
             calendar.get(Calendar.DAY_OF_MONTH),
+        ).show()
+    }
+
+    private fun showTimePickerDialog(name: String, meta: JSONObject?) {
+        val calendar = Calendar.getInstance()
+        val existing = meta?.optString("value", "") ?: ""
+        if (existing.isNotEmpty()) {
+            runCatching {
+                val (hour, minute) = existing.split(":").map { it.toInt() }
+                calendar.set(Calendar.HOUR_OF_DAY, hour)
+                calendar.set(Calendar.MINUTE, minute)
+            }
+        }
+        TimePickerDialog(
+            this,
+            { _, hourOfDay, minute ->
+                fieldValues[name] = "%02d:%02d".format(hourOfDay, minute)
+                refetch(action = null, includeFields = true)
+            },
+            calendar.get(Calendar.HOUR_OF_DAY),
+            calendar.get(Calendar.MINUTE),
+            true,
         ).show()
     }
 
