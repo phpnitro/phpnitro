@@ -106,6 +106,10 @@ final class NativeHomeScreen
                         EdgeInsets::only(top: Tokens::SPACE_MD),
                         new NativeListTile('Backend PHP', 'Appel API en-process', 'api', trailingIcon: 'chevron_right', action: 'navigate:api'),
                     ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeListTile('Widgets', 'Vitrine des widgets natifs', 'widgets', trailingIcon: 'chevron_right', action: 'navigate:widgets'),
+                    ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,

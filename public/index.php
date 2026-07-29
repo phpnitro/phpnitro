@@ -224,6 +224,7 @@ if ($path === '/native/layout-demo') {
         'login' => \Engine\App\NativeLoginScreen::build($screenWidth, $loginError),
         'device' => \Engine\App\NativeDeviceScreen::build($screenWidth),
         'api' => \Engine\App\NativeApiScreen::build($screenWidth),
+        'widgets' => \Engine\App\NativeWidgetsIndexScreen::build($screenWidth),
         default => \Engine\App\NativeHomeScreen::build($screenWidth),
     };
 
