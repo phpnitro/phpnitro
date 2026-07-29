@@ -186,6 +186,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 fieldValues["audio_state"] = "paused"
                 refetch(action = null, includeFields = true)
             }
+            action.startsWith("video:play:") -> showVideoOverlay(action.removePrefix("video:play:"), regionDp)
             action.startsWith("select:") -> showSelectDialog(action.removePrefix("select:"), meta)
             action.startsWith("datepicker:") -> showDatePickerDialog(action.removePrefix("datepicker:"), meta)
             action.startsWith("timepicker:") -> showTimePickerDialog(action.removePrefix("timepicker:"), meta)
@@ -450,11 +451,46 @@ class NativeRenderPocActivity : AppCompatActivity() {
         activeEditText = editText
     }
 
+    // Also tears down any active video overlay — every navigate:/back/
+    // tab:/submit: call site already calls this before moving to a
+    // different screen, so a playing NativeVideoPlayer doesn't keep
+    // playing (or leak its overlay View) underneath whatever renders next.
     private fun clearTextInput() {
         activeEditText?.let { rootLayout.removeView(it) }
         activeEditText = null
         (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
             .hideSoftInputFromWindow(canvasView.windowToken, 0)
+        clearVideoOverlay()
+    }
+
+    private var activeVideoView: android.widget.VideoView? = null
+
+    private fun showVideoOverlay(url: String, regionDp: RectF) {
+        clearVideoOverlay()
+
+        val density = resources.displayMetrics.density
+        val videoView = android.widget.VideoView(this).apply {
+            setVideoURI(android.net.Uri.parse(url))
+            setMediaController(android.widget.MediaController(this@NativeRenderPocActivity).apply { setAnchorView(this@apply) })
+            setOnPreparedListener { it.start() }
+        }
+        val params = FrameLayout.LayoutParams(
+            (regionDp.width() * density).toInt(),
+            (regionDp.height() * density).toInt(),
+        ).apply {
+            leftMargin = (regionDp.left * density).toInt()
+            topMargin = (regionDp.top * density).toInt()
+        }
+        rootLayout.addView(videoView, params)
+        activeVideoView = videoView
+    }
+
+    private fun clearVideoOverlay() {
+        activeVideoView?.let {
+            it.stopPlayback()
+            rootLayout.removeView(it)
+        }
+        activeVideoView = null
     }
 
     private fun refetch(action: String?, includeFields: Boolean = false) {

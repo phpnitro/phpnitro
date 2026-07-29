@@ -7,6 +7,7 @@ use Engine\Native\EdgeInsets;
 use Engine\Native\NativeAppBar;
 use Engine\Native\NativeButton;
 use Engine\Native\NativeScaffold;
+use Engine\Native\NativeVideoPlayer;
 use Engine\Native\RenderContainer;
 use Engine\Native\RenderFlex;
 use Engine\Native\RenderNode;
@@ -24,16 +25,15 @@ use Engine\Native\Tokens;
  * already carries) since MediaPlayer needs a real URI, not a root-relative
  * path.
  *
- * VideoPlayer and GoogleTranslate are NOT ported here — genuinely bigger
- * pieces of work, not a scoping shortcut:
- * - VideoPlayer would need a real android.widget.VideoView (or ExoPlayer)
- *   overlaid at a rect the same way NativeTextField's EditText is, with
- *   its own show/hide/position lifecycle across scroll and navigation.
- * - GoogleTranslate is Google's JS/iframe website-translator widget —
- *   there's no native equivalent short of embedding ML Kit Translate (a
- *   different SDK entirely, not yet a project dependency) or a WebView
- *   (which would defeat the point of this pipeline).
- * Both stay on the WebView path until that work happens.
+ * VideoPlayer is real too now — a genuine android.widget.VideoView
+ * overlaid at the tapped rect (NativeRenderPocActivity's
+ * showVideoOverlay()), same "no DOM element to attach to" idiom
+ * NativeTextField's EditText already uses.
+ *
+ * GoogleTranslate is NOT ported — Google's JS/iframe website-translator
+ * widget has no native equivalent short of embedding ML Kit Translate (a
+ * different SDK entirely, not yet a project dependency) or a WebView
+ * (which would defeat the point of this pipeline). Stays WebView-only.
  */
 final class NativeWidgetsMediaScreen
 {
@@ -42,6 +42,9 @@ final class NativeWidgetsMediaScreen
         $isPlaying = ($_GET['audio_state'] ?? 'paused') === 'playing';
         $host = $_SERVER['HTTP_HOST'] ?? '127.0.0.1';
         $audioUrl = "http://{$host}/assets/audio/beep.wav";
+        $contentWidth = $screenWidth - 2 * Tokens::SPACE_XL;
+        // Same public-domain sample WidgetsMediaPage.php's VideoPlayer demo uses.
+        $videoUrl = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4';
 
         $caption = static fn (string $text): RenderNode => new RenderPadding(
             EdgeInsets::only(top: Tokens::SPACE_LG, bottom: Tokens::SPACE_SM),
@@ -56,9 +59,12 @@ final class NativeWidgetsMediaScreen
                     $isPlaying
                         ? new NativeButton('Pause', 'media:pause', icon: 'pause')
                         : new NativeButton('Lire', "media:play:{$audioUrl}", icon: 'play_arrow'),
-                    $caption('VideoPlayer / GoogleTranslate'),
+                    $caption('VideoPlayer — android.widget.VideoView réel'),
+                    new NativeVideoPlayer($videoUrl, $contentWidth),
+
+                    $caption('GoogleTranslate'),
                     new RenderText(
-                        "Nécessitent un vrai VideoView/ExoPlayer et ML Kit Translate (SDK non encore intégré) — restent sur le pipeline WebView pour l'instant.",
+                        "Nécessite ML Kit Translate (SDK non encore intégré) — reste sur le pipeline WebView pour l'instant.",
                         Tokens::TEXT_BODY_SMALL,
                         Tokens::inkMuted()->toHex(),
                     ),
