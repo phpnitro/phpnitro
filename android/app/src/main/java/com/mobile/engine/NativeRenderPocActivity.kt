@@ -179,6 +179,10 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 fieldValues[parts.getOrElse(1) { "calendar_out" }] = if (count < 0) "Permission requise" else "$count événements"
                 refetch(action = null, includeFields = true)
             }
+            "sound" -> deviceBridge.playSound("http://127.0.0.1:$serverPort/assets/audio/beep.wav")
+            "notify" -> deviceBridge.showNotification("PhpNitro", "Ceci est une notification native.")
+            "share" -> deviceBridge.share("Regarde cette app faite avec PhpNitro !", "PhpNitro Demo")
+            "appicon" -> deviceBridge.setAppIcon(parts.getOrElse(1) { "default" })
         }
     }
 

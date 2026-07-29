@@ -1,10 +1,13 @@
 package com.mobile.engine
 
 import android.bluetooth.BluetoothManager
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
+import android.media.MediaPlayer
 import android.os.BatteryManager
 import android.os.Build
 import android.os.VibrationEffect
@@ -14,6 +17,8 @@ import android.provider.CalendarContract
 import android.provider.ContactsContract
 import android.provider.Settings
 import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
@@ -138,5 +143,90 @@ class NativeDeviceBridge(private val context: Context) {
             null,
         )
         return cursor?.use { it.count } ?: 0
+    }
+
+    /** Fire-and-forget, same as WebAppInterface.playSound() — releases itself on completion. */
+    fun playSound(url: String) {
+        try {
+            val player = MediaPlayer()
+            player.setDataSource(url)
+            player.setOnPreparedListener { it.start() }
+            player.setOnCompletionListener { it.release() }
+            player.setOnErrorListener { mp, _, _ -> mp.release(); true }
+            player.prepareAsync()
+        } catch (_: Exception) {
+            // Swallow: a failed notification sound shouldn't crash the app.
+        }
+    }
+
+    // Same channel WebAppInterface's showNotification() posts to — a
+    // notification isn't really "a WebView thing" any more than secure
+    // storage is, so both rendering paths share it rather than each
+    // creating their own.
+    private val notificationChannelId = "phpx_default"
+
+    /**
+     * No-op if POST_NOTIFICATIONS (API 33+) isn't granted — same
+     * permission-safe-read convention as contactsCount(), just applied to
+     * a write instead of a read: this never prompts, it only checks.
+     */
+    fun showNotification(title: String, message: String) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ActivityCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = android.app.NotificationChannel(
+                notificationChannelId,
+                "Notifications",
+                android.app.NotificationManager.IMPORTANCE_DEFAULT,
+            )
+            (context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager)
+                .createNotificationChannel(channel)
+        }
+        val notification = NotificationCompat.Builder(context, notificationChannelId)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .build()
+        NotificationManagerCompat.from(context).notify(System.currentTimeMillis().toInt(), notification)
+    }
+
+    /** Opens the system share sheet — same Intent.ACTION_SEND chooser as WebAppInterface.share(). */
+    fun share(text: String, title: String) {
+        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, text)
+        }
+        context.startActivity(Intent.createChooser(sendIntent, title.ifEmpty { null }))
+    }
+
+    /**
+     * Toggles between the "default" and "alt" launcher-icon aliases, same
+     * PackageManager.setComponentEnabledSetting dance as
+     * WebAppInterface.setAppIcon() — the two aliases already exist in the
+     * manifest for the WebView path, and an icon isn't path-specific
+     * either.
+     */
+    fun setAppIcon(iconKey: String) {
+        val packageManager = context.packageManager
+        val defaultAlias = ComponentName(context, "com.mobile.engine.MainActivityDefault")
+        val altAlias = ComponentName(context, "com.mobile.engine.MainActivityAlt")
+        val (enable, disable) = if (iconKey == "alt") altAlias to defaultAlias else defaultAlias to altAlias
+
+        packageManager.setComponentEnabledSetting(
+            enable,
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+            PackageManager.DONT_KILL_APP,
+        )
+        packageManager.setComponentEnabledSetting(
+            disable,
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+            PackageManager.DONT_KILL_APP,
+        )
     }
 }

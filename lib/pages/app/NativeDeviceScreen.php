@@ -30,7 +30,9 @@ use Engine\Native\Tokens;
  * DevicePage.php has ~30 capabilities; this covers the ones that don't
  * need a UI overlay beyond a single synchronous call (camera preview,
  * image picker results, and similar stay on the WebView path — see
- * NativeDeviceBridge.kt's docblock).
+ * NativeDeviceBridge.kt's docblock). printPage() is the one exception
+ * that looked portable but isn't: it needs WebView.createPrintDocumentAdapter,
+ * so there's no document source without a WebView — it stays WebView-only.
  */
 final class NativeDeviceScreen
 {
@@ -73,6 +75,11 @@ final class NativeDeviceScreen
                     $row('Lire le secret', 'device:secureretrieve:demo_key:secure_out', $secureOut),
                     $row('Contacts', 'device:contacts:contacts_out', $contactsOut),
                     $row('Calendrier', 'device:calendar:calendar_out', $calendarOut),
+                    $row('Jouer un son', 'device:sound'),
+                    $row('Notification', 'device:notify'),
+                    $row('Partager', 'device:share'),
+                    $row('Icône bleue', 'device:appicon:alt'),
+                    $row('Icône par défaut', 'device:appicon:default'),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,
