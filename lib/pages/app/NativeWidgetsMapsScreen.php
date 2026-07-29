@@ -5,11 +5,10 @@ namespace Engine\App;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\NativeAppBar;
-use Engine\Native\NativeButton;
+use Engine\Native\NativeMapView;
 use Engine\Native\NativeScaffold;
 use Engine\Native\RenderContainer;
 use Engine\Native\RenderFlex;
-use Engine\Native\RenderImage;
 use Engine\Native\RenderNode;
 use Engine\Native\RenderPadding;
 use Engine\Native\RenderText;
@@ -18,17 +17,12 @@ use Engine\Native\Tokens;
 /**
  * The native conversion of WidgetsMapsPage.php — same provider-resolution
  * logic as Engine\Maps\MapView::make() (Mapbox > Google Maps > OSM
- * fallback), but what actually renders here is a single real OpenStreetMap
- * tile image (via NativeCanvas::image()'s existing async HTTP loader), not
- * a mockup rectangle. That's an honest scope: a real map tile, centered on
- * the right coordinates, but NOT a pannable/zoomable interactive map.
- *
- * A genuinely interactive native map (Mapbox Android SDK / Google Maps
- * Android SDK / osmdroid) is real, additional work this doesn't attempt —
- * each needs its own Gradle dependency, API key wiring, and a real
- * android.view.View (MapView) embedded via the same FrameLayout-overlay
- * technique NativeTextField's EditText uses, with its own onResume/
- * onPause lifecycle. Deferred, same as VideoPlayer/GoogleTranslate.
+ * fallback), but what actually renders here is a real, pannable/zoomable
+ * org.osmdroid.views.MapView (NativeMapView, overlaid at the tapped rect —
+ * see NativeRenderPocActivity's showMapOverlay()), not a static image.
+ * osmdroid needs no API key, unlike Mapbox/Google Maps, so this works
+ * regardless of what's configured in .env — same "OSM is the always-
+ * available fallback" reasoning MapView::make() itself uses.
  */
 final class NativeWidgetsMapsScreen
 {
@@ -42,33 +36,23 @@ final class NativeWidgetsMapsScreen
 
         $contentWidth = $screenWidth - 2 * Tokens::SPACE_XL;
 
-        // Paris, zoom 14 — same coordinates WidgetsMapsPage.php's
-        // MapView::make() demo uses. Standard Web Mercator lat/lon ->
-        // tile x/y conversion (the same math every slippy-map tile client
-        // uses) since there's no map SDK resolving this for us here.
+        // Paris, zoom 14 — same coordinates WidgetsMapsPage.php's MapView::make() demo uses.
         $lat = 48.8566;
         $lon = 2.3522;
         $zoom = 14;
-        $tileX = (int) floor(($lon + 180) / 360 * (2 ** $zoom));
-        $tileY = (int) floor((1 - log(tan(deg2rad($lat)) + 1 / cos(deg2rad($lat))) / M_PI) / 2 * (2 ** $zoom));
-        $tileUrl = "https://tile.openstreetmap.org/{$zoom}/{$tileX}/{$tileY}.png";
 
         $body = new RenderContainer(
             new RenderPadding(
                 EdgeInsets::all(Tokens::SPACE_XL),
                 RenderFlex::column([
                     new RenderText(
-                        "Fournisseur résolu par MapView::make() : {$configured}. Aperçu ci-dessous : une vraie tuile OpenStreetMap (pas interactive — voir le docblock de cet écran).",
+                        "Fournisseur résolu par MapView::make() : {$configured}. La carte ci-dessous est un vrai osmdroid MapView — pan et pincer-zoomer fonctionnent.",
                         Tokens::TEXT_BODY_SMALL,
                         Tokens::inkMuted()->toHex(),
                     ),
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_XL),
-                        new RenderImage($tileUrl, $contentWidth, $contentWidth, radius: Tokens::RADIUS_LG),
-                    ),
-                    new RenderPadding(
-                        EdgeInsets::only(top: Tokens::SPACE_XL),
-                        new NativeButton('Carte interactive (WebView)', 'webview:/widgets/maps', background: Tokens::surfaceMuted(), foreground: Tokens::ink()),
+                        new NativeMapView($lat, $lon, $zoom, $contentWidth),
                     ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),

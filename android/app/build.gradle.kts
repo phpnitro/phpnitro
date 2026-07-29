@@ -77,6 +77,11 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.9.1")
     implementation("com.android.billingclient:billing-ktx:7.1.1")
     implementation("com.google.android.gms:play-services-location:21.3.0")
+    // A real interactive map (pan/zoom) with zero API key — same
+    // OpenStreetMap tiles NativeWidgetsMapsScreen.php's static-tile
+    // fallback already fetches directly, now behind a genuine MapView
+    // instead of a single non-interactive image.
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
 
     // Push notifications — uncomment together with the plugin above and
     // google-services.json, see FcmService.kt.example.

@@ -118,6 +118,11 @@ class NativeRenderPocActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         splashScreen.setKeepOnScreenCondition { serverPort == 0 || !firstScreenRendered }
 
+        // osmdroid's tile server ToS requires a real user agent — the
+        // package name identifies which app is pulling tiles, same as
+        // any other OSM client is expected to set.
+        org.osmdroid.config.Configuration.getInstance().userAgentValue = packageName
+
         screenStack.add(intent.getStringExtra("screen") ?: "home")
 
         canvasView = NativeCanvasView(this)
@@ -187,6 +192,13 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 refetch(action = null, includeFields = true)
             }
             action.startsWith("video:play:") -> showVideoOverlay(action.removePrefix("video:play:"), regionDp)
+            action.startsWith("map:open:") -> {
+                val parts = action.removePrefix("map:open:").split(":")
+                val lat = parts.getOrNull(0)?.toDoubleOrNull() ?: 48.8566
+                val lon = parts.getOrNull(1)?.toDoubleOrNull() ?: 2.3522
+                val zoom = parts.getOrNull(2)?.toIntOrNull() ?: 14
+                showMapOverlay(lat, lon, zoom, regionDp)
+            }
             action.startsWith("select:") -> showSelectDialog(action.removePrefix("select:"), meta)
             action.startsWith("datepicker:") -> showDatePickerDialog(action.removePrefix("datepicker:"), meta)
             action.startsWith("timepicker:") -> showTimePickerDialog(action.removePrefix("timepicker:"), meta)
@@ -461,6 +473,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
         (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
             .hideSoftInputFromWindow(canvasView.windowToken, 0)
         clearVideoOverlay()
+        clearMapOverlay()
     }
 
     private var activeVideoView: android.widget.VideoView? = null
@@ -469,11 +482,12 @@ class NativeRenderPocActivity : AppCompatActivity() {
         clearVideoOverlay()
 
         val density = resources.displayMetrics.density
-        val videoView = android.widget.VideoView(this).apply {
-            setVideoURI(android.net.Uri.parse(url))
-            setMediaController(android.widget.MediaController(this@NativeRenderPocActivity).apply { setAnchorView(this@apply) })
-            setOnPreparedListener { it.start() }
-        }
+        val videoView = android.widget.VideoView(this)
+        val mediaController = android.widget.MediaController(this)
+        mediaController.setAnchorView(videoView)
+        videoView.setMediaController(mediaController)
+        videoView.setVideoURI(android.net.Uri.parse(url))
+        videoView.setOnPreparedListener { it.start() }
         val params = FrameLayout.LayoutParams(
             (regionDp.width() * density).toInt(),
             (regionDp.height() * density).toInt(),
@@ -491,6 +505,43 @@ class NativeRenderPocActivity : AppCompatActivity() {
             rootLayout.removeView(it)
         }
         activeVideoView = null
+    }
+
+    // A real, pannable/zoomable org.osmdroid.views.MapView (pinch-zoom is
+    // built into MapView itself once setMultiTouchControls(true) is set,
+    // no extra gesture wiring here) — same overlay-at-tapped-rect idiom as
+    // showTextInput()/showVideoOverlay(). Needs no API key, unlike Mapbox/
+    // Google Maps.
+    private var activeMapView: org.osmdroid.views.MapView? = null
+
+    private fun showMapOverlay(latitude: Double, longitude: Double, zoom: Int, regionDp: RectF) {
+        clearMapOverlay()
+
+        val density = resources.displayMetrics.density
+        val mapView = org.osmdroid.views.MapView(this).apply {
+            setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
+            setMultiTouchControls(true)
+            controller.setZoom(zoom.toDouble())
+            controller.setCenter(org.osmdroid.util.GeoPoint(latitude, longitude))
+        }
+        val params = FrameLayout.LayoutParams(
+            (regionDp.width() * density).toInt(),
+            (regionDp.height() * density).toInt(),
+        ).apply {
+            leftMargin = (regionDp.left * density).toInt()
+            topMargin = (regionDp.top * density).toInt()
+        }
+        rootLayout.addView(mapView, params)
+        mapView.onResume()
+        activeMapView = mapView
+    }
+
+    private fun clearMapOverlay() {
+        activeMapView?.let {
+            it.onPause()
+            rootLayout.removeView(it)
+        }
+        activeMapView = null
     }
 
     private fun refetch(action: String?, includeFields: Boolean = false) {
@@ -630,6 +681,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         if (nfcListening) enableNfcForegroundDispatch()
+        activeMapView?.onResume()
     }
 
     private fun enableNfcForegroundDispatch() {
@@ -643,6 +695,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         nfcAdapter?.disableForegroundDispatch(this)
+        activeMapView?.onPause()
     }
 
     override fun onDestroy() {
