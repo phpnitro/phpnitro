@@ -8,7 +8,6 @@ use Engine\Column;
 use Engine\Connectivity\ConnectivityBadge;
 use Engine\Divider;
 use Engine\Form;
-use Engine\Link;
 use Engine\Preferences\Preferences;
 use Engine\Row;
 use Engine\Screen;
@@ -95,7 +94,9 @@ final class SettingsPage extends Screen
                 )
                 : Text::make('Active le flag ci-dessus pour afficher le bouton.', 'text-xs text-gray-400 italic'),
 
-            Link::make("Retour à l'accueil", '/'),
+            // '/' has no WebView route anymore — see ProductPage.php's
+            // same fix.
+            Button::make("Retour à l'accueil", onClick: "phpxDevice.openNativeRenderPreviewAt('home')", classes: 'text-blue-600 hover:underline text-left'),
         ], 'flex flex-col gap-4 p-4');
     }
 }

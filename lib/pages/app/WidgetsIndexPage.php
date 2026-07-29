@@ -50,7 +50,9 @@ final class WidgetsIndexPage extends Screen
                 . "dans examples/ecom/checkout — pas dupliqués ici, ils ont besoin d'une vraie clé pour s'afficher.",
                 'text-sm text-gray-500 dark:text-gray-400',
             ),
-            Link::make("Retour à l'accueil", '/'),
+            // '/' has no WebView route anymore — see ProductPage.php's
+            // same fix.
+            Button::make("Retour à l'accueil", onClick: "phpxDevice.openNativeRenderPreviewAt('home')", classes: 'text-blue-600 hover:underline text-left'),
         ], 'flex flex-col gap-4 p-4'));
     }
 }

@@ -4,7 +4,6 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use Engine\App\AppNav;
 use Engine\App\DevicePage;
-use Engine\App\HomePage;
 use Engine\App\ProductPage;
 use Engine\App\SettingsPage;
 use Engine\App\WidgetsFirebaseAuthPage;
@@ -14,6 +13,7 @@ use Engine\App\WidgetsLayoutPage;
 use Engine\App\WidgetsMapsPage;
 use Engine\App\WidgetsMediaPage;
 use Engine\BottomNavigation;
+use Engine\Button;
 use Engine\Center;
 use Engine\Column;
 use Engine\Container;
@@ -21,7 +21,6 @@ use Engine\Csrf;
 use Engine\Database\Database;
 use Engine\Html;
 use Engine\Icon;
-use Engine\Link;
 use Engine\Native\Constraints;
 use Engine\Native\NativeCanvas;
 use Engine\Navigation;
@@ -49,7 +48,9 @@ function renderNotFound(bool $debug): never
                 Html::raw(Icon::warning('w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto')),
                 Text::make('404', 'text-5xl font-bold text-gray-900 dark:text-gray-100 text-center'),
                 Text::make('Cette page n\'existe pas.', 'text-gray-500 dark:text-gray-400 text-center'),
-                Link::make("Retour à l'accueil", '/'),
+                // '/' has no WebView route anymore — see ProductPage.php's
+                // same fix.
+                Button::make("Retour à l'accueil", onClick: "phpxDevice.openNativeRenderPreviewAt('home')", classes: 'text-blue-600 hover:underline text-left'),
             ], 'flex flex-col items-center gap-3'),
             'p-8',
         )),
@@ -330,14 +331,17 @@ if ($debug && $path === '/_dev/version') {
     exit;
 }
 
-// '/api', '/login', '/widgets/dialogs', '/widgets/stepper' and
+// '/', '/api', '/login', '/widgets/dialogs', '/widgets/stepper' and
 // '/widgets/countries' are deliberately absent — their WebView pages were
 // removed once the native conversion (lib/pages/app/Native*Screen.php)
 // reached full parity. Every remaining WebView link/nav item that used to
 // point at one of them now calls phpxDevice.openNativeRenderPreviewAt()
-// instead (see AppNav.php, HomePage.php, WidgetsIndexPage.php).
+// instead (see AppNav.php, ProductPage.php, WidgetsIndexPage.php).
+// MainActivity is no longer the app's launcher (see AndroidManifest.xml)
+// so nothing opens this WebView server at a bare '/' anymore — every
+// MainActivity launch now targets one specific still-WebView-only path
+// via NativeDeviceBridge.kt's openWebView().
 $router = new Router([
-    '/' => HomePage::class,
     '/settings' => SettingsPage::class,
     '/device' => DevicePage::class,
     '/product/{id}' => ProductPage::class,

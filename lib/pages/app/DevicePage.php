@@ -27,7 +27,6 @@ use Engine\Device\Share;
 use Engine\Device\Sound;
 use Engine\Device\Torch;
 use Engine\Device\Vibrate;
-use Engine\Link;
 use Engine\LocationButton;
 use Engine\Maps\MapView;
 use Engine\Row;
@@ -174,7 +173,9 @@ final class DevicePage extends Screen
             MapView::make(48.8566, 2.3522),
             Text::make('Contenu live (StreamBuilder, polling toutes les 2s)', 'text-lg font-semibold text-gray-900 dark:text-gray-100'),
             StreamBuilder::make('/fragment/server-time', Text::make('Chargement...')),
-            Link::make("Retour à l'accueil", '/'),
+            // '/' has no WebView route anymore — see ProductPage.php's
+            // same fix.
+            Button::make("Retour à l'accueil", onClick: "phpxDevice.openNativeRenderPreviewAt('home')", classes: 'text-blue-600 hover:underline text-left'),
         ], 'flex flex-col gap-4 p-4'));
     }
 }
