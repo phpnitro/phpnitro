@@ -13,6 +13,7 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.util.Log
+import android.view.GestureDetector
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.VelocityTracker
@@ -107,6 +108,32 @@ class NativeCanvasView(context: Context) : View(context) {
     private var isDragging = false
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
 
+    // NativeGestureDetector's double-tap/swipe — a real
+    // android.view.GestureDetector run alongside the manual scroll
+    // tracking above (which only ever cared about vertical drags), not a
+    // second reimplementation of tap-timing/fling-velocity math.
+    // gestureConsumedThisTouch suppresses handleTap()'s single-tap
+    // dispatch for a touch sequence a gesture callback already handled —
+    // otherwise ACTION_UP would ALSO fire a plain tap at the release
+    // point after a double-tap or swipe.
+    private var gestureConsumedThisTouch = false
+    private val androidGestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onDoubleTap(e: MotionEvent): Boolean {
+            dispatchGestureAction(e, "onDoubleClick")
+            return true
+        }
+
+        override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+            if (e1 == null) return false
+            val dx = e2.x - e1.x
+            if (abs(dx) > abs(e2.y - e1.y) && abs(dx) > touchSlop * 3) {
+                dispatchGestureAction(e1, if (dx > 0) "onSwipeRight" else "onSwipeLeft")
+                return true
+            }
+            return false
+        }
+    })
+
     fun setCommands(json: String) {
         // A PHP warning/notice ahead of the JSON (a bad file path, an
         // undefined-variable notice in debug mode, etc.) turns this into
@@ -150,6 +177,14 @@ class NativeCanvasView(context: Context) : View(context) {
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val maxScroll = maxScrollY()
+        // Reset BEFORE androidGestureDetector.onTouchEvent() below — it
+        // can call onDoubleTap() synchronously from right here on a
+        // second tap's ACTION_DOWN, which must survive until this same
+        // touch's ACTION_UP checks it further down.
+        if (event.action == MotionEvent.ACTION_DOWN) {
+            gestureConsumedThisTouch = false
+        }
+        androidGestureDetector.onTouchEvent(event)
 
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
@@ -183,7 +218,7 @@ class NativeCanvasView(context: Context) : View(context) {
                         it.computeCurrentVelocity(1000)
                         flingScroll(-it.yVelocity / density, maxScroll)
                     }
-                } else {
+                } else if (!gestureConsumedThisTouch) {
                     handleTap(event)
                 }
                 velocityTracker?.recycle()
@@ -217,6 +252,37 @@ class NativeCanvasView(context: Context) : View(context) {
                 invalidate()
             }
             start()
+        }
+    }
+
+    // NativeGestureDetector's region carries its actions under named meta
+    // keys ("onDoubleClick"/"onSwipeLeft"/"onSwipeRight") instead of the
+    // plain "action" field every other hit region uses — a bare tap
+    // inside the region does nothing (matches Engine\GestureDetector's
+    // HTML <div> with no onclick), only a real double-tap/fling fires one
+    // of these.
+    private fun dispatchGestureAction(event: MotionEvent, key: String) {
+        val touchX = event.x / density
+        val rawTouchY = event.y / density
+
+        for (index in 0 until hitRegions.length()) {
+            val region = hitRegions.getJSONObject(index)
+            val meta = region.optJSONObject("meta") ?: continue
+            if (!meta.has(key)) continue
+
+            val fixed = region.optBoolean("fixed", false)
+            val touchY = if (fixed) rawTouchY else rawTouchY + scrollY
+            val left = region.getDouble("x")
+            val top = region.getDouble("y")
+            val right = left + region.getDouble("width")
+            val bottom = top + region.getDouble("height")
+
+            if (touchX >= left && touchX <= right && touchY >= top && touchY <= bottom) {
+                gestureConsumedThisTouch = true
+                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                onAction?.invoke(meta.getString(key), RectF(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat()), meta)
+                return
+            }
         }
     }
 

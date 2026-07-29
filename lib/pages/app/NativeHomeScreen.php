@@ -11,6 +11,7 @@ use Engine\Native\NativeButton;
 use Engine\Native\NativeCard;
 use Engine\Native\NativeDrawer;
 use Engine\Native\NativeFab;
+use Engine\Native\NativeGestureDetector;
 use Engine\Native\NativeIconCircle;
 use Engine\Native\NativeListTile;
 use Engine\Native\NativeScaffold;
@@ -32,13 +33,10 @@ use Engine\Preferences\Preferences;
  * and BottomNavigation (see their docblocks) instead of every screen
  * hand-rolling its own header row.
  *
- * What's deliberately NOT carried over 1:1 from HomePage.php:
- * - GestureDetector's double-click/swipe interactions collapse to a
- *   single tap — this engine's hit-testing is tap-only for now, no
- *   gesture disambiguation beyond scroll-vs-tap.
- *
- * The Drawer and FloatingActionButton ARE both real now (NativeDrawer,
- * NativeFab) — the AppBar's leading hamburger toggles
+ * Full parity with HomePage.php as of this pass: Drawer, FloatingActionButton
+ * and GestureDetector (double-tap/swipe on the counter, via a real
+ * android.view.GestureDetector — see NativeCanvasView.kt) are all real now,
+ * not approximated. The AppBar's leading hamburger toggles
  * $_GET['drawer_open'] the same "server-known open/close flag" way every
  * other stateful native widget works (see NativeDrawer's docblock).
  *
@@ -75,7 +73,15 @@ final class NativeHomeScreen
                         EdgeInsets::only(top: Tokens::SPACE_XL),
                         new NativeCard(RenderFlex::column([
                             new RenderText('Compteur', Tokens::TEXT_CAPTION, Tokens::inkMuted()->toHex(), bold: true, letterSpacing: 0.04),
-                            new RenderPadding(EdgeInsets::only(top: 4), new RenderText((string) $count, Tokens::TEXT_DISPLAY, Tokens::ink()->toHex(), bold: true)),
+                            new RenderPadding(
+                                EdgeInsets::only(top: 4),
+                                new NativeGestureDetector(
+                                    new RenderText((string) $count, Tokens::TEXT_DISPLAY, Tokens::ink()->toHex(), bold: true),
+                                    onDoubleClick: 'home_increment',
+                                    onSwipeLeft: 'home_decrement',
+                                    onSwipeRight: 'home_increment',
+                                ),
+                            ),
                             new RenderPadding(
                                 EdgeInsets::only(top: Tokens::SPACE_LG),
                                 new NativeButton('Incrémenter', 'home_increment', icon: 'add', width: $screenWidth - 2 * (Tokens::SPACE_XL + Tokens::SPACE_LG)),

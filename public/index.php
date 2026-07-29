@@ -177,6 +177,11 @@ if ($path === '/native/layout-demo') {
     if ($action === 'home_increment') {
         \Engine\Preferences\Preferences::set('native_home_counter', (string) ((int) \Engine\Preferences\Preferences::get('native_home_counter', '0') + 1));
     }
+    // Mirrors HomePage.php's onDecrement() — swiping left on
+    // NativeGestureDetector's counter area.
+    if ($action === 'home_decrement') {
+        \Engine\Preferences\Preferences::set('native_home_counter', (string) ((int) \Engine\Preferences\Preferences::get('native_home_counter', '0') - 1));
+    }
 
     // Mirrors LoginPage.php's onLogin(): a "submit:login" NativeButton
     // collects both NativeTextField values client-side and sends them
