@@ -27,12 +27,14 @@ import kotlin.concurrent.thread
  * WebView involved anywhere in this Activity.
  *
  * Navigation: a hit region's action starting with "navigate:" (e.g.
- * "navigate:otp") pushes that screen name onto a local back stack and
- * re-fetches — this Activity is what owns "which screen is current", not
- * PHP (each /native/layout-demo request is a stateless render of
- * whichever ?screen= it's given). Plain "back" — or the hardware back
- * button, via the OnBackPressedCallback below — pops the stack. Anything
- * else is a normal server round-trip (increment, etc.), same as before.
+ * "navigate:otp", or "navigate:product/42" for a route param — mirrors
+ * ProductPage.php's '/product/{id}') pushes that token onto a local back
+ * stack and re-fetches — this Activity is what owns "which screen is
+ * current", not PHP (each /native/layout-demo request is a stateless
+ * render of whichever ?screen=&id= it's given). Plain "back" — or the
+ * hardware back button, via the OnBackPressedCallback below — pops the
+ * stack. Anything else is a normal server round-trip (increment, etc.),
+ * same as before.
  */
 class NativeRenderPocActivity : AppCompatActivity() {
 
@@ -112,7 +114,13 @@ class NativeRenderPocActivity : AppCompatActivity() {
         val density = resources.displayMetrics.density
         val screenWidthDp = resources.displayMetrics.widthPixels / density
         val screenHeightDp = resources.displayMetrics.heightPixels / density
-        val screen = screenStack.last()
+        // "product/42" -> screen=product, id=42 — a route-param screen
+        // token is just "name/param", split once at fetch time rather
+        // than teaching screenStack about a richer shape.
+        val screenToken = screenStack.last()
+        val screen = screenToken.substringBefore('/')
+        val screenParam = screenToken.substringAfter('/', missingDelimiterValue = "").ifEmpty { null }
+        val idParam = if (screenParam != null) "&id=${java.net.URLEncoder.encode(screenParam, "UTF-8")}" else ""
         val actionParam = if (action != null) "&action=${java.net.URLEncoder.encode(action, "UTF-8")}" else ""
         // Point 3 of the "grow the framework" pass: a real performance
         // number, not an intuition. roundTripMs is tap-to-parsed-frame —
@@ -123,7 +131,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
         // "network/parse overhead" instead of one opaque total.
         val startNanos = System.nanoTime()
         try {
-            val connection = URL("http://127.0.0.1:$port/native/layout-demo?width=$screenWidthDp&height=$screenHeightDp&screen=$screen$actionParam").openConnection() as HttpURLConnection
+            val connection = URL("http://127.0.0.1:$port/native/layout-demo?width=$screenWidthDp&height=$screenHeightDp&screen=$screen$idParam$actionParam").openConnection() as HttpURLConnection
             connection.connectTimeout = 5000
             Log.i(TAG, "Fetching /native/layout-demo (screen=$screen, action=$action), response code ${connection.responseCode}")
             val json = connection.inputStream.bufferedReader().use { it.readText() }

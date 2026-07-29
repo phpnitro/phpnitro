@@ -89,6 +89,10 @@ final class NativeHomeScreen
                         EdgeInsets::only(top: Tokens::SPACE_MD),
                         new NativeListTile('Vérification', 'Code OTP', 'shield', trailingIcon: 'chevron_right', action: 'navigate:otp'),
                     ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeListTile('Produit #42', 'Route param réel', 'inventory_2', trailingIcon: 'chevron_right', action: 'navigate:product/42'),
+                    ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,
