@@ -252,6 +252,7 @@ if ($path === '/native/layout-demo') {
         'widgets-layout' => \Engine\App\NativeWidgetsLayoutScreen::build($screenWidth, $screenHeight),
         'widgets-dialogs' => \Engine\App\NativeWidgetsDialogsScreen::build($screenWidth, $screenHeight),
         'widgets-stepper' => \Engine\App\NativeWidgetsStepperScreen::build($screenWidth, $screenHeight, $stepperStep, $stepperData),
+        'widgets-countries' => \Engine\App\NativeWidgetsCountriesScreen::build($screenWidth, $screenHeight),
         default => \Engine\App\NativeHomeScreen::build($screenWidth, $screenHeight),
     };
 

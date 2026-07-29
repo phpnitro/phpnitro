@@ -51,6 +51,10 @@ final class NativeWidgetsIndexScreen
                     ),
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeListTile('Countries', '194 pays, offline', 'public', trailingIcon: 'chevron_right', action: 'navigate:widgets-countries'),
+                    ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
                         new NativeListTile('Backend PHP', 'Appel API en-process', 'api', trailingIcon: 'chevron_right', action: 'navigate:api'),
                     ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
