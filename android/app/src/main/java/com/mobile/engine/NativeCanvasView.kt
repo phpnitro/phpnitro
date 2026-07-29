@@ -267,6 +267,8 @@ class NativeCanvasView(context: Context) : View(context) {
                 "text" -> drawTextCommand(canvas, command, alpha)
                 "icon" -> drawIconCommand(canvas, command, alpha)
                 "image" -> drawImageCommand(canvas, command, alpha)
+                "circle" -> drawCircleCommand(canvas, command, alpha)
+                "line" -> drawLineCommand(canvas, command, alpha)
             }
         }
     }
@@ -331,6 +333,51 @@ class NativeCanvasView(context: Context) : View(context) {
             val strokeRect = RectF(rect.left + inset, rect.top + inset, rect.right - inset, rect.bottom - inset)
             if (radius > 0) canvas.drawRoundRect(strokeRect, radius, radius, borderPaint) else canvas.drawRect(strokeRect, borderPaint)
         }
+    }
+
+    // Same fill/stroke split as drawRectCommand — a circle with only a
+    // borderColor (no color) is a ring, not a filled disc, same
+    // "color absent means don't fake a fill" convention.
+    private fun drawCircleCommand(canvas: Canvas, command: JSONObject, alpha: Float) {
+        val cx = command.getDouble("cx").toFloat()
+        val cy = command.getDouble("cy").toFloat()
+        val radius = command.getDouble("radius").toFloat()
+
+        if (command.has("color")) {
+            val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                color = Color.parseColor(command.getString("color"))
+                this.alpha = (this.alpha * alpha).toInt()
+            }
+            canvas.drawCircle(cx, cy, radius, fillPaint)
+        }
+
+        if (command.has("borderColor")) {
+            val borderWidth = command.optDouble("borderWidth", 0.0).toFloat()
+            val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = borderWidth
+                color = Color.parseColor(command.getString("borderColor"))
+                this.alpha = (this.alpha * alpha).toInt()
+            }
+            canvas.drawCircle(cx, cy, radius - borderWidth / 2, borderPaint)
+        }
+    }
+
+    private fun drawLineCommand(canvas: Canvas, command: JSONObject, alpha: Float) {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = command.optDouble("width", 1.0).toFloat()
+            color = Color.parseColor(command.getString("color"))
+            this.alpha = (this.alpha * alpha).toInt()
+        }
+        canvas.drawLine(
+            command.getDouble("x1").toFloat(),
+            command.getDouble("y1").toFloat(),
+            command.getDouble("x2").toFloat(),
+            command.getDouble("y2").toFloat(),
+            paint,
+        )
     }
 
     private fun drawTextCommand(canvas: Canvas, command: JSONObject, alpha: Float) {

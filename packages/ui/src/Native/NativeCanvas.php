@@ -183,6 +183,43 @@ final class NativeCanvas
         return $this;
     }
 
+    /**
+     * A raw filled/stroked circle — the primitive RenderContainer's
+     * rect()+radius can't express (a rect radius rounds corners, it
+     * doesn't produce a circle sized independently of a bounding box), and
+     * what Engine\Canvas's ->circle() needs a native equivalent for.
+     */
+    public function circle(float $cx, float $cy, float $radius, ?string $color = null, ?string $borderColor = null, float $borderWidth = 0.0): self
+    {
+        $this->commands[] = array_filter([
+            'type' => 'circle',
+            'cx' => $cx,
+            'cy' => $cy,
+            'radius' => $radius,
+            'color' => $color,
+            'borderColor' => $borderColor,
+            'borderWidth' => $borderWidth,
+        ], static fn (mixed $value): bool => $value !== null);
+
+        return $this;
+    }
+
+    /** A raw straight line — what Engine\Canvas's ->line() needs a native equivalent for. */
+    public function line(float $x1, float $y1, float $x2, float $y2, string $color, float $width = 1.0): self
+    {
+        $this->commands[] = [
+            'type' => 'line',
+            'x1' => $x1,
+            'y1' => $y1,
+            'x2' => $x2,
+            'y2' => $y2,
+            'color' => $color,
+            'width' => $width,
+        ];
+
+        return $this;
+    }
+
     public function hitRegion(float $x, float $y, float $width, float $height, string $action): self
     {
         $this->hitRegions[] = [

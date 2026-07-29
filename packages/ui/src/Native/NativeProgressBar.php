@@ -1,0 +1,46 @@
+<?php
+
+/*
+ * This file is part of the PhpNitro package.
+ *
+ * (c) Ronaldo AWADEME <awademeronaldoo@gmail.com>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Engine\Native;
+
+use Engine\Color;
+
+/**
+ * A track + a proportionally-sized fill, both pill-rounded — takes an
+ * explicit pixel width rather than stretching to its parent, since a
+ * RenderStack (used here to overlay the fill on the track) doesn't resolve
+ * percentage widths on its own; call sites already know their available
+ * width the same way NativeButton's do.
+ */
+final class NativeProgressBar implements RenderNode
+{
+    private readonly RenderStack $content;
+
+    public function __construct(float $width, float $percent, float $height = 8.0, ?Color $trackColor = null, ?Color $fillColor = null)
+    {
+        $clamped = max(0.0, min(1.0, $percent));
+
+        $this->content = new RenderStack([
+            new RenderContainer(width: $width, height: $height, background: $trackColor ?? Tokens::surfaceMuted(), radius: $height / 2),
+            new RenderContainer(width: $width * $clamped, height: $height, background: $fillColor ?? Tokens::ink(), radius: $height / 2),
+        ]);
+    }
+
+    public function layout(Constraints $constraints): Size
+    {
+        return $this->content->layout($constraints);
+    }
+
+    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    {
+        $this->content->paint($canvas, $x, $y);
+    }
+}
