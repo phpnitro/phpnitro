@@ -20,7 +20,7 @@ namespace Engine;
 final class Drawer extends Widget
 {
     /**
-     * @param array<int, array{label: string, href: string}> $items
+     * @param array<int, array{label: string, href: string, onClick?: string}> $items
      */
     public function __construct(
         private readonly array $items,
@@ -29,7 +29,7 @@ final class Drawer extends Widget
     }
 
     /**
-     * @param array<int, array{label: string, href: string}> $items
+     * @param array<int, array{label: string, href: string, onClick?: string}> $items
      */
     public static function make(array $items, string $title = 'Menu'): self
     {
@@ -39,12 +39,23 @@ final class Drawer extends Widget
     public function render(): string
     {
         $links = implode('', array_map(
-            static fn (array $item) => sprintf(
-                '<a href="%s" class="block px-4 py-3 rounded-lg text-gray-900 dark:text-gray-100 '
-                . 'hover:bg-gray-100 dark:hover:bg-gray-700">%s</a>',
-                htmlspecialchars($item['href'], ENT_QUOTES),
-                htmlspecialchars($item['label'], ENT_QUOTES),
-            ),
+            // An onClick item (e.g. a destination whose WebView page was
+            // removed once its native conversion reached full parity —
+            // see ApiPage.php's removal) calls straight into the JS bridge
+            // instead of navigating to a route that no longer exists.
+            static fn (array $item) => isset($item['onClick'])
+                ? sprintf(
+                    '<a href="#" onclick="%s; return false;" class="block px-4 py-3 rounded-lg text-gray-900 dark:text-gray-100 '
+                    . 'hover:bg-gray-100 dark:hover:bg-gray-700">%s</a>',
+                    htmlspecialchars($item['onClick'], ENT_QUOTES),
+                    htmlspecialchars($item['label'], ENT_QUOTES),
+                )
+                : sprintf(
+                    '<a href="%s" class="block px-4 py-3 rounded-lg text-gray-900 dark:text-gray-100 '
+                    . 'hover:bg-gray-100 dark:hover:bg-gray-700">%s</a>',
+                    htmlspecialchars($item['href'], ENT_QUOTES),
+                    htmlspecialchars($item['label'], ENT_QUOTES),
+                ),
             $this->items,
         ));
 

@@ -392,10 +392,23 @@ class WebAppInterface(
      */
     @JavascriptInterface
     fun openNativeRenderPreview() {
+        openNativeRenderPreviewAt("home")
+    }
+
+    /**
+     * Same as openNativeRenderPreview() but jumps straight to a given
+     * screen — for call sites whose WebView page was removed because its
+     * native conversion is complete (see LoginPage.php's removal, for
+     * instance): the WebView "Se connecter" link couldn't render '/login'
+     * itself anymore, so it opens the native screen that replaced it
+     * instead of 404ing.
+     */
+    @JavascriptInterface
+    fun openNativeRenderPreviewAt(screen: String) {
         val activity = context as? Activity ?: return
 
         activity.runOnUiThread {
-            context.startActivity(Intent(context, NativeRenderPocActivity::class.java))
+            context.startActivity(Intent(context, NativeRenderPocActivity::class.java).putExtra("screen", screen))
         }
     }
 

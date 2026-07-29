@@ -2,22 +2,17 @@
 
 require __DIR__ . '/../vendor/autoload.php';
 
-use Engine\App\ApiPage;
 use Engine\App\AppNav;
 use Engine\App\DevicePage;
 use Engine\App\HomePage;
-use Engine\App\LoginPage;
 use Engine\App\ProductPage;
 use Engine\App\SettingsPage;
-use Engine\App\WidgetsCountriesPage;
-use Engine\App\WidgetsDialogsPage;
 use Engine\App\WidgetsFirebaseAuthPage;
 use Engine\App\WidgetsFormsPage;
 use Engine\App\WidgetsIndexPage;
 use Engine\App\WidgetsLayoutPage;
 use Engine\App\WidgetsMapsPage;
 use Engine\App\WidgetsMediaPage;
-use Engine\App\WidgetsStepperPage;
 use Engine\BottomNavigation;
 use Engine\Center;
 use Engine\Column;
@@ -330,22 +325,23 @@ if ($debug && $path === '/_dev/version') {
     exit;
 }
 
+// '/api', '/login', '/widgets/dialogs', '/widgets/stepper' and
+// '/widgets/countries' are deliberately absent — their WebView pages were
+// removed once the native conversion (lib/pages/app/Native*Screen.php)
+// reached full parity. Every remaining WebView link/nav item that used to
+// point at one of them now calls phpxDevice.openNativeRenderPreviewAt()
+// instead (see AppNav.php, HomePage.php, WidgetsIndexPage.php).
 $router = new Router([
     '/' => HomePage::class,
     '/settings' => SettingsPage::class,
     '/device' => DevicePage::class,
-    '/api' => ApiPage::class,
     '/product/{id}' => ProductPage::class,
-    '/login' => LoginPage::class,
     '/widgets' => WidgetsIndexPage::class,
     '/widgets/layout' => WidgetsLayoutPage::class,
     '/widgets/forms' => WidgetsFormsPage::class,
     '/widgets/media' => WidgetsMediaPage::class,
     '/widgets/maps' => WidgetsMapsPage::class,
-    '/widgets/dialogs' => WidgetsDialogsPage::class,
-    '/widgets/stepper' => WidgetsStepperPage::class,
     '/widgets/firebase-auth' => WidgetsFirebaseAuthPage::class,
-    '/widgets/countries' => WidgetsCountriesPage::class,
 ]);
 
 try {

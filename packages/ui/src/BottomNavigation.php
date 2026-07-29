@@ -40,7 +40,10 @@ final class BottomNavigation extends Widget
         $currentPath = $this->normalizePath(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/');
 
         $items = implode('', array_map(
-            fn (array $item) => $this->renderItem($item, $this->normalizePath($item['href']) === $currentPath),
+            // An onClick item (see renderItem()) doesn't correspond to a
+            // real WebView path anymore — never "active" the way a normal
+            // tab whose href matches the current URL is.
+            fn (array $item) => $this->renderItem($item, !isset($item['onClick']) && $this->normalizePath($item['href']) === $currentPath),
             $this->items,
         ));
 
@@ -75,11 +78,10 @@ final class BottomNavigation extends Widget
      * can toggle `class` directly (a plain string swap) without knowing
      * anything about this variant's Tailwind classes.
      *
-     * @param array{label: string, href: string, icon?: string} $item
+     * @param array{label: string, href: string, icon?: string, onClick?: string} $item
      */
     private function renderItem(array $item, bool $active): string
     {
-        $href = htmlspecialchars($item['href'], ENT_QUOTES);
         $label = htmlspecialchars($item['label'], ENT_QUOTES);
         $icon = $item['icon'] ?? '•';
 
@@ -93,9 +95,17 @@ final class BottomNavigation extends Widget
             ? $icon
             : sprintf('<span class="%s">%s</span><span>%s</span>', $this->variant === self::VARIANT_PILLS ? 'text-base leading-none' : 'text-lg leading-none', $icon, $label);
 
+        // An onClick item (e.g. a tab whose WebView page was removed once
+        // its native conversion reached full parity — see ApiPage.php's
+        // removal) calls straight into the JS bridge instead of navigating
+        // to a route that no longer exists.
+        $hrefOrClick = isset($item['onClick'])
+            ? sprintf('href="#" onclick="%s; return false;"', htmlspecialchars($item['onClick'], ENT_QUOTES))
+            : sprintf('href="%s"', htmlspecialchars($item['href'], ENT_QUOTES));
+
         return sprintf(
-            '<a href="%s" class="%s" data-active-class="%s" data-inactive-class="%s"%s>%s</a>',
-            $href,
+            '<a %s class="%s" data-active-class="%s" data-inactive-class="%s"%s>%s</a>',
+            $hrefOrClick,
             $currentClass,
             $activeClass,
             $inactiveClass,

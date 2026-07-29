@@ -55,7 +55,11 @@ final class HomePage extends Screen
                 Text::make("Connecté : {$user}", color: Color::green(600), weight: FontWeight::MEDIUM),
                 Button::make('Se déconnecter', action: 'logout', classes: 'text-sm text-red-600 hover:underline text-left'),
             ], 'flex flex-col gap-1')
-            : Link::make('Se connecter', '/login');
+            // '/login' has no WebView route anymore — LoginPage.php was
+            // removed once NativeLoginScreen.php reached full parity (see
+            // git history) — so this opens the native screen that replaced
+            // it instead of linking to a dead route.
+            : Button::make('Se connecter', onClick: "phpxDevice.openNativeRenderPreviewAt('login')", classes: 'text-sm text-blue-600 hover:underline text-left');
 
         return Scaffold::make(
             body: Column::make([
@@ -86,7 +90,9 @@ final class HomePage extends Screen
                 ['label' => 'Accueil', 'href' => '/'],
                 ['label' => 'Réglages', 'href' => '/settings'],
                 ['label' => 'Device', 'href' => '/device'],
-                ['label' => 'API', 'href' => '/api'],
+                // '/api' has no WebView route anymore — see AppNav.php's
+                // same fix for the bottom nav's API tab.
+                ['label' => 'API', 'href' => '#', 'onClick' => "phpxDevice.openNativeRenderPreviewAt('api')"],
                 ['label' => 'Widgets', 'href' => '/widgets'],
             ], title: 'Mon application'),
         );

@@ -11,7 +11,7 @@ use Engine\Icon;
 final class AppNav
 {
     /**
-     * @return array<int, array{label: string, href: string, icon: string}>
+     * @return array<int, array{label: string, href: string, icon: string, onClick?: string}>
      */
     public static function items(): array
     {
@@ -19,7 +19,11 @@ final class AppNav
             ['label' => 'Accueil', 'href' => '/', 'icon' => Icon::home()],
             ['label' => 'Réglages', 'href' => '/settings', 'icon' => Icon::settings()],
             ['label' => 'Device', 'href' => '/device', 'icon' => Icon::camera()],
-            ['label' => 'API', 'href' => '/api', 'icon' => Icon::link()],
+            // '/api' has no WebView route anymore — ApiPage.php was
+            // removed once NativeApiScreen.php reached full parity — this
+            // tab opens the native screen that replaced it instead of
+            // navigating to a route that no longer exists.
+            ['label' => 'API', 'href' => '#', 'icon' => Icon::link(), 'onClick' => "phpxDevice.openNativeRenderPreviewAt('api')"],
         ];
     }
 }
