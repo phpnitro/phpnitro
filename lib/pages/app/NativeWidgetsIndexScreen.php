@@ -43,6 +43,10 @@ final class NativeWidgetsIndexScreen
                     ),
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeListTile('Boîtes de dialogue', 'Alert/Confirm — AlertDialog réel', 'chat_bubble', trailingIcon: 'chevron_right', action: 'navigate:widgets-dialogs'),
+                    ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
                         new NativeListTile('Backend PHP', 'Appel API en-process', 'api', trailingIcon: 'chevron_right', action: 'navigate:api'),
                     ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),

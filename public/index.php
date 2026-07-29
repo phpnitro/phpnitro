@@ -227,6 +227,7 @@ if ($path === '/native/layout-demo') {
         'widgets' => \Engine\App\NativeWidgetsIndexScreen::build($screenWidth, $screenHeight),
         'widgets-forms' => \Engine\App\NativeWidgetsFormsScreen::build($screenWidth),
         'widgets-layout' => \Engine\App\NativeWidgetsLayoutScreen::build($screenWidth, $screenHeight),
+        'widgets-dialogs' => \Engine\App\NativeWidgetsDialogsScreen::build($screenWidth, $screenHeight),
         default => \Engine\App\NativeHomeScreen::build($screenWidth, $screenHeight),
     };
 
