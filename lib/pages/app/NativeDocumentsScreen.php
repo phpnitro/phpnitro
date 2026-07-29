@@ -6,13 +6,14 @@ use Engine\Color;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\Flexible;
-use Engine\Native\RenderCenter;
+use Engine\Native\NativeButton;
+use Engine\Native\NativeIconCircle;
+use Engine\Native\NativeListTile;
 use Engine\Native\RenderContainer;
 use Engine\Native\RenderFlex;
 use Engine\Native\RenderIcon;
 use Engine\Native\RenderNode;
 use Engine\Native\RenderPadding;
-use Engine\Native\RenderTappable;
 use Engine\Native\RenderText;
 use Engine\Native\Tokens;
 
@@ -21,9 +22,8 @@ use Engine\Native\Tokens;
  * screen: near-black ink on white, thin gray borders instead of shadows,
  * a pill-radius black CTA at the bottom. See docs/proposals/moteur-rendu-natif.md.
  *
- * Extracted out of public/index.php's /native/layout-demo route once a
- * second reference screen (NativeOtpScreen) needed to live next to it —
- * keeps the route a thin dispatcher instead of one growing function.
+ * Built from the NativeIconCircle/NativeListTile/NativeButton widget
+ * layer instead of hand-rolled RenderContainer/RenderCenter composition.
  */
 final class NativeDocumentsScreen
 {
@@ -34,42 +34,24 @@ final class NativeDocumentsScreen
         // round-trip instead of a hardcoded state.
         $requiredDone = min($tapCount, 2);
 
-        $iconCircle = static fn (string $icon, Color $background, Color $iconColor, float $diameter = 40.0): RenderContainer => new RenderContainer(
-            new RenderCenter(new RenderIcon($icon, $diameter * 0.5, $iconColor->toHex())),
-            width: $diameter,
-            height: $diameter,
-            radius: $diameter / 2,
-            background: $background,
+        $documentRow = static fn (string $title, string $subtitle, bool $required, bool $done): NativeListTile => new NativeListTile(
+            $title,
+            $subtitle,
+            $done ? 'check_circle' : 'description',
+            leadingBackground: $done ? Tokens::successMuted() : Tokens::surfaceMuted(),
+            leadingColor: $done ? Tokens::success() : Tokens::inkSecondary(),
+            trailingIcon: $done ? 'check' : 'add',
+            trailingBackground: $done ? Tokens::successMuted() : Tokens::ink(),
+            trailingColor: $done ? Tokens::success() : Color::white(),
+            borderColor: $done ? Color::green(400) : Tokens::border(),
+            borderWidth: $done ? 1.5 : 1.0,
+            // The red tracked-uppercase badge wins over $subtitle when a
+            // document is required — same "one or the other" rule the
+            // hand-rolled version had.
+            subtitleNode: $required
+                ? new RenderText('OBLIGATOIRE', Tokens::TEXT_CAPTION, Tokens::danger()->toHex(), bold: true, letterSpacing: 0.04)
+                : null,
         );
-
-        $documentRow = static function (string $title, string $subtitle, bool $required, bool $done) use ($iconCircle): RenderContainer {
-            return new RenderContainer(
-                new RenderPadding(
-                    EdgeInsets::symmetric(Tokens::SPACE_LG, Tokens::SPACE_MD),
-                    RenderFlex::row([
-                        $done
-                            ? $iconCircle('check_circle', Tokens::successMuted(), Tokens::success(), 36)
-                            : $iconCircle('description', Tokens::surfaceMuted(), Tokens::inkSecondary(), 36),
-                        new Flexible(new RenderPadding(EdgeInsets::only(left: Tokens::SPACE_MD), RenderFlex::column([
-                            new RenderText($title, Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true),
-                            new RenderPadding(
-                                EdgeInsets::only(top: 3),
-                                $required
-                                    ? new RenderText('OBLIGATOIRE', Tokens::TEXT_CAPTION, Tokens::danger()->toHex(), bold: true, letterSpacing: 0.04)
-                                    : new RenderText($subtitle, Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
-                            ),
-                        ]))),
-                        $done
-                            ? $iconCircle('check', Tokens::successMuted(), Tokens::success(), 30)
-                            : $iconCircle('add', Tokens::ink(), Color::white(), 30),
-                    ], crossAxisAlignment: CrossAxisAlignment::CENTER),
-                ),
-                background: Tokens::surface(),
-                radius: Tokens::RADIUS_LG,
-                borderColor: $done ? Color::green(400) : Tokens::border(),
-                borderWidth: $done ? 1.5 : 1.0,
-            );
-        };
 
         return new RenderContainer(
             RenderFlex::column([
@@ -78,7 +60,7 @@ final class NativeDocumentsScreen
                     EdgeInsets::all(Tokens::SPACE_XL),
                     RenderFlex::column([
                         RenderFlex::row([
-                            new RenderTappable($iconCircle('arrow_back', Tokens::surfaceMuted(), Tokens::ink()), action: 'back'),
+                            new NativeIconCircle('arrow_back', action: 'back'),
                             new Flexible(new RenderPadding(
                                 EdgeInsets::only(left: Tokens::SPACE_MD, top: 18),
                                 new RenderContainer(height: 3, radius: 2, background: Tokens::ink()),
@@ -118,30 +100,20 @@ final class NativeDocumentsScreen
                                     radius: Tokens::RADIUS_MD,
                                 ),
                             ),
-                            // Real tappable region — server-driven state, same
-                            // phase-3 round-trip as before, now standing in
-                            // for "mark the next required document done".
+                            // Real tappable region — server-driven state,
+                            // same phase-3 round-trip as before. Once both
+                            // required documents are marked done,
+                            // "Continuer" pushes a real navigation
+                            // (NativeRenderPocActivity intercepts
+                            // "navigate:" client-side and switches
+                            // screens) instead of just incrementing
+                            // forever.
                             new RenderPadding(
                                 EdgeInsets::only(top: Tokens::SPACE_XL),
-                                new RenderTappable(
-                                    new RenderContainer(
-                                        new RenderCenter(new RenderText(
-                                            $requiredDone >= 2 ? 'Continuer' : "Valider un document ({$requiredDone}/2)",
-                                            Tokens::TEXT_BODY,
-                                            '#FFFFFF',
-                                            bold: true,
-                                        )),
-                                        height: 54,
-                                        background: Tokens::ink(),
-                                        radius: Tokens::RADIUS_PILL,
-                                    ),
-                                    // Once both required documents are
-                                    // marked done, "Continuer" pushes a
-                                    // real navigation (NativeRenderPocActivity
-                                    // intercepts "navigate:" client-side and
-                                    // switches screens) instead of just
-                                    // incrementing forever.
-                                    action: $requiredDone >= 2 ? 'navigate:otp' : 'increment',
+                                new NativeButton(
+                                    $requiredDone >= 2 ? 'Continuer' : "Valider un document ({$requiredDone}/2)",
+                                    $requiredDone >= 2 ? 'navigate:otp' : 'increment',
+                                    width: $screenWidth - 2 * Tokens::SPACE_XL,
                                 ),
                             ),
                         ], crossAxisAlignment: CrossAxisAlignment::STRETCH),

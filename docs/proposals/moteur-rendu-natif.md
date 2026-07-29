@@ -1,6 +1,6 @@
 # Moteur de rendu natif — architecture et plan de route
 
-Branche : `feature/native-render-engine`. Statut : en cours, phase 0.
+Branche : `feature/native-render-engine`. Statut : phases 0-5 et 7 (amorcée) faites et vérifiées sur device réel — layout à contraintes, hit-testing, animations Choreographer, 2235 icônes Material réelles, dégradés, défilement, images réseau, navigation multi-écrans, un écran natif branché sur de vraies données (`Engine\Preferences\`). Phase 6 (iOS) explicitement mise de côté pour l'instant.
 
 ## Objectif
 
@@ -36,3 +36,14 @@ Remplacer le rendu HTML/CSS dans une WebView par un rendu natif direct (Android 
 ## Ce qui ne change pas
 
 Tout le reste du framework (état des `Screen`, actions `onXxx()`, base de données, paiements, services device, auth sociale) reste identique — seul le **rendu** change. C'est délibéré : ne pas casser ce qui est déjà vérifié sur device pendant qu'on construit ça en parallèle.
+
+## Critère d'arrêt — "niveau Flutter/React Native" n'en est pas un
+
+Ni Flutter ni React Native n'ont de ligne d'arrivée fixe — les deux représentent des milliers d'années-ingénieur cumulées (moteur de rendu, catalogue de widgets, DevTools, écosystème de plugins). Viser une parité totale comme objectif est un objectif qui recule indéfiniment, pas un jalon. Ce dont ce projet a réellement besoin, c'est d'un seuil concret de "assez bon pour servir un vrai écran de l'app" :
+
+1. **Une bibliothèque de widgets réutilisables**, pas seulement des primitives de layout — un vrai `NativeButton`/`NativeCard`/`NativeListTile` qu'on compose, comme `Button.php`/`Container.php` côté HTML, plutôt que de reconstruire `RenderContainer` + `RenderCenter` + `RenderText` à la main à chaque écran.
+2. **Un écran réel de l'app** (pas une recréation de capture de référence) rendu entièrement via ce chemin, mesurable en usage normal.
+3. **Un chiffre de performance réel**, pas une intuition — temps de rendu (tap → trame affichée) mesuré sur device, comparé au chemin WebView existant sur un écran équivalent.
+4. **Aucune régression** sur le chemin WebView existant pendant toute la transition (déjà garanti par le flag et la séparation de code).
+
+Une fois ces quatre points vrais pour au moins un écran de production, le moteur a atteint son objectif utile — le reste (plus de widgets, plus d'écrans migrés, iOS) devient une question de temps disponible, pas de faisabilité technique restant à prouver.

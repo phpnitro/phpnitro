@@ -5,14 +5,13 @@ namespace Engine\App;
 use Engine\Native\EdgeInsets;
 use Engine\Native\Flexible;
 use Engine\Native\MainAxisAlignment;
+use Engine\Native\NativeIconCircle;
 use Engine\Native\RenderCenter;
 use Engine\Native\RenderContainer;
 use Engine\Native\RenderFlex;
-use Engine\Native\RenderIcon;
 use Engine\Native\RenderNode;
 use Engine\Native\RenderPadding;
 use Engine\Native\RenderSizedBox;
-use Engine\Native\RenderTappable;
 use Engine\Native\RenderText;
 use Engine\Native\Tokens;
 
@@ -36,29 +35,7 @@ final class NativeOtpScreen
     {
         $contentWidth = $screenWidth - 2 * Tokens::SPACE_XL;
 
-        $backCircle = new RenderContainer(
-            new RenderCenter(new RenderIcon('arrow_back', 20, Tokens::ink()->toHex())),
-            width: 40,
-            height: 40,
-            radius: 20,
-            background: Tokens::surfaceMuted(),
-        );
-
-        $settingsCircle = new RenderContainer(
-            new RenderCenter(new RenderIcon('settings', 20, Tokens::ink()->toHex())),
-            width: 40,
-            height: 40,
-            radius: 20,
-            background: Tokens::surfaceMuted(),
-        );
-
-        $badge = new RenderContainer(
-            new RenderCenter(new RenderIcon('shield', 30, Tokens::ink()->toHex())),
-            width: 72,
-            height: 72,
-            radius: 36,
-            background: Tokens::surfaceMuted(),
-        );
+        $badge = new NativeIconCircle('shield', 72);
 
         $otpBox = static fn (?string $digit, bool $active): RenderContainer => new RenderContainer(
             new RenderCenter(match (true) {
@@ -98,12 +75,12 @@ final class NativeOtpScreen
                 EdgeInsets::all(Tokens::SPACE_XL),
                 RenderFlex::column([
                     RenderFlex::row([
-                        new RenderTappable($backCircle, action: 'back'),
+                        new NativeIconCircle('arrow_back', action: 'back'),
                         // Real navigation to a third screen — showing
                         // genuinely live server data (packages/ui/src/Native/
                         // Tokens-styled), not another synthetic mockup.
                         new Flexible(new RenderContainer()),
-                        new RenderTappable($settingsCircle, action: 'navigate:settings'),
+                        new NativeIconCircle('settings', action: 'navigate:settings'),
                     ]),
                     new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_XXL * 1.5), new RenderCenter($badge)),
                     new RenderPadding(

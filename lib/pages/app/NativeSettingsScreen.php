@@ -5,14 +5,13 @@ namespace Engine\App;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\Flexible;
-use Engine\Native\RenderCenter;
+use Engine\Native\NativeIconCircle;
+use Engine\Native\NativeListTile;
 use Engine\Native\RenderContainer;
 use Engine\Native\RenderFlex;
-use Engine\Native\RenderIcon;
 use Engine\Native\RenderImage;
 use Engine\Native\RenderNode;
 use Engine\Native\RenderPadding;
-use Engine\Native\RenderTappable;
 use Engine\Native\RenderText;
 use Engine\Native\Tokens;
 use Engine\Preferences\Preferences;
@@ -24,6 +23,11 @@ use Engine\Preferences\Preferences;
  * reads and writes, proving the native pipeline can serve a genuinely
  * data-backed screen, not just a static reference-image recreation.
  * Reachable by tapping the gear icon on NativeOtpScreen.
+ *
+ * Built from the NativeIconCircle/NativeListTile widget layer instead of
+ * hand-rolled RenderContainer/RenderCenter/RenderIcon composition —
+ * compare to git history before this refactor if you want to see what
+ * that looked like duplicated across three screens.
  */
 final class NativeSettingsScreen
 {
@@ -32,46 +36,11 @@ final class NativeSettingsScreen
         $accent = Preferences::get('accent_color', 'blue');
         $nativePreviewEnabled = Preferences::get('native_render_preview_enabled', '0') === '1';
 
-        $backCircle = new RenderTappable(
-            new RenderContainer(
-                new RenderCenter(new RenderIcon('arrow_back', 20, Tokens::ink()->toHex())),
-                width: 40,
-                height: 40,
-                radius: 20,
-                background: Tokens::surfaceMuted(),
-            ),
-            action: 'back',
-        );
-
-        $row = static fn (string $label, string $value, string $icon): RenderContainer => new RenderContainer(
-            new RenderPadding(
-                EdgeInsets::symmetric(Tokens::SPACE_LG, Tokens::SPACE_MD),
-                RenderFlex::row([
-                    new RenderContainer(
-                        new RenderCenter(new RenderIcon($icon, 18, Tokens::inkSecondary()->toHex())),
-                        width: 36,
-                        height: 36,
-                        radius: 18,
-                        background: Tokens::surfaceMuted(),
-                    ),
-                    new Flexible(new RenderPadding(
-                        EdgeInsets::only(left: Tokens::SPACE_MD),
-                        new RenderText($label, Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true),
-                    )),
-                    new RenderText($value, Tokens::TEXT_BODY_SMALL, Tokens::inkSecondary()->toHex()),
-                ], crossAxisAlignment: CrossAxisAlignment::CENTER),
-            ),
-            background: Tokens::surface(),
-            radius: Tokens::RADIUS_LG,
-            borderColor: Tokens::border(),
-            borderWidth: 1.0,
-        );
-
         return new RenderContainer(
             new RenderPadding(
                 EdgeInsets::all(Tokens::SPACE_XL),
                 RenderFlex::column([
-                    $backCircle,
+                    new NativeIconCircle('arrow_back', action: 'back'),
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_LG),
                         RenderFlex::row([
@@ -90,9 +59,18 @@ final class NativeSettingsScreen
                             ]))),
                         ], crossAxisAlignment: CrossAxisAlignment::CENTER),
                     ),
-                    new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_XL), $row("Couleur d'accent", $accent, 'palette')),
-                    new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_MD), $row('Rendu natif', $nativePreviewEnabled ? 'Activé' : 'Désactivé', 'bolt')),
-                    new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_MD), $row('Moteur', 'PHP -> Canvas', 'memory')),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_XL),
+                        new NativeListTile("Couleur d'accent", null, 'palette', leadingColor: Tokens::inkSecondary(), trailingText: $accent),
+                    ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeListTile('Rendu natif', null, 'bolt', leadingColor: Tokens::inkSecondary(), trailingText: $nativePreviewEnabled ? 'Activé' : 'Désactivé'),
+                    ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeListTile('Moteur', null, 'memory', leadingColor: Tokens::inkSecondary(), trailingText: 'PHP -> Canvas'),
+                    ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,
