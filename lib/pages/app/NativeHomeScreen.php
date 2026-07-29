@@ -9,6 +9,9 @@ use Engine\Native\NativeAppBar;
 use Engine\Native\NativeBottomNavigation;
 use Engine\Native\NativeButton;
 use Engine\Native\NativeCard;
+use Engine\Native\NativeDrawer;
+use Engine\Native\NativeFab;
+use Engine\Native\NativeIconCircle;
 use Engine\Native\NativeListTile;
 use Engine\Native\NativeScaffold;
 use Engine\Native\RenderContainer;
@@ -33,8 +36,11 @@ use Engine\Preferences\Preferences;
  * - GestureDetector's double-click/swipe interactions collapse to a
  *   single tap — this engine's hit-testing is tap-only for now, no
  *   gesture disambiguation beyond scroll-vs-tap.
- * - The Drawer (slide-in side panel) has no native equivalent yet; its
- *   destinations are reachable as plain NativeListTile rows instead.
+ *
+ * The Drawer and FloatingActionButton ARE both real now (NativeDrawer,
+ * NativeFab) — the AppBar's leading hamburger toggles
+ * $_GET['drawer_open'] the same "server-known open/close flag" way every
+ * other stateful native widget works (see NativeDrawer's docblock).
  *
  * Root of the native screen stack — NativeRenderPocActivity starts here
  * by default; Documents/OTP/Settings are all one "back" away from it.
@@ -50,6 +56,7 @@ final class NativeHomeScreen
         // and shouldn't share state just because both are "a number that
         // goes up").
         $count = (int) Preferences::get('native_home_counter', '0');
+        $drawerOpen = ($_GET['drawer_open'] ?? '') === '1';
 
         $body = new RenderContainer(
             new RenderPadding(
@@ -101,8 +108,20 @@ final class NativeHomeScreen
             $body,
             $screenWidth,
             $screenHeight,
-            appBar: new NativeAppBar($screenWidth, 'Mon application'),
+            appBar: new NativeAppBar(
+                $screenWidth,
+                'Mon application',
+                leading: new NativeIconCircle('menu', 36.0, action: 'toggle:drawer_open', meta: ['next' => '1']),
+            ),
             bottomNav: NativeAppShell::bottomNav($screenWidth, 'home'),
+            fab: new NativeFab('add', 'home_increment'),
+            drawer: $drawerOpen ? new NativeDrawer($screenWidth, $screenHeight, [
+                ['label' => 'Accueil', 'icon' => 'home', 'action' => 'tab:home'],
+                ['label' => 'Réglages', 'icon' => 'settings', 'action' => 'navigate:settings'],
+                ['label' => 'Device', 'icon' => 'smartphone', 'action' => 'navigate:device'],
+                ['label' => 'API', 'icon' => 'api', 'action' => 'navigate:api'],
+                ['label' => 'Widgets', 'icon' => 'widgets', 'action' => 'navigate:widgets'],
+            ], 'Mon application') : null,
         );
     }
 }

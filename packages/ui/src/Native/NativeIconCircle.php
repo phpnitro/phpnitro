@@ -24,12 +24,17 @@ final class NativeIconCircle implements RenderNode
 {
     private readonly RenderNode $content;
 
+    /**
+     * @param ?array<string, mixed> $meta Extra data the client needs to handle this action —
+     *                                    see RenderTappable's docblock.
+     */
     public function __construct(
         string $icon,
         float $diameter = 40.0,
         ?Color $background = null,
         ?Color $iconColor = null,
         ?string $action = null,
+        ?array $meta = null,
     ) {
         $circle = new RenderContainer(
             new RenderCenter(new RenderIcon($icon, $diameter * 0.5, ($iconColor ?? Tokens::ink())->toHex())),
@@ -39,7 +44,7 @@ final class NativeIconCircle implements RenderNode
             background: $background ?? Tokens::surfaceMuted(),
         );
 
-        $this->content = $action !== null ? new RenderTappable($circle, $action) : $circle;
+        $this->content = $action !== null ? new RenderTappable($circle, $action, $meta) : $circle;
     }
 
     public function layout(Constraints $constraints): Size

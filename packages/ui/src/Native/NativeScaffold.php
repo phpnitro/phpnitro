@@ -31,6 +31,7 @@ final class NativeScaffold implements RenderNode
         private readonly ?NativeAppBar $appBar = null,
         private readonly ?NativeBottomNavigation $bottomNav = null,
         private readonly ?NativeFab $fab = null,
+        private readonly ?NativeDrawer $drawer = null,
     ) {
         $topInset = $this->appBar !== null ? NativeAppBar::HEIGHT : 0.0;
         $bottomInset = $this->bottomNav !== null ? NativeBottomNavigation::HEIGHT : 0.0;
@@ -46,6 +47,7 @@ final class NativeScaffold implements RenderNode
         $this->appBar?->layout($fixedConstraints);
         $this->bottomNav?->layout($fixedConstraints);
         $this->fab?->layout(new Constraints(0.0, Constraints::INFINITY, 0.0, Constraints::INFINITY));
+        $this->drawer?->layout($fixedConstraints);
 
         return $bodySize;
     }
@@ -75,6 +77,15 @@ final class NativeScaffold implements RenderNode
                 $x + $this->screenWidth - NativeFab::SIZE - $margin,
                 $this->viewportHeight - $bottomBarHeight - NativeFab::SIZE - $margin,
             );
+            $canvas->endFixed();
+        }
+
+        // Painted last (on top of the AppBar/BottomNavigation/Fab too),
+        // matching Flutter's Drawer covering the whole Scaffold — a real
+        // side menu should sit above everything else, not just the body.
+        if ($this->drawer !== null) {
+            $canvas->beginFixed();
+            $this->drawer->paint($canvas, $x, 0.0);
             $canvas->endFixed();
         }
     }
