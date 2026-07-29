@@ -9,6 +9,7 @@ use Engine\Native\EdgeInsets;
 use Engine\Native\NativeAppBar;
 use Engine\Native\NativeButton;
 use Engine\Native\NativeDivider;
+use Engine\Native\NativePageView;
 use Engine\Native\NativeScaffold;
 use Engine\Native\NativeTable;
 use Engine\Native\RenderAlign;
@@ -27,20 +28,30 @@ use Engine\Native\Tokens;
 /**
  * The native conversion of WidgetsLayoutPage.php's static half — Align,
  * Center, Container, Row, Margin/Padding, Table, Stack/Positioned, Wrap,
- * Button, Canvas all have a real native equivalent by now (see
- * packages/ui/src/Native/'s widget layer). FadeIn/AnimatedContainer/Hero
- * are genuinely NOT ported: they need a real client-side tween system
- * (ValueAnimator-driven interpolation between two paints), not just
- * another draw command — this engine's paint model is one-shot per
- * request, no animation timeline exists yet. PageView (horizontal
- * snap-scroll) needs its own gesture handling in NativeCanvasView, also
- * not built. All four stay WebView-only until that work happens.
+ * Button, Canvas, PageView all have a real native equivalent by now (see
+ * packages/ui/src/Native/'s widget layer).
+ *
+ * FadeIn/AnimatedContainer aren't separate widgets here because
+ * NativeCanvasView.kt already does something structurally equivalent for
+ * every screen: setCommands() crossfades the previous draw-command list
+ * into the new one (fadeProgress/previousCommands) on every re-render —
+ * so any element that's new, resized, or recolored between two requests
+ * already eases into place, the same "ease into what changed" effect
+ * those two widgets exist for, just applied screen-wide instead of
+ * per-element.
+ *
+ * Hero (a specific tagged element FLIP-animating its own position/size
+ * between two screens, independently of the rest of the transition) is
+ * the one genuine gap — that needs per-element tracking across a
+ * navigation, not just a whole-screen crossfade, real additional work
+ * this doesn't attempt. Stays WebView-only.
  */
 final class NativeWidgetsLayoutScreen
 {
     public static function build(float $screenWidth, float $screenHeight): RenderNode
     {
         $contentWidth = $screenWidth - 2 * Tokens::SPACE_XL;
+        $layoutPage = (int) ($_GET['layout_page'] ?? '0');
 
         $caption = static fn (string $text): RenderNode => new RenderPadding(
             EdgeInsets::only(top: Tokens::SPACE_LG, bottom: Tokens::SPACE_SM),
@@ -109,10 +120,17 @@ final class NativeWidgetsLayoutScreen
                         ->circle(100, 50, 30, '#16a34a')
                         ->line(140, 10, 190, 90, '#dc2626', 3)
                         ->text(10, 95, 'Canvas', '#111827'),
+                    $caption('PageView — pagination réelle par tap (dots + chevrons)'),
+                    new NativePageView([
+                        new RenderContainer(new RenderCenter(new RenderText('Page A', Tokens::TEXT_BODY, Color::white()->toHex())), background: Color::blue(600), radius: Tokens::RADIUS_MD),
+                        new RenderContainer(new RenderCenter(new RenderText('Page B', Tokens::TEXT_BODY, Color::white()->toHex())), background: Color::green(600), radius: Tokens::RADIUS_MD),
+                        new RenderContainer(new RenderCenter(new RenderText('Page C', Tokens::TEXT_BODY, Color::white()->toHex())), background: Color::of('purple', 600), radius: Tokens::RADIUS_MD),
+                    ], $layoutPage, 'layout_page'),
+
                     new NativeDivider(),
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_LG),
-                        new RenderText("FadeIn, AnimatedContainer, Hero et PageView nécessitent un vrai système d'animation côté client — pas encore construit.", Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
+                        new RenderText('Hero (FLIP par élément entre deux écrans) reste sur le pipeline WebView.', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
                     ),
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),
