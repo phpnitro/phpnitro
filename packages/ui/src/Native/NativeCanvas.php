@@ -44,6 +44,7 @@ final class NativeCanvas
     private array $hitRegions = [];
 
     private float $contentHeight = 0.0;
+    private ?float $renderTimeMs = null;
 
     /**
      * The full laid-out content height (which can exceed the viewport) —
@@ -53,6 +54,21 @@ final class NativeCanvas
     public function setContentHeight(float $height): self
     {
         $this->contentHeight = $height;
+
+        return $this;
+    }
+
+    /**
+     * How long layout()+paint() actually took, in milliseconds — the one
+     * real, measured number in the "is this fast?" question instead of an
+     * intuition. Excludes HTTP transport and Kotlin-side parse/draw on
+     * purpose (see docs/proposals/moteur-rendu-natif.md's definition of
+     * done): this isolates the PHP-side cost specifically, since that's
+     * the part this architecture is gambling on staying cheap.
+     */
+    public function setRenderTimeMs(float $ms): self
+    {
+        $this->renderTimeMs = $ms;
 
         return $this;
     }
@@ -165,10 +181,11 @@ final class NativeCanvas
 
     public function toJson(): string
     {
-        return json_encode([
+        return json_encode(array_filter([
             'commands' => $this->commands,
             'hitRegions' => $this->hitRegions,
             'contentHeight' => $this->contentHeight,
-        ], JSON_THROW_ON_ERROR);
+            'renderTimeMs' => $this->renderTimeMs,
+        ], static fn (mixed $value): bool => $value !== null), JSON_THROW_ON_ERROR);
     }
 }

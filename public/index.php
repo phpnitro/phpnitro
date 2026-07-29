@@ -146,6 +146,14 @@ if ($path === '/native/demo') {
 // docs/proposals/moteur-rendu-natif.md for the phased plan this belongs to.
 if ($path === '/native/layout-demo') {
     header('Content-Type: application/json');
+    // Point 3 of the "grow the framework" pass: a real performance number
+    // instead of an intuition. renderTimeMs covers layout()+paint() only
+    // (the PHP-side compute this architecture is actually gambling on
+    // staying cheap) — NativeRenderPocActivity separately times the full
+    // round-trip (HTTP + this + JSON parse + draw), so a slow frame can be
+    // attributed to "PHP is slow" vs "the network hop is slow" vs "Kotlin
+    // parsing/drawing is slow" instead of one opaque total.
+    $renderStart = microtime(true);
 
     $screenWidth = (float) ($_GET['width'] ?? 360);
     $screenHeight = (float) ($_GET['height'] ?? 720);
@@ -181,6 +189,7 @@ if ($path === '/native/layout-demo') {
     $canvas = new NativeCanvas();
     $canvas->setContentHeight($contentSize->height);
     $tree->paint($canvas, 0, 0);
+    $canvas->setRenderTimeMs((microtime(true) - $renderStart) * 1000);
     echo $canvas->toJson();
     exit;
 }

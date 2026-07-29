@@ -114,13 +114,23 @@ class NativeRenderPocActivity : AppCompatActivity() {
         val screenHeightDp = resources.displayMetrics.heightPixels / density
         val screen = screenStack.last()
         val actionParam = if (action != null) "&action=${java.net.URLEncoder.encode(action, "UTF-8")}" else ""
+        // Point 3 of the "grow the framework" pass: a real performance
+        // number, not an intuition. roundTripMs is tap-to-parsed-frame —
+        // HTTP + PHP compute + JSON parse — everything except the actual
+        // Canvas draw (that's onDraw's own concern, already logged
+        // separately). PHP's own renderTimeMs rides in the response body,
+        // so a slow frame here can be split into "PHP was slow" vs
+        // "network/parse overhead" instead of one opaque total.
+        val startNanos = System.nanoTime()
         try {
             val connection = URL("http://127.0.0.1:$port/native/layout-demo?width=$screenWidthDp&height=$screenHeightDp&screen=$screen$actionParam").openConnection() as HttpURLConnection
             connection.connectTimeout = 5000
             Log.i(TAG, "Fetching /native/layout-demo (screen=$screen, action=$action), response code ${connection.responseCode}")
             val json = connection.inputStream.bufferedReader().use { it.readText() }
             connection.disconnect()
-            Log.i(TAG, "Draw commands: $json")
+            val roundTripMs = (System.nanoTime() - startNanos) / 1_000_000.0
+            val renderTimeMs = Regex("\"renderTimeMs\":([0-9.]+)").find(json)?.groupValues?.get(1)?.toDoubleOrNull()
+            Log.i(TAG, "PERF screen=$screen roundTripMs=${"%.1f".format(roundTripMs)} phpRenderTimeMs=${renderTimeMs?.let { "%.2f".format(it) } ?: "?"}")
 
             Handler(Looper.getMainLooper()).post {
                 canvasView.setCommands(json)
