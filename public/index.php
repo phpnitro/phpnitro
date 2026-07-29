@@ -222,6 +222,7 @@ if ($path === '/native/layout-demo') {
         'documents' => \Engine\App\NativeDocumentsScreen::build($screenWidth, $tapCount),
         'product' => \Engine\App\NativeProductScreen::build($screenWidth, $_GET['id'] ?? '?'),
         'login' => \Engine\App\NativeLoginScreen::build($screenWidth, $loginError),
+        'device' => \Engine\App\NativeDeviceScreen::build($screenWidth),
         default => \Engine\App\NativeHomeScreen::build($screenWidth),
     };
 

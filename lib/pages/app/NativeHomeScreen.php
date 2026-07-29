@@ -98,6 +98,10 @@ final class NativeHomeScreen
                         EdgeInsets::only(top: Tokens::SPACE_MD),
                         new NativeListTile('Produit #42', 'Route param réel', 'inventory_2', trailingIcon: 'chevron_right', action: 'navigate:product/42'),
                     ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeListTile('Device', 'Vibreur, torche, batterie...', 'smartphone', trailingIcon: 'chevron_right', action: 'navigate:device'),
+                    ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,

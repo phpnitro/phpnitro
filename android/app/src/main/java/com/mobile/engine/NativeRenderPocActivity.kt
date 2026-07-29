@@ -64,6 +64,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
     private val screenStack = mutableListOf<String>()
     private val fieldValues = mutableMapOf<String, String>()
     private var activeEditText: EditText? = null
+    private val deviceBridge by lazy { NativeDeviceBridge(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -120,6 +121,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 clearTextInput()
                 refetch(action.removePrefix("submit:"), includeFields = true)
             }
+            action.startsWith("device:") -> handleDeviceAction(action.removePrefix("device:"))
             action.startsWith("navigate:") -> {
                 clearTextInput()
                 screenStack.add(action.removePrefix("navigate:"))
@@ -131,6 +133,32 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 refetch(action = null)
             }
             else -> refetch(action)
+        }
+    }
+
+    // "device:X" calls straight into NativeDeviceBridge — no PHP
+    // round-trip for the call itself, this Activity has direct Android
+    // API access same as WebAppInterface.kt does for the WebView path.
+    // Capabilities that need to show a result (battery/deviceid) stash it
+    // in fieldValues under the given output-field name — same mechanism
+    // NativeTextField uses, reusing "a value PHP reads via $_GET on the
+    // next request" rather than inventing a second channel — and refetch
+    // so the current screen re-renders with it. Fire-and-forget ones
+    // (vibrate/torch) have no visible state in the screen, so no
+    // round-trip at all.
+    private fun handleDeviceAction(token: String) {
+        val parts = token.split(":")
+        when (parts.getOrNull(0)) {
+            "vibrate" -> deviceBridge.vibrate(200)
+            "torch" -> deviceBridge.toggleTorch()
+            "battery" -> {
+                fieldValues[parts.getOrElse(1) { "battery_out" }] = "${deviceBridge.batteryLevel()}%"
+                refetch(action = null, includeFields = true)
+            }
+            "deviceid" -> {
+                fieldValues[parts.getOrElse(1) { "device_id_out" }] = deviceBridge.deviceId()
+                refetch(action = null, includeFields = true)
+            }
         }
     }
 
