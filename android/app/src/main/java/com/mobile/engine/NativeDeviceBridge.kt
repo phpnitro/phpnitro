@@ -2,6 +2,7 @@ package com.mobile.engine
 
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.os.BatteryManager
@@ -9,7 +10,10 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.provider.CalendarContract
+import android.provider.ContactsContract
 import android.provider.Settings
+import androidx.core.app.ActivityCompat
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
@@ -91,5 +95,48 @@ class NativeDeviceBridge(private val context: Context) {
 
     fun secureRetrieve(key: String): String {
         return encryptedPrefs.getString(key, "") ?: ""
+    }
+
+    /**
+     * -1 means "permission not granted" (distinct from a real 0), same
+     * fail-quiet-not-fail-loud convention WebAppInterface.getContacts()
+     * uses — this only READS the permission state, it never prompts;
+     * there's no runtime permission-request flow wired into this
+     * WebView-free Activity yet, so this only returns real data on a
+     * device where READ_CONTACTS was already granted through some other
+     * path (e.g. the WebView app's own contacts feature).
+     */
+    fun contactsCount(): Int {
+        if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.READ_CONTACTS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return -1
+        }
+        val cursor = context.contentResolver.query(
+            ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+            arrayOf(ContactsContract.CommonDataKinds.Phone._ID),
+            null,
+            null,
+            null,
+        )
+        return cursor?.use { it.count } ?: 0
+    }
+
+    /** Same -1-means-no-permission convention as contactsCount(); events in the next 30 days. */
+    fun upcomingEventsCount(): Int {
+        if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.READ_CALENDAR)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return -1
+        }
+        val now = System.currentTimeMillis()
+        val cursor = context.contentResolver.query(
+            CalendarContract.Events.CONTENT_URI,
+            arrayOf(CalendarContract.Events._ID),
+            "${CalendarContract.Events.DTSTART} BETWEEN ? AND ?",
+            arrayOf(now.toString(), (now + 30L * 24 * 60 * 60 * 1000).toString()),
+            null,
+        )
+        return cursor?.use { it.count } ?: 0
     }
 }

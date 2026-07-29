@@ -40,6 +40,8 @@ final class NativeDeviceScreen
         $deviceIdOut = $_GET['device_id_out'] ?? null;
         $bluetoothOut = $_GET['bt_out'] ?? null;
         $secureOut = $_GET['secure_out'] ?? null;
+        $contactsOut = $_GET['contacts_out'] ?? null;
+        $calendarOut = $_GET['calendar_out'] ?? null;
 
         $row = static fn (string $label, string $action, ?string $result = null): RenderNode => new RenderPadding(
             EdgeInsets::only(top: Tokens::SPACE_MD),
@@ -69,6 +71,8 @@ final class NativeDeviceScreen
                     $row('Bluetooth', 'device:bluetooth:bt_out', $bluetoothOut),
                     $row('Stocker un secret', 'device:securestore:demo_key'),
                     $row('Lire le secret', 'device:secureretrieve:demo_key:secure_out', $secureOut),
+                    $row('Contacts', 'device:contacts:contacts_out', $contactsOut),
+                    $row('Calendrier', 'device:calendar:calendar_out', $calendarOut),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,

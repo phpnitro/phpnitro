@@ -169,6 +169,16 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 fieldValues[parts.getOrElse(2) { "secure_out" }] = deviceBridge.secureRetrieve(key)
                 refetch(action = null, includeFields = true)
             }
+            "contacts" -> {
+                val count = deviceBridge.contactsCount()
+                fieldValues[parts.getOrElse(1) { "contacts_out" }] = if (count < 0) "Permission requise" else "$count contacts"
+                refetch(action = null, includeFields = true)
+            }
+            "calendar" -> {
+                val count = deviceBridge.upcomingEventsCount()
+                fieldValues[parts.getOrElse(1) { "calendar_out" }] = if (count < 0) "Permission requise" else "$count événements"
+                refetch(action = null, includeFields = true)
+            }
         }
     }
 
