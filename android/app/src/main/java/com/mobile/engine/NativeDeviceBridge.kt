@@ -145,6 +145,30 @@ class NativeDeviceBridge(private val context: Context) {
         return cursor?.use { it.count } ?: 0
     }
 
+    // A single persistent player (unlike playSound()'s fire-and-forget,
+    // release-on-completion one) — what NativeWidgetsMediaScreen's
+    // AudioPlayer needs: play/pause state that survives across taps, the
+    // way a real <audio controls> element's playback state does.
+    private var audioPlayer: MediaPlayer? = null
+
+    fun playAudio(url: String) {
+        val player = audioPlayer
+        if (player != null) {
+            player.start()
+            return
+        }
+        audioPlayer = MediaPlayer().apply {
+            setDataSource(url)
+            setOnPreparedListener { it.start() }
+            setOnErrorListener { mp, _, _ -> mp.release(); audioPlayer = null; true }
+            prepareAsync()
+        }
+    }
+
+    fun pauseAudio() {
+        audioPlayer?.let { if (it.isPlaying) it.pause() }
+    }
+
     /** Fire-and-forget, same as WebAppInterface.playSound() — releases itself on completion. */
     fun playSound(url: String) {
         try {

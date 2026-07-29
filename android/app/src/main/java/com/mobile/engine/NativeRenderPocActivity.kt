@@ -127,6 +127,16 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 refetch(action.removePrefix("submit:"), includeFields = true)
             }
             action.startsWith("device:") -> handleDeviceAction(action.removePrefix("device:"))
+            action.startsWith("media:play:") -> {
+                deviceBridge.playAudio(action.removePrefix("media:play:"))
+                fieldValues["audio_state"] = "playing"
+                refetch(action = null, includeFields = true)
+            }
+            action == "media:pause" -> {
+                deviceBridge.pauseAudio()
+                fieldValues["audio_state"] = "paused"
+                refetch(action = null, includeFields = true)
+            }
             action.startsWith("select:") -> showSelectDialog(action.removePrefix("select:"), meta)
             action.startsWith("datepicker:") -> showDatePickerDialog(action.removePrefix("datepicker:"), meta)
             action.startsWith("timepicker:") -> showTimePickerDialog(action.removePrefix("timepicker:"), meta)
