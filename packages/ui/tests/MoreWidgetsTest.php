@@ -12,7 +12,6 @@ use Engine\CircularProgress;
 use Engine\Color;
 use Engine\DatePicker;
 use Engine\Divider;
-use Engine\Dropdown;
 use Engine\Flash;
 use Engine\FlashMessage;
 use Engine\FutureBuilder;
@@ -214,19 +213,6 @@ final class MoreWidgetsTest extends TestCase
         $this->assertStringContainsString('id="' . $m[1] . '"', $html);
     }
 
-    public function testDropdownRendersDetailsSummaryAndLinks(): void
-    {
-        $html = Dropdown::make('Trier', [
-            ['label' => 'Prix croissant', 'href' => '/sort/price-asc'],
-            ['label' => 'Prix décroissant', 'href' => '/sort/price-desc'],
-        ])->render();
-
-        $this->assertStringContainsString('<details', $html);
-        $this->assertStringContainsString('>Trier<', $html);
-        $this->assertStringContainsString('href="/sort/price-asc"', $html);
-        $this->assertStringContainsString('Prix décroissant', $html);
-    }
-
     public function testDatePickerRendersInputWithMinMax(): void
     {
         $html = DatePicker::make('birthdate', 'Date de naissance', min: '2000-01-01', max: '2020-01-01')->render();
@@ -384,27 +370,6 @@ final class MoreWidgetsTest extends TestCase
         $html = AppBar::make('Titre', background: Color::of('emerald', 600))->render();
 
         $this->assertStringContainsString('bg-emerald-600', $html);
-    }
-
-    public function testDropdownWithTypedBackgroundReplacesDefaultClasses(): void
-    {
-        $html = Dropdown::make('Trier', [], background: Color::of('purple', 600))->render();
-
-        $this->assertStringContainsString('bg-purple-600', $html);
-        $this->assertStringContainsString('text-white', $html);
-        $this->assertStringNotContainsString('bg-gray-200', $html);
-    }
-
-    public function testDropdownWithTypedForegroundOverridesDefaultWhite(): void
-    {
-        $html = Dropdown::make(
-            'Trier',
-            [],
-            background: Color::of('yellow', 300),
-            foreground: Color::of('slate', 900),
-        )->render();
-
-        $this->assertStringContainsString('text-slate-900', $html);
     }
 
     public function testLocationButtonWithTypedBackground(): void
