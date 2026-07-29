@@ -62,6 +62,10 @@ final class NativeWidgetsMediaScreen
                         Tokens::TEXT_BODY_SMALL,
                         Tokens::inkMuted()->toHex(),
                     ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeButton('Voir sur WebView', 'webview:/widgets/media', background: Tokens::surfaceMuted(), foreground: Tokens::ink()),
+                    ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,

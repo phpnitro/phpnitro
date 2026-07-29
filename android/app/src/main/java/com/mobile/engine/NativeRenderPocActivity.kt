@@ -3,6 +3,7 @@ package com.mobile.engine
 import android.app.AlertDialog
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.content.Intent
 import android.graphics.RectF
 import android.os.Bundle
 import android.os.Handler
@@ -17,6 +18,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -70,9 +72,17 @@ class NativeRenderPocActivity : AppCompatActivity() {
     private val fieldValues = mutableMapOf<String, String>()
     private var activeEditText: EditText? = null
     private val deviceBridge by lazy { NativeDeviceBridge(this) }
+    private var firstScreenRendered = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Same native SplashScreen MainActivity uses (Theme.App.Starting,
+        // themes.xml) — stays up exactly until the PHP server is bound and
+        // the first screen has actually rendered, now that this Activity
+        // is the app's real launcher (see AndroidManifest.xml's
+        // MainActivityDefault/Alt aliases) rather than an adb-only preview.
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        splashScreen.setKeepOnScreenCondition { serverPort == 0 || !firstScreenRendered }
 
         screenStack.add(intent.getStringExtra("screen") ?: "home")
 
@@ -127,6 +137,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 refetch(action.removePrefix("submit:"), includeFields = true)
             }
             action.startsWith("device:") -> handleDeviceAction(action.removePrefix("device:"))
+            action.startsWith("webview:") -> deviceBridge.openWebView(action.removePrefix("webview:"))
             action.startsWith("media:play:") -> {
                 deviceBridge.playAudio(action.removePrefix("media:play:"))
                 fieldValues["audio_state"] = "playing"
@@ -428,10 +439,28 @@ class NativeRenderPocActivity : AppCompatActivity() {
             return
         }
         canvasView.setCommands(json)
+        firstScreenRendered = true
     }
 
     companion object {
         private const val TAG = "NativeRenderPoc"
+    }
+
+    // android:launchMode="singleTask" (AndroidManifest.xml, needed so
+    // repeated launcher-icon taps resume the existing instance instead of
+    // stacking a new one) means a fresh "screen" extra — e.g.
+    // WebAppInterface.openNativeRenderPreviewAt() jumping back from a
+    // WebView-only screen — arrives here instead of a new onCreate() when
+    // this Activity is already running. Push it the same way "navigate:"
+    // does rather than silently resuming wherever the stack already was.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+
+        val screen = intent.getStringExtra("screen") ?: return
+        clearTextInput()
+        screenStack.add(screen)
+        refetch(action = null)
     }
 
     override fun onDestroy() {

@@ -110,6 +110,14 @@ final class NativeWidgetsLayoutScreen
                         ->line(140, 10, 190, 90, '#dc2626', 3)
                         ->text(10, 95, 'Canvas', '#111827'),
                     new NativeDivider(),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_LG),
+                        new RenderText("FadeIn, AnimatedContainer, Hero et PageView nécessitent un vrai système d'animation côté client — pas encore construit.", Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
+                    ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeButton('Voir sur WebView', 'webview:/widgets/layout', background: Tokens::surfaceMuted(), foreground: Tokens::ink()),
+                    ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,

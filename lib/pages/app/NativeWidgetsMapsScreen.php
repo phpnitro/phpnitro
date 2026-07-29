@@ -5,6 +5,7 @@ namespace Engine\App;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\NativeAppBar;
+use Engine\Native\NativeButton;
 use Engine\Native\NativeScaffold;
 use Engine\Native\RenderContainer;
 use Engine\Native\RenderFlex;
@@ -64,6 +65,10 @@ final class NativeWidgetsMapsScreen
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_XL),
                         new RenderImage($tileUrl, $contentWidth, $contentWidth, radius: Tokens::RADIUS_LG),
+                    ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_XL),
+                        new NativeButton('Carte interactive (WebView)', 'webview:/widgets/maps', background: Tokens::surfaceMuted(), foreground: Tokens::ink()),
                     ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),

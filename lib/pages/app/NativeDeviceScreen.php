@@ -6,6 +6,7 @@ use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\NativeAppBar;
 use Engine\Native\NativeButton;
+use Engine\Native\NativeDivider;
 use Engine\Native\NativeScaffold;
 use Engine\Native\RenderContainer;
 use Engine\Native\RenderFlex;
@@ -73,6 +74,19 @@ final class NativeDeviceScreen
                     $row('Partager', 'device:share'),
                     $row('Icône bleue', 'device:appicon:alt'),
                     $row('Icône par défaut', 'device:appicon:default'),
+                    new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_LG), new NativeDivider()),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_LG),
+                        new RenderText(
+                            "Caméra, micro, sélecteur d'image, NFC, impression, géofencing, achats in-app — nécessitent encore une WebView.",
+                            Tokens::TEXT_BODY_SMALL,
+                            Tokens::inkMuted()->toHex(),
+                        ),
+                    ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeButton('Fonctionnalités avancées (WebView)', 'webview:/device', background: Tokens::surfaceMuted(), foreground: Tokens::ink()),
+                    ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,

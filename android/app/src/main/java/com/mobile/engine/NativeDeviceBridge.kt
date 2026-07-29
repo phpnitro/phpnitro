@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.media.MediaPlayer
+import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
 import android.os.VibrationEffect
@@ -251,6 +252,24 @@ class NativeDeviceBridge(private val context: Context) {
             disable,
             PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
             PackageManager.DONT_KILL_APP,
+        )
+    }
+
+    /**
+     * The reverse of WebAppInterface.openNativeRenderPreviewAt(): for the
+     * handful of capabilities that still genuinely need a WebView (camera
+     * preview, NFC foreground dispatch, VideoPlayer, an interactive map,
+     * FadeIn/PageView's animation — see each Native*Screen's docblock for
+     * which), opens MainActivity at a specific path via the same
+     * phpnitro:// deep-link scheme MainActivity.deepLinkPath() already
+     * parses for real deep links — not a second routing mechanism.
+     */
+    fun openWebView(path: String) {
+        val activity = context as? android.app.Activity ?: return
+        activity.startActivity(
+            Intent(context, MainActivity::class.java).apply {
+                data = Uri.parse("phpnitro://" + path.removePrefix("/"))
+            },
         )
     }
 }

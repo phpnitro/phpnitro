@@ -6,6 +6,7 @@ use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\NativeAlertButton;
 use Engine\Native\NativeBanner;
+use Engine\Native\NativeButton;
 use Engine\Native\NativeCheckbox;
 use Engine\Native\NativeCircularProgress;
 use Engine\Native\NativeConfirmButton;
@@ -100,6 +101,14 @@ final class NativeWidgetsFormsScreen
                         headers: ['Produit', 'Prix'],
                     ),
                     new NativeDivider(),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_LG),
+                        new RenderText('Textarea et la vitrine étendue des icônes ne sont pas encore portées.', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
+                    ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeButton('Voir sur WebView', 'webview:/widgets/forms', background: Tokens::surfaceMuted(), foreground: Tokens::ink()),
+                    ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,
