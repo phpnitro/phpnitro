@@ -218,7 +218,7 @@ if ($path === '/native/layout-demo') {
     // and the root NativeRenderPocActivity's screen stack starts from.
     $tree = match ($screen) {
         'otp' => \Engine\App\NativeOtpScreen::build($screenWidth, $screenHeight),
-        'settings' => \Engine\App\NativeSettingsScreen::build($screenWidth),
+        'settings' => \Engine\App\NativeSettingsScreen::build($screenWidth, $screenHeight),
         'documents' => \Engine\App\NativeDocumentsScreen::build($screenWidth, $tapCount),
         'product' => \Engine\App\NativeProductScreen::build($screenWidth, $_GET['id'] ?? '?'),
         'login' => \Engine\App\NativeLoginScreen::build($screenWidth, $loginError),
@@ -226,6 +226,7 @@ if ($path === '/native/layout-demo') {
         'api' => \Engine\App\NativeApiScreen::build($screenWidth, $screenHeight),
         'widgets' => \Engine\App\NativeWidgetsIndexScreen::build($screenWidth, $screenHeight),
         'widgets-forms' => \Engine\App\NativeWidgetsFormsScreen::build($screenWidth),
+        'widgets-layout' => \Engine\App\NativeWidgetsLayoutScreen::build($screenWidth, $screenHeight),
         default => \Engine\App\NativeHomeScreen::build($screenWidth, $screenHeight),
     };
 

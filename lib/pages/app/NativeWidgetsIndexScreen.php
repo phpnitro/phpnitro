@@ -31,6 +31,10 @@ final class NativeWidgetsIndexScreen
                     new RenderText("Chaque catégorie montre les widgets natifs disponibles.", Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_XL),
+                        new NativeListTile('Mise en page', 'Align, Stack, Wrap, Table...', 'dashboard', trailingIcon: 'chevron_right', action: 'navigate:widgets-layout'),
+                    ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
                         new NativeListTile('Device', 'Vibreur, torche, batterie, notif...', 'smartphone', trailingIcon: 'chevron_right', action: 'navigate:device'),
                     ),
                     new RenderPadding(
