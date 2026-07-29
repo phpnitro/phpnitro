@@ -30,11 +30,13 @@ use Engine\Native\Tokens;
  * one rendering path is readable from the other.
  *
  * DevicePage.php has ~30 capabilities; camera capture, image picking,
- * biometric auth, brightness, geolocation and mic recording are all real
- * native calls now too (see NativeDeviceBridge.kt) — what's still missing
- * is NFC foreground dispatch, printing (needs a WebView document source),
- * geofencing and in-app purchase, each its own real chunk of lifecycle-
- * heavy Android API work, not yet ported.
+ * biometric auth, brightness, geolocation, mic recording, sensors, NFC
+ * foreground dispatch, geofencing, in-app purchase and periodic
+ * background tasks are all real native calls now too (see
+ * NativeDeviceBridge.kt / NativeRenderPocActivity.kt's NFC lifecycle
+ * hooks). Printing is the one exception that stays WebView-only for good:
+ * it needs WebView.createPrintDocumentAdapter, so there's no document
+ * source without a WebView.
  */
 final class NativeDeviceScreen
 {
@@ -51,6 +53,9 @@ final class NativeDeviceScreen
         $biometricOut = $_GET['biometric_out'] ?? null;
         $locationOut = $_GET['location_out'] ?? null;
         $micOut = $_GET['mic_out'] ?? null;
+        $sensorOut = $_GET['sensor_out'] ?? null;
+        $nfcOut = $_GET['nfc_out'] ?? null;
+        $iapOut = $_GET['iap_out'] ?? null;
 
         $row = static fn (string $label, string $action, ?string $result = null): RenderNode => new RenderPadding(
             EdgeInsets::only(top: Tokens::SPACE_MD),
@@ -85,11 +90,20 @@ final class NativeDeviceScreen
                     $row('Luminosité 50%', 'device:brightness'),
                     $row('Localiser', 'device:locate:location_out', $locationOut),
                     $row('Activer le micro (2s)', 'device:mic:mic_out', $micOut),
+                    $row('Accéléromètre', 'device:sensor:sensor_out', $sensorOut),
+                    $row('Écouter NFC', 'device:nfcstart'),
+                    $row('Arrêter NFC', 'device:nfcstop', $nfcOut),
+                    $row('Produits (achat intégré)', 'device:iapquery:iap_out', $iapOut),
+                    $row('Acheter demo_product', 'device:iappurchase'),
+                    $row('Activer zone (Paris, 200m)', 'device:geofenceadd'),
+                    $row('Désactiver la zone', 'device:geofenceremove'),
+                    $row('Planifier tâche de fond', 'device:bgschedule'),
+                    $row('Annuler tâche de fond', 'device:bgcancel'),
                     new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_LG), new NativeDivider()),
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_LG),
                         new RenderText(
-                            'NFC, impression, géofencing et achats in-app nécessitent encore une WebView.',
+                            "L'impression nécessite encore une WebView (source du document).",
                             Tokens::TEXT_BODY_SMALL,
                             Tokens::inkMuted()->toHex(),
                         ),

@@ -75,6 +75,14 @@ class NativeRenderPocActivity : AppCompatActivity() {
     private val deviceBridge by lazy { NativeDeviceBridge(this) }
     private var firstScreenRendered = false
 
+    // Same push-based (not poll-based) NFC model as MainActivity's —
+    // nfcListening is the flag onNewIntent() checks before treating an
+    // incoming intent as a tag scan, foreground dispatch registered in
+    // onResume()/torn down in onPause() so a scan only ever reaches this
+    // Activity while it's actually in front.
+    private var nfcAdapter: android.nfc.NfcAdapter? = null
+    private var nfcListening = false
+
     // Must be registered before onStart (ActivityResultRegistry's own
     // contract), same as MainActivity's identical launchers — can't be
     // lazily created inside NativeDeviceBridge on first tap, it would
@@ -132,6 +140,8 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 }
             }
         })
+
+        nfcAdapter = android.nfc.NfcAdapter.getDefaultAdapter(this)
 
         phpServer = PhpServer(this)
         thread {
@@ -366,6 +376,31 @@ class NativeRenderPocActivity : AppCompatActivity() {
             }
             "camera" -> takePicturePreview.launch(null)
             "pickimage" -> pickImage.launch("image/*")
+            "sensor" -> {
+                deviceBridge.readSensor(android.hardware.Sensor.TYPE_ACCELEROMETER) { result ->
+                    fieldValues[parts.getOrElse(1) { "sensor_out" }] = result
+                    refetch(action = null, includeFields = true)
+                }
+            }
+            "nfcstart" -> {
+                nfcListening = true
+                enableNfcForegroundDispatch()
+            }
+            "nfcstop" -> {
+                nfcListening = false
+                nfcAdapter?.disableForegroundDispatch(this)
+            }
+            "iapquery" -> {
+                deviceBridge.queryProducts(listOf("demo_product")) { result ->
+                    fieldValues[parts.getOrElse(1) { "iap_out" }] = result
+                    refetch(action = null, includeFields = true)
+                }
+            }
+            "iappurchase" -> deviceBridge.purchaseProduct("demo_product")
+            "geofenceadd" -> deviceBridge.addGeofence("paris_demo", 48.8566, 2.3522, 200f)
+            "geofenceremove" -> deviceBridge.removeGeofence("paris_demo")
+            "bgschedule" -> deviceBridge.scheduleBackgroundTask("/api/ping", 15)
+            "bgcancel" -> deviceBridge.cancelBackgroundTask()
         }
     }
 
@@ -504,10 +539,69 @@ class NativeRenderPocActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
 
+        if (handleNfcIntent(intent)) {
+            return
+        }
+
         val screen = intent.getStringExtra("screen") ?: return
         clearTextInput()
         screenStack.add(screen)
         refetch(action = null)
+    }
+
+    // Same tag-reading logic as MainActivity.handleNfcIntent() — an NDEF
+    // text record's payload starts with a status byte + language-code
+    // length header this strips for the common case (UTF-8, short
+    // language code), not a full NDEF text-record parser.
+    private fun handleNfcIntent(intent: Intent): Boolean {
+        if (!nfcListening) return false
+        if (intent.action !in setOf(
+                android.nfc.NfcAdapter.ACTION_NDEF_DISCOVERED,
+                android.nfc.NfcAdapter.ACTION_TECH_DISCOVERED,
+                android.nfc.NfcAdapter.ACTION_TAG_DISCOVERED,
+            )
+        ) {
+            return false
+        }
+
+        @Suppress("DEPRECATION")
+        val tag: android.nfc.Tag? = intent.getParcelableExtra(android.nfc.NfcAdapter.EXTRA_TAG)
+        val tagId = tag?.id?.joinToString("") { "%02X".format(it) } ?: ""
+        val text = try {
+            android.nfc.tech.Ndef.get(tag)?.let { ndef ->
+                ndef.connect()
+                val payload = ndef.cachedNdefMessage?.records?.firstOrNull()?.payload
+                ndef.close()
+                payload?.let { bytes ->
+                    val languageCodeLength = bytes[0].toInt() and 0x3F
+                    String(bytes, 1 + languageCodeLength, bytes.size - 1 - languageCodeLength, Charsets.UTF_8)
+                } ?: ""
+            } ?: ""
+        } catch (e: Exception) {
+            ""
+        }
+
+        fieldValues["nfc_out"] = if (tagId.isEmpty()) "Tag lu" else "$tagId${if (text.isNotEmpty()) " — $text" else ""}"
+        refetch(action = null, includeFields = true)
+        return true
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (nfcListening) enableNfcForegroundDispatch()
+    }
+
+    private fun enableNfcForegroundDispatch() {
+        nfcAdapter?.let { adapter ->
+            val intent = Intent(this, javaClass).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            val pendingIntent = android.app.PendingIntent.getActivity(this, 0, intent, android.app.PendingIntent.FLAG_MUTABLE)
+            adapter.enableForegroundDispatch(this, pendingIntent, null, null)
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        nfcAdapter?.disableForegroundDispatch(this)
     }
 
     override fun onDestroy() {

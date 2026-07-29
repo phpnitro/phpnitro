@@ -424,4 +424,161 @@ class NativeDeviceBridge(private val context: Context) {
             onResult("data:audio/mp4;base64,$base64", null)
         }, durationMs)
     }
+
+    /**
+     * A single snapshot reading, not the continuous stream
+     * WebAppInterface.startSensor()/stopSensor() push to JS — this
+     * pipeline's paint model is one-shot per request, so "keep listening
+     * forever" has no screen to keep updating anyway. Registers, waits for
+     * the first reading, unregisters immediately.
+     */
+    fun readSensor(sensorType: Int, onResult: (String) -> Unit) {
+        val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as android.hardware.SensorManager
+        val sensor = sensorManager.getDefaultSensor(sensorType) ?: run {
+            onResult("Capteur indisponible")
+            return
+        }
+
+        val listener = object : android.hardware.SensorEventListener {
+            override fun onSensorChanged(event: android.hardware.SensorEvent) {
+                sensorManager.unregisterListener(this)
+                onResult("%.2f, %.2f, %.2f".format(event.values[0], event.values[1], event.values[2]))
+            }
+
+            override fun onAccuracyChanged(sensor: android.hardware.Sensor, accuracy: Int) {}
+        }
+        sensorManager.registerListener(listener, sensor, android.hardware.SensorManager.SENSOR_DELAY_UI)
+    }
+
+    /**
+     * Google Play Billing (billing-ktx, already a dependency) — same
+     * documented caveat as WebAppInterface.queryProducts()/
+     * purchaseProduct(): written to follow the real Billing Library v7
+     * flow, never exercised against a real Play Console product (no
+     * sandbox reachable outside a real account).
+     */
+    private val billingClient by lazy {
+        com.android.billingclient.api.BillingClient.newBuilder(context)
+            .setListener { _, _ -> }
+            .enablePendingPurchases(
+                com.android.billingclient.api.PendingPurchasesParams.newBuilder()
+                    .enableOneTimeProducts()
+                    .build(),
+            )
+            .build()
+    }
+
+    fun queryProducts(productIds: List<String>, onResult: (String) -> Unit) {
+        val productList = productIds.map { id ->
+            com.android.billingclient.api.QueryProductDetailsParams.Product.newBuilder()
+                .setProductId(id)
+                .setProductType(com.android.billingclient.api.BillingClient.ProductType.INAPP)
+                .build()
+        }
+        val params = com.android.billingclient.api.QueryProductDetailsParams.newBuilder()
+            .setProductList(productList)
+            .build()
+
+        billingClient.startConnection(object : com.android.billingclient.api.BillingClientStateListener {
+            override fun onBillingSetupFinished(result: com.android.billingclient.api.BillingResult) {
+                billingClient.queryProductDetailsAsync(params) { _, productDetailsList ->
+                    val summary = productDetailsList.joinToString(", ") { details ->
+                        "${details.title}: ${details.oneTimePurchaseOfferDetails?.formattedPrice ?: "?"}"
+                    }.ifEmpty { "Aucun produit trouvé." }
+                    onResult(summary)
+                }
+            }
+
+            override fun onBillingServiceDisconnected() {}
+        })
+    }
+
+    fun purchaseProduct(productId: String) {
+        val activity = context as? android.app.Activity ?: return
+        val product = com.android.billingclient.api.QueryProductDetailsParams.Product.newBuilder()
+            .setProductId(productId)
+            .setProductType(com.android.billingclient.api.BillingClient.ProductType.INAPP)
+            .build()
+        val params = com.android.billingclient.api.QueryProductDetailsParams.newBuilder()
+            .setProductList(listOf(product))
+            .build()
+
+        billingClient.startConnection(object : com.android.billingclient.api.BillingClientStateListener {
+            override fun onBillingSetupFinished(result: com.android.billingclient.api.BillingResult) {
+                billingClient.queryProductDetailsAsync(params) { _, productDetailsList ->
+                    val details = productDetailsList.firstOrNull() ?: return@queryProductDetailsAsync
+                    val offerParams = com.android.billingclient.api.BillingFlowParams.ProductDetailsParams
+                        .newBuilder()
+                        .setProductDetails(details)
+                        .build()
+                    val flowParams = com.android.billingclient.api.BillingFlowParams.newBuilder()
+                        .setProductDetailsParamsList(listOf(offerParams))
+                        .build()
+                    billingClient.launchBillingFlow(activity, flowParams)
+                }
+            }
+
+            override fun onBillingServiceDisconnected() {}
+        })
+    }
+
+    /** Same GeofenceReceiver (AndroidManifest.xml) both pipelines share — a real zone is a real zone either way. */
+    private val geofencingClient by lazy {
+        com.google.android.gms.location.LocationServices.getGeofencingClient(context)
+    }
+
+    private fun geofencePendingIntent(): android.app.PendingIntent {
+        val intent = Intent(context, GeofenceReceiver::class.java)
+        return android.app.PendingIntent.getBroadcast(
+            context,
+            0,
+            intent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_MUTABLE,
+        )
+    }
+
+    fun addGeofence(id: String, latitude: Double, longitude: Double, radiusMeters: Float) {
+        if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
+        val geofence = com.google.android.gms.location.Geofence.Builder()
+            .setRequestId(id)
+            .setCircularRegion(latitude, longitude, radiusMeters)
+            .setExpirationDuration(com.google.android.gms.location.Geofence.NEVER_EXPIRE)
+            .setTransitionTypes(
+                com.google.android.gms.location.Geofence.GEOFENCE_TRANSITION_ENTER or
+                    com.google.android.gms.location.Geofence.GEOFENCE_TRANSITION_EXIT,
+            )
+            .build()
+
+        val request = com.google.android.gms.location.GeofencingRequest.Builder()
+            .setInitialTrigger(com.google.android.gms.location.GeofencingRequest.INITIAL_TRIGGER_ENTER)
+            .addGeofence(geofence)
+            .build()
+
+        geofencingClient.addGeofences(request, geofencePendingIntent())
+    }
+
+    fun removeGeofence(id: String) {
+        geofencingClient.removeGeofences(listOf(id))
+    }
+
+    /** Same BackgroundPingWorker (WorkManager, min 15min floor) both pipelines share. */
+    fun scheduleBackgroundTask(endpoint: String, intervalMinutes: Int) {
+        val data = androidx.work.Data.Builder().putString("endpoint", endpoint).build()
+        val request = androidx.work.PeriodicWorkRequestBuilder<BackgroundPingWorker>(
+            intervalMinutes.coerceAtLeast(15).toLong(),
+            java.util.concurrent.TimeUnit.MINUTES,
+        ).setInputData(data).build()
+
+        androidx.work.WorkManager.getInstance(context)
+            .enqueueUniquePeriodicWork("phpx_background_ping", androidx.work.ExistingPeriodicWorkPolicy.KEEP, request)
+    }
+
+    fun cancelBackgroundTask() {
+        androidx.work.WorkManager.getInstance(context).cancelUniqueWork("phpx_background_ping")
+    }
 }
