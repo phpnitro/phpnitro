@@ -44,7 +44,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        screenStack.add(intent.getStringExtra("screen") ?: "documents")
+        screenStack.add(intent.getStringExtra("screen") ?: "home")
 
         canvasView = NativeCanvasView(this)
         canvasView.density = resources.displayMetrics.density

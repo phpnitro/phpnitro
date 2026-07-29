@@ -157,7 +157,8 @@ if ($path === '/native/layout-demo') {
 
     $screenWidth = (float) ($_GET['width'] ?? 360);
     $screenHeight = (float) ($_GET['height'] ?? 720);
-    $screen = $_GET['screen'] ?? 'documents';
+    $screen = $_GET['screen'] ?? 'home';
+    $action = $_GET['action'] ?? null;
 
     // php -S spawns a fresh process per request — no in-memory global
     // survives between the initial render and a later tap — so the tap
@@ -168,20 +169,31 @@ if ($path === '/native/layout-demo') {
     // dev and on-device — PhpServer.kt already points PHP's sys_temp_dir
     // ini setting at the app's real cache directory.
     $tapCountFile = sys_get_temp_dir() . '/phpnitro_native_demo_taps.txt';
-    if (($_GET['action'] ?? null) === 'increment') {
+    if ($action === 'increment') {
         $current = is_file($tapCountFile) ? (int) file_get_contents($tapCountFile) : 0;
         file_put_contents($tapCountFile, (string) ($current + 1));
     }
     $tapCount = is_file($tapCountFile) ? (int) file_get_contents($tapCountFile) : 0;
 
+    // NativeHomeScreen's counter — deliberately a distinct action name and
+    // a distinct Preferences key from Documents' file-backed tap count
+    // above (same round-trip idea, different meaning, no reason to share
+    // state just because both are "a number that goes up").
+    if ($action === 'home_increment') {
+        \Engine\Preferences\Preferences::set('native_home_counter', (string) ((int) \Engine\Preferences\Preferences::get('native_home_counter', '0') + 1));
+    }
+
     // Screen builders live in lib/pages/app/Native*.php — captures/ has
     // multiple reference screens, and this route just dispatches to
     // whichever one ?screen= asks for instead of growing one giant
-    // function per screen added.
+    // function per screen added. 'home' — the real HomePage.php
+    // conversion, not a reference-image recreation — is both the default
+    // and the root NativeRenderPocActivity's screen stack starts from.
     $tree = match ($screen) {
         'otp' => \Engine\App\NativeOtpScreen::build($screenWidth, $screenHeight),
         'settings' => \Engine\App\NativeSettingsScreen::build($screenWidth),
-        default => \Engine\App\NativeDocumentsScreen::build($screenWidth, $tapCount),
+        'documents' => \Engine\App\NativeDocumentsScreen::build($screenWidth, $tapCount),
+        default => \Engine\App\NativeHomeScreen::build($screenWidth),
     };
 
     $contentSize = $tree->layout(new Constraints($screenWidth, $screenWidth, 0, Constraints::INFINITY));
