@@ -46,6 +46,42 @@ final class NativeCanvas
     private float $contentHeight = 0.0;
     private ?float $renderTimeMs = null;
     private ?string $redirect = null;
+    private bool $fixedMode = false;
+
+    /**
+     * Everything painted between beginFixed()/endFixed() is tagged
+     * "fixed": true — NativeCanvasView.kt draws those commands a second
+     * time with no scroll translate applied, so they stay pinned to the
+     * viewport (an AppBar/BottomNavigationBar) instead of scrolling with
+     * the body. See RenderFixed, which is what actually calls this rather
+     * than call sites reaching for it directly.
+     */
+    public function beginFixed(): self
+    {
+        $this->fixedMode = true;
+
+        return $this;
+    }
+
+    public function endFixed(): self
+    {
+        $this->fixedMode = false;
+
+        return $this;
+    }
+
+    /**
+     * @param array<string, mixed> $command
+     * @return array<string, mixed>
+     */
+    private function tagFixed(array $command): array
+    {
+        if ($this->fixedMode) {
+            $command['fixed'] = true;
+        }
+
+        return $command;
+    }
 
     /**
      * The full laid-out content height (which can exceed the viewport) —
@@ -103,7 +139,7 @@ final class NativeCanvas
         ?string $gradientFrom = null,
         ?string $gradientTo = null,
     ): self {
-        $this->commands[] = array_filter([
+        $this->commands[] = $this->tagFixed(array_filter([
             'type' => 'rect',
             'x' => $x,
             'y' => $y,
@@ -116,14 +152,14 @@ final class NativeCanvas
             'elevation' => $elevation > 0.0 ? $elevation : null,
             'gradientFrom' => $gradientFrom,
             'gradientTo' => $gradientTo,
-        ], static fn (mixed $value): bool => $value !== null);
+        ], static fn (mixed $value): bool => $value !== null));
 
         return $this;
     }
 
     public function text(float $x, float $y, string $text, string $color = '#000000', float $size = 16.0, bool $bold = false, float $letterSpacing = 0.0): self
     {
-        $this->commands[] = array_filter([
+        $this->commands[] = $this->tagFixed(array_filter([
             'type' => 'text',
             'x' => $x,
             'y' => $y,
@@ -132,7 +168,7 @@ final class NativeCanvas
             'size' => $size,
             'bold' => $bold ?: null,
             'letterSpacing' => $letterSpacing > 0.0 ? $letterSpacing : null,
-        ], static fn (mixed $value): bool => $value !== null);
+        ], static fn (mixed $value): bool => $value !== null));
 
         return $this;
     }
@@ -147,14 +183,14 @@ final class NativeCanvas
      */
     public function icon(float $x, float $y, float $size, int $codepoint, string $color = '#111827'): self
     {
-        $this->commands[] = [
+        $this->commands[] = $this->tagFixed([
             'type' => 'icon',
             'x' => $x,
             'y' => $y,
             'size' => $size,
             'codepoint' => $codepoint,
             'color' => $color,
-        ];
+        ]);
 
         return $this;
     }
@@ -170,7 +206,7 @@ final class NativeCanvas
      */
     public function image(float $x, float $y, float $width, float $height, string $url, float $radius = 0.0): self
     {
-        $this->commands[] = array_filter([
+        $this->commands[] = $this->tagFixed(array_filter([
             'type' => 'image',
             'x' => $x,
             'y' => $y,
@@ -178,7 +214,7 @@ final class NativeCanvas
             'height' => $height,
             'url' => $url,
             'radius' => $radius,
-        ], static fn (mixed $value): bool => $value !== null);
+        ], static fn (mixed $value): bool => $value !== null));
 
         return $this;
     }
@@ -191,7 +227,7 @@ final class NativeCanvas
      */
     public function circle(float $cx, float $cy, float $radius, ?string $color = null, ?string $borderColor = null, float $borderWidth = 0.0): self
     {
-        $this->commands[] = array_filter([
+        $this->commands[] = $this->tagFixed(array_filter([
             'type' => 'circle',
             'cx' => $cx,
             'cy' => $cy,
@@ -199,7 +235,7 @@ final class NativeCanvas
             'color' => $color,
             'borderColor' => $borderColor,
             'borderWidth' => $borderWidth,
-        ], static fn (mixed $value): bool => $value !== null);
+        ], static fn (mixed $value): bool => $value !== null));
 
         return $this;
     }
@@ -207,7 +243,7 @@ final class NativeCanvas
     /** A raw straight line — what Engine\Canvas's ->line() needs a native equivalent for. */
     public function line(float $x1, float $y1, float $x2, float $y2, string $color, float $width = 1.0): self
     {
-        $this->commands[] = [
+        $this->commands[] = $this->tagFixed([
             'type' => 'line',
             'x1' => $x1,
             'y1' => $y1,
@@ -215,7 +251,7 @@ final class NativeCanvas
             'y2' => $y2,
             'color' => $color,
             'width' => $width,
-        ];
+        ]);
 
         return $this;
     }
@@ -228,7 +264,7 @@ final class NativeCanvas
      */
     public function arc(float $cx, float $cy, float $radius, float $startDegrees, float $sweepDegrees, string $color, float $strokeWidth): self
     {
-        $this->commands[] = [
+        $this->commands[] = $this->tagFixed([
             'type' => 'arc',
             'cx' => $cx,
             'cy' => $cy,
@@ -237,7 +273,7 @@ final class NativeCanvas
             'sweepDegrees' => $sweepDegrees,
             'color' => $color,
             'strokeWidth' => $strokeWidth,
-        ];
+        ]);
 
         return $this;
     }
@@ -249,14 +285,14 @@ final class NativeCanvas
      */
     public function hitRegion(float $x, float $y, float $width, float $height, string $action, ?array $meta = null): self
     {
-        $this->hitRegions[] = array_filter([
+        $this->hitRegions[] = $this->tagFixed(array_filter([
             'x' => $x,
             'y' => $y,
             'width' => $width,
             'height' => $height,
             'action' => $action,
             'meta' => $meta,
-        ], static fn (mixed $value): bool => $value !== null);
+        ], static fn (mixed $value): bool => $value !== null));
 
         return $this;
     }

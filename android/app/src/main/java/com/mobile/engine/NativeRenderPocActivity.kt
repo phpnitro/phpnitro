@@ -141,6 +141,16 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 screenStack.add(action.removePrefix("navigate:"))
                 refetch(action = null)
             }
+            // A NativeBottomNavigation tab switch — resets the whole stack
+            // to that one screen instead of pushing, so hopping between
+            // tabs repeatedly doesn't grow an ever-longer back stack the
+            // way drilling into a real detail screen should.
+            action.startsWith("tab:") -> {
+                clearTextInput()
+                screenStack.clear()
+                screenStack.add(action.removePrefix("tab:"))
+                refetch(action = null)
+            }
             action == "back" -> {
                 clearTextInput()
                 if (screenStack.size > 1) screenStack.removeAt(screenStack.size - 1)

@@ -5,11 +5,12 @@ namespace Engine\App;
 use Engine\Color;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
-use Engine\Native\Flexible;
+use Engine\Native\NativeAppBar;
+use Engine\Native\NativeBottomNavigation;
 use Engine\Native\NativeButton;
 use Engine\Native\NativeCard;
-use Engine\Native\NativeIconCircle;
 use Engine\Native\NativeListTile;
+use Engine\Native\NativeScaffold;
 use Engine\Native\RenderContainer;
 use Engine\Native\RenderFlex;
 use Engine\Native\RenderNode;
@@ -24,23 +25,23 @@ use Engine\Preferences\Preferences;
  * screen, not another reference-image recreation) — same real session
  * auth check, same real persisted counter (via Engine\Preferences\,
  * same primitive NativeSettingsScreen already reads/writes), same
- * navigation targets. What's deliberately NOT carried over 1:1:
+ * navigation targets. Now built on NativeScaffold — a real pinned AppBar
+ * and BottomNavigation (see their docblocks) instead of every screen
+ * hand-rolling its own header row.
  *
+ * What's deliberately NOT carried over 1:1 from HomePage.php:
  * - GestureDetector's double-click/swipe interactions collapse to a
- *   single tap on a NativeButton — this engine's hit-testing is
- *   tap-only for now, no gesture disambiguation beyond scroll-vs-tap.
- * - The Drawer (slide-in side panel) and FloatingActionButton (an
- *   overlay outside normal layout flow) have no native equivalent yet —
- *   RenderStack exists but is top-left-only (see its docblock), not
- *   full Positioned-style placement. The drawer's destinations are
- *   reachable as plain NativeListTile rows instead.
+ *   single tap — this engine's hit-testing is tap-only for now, no
+ *   gesture disambiguation beyond scroll-vs-tap.
+ * - The Drawer (slide-in side panel) has no native equivalent yet; its
+ *   destinations are reachable as plain NativeListTile rows instead.
  *
  * Root of the native screen stack — NativeRenderPocActivity starts here
  * by default; Documents/OTP/Settings are all one "back" away from it.
  */
 final class NativeHomeScreen
 {
-    public static function build(float $screenWidth): RenderNode
+    public static function build(float $screenWidth, float $screenHeight): RenderNode
     {
         $authUser = $_SESSION['auth_user'] ?? null;
         // A separate Preferences key from NativeDocumentsScreen's
@@ -50,27 +51,19 @@ final class NativeHomeScreen
         // goes up").
         $count = (int) Preferences::get('native_home_counter', '0');
 
-        return new RenderContainer(
+        $body = new RenderContainer(
             new RenderPadding(
                 EdgeInsets::all(Tokens::SPACE_XL),
                 RenderFlex::column([
-                    RenderFlex::row([
-                        new RenderText('Mon application', Tokens::TEXT_DISPLAY - 2, Tokens::ink()->toHex(), bold: true),
-                        new Flexible(new RenderContainer()),
-                        new NativeIconCircle('settings', action: 'navigate:settings'),
-                    ], crossAxisAlignment: CrossAxisAlignment::CENTER),
-                    new RenderPadding(
-                        EdgeInsets::only(top: Tokens::SPACE_SM),
-                        $authUser !== null
-                            ? new RenderTappable(
-                                new RenderText("Connecté : {$authUser} — se déconnecter", Tokens::TEXT_BODY_SMALL, Color::green(600)->toHex(), bold: true),
-                                'logout',
-                            )
-                            : new RenderTappable(
-                                new RenderText('Non connecté — se connecter', Tokens::TEXT_BODY_SMALL, Tokens::inkSecondary()->toHex(), bold: true),
-                                'navigate:login',
-                            ),
-                    ),
+                    $authUser !== null
+                        ? new RenderTappable(
+                            new RenderText("Connecté : {$authUser} — se déconnecter", Tokens::TEXT_BODY_SMALL, Color::green(600)->toHex(), bold: true),
+                            'logout',
+                        )
+                        : new RenderTappable(
+                            new RenderText('Non connecté — se connecter', Tokens::TEXT_BODY_SMALL, Tokens::inkSecondary()->toHex(), bold: true),
+                            'navigate:login',
+                        ),
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_XL),
                         new NativeCard(RenderFlex::column([
@@ -98,22 +91,18 @@ final class NativeHomeScreen
                         EdgeInsets::only(top: Tokens::SPACE_MD),
                         new NativeListTile('Produit #42', 'Route param réel', 'inventory_2', trailingIcon: 'chevron_right', action: 'navigate:product/42'),
                     ),
-                    new RenderPadding(
-                        EdgeInsets::only(top: Tokens::SPACE_MD),
-                        new NativeListTile('Device', 'Vibreur, torche, batterie...', 'smartphone', trailingIcon: 'chevron_right', action: 'navigate:device'),
-                    ),
-                    new RenderPadding(
-                        EdgeInsets::only(top: Tokens::SPACE_MD),
-                        new NativeListTile('Backend PHP', 'Appel API en-process', 'api', trailingIcon: 'chevron_right', action: 'navigate:api'),
-                    ),
-                    new RenderPadding(
-                        EdgeInsets::only(top: Tokens::SPACE_MD),
-                        new NativeListTile('Widgets', 'Vitrine des widgets natifs', 'widgets', trailingIcon: 'chevron_right', action: 'navigate:widgets'),
-                    ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,
             background: Tokens::surfaceMuted(),
+        );
+
+        return new NativeScaffold(
+            $body,
+            $screenWidth,
+            $screenHeight,
+            appBar: new NativeAppBar($screenWidth, 'Mon application'),
+            bottomNav: NativeAppShell::bottomNav($screenWidth, 'home'),
         );
     }
 }

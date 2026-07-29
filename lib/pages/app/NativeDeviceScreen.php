@@ -4,8 +4,9 @@ namespace Engine\App;
 
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
+use Engine\Native\NativeAppBar;
 use Engine\Native\NativeButton;
-use Engine\Native\NativeIconCircle;
+use Engine\Native\NativeScaffold;
 use Engine\Native\RenderContainer;
 use Engine\Native\RenderFlex;
 use Engine\Native\RenderNode;
@@ -36,7 +37,7 @@ use Engine\Native\Tokens;
  */
 final class NativeDeviceScreen
 {
-    public static function build(float $screenWidth): RenderNode
+    public static function build(float $screenWidth, float $screenHeight): RenderNode
     {
         $batteryOut = $_GET['battery_out'] ?? null;
         $deviceIdOut = $_GET['device_id_out'] ?? null;
@@ -53,19 +54,11 @@ final class NativeDeviceScreen
             ]),
         );
 
-        return new RenderContainer(
+        $body = new RenderContainer(
             new RenderPadding(
                 EdgeInsets::all(Tokens::SPACE_XL),
                 RenderFlex::column([
-                    new NativeIconCircle('arrow_back', action: 'back'),
-                    new RenderPadding(
-                        EdgeInsets::only(top: Tokens::SPACE_LG),
-                        new RenderText('Capacités du device', Tokens::TEXT_DISPLAY - 2, Tokens::ink()->toHex(), bold: true),
-                    ),
-                    new RenderPadding(
-                        EdgeInsets::only(top: 4),
-                        new RenderText('Pont natif réel — NativeDeviceBridge.kt', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
-                    ),
+                    new RenderText('Pont natif réel — NativeDeviceBridge.kt', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
                     $row('Vibrer', 'device:vibrate'),
                     $row('Torche', 'device:torch'),
                     $row('Batterie', 'device:battery:battery_out', $batteryOut),
@@ -84,6 +77,14 @@ final class NativeDeviceScreen
             ),
             width: $screenWidth,
             background: Tokens::surfaceMuted(),
+        );
+
+        return new NativeScaffold(
+            $body,
+            $screenWidth,
+            $screenHeight,
+            appBar: new NativeAppBar($screenWidth, 'Capacités du device', backAction: 'back'),
+            bottomNav: NativeAppShell::bottomNav($screenWidth, 'device'),
         );
     }
 }

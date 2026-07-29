@@ -223,12 +223,18 @@ class NativeCanvasView(context: Context) : View(context) {
     private fun handleTap(event: MotionEvent) {
         // Touch coordinates arrive in real device pixels; hitRegions are in
         // the same dp space the draw commands use, so this has to undo the
-        // same scale (and scroll offset) onDraw applies before comparing.
+        // same scale onDraw applies before comparing. A "fixed" region
+        // (AppBar/BottomNavigation/Fab, see NativeCanvas::beginFixed()) is
+        // screen-relative like it's drawn, so it's hit-tested against raw
+        // touchY with no scrollY added — everything else undoes the scroll
+        // offset same as before.
         val touchX = event.x / density
-        val touchY = event.y / density + scrollY
+        val rawTouchY = event.y / density
 
         for (index in 0 until hitRegions.length()) {
             val region = hitRegions.getJSONObject(index)
+            val fixed = region.optBoolean("fixed", false)
+            val touchY = if (fixed) rawTouchY else rawTouchY + scrollY
             val left = region.getDouble("x")
             val top = region.getDouble("y")
             val right = left + region.getDouble("width")
@@ -246,22 +252,34 @@ class NativeCanvasView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        val savedState = canvas.save()
+        val previous = previousCommands
+
+        // Scrollable pass: translated by -scrollY, fixed commands excluded.
+        var savedState = canvas.save()
         canvas.scale(density, density)
         canvas.translate(0f, -scrollY)
-
-        val previous = previousCommands
         if (previous != null && fadeProgress < 1f) {
-            drawCommands(canvas, previous, 1f - fadeProgress)
+            drawCommands(canvas, previous, 1f - fadeProgress, fixed = false)
         }
-        drawCommands(canvas, commands, fadeProgress)
+        drawCommands(canvas, commands, fadeProgress, fixed = false)
+        canvas.restoreToCount(savedState)
 
+        // Fixed pass: same density scale, no scroll translate — an
+        // AppBar/BottomNavigation/Fab painted via RenderFixed stays pinned
+        // to the viewport while the pass above scrolls underneath it.
+        savedState = canvas.save()
+        canvas.scale(density, density)
+        if (previous != null && fadeProgress < 1f) {
+            drawCommands(canvas, previous, 1f - fadeProgress, fixed = true)
+        }
+        drawCommands(canvas, commands, fadeProgress, fixed = true)
         canvas.restoreToCount(savedState)
     }
 
-    private fun drawCommands(canvas: Canvas, list: JSONArray, alpha: Float) {
+    private fun drawCommands(canvas: Canvas, list: JSONArray, alpha: Float, fixed: Boolean) {
         for (index in 0 until list.length()) {
             val command = list.getJSONObject(index)
+            if (command.optBoolean("fixed", false) != fixed) continue
             when (command.getString("type")) {
                 "rect" -> drawRectCommand(canvas, command, alpha)
                 "text" -> drawTextCommand(canvas, command, alpha)

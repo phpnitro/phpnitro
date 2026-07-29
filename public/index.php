@@ -222,11 +222,11 @@ if ($path === '/native/layout-demo') {
         'documents' => \Engine\App\NativeDocumentsScreen::build($screenWidth, $tapCount),
         'product' => \Engine\App\NativeProductScreen::build($screenWidth, $_GET['id'] ?? '?'),
         'login' => \Engine\App\NativeLoginScreen::build($screenWidth, $loginError),
-        'device' => \Engine\App\NativeDeviceScreen::build($screenWidth),
-        'api' => \Engine\App\NativeApiScreen::build($screenWidth),
-        'widgets' => \Engine\App\NativeWidgetsIndexScreen::build($screenWidth),
+        'device' => \Engine\App\NativeDeviceScreen::build($screenWidth, $screenHeight),
+        'api' => \Engine\App\NativeApiScreen::build($screenWidth, $screenHeight),
+        'widgets' => \Engine\App\NativeWidgetsIndexScreen::build($screenWidth, $screenHeight),
         'widgets-forms' => \Engine\App\NativeWidgetsFormsScreen::build($screenWidth),
-        default => \Engine\App\NativeHomeScreen::build($screenWidth),
+        default => \Engine\App\NativeHomeScreen::build($screenWidth, $screenHeight),
     };
 
     $contentSize = $tree->layout(new Constraints($screenWidth, $screenWidth, 0, Constraints::INFINITY));
