@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Handler
 import android.os.Looper
+import android.util.Base64
 import android.util.LruCache
 import java.net.HttpURLConnection
 import java.net.URL
@@ -33,11 +34,22 @@ object ImageLoader {
 
         thread {
             try {
-                val connection = URL(url).openConnection() as HttpURLConnection
-                connection.connectTimeout = 8000
-                connection.readTimeout = 8000
-                val bitmap = connection.inputStream.use { BitmapFactory.decodeStream(it) }
-                connection.disconnect()
+                // A camera-captured or gallery-picked image (see
+                // NativeDeviceBridge.kt's capturePhoto()/pickImage()) comes
+                // back as a base64 data: URI, not a real network location —
+                // decode it directly instead of a doomed HTTP fetch.
+                val bitmap = if (url.startsWith("data:")) {
+                    val base64Payload = url.substringAfter(",", "")
+                    val bytes = Base64.decode(base64Payload, Base64.DEFAULT)
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                } else {
+                    val connection = URL(url).openConnection() as HttpURLConnection
+                    connection.connectTimeout = 8000
+                    connection.readTimeout = 8000
+                    val decoded = connection.inputStream.use { BitmapFactory.decodeStream(it) }
+                    connection.disconnect()
+                    decoded
+                }
                 if (bitmap != null) {
                     cache.put(url, bitmap)
                     mainHandler.post { onLoaded() }

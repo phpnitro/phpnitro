@@ -29,12 +29,12 @@ use Engine\Native\Tokens;
  * Keystore-backed file, see NativeDeviceBridge.kt) — a secret stored via
  * one rendering path is readable from the other.
  *
- * DevicePage.php has ~30 capabilities; this covers the ones that don't
- * need a UI overlay beyond a single synchronous call (camera preview,
- * image picker results, and similar stay on the WebView path — see
- * NativeDeviceBridge.kt's docblock). printPage() is the one exception
- * that looked portable but isn't: it needs WebView.createPrintDocumentAdapter,
- * so there's no document source without a WebView — it stays WebView-only.
+ * DevicePage.php has ~30 capabilities; camera capture, image picking,
+ * biometric auth, brightness, geolocation and mic recording are all real
+ * native calls now too (see NativeDeviceBridge.kt) — what's still missing
+ * is NFC foreground dispatch, printing (needs a WebView document source),
+ * geofencing and in-app purchase, each its own real chunk of lifecycle-
+ * heavy Android API work, not yet ported.
  */
 final class NativeDeviceScreen
 {
@@ -46,6 +46,11 @@ final class NativeDeviceScreen
         $secureOut = $_GET['secure_out'] ?? null;
         $contactsOut = $_GET['contacts_out'] ?? null;
         $calendarOut = $_GET['calendar_out'] ?? null;
+        $photoOut = $_GET['photo_out'] ?? null;
+        $pickedImageOut = $_GET['picked_image_out'] ?? null;
+        $biometricOut = $_GET['biometric_out'] ?? null;
+        $locationOut = $_GET['location_out'] ?? null;
+        $micOut = $_GET['mic_out'] ?? null;
 
         $row = static fn (string $label, string $action, ?string $result = null): RenderNode => new RenderPadding(
             EdgeInsets::only(top: Tokens::SPACE_MD),
@@ -74,11 +79,17 @@ final class NativeDeviceScreen
                     $row('Partager', 'device:share'),
                     $row('Icône bleue', 'device:appicon:alt'),
                     $row('Icône par défaut', 'device:appicon:default'),
+                    $row('Photo native', 'device:camera', $photoOut),
+                    $row('Choisir une image', 'device:pickimage', $pickedImageOut),
+                    $row('Authentifier (biométrie)', 'device:biometric:biometric_out', $biometricOut),
+                    $row('Luminosité 50%', 'device:brightness'),
+                    $row('Localiser', 'device:locate:location_out', $locationOut),
+                    $row('Activer le micro (2s)', 'device:mic:mic_out', $micOut),
                     new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_LG), new NativeDivider()),
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_LG),
                         new RenderText(
-                            "Caméra, micro, sélecteur d'image, NFC, impression, géofencing, achats in-app — nécessitent encore une WebView.",
+                            'NFC, impression, géofencing et achats in-app nécessitent encore une WebView.',
                             Tokens::TEXT_BODY_SMALL,
                             Tokens::inkMuted()->toHex(),
                         ),

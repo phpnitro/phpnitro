@@ -17,6 +17,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.FrameLayout
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import java.net.HttpURLConnection
@@ -73,6 +74,31 @@ class NativeRenderPocActivity : AppCompatActivity() {
     private var activeEditText: EditText? = null
     private val deviceBridge by lazy { NativeDeviceBridge(this) }
     private var firstScreenRendered = false
+
+    // Must be registered before onStart (ActivityResultRegistry's own
+    // contract), same as MainActivity's identical launchers — can't be
+    // lazily created inside NativeDeviceBridge on first tap, it would
+    // already be too late.
+    // Reports a short status, not the actual image data — a captured/
+    // picked photo's base64 payload (tens of KB) would blow past the
+    // query-string channel every other "$_GET['x_out'] carries a result"
+    // capability uses to report back to PHP. Same "prove it works, don't
+    // over-engineer a preview" pragmatism as contactsCount() reporting a
+    // count instead of the actual contacts.
+    private val takePicturePreview = registerForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+        fieldValues["photo_out"] = if (bitmap == null) "Annulé" else "Photo capturée (${bitmap.width}x${bitmap.height})"
+        refetch(action = null, includeFields = true)
+    }
+
+    private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) {
+            fieldValues["picked_image_out"] = "Annulé"
+        } else {
+            val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            fieldValues["picked_image_out"] = if (bytes == null) "Erreur" else "Image sélectionnée (${bytes.size} octets)"
+        }
+        refetch(action = null, includeFields = true)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Same native SplashScreen MainActivity uses (Theme.App.Starting,
@@ -319,6 +345,27 @@ class NativeRenderPocActivity : AppCompatActivity() {
             "notify" -> deviceBridge.showNotification("PhpNitro", "Ceci est une notification native.")
             "share" -> deviceBridge.share("Regarde cette app faite avec PhpNitro !", "PhpNitro Demo")
             "appicon" -> deviceBridge.setAppIcon(parts.getOrElse(1) { "default" })
+            "brightness" -> deviceBridge.setBrightness(0.5f)
+            "locate" -> {
+                deviceBridge.getLocation { result ->
+                    fieldValues[parts.getOrElse(1) { "location_out" }] = result
+                    refetch(action = null, includeFields = true)
+                }
+            }
+            "biometric" -> {
+                deviceBridge.showBiometricPrompt { success, message ->
+                    fieldValues[parts.getOrElse(1) { "biometric_out" }] = if (success) "Authentifié" else message
+                    refetch(action = null, includeFields = true)
+                }
+            }
+            "mic" -> {
+                deviceBridge.recordAudioClip(2000L) { _, error ->
+                    fieldValues[parts.getOrElse(1) { "mic_out" }] = if (error != null) error else "Enregistré (2s)"
+                    refetch(action = null, includeFields = true)
+                }
+            }
+            "camera" -> takePicturePreview.launch(null)
+            "pickimage" -> pickImage.launch("image/*")
         }
     }
 

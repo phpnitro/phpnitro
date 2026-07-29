@@ -8,20 +8,30 @@ import android.content.pm.PackageManager
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.media.MediaPlayer
+import android.media.MediaRecorder
 import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.provider.CalendarContract
 import android.provider.ContactsContract
 import android.provider.Settings
+import android.util.Base64
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.google.android.gms.location.LocationServices
+import java.io.File
 
 /**
  * The "beaucoup plus petit que WebAppInterface.kt" native bridge
@@ -32,10 +42,13 @@ import androidx.security.crypto.MasterKey
  * have; instantiating one just to stub it out would fight the whole
  * point of this being a WebView-free path).
  *
- * Deliberately a small first slice, not all ~30 of DevicePage.php's
- * capabilities — camera/microphone/image-picker need real UI overlays
- * (a preview surface, a picker result callback) beyond what a single
- * synchronous bridge call can do; those stay on the WebView path for now.
+ * Camera/image-picker capture ARE covered (see NativeRenderPocActivity's
+ * takePicturePreview/pickImage launchers, which call back through here) —
+ * what's genuinely still missing is a LIVE camera/mic preview surface
+ * (getUserMedia's WebView-only equivalent) and printing (needs a WebView
+ * document source); those stay on the WebView path, see
+ * NativeWidgetsMediaScreen.php's docblock for the same reasoning applied
+ * to VideoPlayer.
  */
 class NativeDeviceBridge(private val context: Context) {
 
@@ -271,5 +284,144 @@ class NativeDeviceBridge(private val context: Context) {
                 data = Uri.parse("phpnitro://" + path.removePrefix("/"))
             },
         )
+    }
+
+    fun setBrightness(level: Float) {
+        val activity = context as? android.app.Activity ?: return
+        activity.runOnUiThread {
+            val params = activity.window.attributes
+            params.screenBrightness = level.coerceIn(0.01f, 1.0f)
+            activity.window.attributes = params
+        }
+    }
+
+    /**
+     * FusedLocationProviderClient (play-services-location, already a
+     * dependency) instead of Engine\LocationButton's browser
+     * navigator.geolocation — the real native equivalent, not a shim.
+     * Never prompts for the runtime permission, only reads it (same
+     * fail-quiet convention as contactsCount()); getLastLocation() can
+     * itself return null (no fix cached yet), reported as such rather
+     * than left hanging.
+     */
+    fun getLocation(onResult: (String) -> Unit) {
+        if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            onResult("Permission requise")
+            return
+        }
+        LocationServices.getFusedLocationProviderClient(context).lastLocation
+            .addOnSuccessListener { location ->
+                if (location == null) {
+                    onResult("Position inconnue")
+                } else {
+                    onResult("%.5f, %.5f".format(location.latitude, location.longitude))
+                }
+            }
+            .addOnFailureListener { onResult("Erreur de localisation") }
+    }
+
+    /**
+     * A real android.hardware.biometrics prompt (fingerprint/face unlock)
+     * — needs a FragmentActivity, which NativeRenderPocActivity (an
+     * AppCompatActivity) already is.
+     */
+    fun showBiometricPrompt(onResult: (Boolean, String) -> Unit) {
+        val activity = context as? FragmentActivity ?: run {
+            onResult(false, "Contexte non compatible.")
+            return
+        }
+
+        val availability = BiometricManager.from(context)
+            .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+        if (availability != BiometricManager.BIOMETRIC_SUCCESS) {
+            onResult(false, biometricUnavailableReason(availability))
+            return
+        }
+
+        activity.runOnUiThread {
+            val prompt = BiometricPrompt(
+                activity,
+                ContextCompat.getMainExecutor(context),
+                object : BiometricPrompt.AuthenticationCallback() {
+                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                        onResult(true, "")
+                    }
+
+                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                        onResult(false, errString.toString())
+                    }
+                },
+            )
+            val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                .setTitle("Authentification")
+                .setSubtitle("Confirme ton identité")
+                .setNegativeButtonText("Annuler")
+                .build()
+            prompt.authenticate(promptInfo)
+        }
+    }
+
+    private fun biometricUnavailableReason(availability: Int): String = when (availability) {
+        BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> "Aucune empreinte/visage enregistré sur ce téléphone."
+        BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> "Ce device n'a pas de capteur biométrique."
+        BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> "Capteur biométrique momentanément indisponible."
+        else -> "Authentification biométrique indisponible."
+    }
+
+    /**
+     * Same MediaRecorder approach WebAppInterface.recordAudioClip() uses
+     * (a real getUserMedia({audio:true}) equivalent is broken on some
+     * WebView/OEM builds, which is why that one exists at all) — records
+     * to a cache file, hands back a base64 data: URI ImageLoader.kt can
+     * decode directly if ever previewed, though this bridge just reports
+     * success/failure text.
+     */
+    fun recordAudioClip(durationMs: Long, onResult: (String?, String?) -> Unit) {
+        if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            onResult(null, "permission_denied")
+            return
+        }
+
+        val outputFile = File(context.cacheDir, "phpx_native_mic_clip.m4a")
+        val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            MediaRecorder(context)
+        } else {
+            @Suppress("DEPRECATION")
+            MediaRecorder()
+        }
+
+        try {
+            recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            recorder.setOutputFile(outputFile.absolutePath)
+            recorder.prepare()
+            recorder.start()
+        } catch (e: Exception) {
+            onResult(null, e.message ?: "erreur inconnue")
+            return
+        }
+
+        Handler(Looper.getMainLooper()).postDelayed({
+            try {
+                recorder.stop()
+            } catch (_: Exception) {
+                // A recorder that never actually received audio throws
+                // here instead of on start() — treated as silence below.
+            }
+            recorder.release()
+
+            if (!outputFile.exists() || outputFile.length() == 0L) {
+                onResult(null, "empty_recording")
+                return@postDelayed
+            }
+
+            val base64 = Base64.encodeToString(outputFile.readBytes(), Base64.NO_WRAP)
+            onResult("data:audio/mp4;base64,$base64", null)
+        }, durationMs)
     }
 }
