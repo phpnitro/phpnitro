@@ -26,6 +26,10 @@ final class NativeButton implements RenderNode
 {
     private readonly RenderTappable $content;
 
+    /**
+     * @param ?array<string, mixed> $meta Extra data the client needs to handle this action —
+     *                                    see RenderTappable's docblock.
+     */
     public function __construct(
         string $label,
         string $action,
@@ -34,6 +38,7 @@ final class NativeButton implements RenderNode
         float $height = 54.0,
         ?Color $background = null,
         ?Color $foreground = null,
+        ?array $meta = null,
     ) {
         $fg = $foreground ?? Color::white();
         $labelNode = new RenderText($label, Tokens::TEXT_BODY, $fg->toHex(), bold: true);
@@ -52,6 +57,7 @@ final class NativeButton implements RenderNode
                 radius: Tokens::RADIUS_PILL,
             ),
             $action,
+            $meta,
         );
     }
 

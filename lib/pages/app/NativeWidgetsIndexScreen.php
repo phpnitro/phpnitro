@@ -42,6 +42,10 @@ final class NativeWidgetsIndexScreen
                     ),
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeListTile('Formulaires', 'SelectBox, DatePicker, dialogues...', 'edit_note', trailingIcon: 'chevron_right', action: 'navigate:widgets-forms'),
+                    ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
                         new NativeListTile('Backend PHP', 'Appel API en-process', 'api', trailingIcon: 'chevron_right', action: 'navigate:api'),
                     ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),

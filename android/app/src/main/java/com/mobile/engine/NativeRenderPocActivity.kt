@@ -1,5 +1,7 @@
 package com.mobile.engine
 
+import android.app.AlertDialog
+import android.app.DatePickerDialog
 import android.graphics.RectF
 import android.os.Bundle
 import android.os.Handler
@@ -17,7 +19,9 @@ import androidx.appcompat.app.AppCompatActivity
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.util.Calendar
 import kotlin.concurrent.thread
+import org.json.JSONObject
 
 /**
  * Started life as a Phase 0 proof of concept, adb-launched only. As of
@@ -73,7 +77,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
 
         canvasView = NativeCanvasView(this)
         canvasView.density = resources.displayMetrics.density
-        canvasView.onAction = { action, regionDp -> onTap(action, regionDp) }
+        canvasView.onAction = { action, regionDp, meta -> onTap(action, regionDp, meta) }
 
         rootLayout = FrameLayout(this)
         rootLayout.addView(canvasView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -109,7 +113,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
     // than sent to PHP verbatim — they're this Activity's concern (which
     // screen is current, whether the keyboard is showing), not a
     // server-side state change in their own right.
-    private fun onTap(action: String, regionDp: RectF) {
+    private fun onTap(action: String, regionDp: RectF, meta: JSONObject?) {
         when {
             action.startsWith("focus:") -> {
                 val rest = action.removePrefix("focus:")
@@ -122,6 +126,10 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 refetch(action.removePrefix("submit:"), includeFields = true)
             }
             action.startsWith("device:") -> handleDeviceAction(action.removePrefix("device:"))
+            action.startsWith("select:") -> showSelectDialog(action.removePrefix("select:"), meta)
+            action.startsWith("datepicker:") -> showDatePickerDialog(action.removePrefix("datepicker:"), meta)
+            action == "dialog:alert" -> showAlertDialog(meta)
+            action == "dialog:confirm" -> showConfirmDialog(meta)
             action.startsWith("navigate:") -> {
                 clearTextInput()
                 screenStack.add(action.removePrefix("navigate:"))
@@ -134,6 +142,75 @@ class NativeRenderPocActivity : AppCompatActivity() {
             }
             else -> refetch(action)
         }
+    }
+
+    // The options/message/title a select box or dialog needs travel in the
+    // hit region's meta (see NativeCanvas::hitRegion()'s $meta param) — no
+    // second round-trip to PHP is needed just to know what to show. A pick
+    // is tracked the same way NativeTextField's typed value is: written
+    // into fieldValues and only read by PHP on the next refetch.
+    private fun showSelectDialog(name: String, meta: JSONObject?) {
+        val options = meta?.optJSONObject("options") ?: return
+        val values = mutableListOf<String>()
+        val labels = mutableListOf<String>()
+        options.keys().forEach { key ->
+            values.add(key)
+            labels.add(options.getString(key))
+        }
+        AlertDialog.Builder(this)
+            .setItems(labels.toTypedArray()) { _, which ->
+                fieldValues[name] = values[which]
+                refetch(action = null, includeFields = true)
+            }
+            .show()
+    }
+
+    private fun showDatePickerDialog(name: String, meta: JSONObject?) {
+        val calendar = Calendar.getInstance()
+        val existing = meta?.optString("value", "") ?: ""
+        if (existing.isNotEmpty()) {
+            runCatching {
+                val (year, month, day) = existing.split("-").map { it.toInt() }
+                calendar.set(year, month - 1, day)
+            }
+        }
+        DatePickerDialog(
+            this,
+            { _, year, month, day ->
+                fieldValues[name] = "%04d-%02d-%02d".format(year, month + 1, day)
+                refetch(action = null, includeFields = true)
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH),
+        ).show()
+    }
+
+    // A real system dialog instead of a WebView hosting phpxDialogs.alert()'s
+    // JS confirm() shim — what NativeAlertButton exists to get for a native
+    // app. No server round-trip needed, the message/title already travelled
+    // in meta.
+    private fun showAlertDialog(meta: JSONObject?) {
+        AlertDialog.Builder(this)
+            .setTitle(meta?.optString("title", "")?.ifEmpty { null })
+            .setMessage(meta?.optString("message", ""))
+            .setPositiveButton("OK", null)
+            .show()
+    }
+
+    // Same "don't call the server until confirmed" guarantee
+    // Engine\Dialogs\ConfirmButton's JS callback gives — confirmAction only
+    // reaches refetch() if the user actually taps the positive button.
+    private fun showConfirmDialog(meta: JSONObject?) {
+        val confirmAction = meta?.optString("confirmAction")
+        if (confirmAction.isNullOrEmpty()) return
+
+        AlertDialog.Builder(this)
+            .setTitle(meta.optString("title", "").ifEmpty { null })
+            .setMessage(meta.optString("message", ""))
+            .setPositiveButton(meta.optString("label", "Confirmer")) { _, _ -> refetch(confirmAction, includeFields = true) }
+            .setNegativeButton("Annuler", null)
+            .show()
     }
 
     // "device:X" calls straight into NativeDeviceBridge — no PHP

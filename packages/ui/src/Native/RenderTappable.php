@@ -25,9 +25,15 @@ final class RenderTappable implements RenderNode
 {
     private Size $size;
 
+    /**
+     * @param ?array<string, mixed> $meta Extra data the client needs to handle this action —
+     *                                    e.g. a SelectBox's options, a dialog's message/title.
+     *                                    Not needed for plain navigate:/submit:/device: actions.
+     */
     public function __construct(
         private readonly RenderNode $child,
         private readonly string $action,
+        private readonly ?array $meta = null,
     ) {
         $this->size = Size::zero();
     }
@@ -41,7 +47,7 @@ final class RenderTappable implements RenderNode
 
     public function paint(NativeCanvas $canvas, float $x, float $y): void
     {
-        $canvas->hitRegion($x, $y, $this->size->width, $this->size->height, $this->action);
+        $canvas->hitRegion($x, $y, $this->size->width, $this->size->height, $this->action, $this->meta);
         $this->child->paint($canvas, $x, $y);
     }
 }

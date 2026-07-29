@@ -220,15 +220,21 @@ final class NativeCanvas
         return $this;
     }
 
-    public function hitRegion(float $x, float $y, float $width, float $height, string $action): self
+    /**
+     * @param ?array<string, mixed> $meta Extra data the client needs to handle this action
+     *                                    without a second round-trip — a SelectBox's
+     *                                    options, a dialog's message/title/confirm action.
+     */
+    public function hitRegion(float $x, float $y, float $width, float $height, string $action, ?array $meta = null): self
     {
-        $this->hitRegions[] = [
+        $this->hitRegions[] = array_filter([
             'x' => $x,
             'y' => $y,
             'width' => $width,
             'height' => $height,
             'action' => $action,
-        ];
+            'meta' => $meta,
+        ], static fn (mixed $value): bool => $value !== null);
 
         return $this;
     }
