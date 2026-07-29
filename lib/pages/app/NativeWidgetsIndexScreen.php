@@ -63,6 +63,10 @@ final class NativeWidgetsIndexScreen
                     ),
                     new RenderPadding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeListTile('Firebase Auth', 'Appel REST réel', 'local_fire_department', trailingIcon: 'chevron_right', action: 'navigate:widgets-firebase-auth'),
+                    ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
                         new NativeListTile('Backend PHP', 'Appel API en-process', 'api', trailingIcon: 'chevron_right', action: 'navigate:api'),
                     ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),

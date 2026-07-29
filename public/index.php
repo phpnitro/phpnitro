@@ -210,6 +210,34 @@ if ($path === '/native/layout-demo') {
         unset($_SESSION['auth_user']);
     }
 
+    // Mirrors WidgetsFirebaseAuthPage.php's onSignIn()/onSignUp() — a
+    // plain server-side REST call to Firebase's Identity Toolkit API
+    // (Engine\Firebase\FirebaseAuth, no client SDK/JS involved at all),
+    // so this ports with no new native capability needed beyond what
+    // NativeLoginScreen already proved (text fields + a session-backed
+    // "who's signed in" flag).
+    $firebaseError = null;
+    if (in_array($action, ['signin', 'signup'], true)) {
+        $webApiKey = $_ENV['FIREBASE_WEB_API_KEY'] ?? '';
+        if ($webApiKey === '') {
+            $firebaseError = "FIREBASE_WEB_API_KEY n'est pas configuré dans .env — voir phpnitro.yml.";
+        } else {
+            $email = trim($_GET['email'] ?? '');
+            $password = $_GET['password'] ?? '';
+            $result = $action === 'signin'
+                ? \Engine\Firebase\FirebaseAuth::signIn($webApiKey, $email, $password)
+                : \Engine\Firebase\FirebaseAuth::signUp($webApiKey, $email, $password);
+            if ($result['error'] !== null) {
+                $firebaseError = "Échec Firebase Auth : {$result['error']}";
+            } else {
+                $_SESSION['firebase_uid'] = $result['localId'];
+            }
+        }
+    }
+    if ($action === 'firebase_signout') {
+        unset($_SESSION['firebase_uid']);
+    }
+
     // Mirrors WidgetsStepperPage.php's Screen::$state (itself session-backed)
     // — the native pipeline has no per-request server object to hold step
     // state in, so it lives in $_SESSION directly, keyed the same "merge
@@ -255,6 +283,7 @@ if ($path === '/native/layout-demo') {
         'widgets-countries' => \Engine\App\NativeWidgetsCountriesScreen::build($screenWidth, $screenHeight),
         'widgets-media' => \Engine\App\NativeWidgetsMediaScreen::build($screenWidth, $screenHeight),
         'widgets-maps' => \Engine\App\NativeWidgetsMapsScreen::build($screenWidth, $screenHeight),
+        'widgets-firebase-auth' => \Engine\App\NativeWidgetsFirebaseAuthScreen::build($screenWidth, $screenHeight, $firebaseError, $_GET['fb_mode'] ?? 'signin'),
         default => \Engine\App\NativeHomeScreen::build($screenWidth, $screenHeight),
     };
 
