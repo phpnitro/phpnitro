@@ -5,7 +5,6 @@ namespace Engine\Tests;
 use Engine\Align;
 use Engine\Alignment;
 use Engine\AnimatedContainer;
-use Engine\AppBar;
 use Engine\AudioPlayer;
 use Engine\Center;
 use Engine\CircularProgress;
@@ -28,7 +27,6 @@ use Engine\PageView;
 use Engine\ProgressBar;
 use Engine\Rounded;
 use Engine\SingleScrollView;
-use Engine\Stepper;
 use Engine\StreamBuilder;
 use Engine\Table;
 use Engine\Text;
@@ -240,30 +238,6 @@ final class MoreWidgetsTest extends TestCase
         $this->assertStringContainsString('Créneau', $html);
     }
 
-    public function testAppBarRendersTitleAndBackLink(): void
-    {
-        $html = AppBar::make('Détail produit', backHref: '/products')->render();
-
-        $this->assertStringContainsString('Détail produit', $html);
-        $this->assertStringContainsString('href="/products"', $html);
-        $this->assertStringContainsString('aria-label="Retour"', $html);
-    }
-
-    public function testAppBarWithoutBackHrefOrLeadingOmitsLeading(): void
-    {
-        $html = AppBar::make('Accueil')->render();
-
-        $this->assertStringNotContainsString('aria-label="Retour"', $html);
-    }
-
-    public function testAppBarLeadingWidgetTakesPriorityOverBackHref(): void
-    {
-        $html = AppBar::make('Titre', backHref: '/back', leading: Text::make('menu'))->render();
-
-        $this->assertStringContainsString('>menu<', $html);
-        $this->assertStringNotContainsString('aria-label="Retour"', $html);
-    }
-
     public function testAudioPlayerRendersSrcAndControlFlags(): void
     {
         $html = AudioPlayer::make('/audio/beep.mp3', autoplay: true, loop: true)->render();
@@ -365,13 +339,6 @@ final class MoreWidgetsTest extends TestCase
         Theme::reset();
     }
 
-    public function testAppBarWithTypedBackground(): void
-    {
-        $html = AppBar::make('Titre', background: Color::of('emerald', 600))->render();
-
-        $this->assertStringContainsString('bg-emerald-600', $html);
-    }
-
     public function testLocationButtonWithTypedBackground(): void
     {
         $html = LocationButton::make(background: Color::of('emerald', 600))->render();
@@ -409,30 +376,4 @@ final class MoreWidgetsTest extends TestCase
         $this->assertStringContainsString('bg-purple-600', $html);
     }
 
-    public function testStepperWithTypedActiveColor(): void
-    {
-        $html = Stepper::make(
-            currentStep: 1,
-            totalSteps: 2,
-            stepLabels: ['A', 'B'],
-            body: Text::make('body'),
-            nextAction: 'next',
-            activeColor: Color::of('purple', 600),
-        )->render();
-
-        $this->assertStringContainsString('bg-purple-600', $html);
-    }
-
-    public function testStepperDefaultsToThemePrimary(): void
-    {
-        Theme::setPrimary(Color::of('emerald', 600));
-        $html = Stepper::make(
-            currentStep: 0,
-            totalSteps: 2,
-            stepLabels: ['A', 'B'],
-            body: Text::make('body'),
-        )->render();
-
-        $this->assertStringContainsString('bg-emerald-600', $html);
-    }
 }

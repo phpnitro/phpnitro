@@ -4,7 +4,6 @@ namespace Engine\Tests;
 
 use Engine\BottomNavigation;
 use Engine\Button;
-use Engine\Checkbox;
 use Engine\Color;
 use Engine\Column;
 use Engine\Container;
@@ -15,14 +14,11 @@ use Engine\FontWeight;
 use Engine\Form;
 use Engine\Html;
 use Engine\IconButton;
-use Engine\ListView;
 use Engine\Positioned;
 use Engine\Rounded;
 use Engine\Row;
-use Engine\Scaffold;
 use Engine\SelectBox;
 use Engine\Stack;
-use Engine\Stepper;
 use Engine\Text;
 use Engine\Textarea;
 use Engine\TextField;
@@ -70,58 +66,15 @@ final class WidgetsTest extends TestCase
     {
         $html = Form::make([
             TextField::make('email', label: 'Email'),
-            Checkbox::make('ok', 'OK', checked: true),
             SelectBox::make('lang', ['fr' => 'Français', 'en' => 'English'], selected: 'en'),
             Button::make('Envoyer'),
         ], action: 'save')->render();
 
         $this->assertStringContainsString('name="_action" value="save"', $html);
         $this->assertStringContainsString('name="email"', $html);
-        $this->assertStringContainsString('checked', $html);
         $this->assertStringContainsString('<option value="en" selected>', $html);
         $this->assertStringContainsString('type="submit"', $html);
         $this->assertSame(1, substr_count($html, '<form'), 'inputs must share a single form');
-    }
-
-    public function testListViewWrapsEachChild(): void
-    {
-        $html = ListView::make([Text::make('a'), Text::make('b')])->render();
-
-        $this->assertSame(2, substr_count($html, 'px-4 py-3'));
-    }
-
-    public function testStepperRendersLabelsAndHighlightsCurrentStep(): void
-    {
-        $html = Stepper::make(
-            currentStep: 1,
-            totalSteps: 3,
-            stepLabels: ['Compte', 'Préférences', 'Résumé'],
-            body: Text::make('body'),
-            backAction: 'back',
-            nextAction: 'next',
-        )->render();
-
-        $this->assertStringContainsString('Compte', $html);
-        $this->assertStringContainsString('Préférences', $html);
-        $this->assertStringContainsString('Résumé', $html);
-        $this->assertSame(1, substr_count($html, '<form'), 'Stepper must own a single wrapping form');
-        $this->assertStringContainsString('name="_action" value="back"', $html);
-        $this->assertStringContainsString('name="_action" value="next"', $html);
-    }
-
-    public function testStepperOmitsBackButtonOnFirstStep(): void
-    {
-        $html = Stepper::make(
-            currentStep: 0,
-            totalSteps: 2,
-            stepLabels: ['A', 'B'],
-            body: Text::make('body'),
-            backAction: null,
-            nextAction: 'next',
-        )->render();
-
-        $this->assertStringNotContainsString('value="back"', $html);
-        $this->assertStringContainsString('name="_action" value="next"', $html);
     }
 
     public function testErrorBannerRendersNothingWhenMessageIsNull(): void
@@ -191,22 +144,6 @@ final class WidgetsTest extends TestCase
         $this->assertStringNotContainsString('<form', $html);
     }
 
-    public function testScaffoldReservesBottomPaddingOnlyWhenHasBottomNav(): void
-    {
-        $with = Scaffold::make(body: Text::make('x'), hasBottomNav: true)->render();
-        $without = Scaffold::make(body: Text::make('x'), hasBottomNav: false)->render();
-
-        $this->assertStringContainsString('pb-24', $with);
-        $this->assertStringContainsString('pb-4', $without);
-        $this->assertStringNotContainsString('pb-24', $without);
-    }
-
-    public function testScaffoldNeverRendersItsOwnNav(): void
-    {
-        $html = Scaffold::make(body: Text::make('x'), hasBottomNav: true)->render();
-
-        $this->assertStringNotContainsString('<nav', $html);
-    }
 
     public function testBottomNavigationRendersStableIdAndActiveInactiveClassData(): void
     {
