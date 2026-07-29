@@ -159,6 +159,16 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 fieldValues[parts.getOrElse(1) { "device_id_out" }] = deviceBridge.deviceId()
                 refetch(action = null, includeFields = true)
             }
+            "bluetooth" -> {
+                fieldValues[parts.getOrElse(1) { "bt_out" }] = deviceBridge.bluetoothState()
+                refetch(action = null, includeFields = true)
+            }
+            "securestore" -> deviceBridge.secureStore(parts.getOrElse(1) { "demo_key" }, "valeur secrète")
+            "secureretrieve" -> {
+                val key = parts.getOrElse(1) { "demo_key" }
+                fieldValues[parts.getOrElse(2) { "secure_out" }] = deviceBridge.secureRetrieve(key)
+                refetch(action = null, includeFields = true)
+            }
         }
     }
 

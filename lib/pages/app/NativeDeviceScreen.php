@@ -18,10 +18,14 @@ use Engine\Native\Tokens;
  * capabilities via NativeDeviceBridge.kt, not a server round-trip
  * pretending to be one: "device:vibrate"/"device:torch" call straight
  * into Android APIs from NativeRenderPocActivity with no PHP involved at
- * all; "device:battery:battery_out"/"device:deviceid:device_id_out" do
- * involve PHP (the result has to reach this render somehow), but only to
- * receive the value and display it — the value itself came from a real
- * BatteryManager/Settings.Secure call, not from here.
+ * all. The rest (battery/deviceid/bluetooth/secure-retrieve) do involve
+ * PHP, but only to receive a value that already came from a real
+ * BatteryManager/Settings.Secure/BluetoothAdapter/Keystore call and
+ * display it — same "$_GET['x_out'] carries a result" mechanism
+ * NativeTextField uses for typed input, just in the other direction.
+ * Secure storage is genuinely shared with the WebView path (same
+ * Keystore-backed file, see NativeDeviceBridge.kt) — a secret stored via
+ * one rendering path is readable from the other.
  *
  * DevicePage.php has ~30 capabilities; this covers the ones that don't
  * need a UI overlay beyond a single synchronous call (camera preview,
@@ -34,6 +38,8 @@ final class NativeDeviceScreen
     {
         $batteryOut = $_GET['battery_out'] ?? null;
         $deviceIdOut = $_GET['device_id_out'] ?? null;
+        $bluetoothOut = $_GET['bt_out'] ?? null;
+        $secureOut = $_GET['secure_out'] ?? null;
 
         $row = static fn (string $label, string $action, ?string $result = null): RenderNode => new RenderPadding(
             EdgeInsets::only(top: Tokens::SPACE_MD),
@@ -60,6 +66,9 @@ final class NativeDeviceScreen
                     $row('Torche', 'device:torch'),
                     $row('Batterie', 'device:battery:battery_out', $batteryOut),
                     $row('ID device', 'device:deviceid:device_id_out', $deviceIdOut),
+                    $row('Bluetooth', 'device:bluetooth:bt_out', $bluetoothOut),
+                    $row('Stocker un secret', 'device:securestore:demo_key'),
+                    $row('Lire le secret', 'device:secureretrieve:demo_key:secure_out', $secureOut),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,

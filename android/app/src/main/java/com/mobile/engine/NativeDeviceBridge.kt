@@ -1,5 +1,6 @@
 package com.mobile.engine
 
+import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
@@ -9,6 +10,8 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.provider.Settings
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 
 /**
  * The "beaucoup plus petit que WebAppInterface.kt" native bridge
@@ -57,5 +60,36 @@ class NativeDeviceBridge(private val context: Context) {
     /** Settings.Secure.ANDROID_ID — same choice/rationale as WebAppInterface.getDeviceId(). */
     fun deviceId(): String {
         return Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) ?: ""
+    }
+
+    /** "unsupported" | "off" | "on" — never triggers pairing/scanning UI, same as WebAppInterface.getBluetoothState(). */
+    fun bluetoothState(): String {
+        val adapter = (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
+            ?: return "unsupported"
+        return if (adapter.isEnabled) "on" else "off"
+    }
+
+    // Same Keystore-backed file WebAppInterface's secureStore/secureRetrieve
+    // use ("phpx_secure_storage") — a secret stored via one rendering path
+    // is readable from the other, which is the correct behavior for an
+    // app-level capability that isn't really "a WebView thing" or "a
+    // native-Canvas thing" at all.
+    private val encryptedPrefs by lazy {
+        val masterKey = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
+        EncryptedSharedPreferences.create(
+            context,
+            "phpx_secure_storage",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
+    }
+
+    fun secureStore(key: String, value: String) {
+        encryptedPrefs.edit().putString(key, value).apply()
+    }
+
+    fun secureRetrieve(key: String): String {
+        return encryptedPrefs.getString(key, "") ?: ""
     }
 }
