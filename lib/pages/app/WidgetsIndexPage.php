@@ -13,11 +13,13 @@ use Engine\Widget;
 /**
  * Every widget in packages/ui/src (plus the Maps/Dialogs packages)
  * demonstrated somewhere, so "does it actually work" is a visual check on
- * a real device instead of a promise. Payment widgets (Engine\Payments\)
- * used to be demonstrated in examples/ecom's live checkout, which was
- * removed once native became the app's real rendering engine — needing
- * a real gateway key to render meaningfully, they were never duplicated
- * here without one.
+ * a real device instead of a promise. Engine\Device\ and Engine\Payments\
+ * were both WebView-JS-bridge packages (Html::raw() <script> triggers) with
+ * zero remaining production consumers once DevicePage.php/examples/ecom
+ * were removed — deleted rather than kept as unreachable code. Device
+ * capabilities have a complete native replacement (NativeDeviceBridge.kt);
+ * payment gateways don't yet — that's real future work (a native SDK per
+ * gateway), not a widget conversion.
  */
 final class WidgetsIndexPage extends Screen
 {
@@ -48,10 +50,6 @@ final class WidgetsIndexPage extends Screen
             Button::make("Firebase Auth (Engine\\Firebase\\)", onClick: "phpxDevice.openNativeRenderPreviewAt('widgets-firebase-auth')", classes: 'text-blue-600 hover:underline text-left'),
             Button::make('Média (AudioPlayer, VideoPlayer, GoogleTranslate...)', onClick: "phpxDevice.openNativeRenderPreviewAt('widgets-media')", classes: 'text-blue-600 hover:underline text-left'),
             Button::make('Cartes (osmdroid, pan/zoom réel)', onClick: "phpxDevice.openNativeRenderPreviewAt('widgets-maps')", classes: 'text-blue-600 hover:underline text-left'),
-            Text::make(
-                "Paiement (Engine\\Payments\\) : 7 gateways réels — voir packages/payments/, ils ont besoin d'une vraie clé pour s'afficher.",
-                'text-sm text-gray-500 dark:text-gray-400',
-            ),
             // '/' has no WebView route anymore — see ProductPage.php's
             // same fix.
             Button::make("Retour à l'accueil", onClick: "phpxDevice.openNativeRenderPreviewAt('home')", classes: 'text-blue-600 hover:underline text-left'),
