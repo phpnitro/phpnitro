@@ -107,6 +107,11 @@ if ($path === '/native/layout-demo') {
 
     $screenWidth = (float) ($_GET['width'] ?? 360);
     $screenHeight = (float) ($_GET['height'] ?? 720);
+    // Flutter's MediaQuery.of(context).size, for any widget that isn't a
+    // screen's own top-level build() and so never received $screenWidth/
+    // $screenHeight as an explicit parameter — see MediaQuery::init()'s
+    // docblock for why this is safe as a static here.
+    \Engine\Native\MediaQuery::init($screenWidth, $screenHeight);
     $screen = $_GET['screen'] ?? 'home';
     $action = $_GET['action'] ?? null;
     // RenderLazyList's windowed prefetch — see NativeCanvasView.kt's
