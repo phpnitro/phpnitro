@@ -250,6 +250,7 @@ class NativeCanvasView(context: Context) : View(context) {
         if (activeHeroFlights.isEmpty()) return
         val saved = canvas.save()
         canvas.scale(density, density)
+        val previous = previousCommands
         for ((tag, flight) in activeHeroFlights) {
             val (oldRect, newRect) = flight
             val interpRect = RectF(
@@ -264,13 +265,97 @@ class NativeCanvasView(context: Context) : View(context) {
                 matrix.postScale(interpRect.width() / newRect.width(), interpRect.height() / newRect.height())
             }
             matrix.postTranslate(interpRect.left, interpRect.top)
+
+            // Not just the subtree's outer rect flies — each individual
+            // command's own geometry/color eases too (drawInterpolated()),
+            // so a background color or corner radius change animates
+            // alongside the position/size, not just snaps on arrival.
+            // Paired by index within the tag, the same "structure doesn't
+            // change, only property values do" assumption Flutter's own
+            // implicit animations make about a widget's identity.
+            val newTagged = collectTaggedCommands(commands, tag)
+            val oldTagged = previous?.let { collectTaggedCommands(it, tag) } ?: emptyList()
+
             val innerSaved = canvas.save()
             canvas.concat(matrix)
-            drawCommands(canvas, commands, 1f, fixed = false, onlyHeroTag = tag)
-            drawCommands(canvas, commands, 1f, fixed = true, onlyHeroTag = tag)
+            for (index in newTagged.indices) {
+                drawInterpolated(canvas, oldTagged.getOrNull(index), newTagged[index], heroProgress)
+            }
             canvas.restoreToCount(innerSaved)
         }
         canvas.restoreToCount(saved)
+    }
+
+    private fun collectTaggedCommands(list: JSONArray, tag: String): List<JSONObject> {
+        val result = mutableListOf<JSONObject>()
+        for (index in 0 until list.length()) {
+            val command = list.getJSONObject(index)
+            if (command.optString("hero", "") == tag) result.add(command)
+        }
+        return result
+    }
+
+    private val numericFieldsByType = mapOf(
+        "rect" to listOf("x", "y", "width", "height", "radius", "borderWidth", "elevation"),
+        "circle" to listOf("cx", "cy", "radius", "borderWidth"),
+        "arc" to listOf("cx", "cy", "radius", "startDegrees", "sweepDegrees", "strokeWidth"),
+        "line" to listOf("x1", "y1", "x2", "y2", "width"),
+        "text" to listOf("x", "y", "size", "letterSpacing"),
+        "icon" to listOf("x", "y", "size"),
+        "image" to listOf("x", "y", "width", "height", "radius"),
+    )
+    private val colorFieldsByType = mapOf(
+        "rect" to listOf("color", "borderColor", "gradientFrom", "gradientTo"),
+        "circle" to listOf("color", "borderColor"),
+        "arc" to listOf("color"),
+        "line" to listOf("color"),
+        "text" to listOf("color"),
+        "icon" to listOf("color"),
+    )
+    private val argbEvaluator = android.animation.ArgbEvaluator()
+
+    /**
+     * Builds a synthetic command with old->new numeric fields lerped and
+     * color-like fields ARGB-blended, then draws it through the same
+     * draw*Command functions everything else uses — an interpolated frame
+     * is just a command with different numbers, not a special draw path.
+     * Falls back to drawing `new` as-is when there's no old counterpart
+     * (first appearance) or the type changed (nothing sane to interpolate
+     * between a rect and a circle).
+     */
+    private fun drawInterpolated(canvas: Canvas, old: JSONObject?, new: JSONObject, progress: Float) {
+        val type = new.getString("type")
+        if (old == null || old.optString("type") != type) {
+            drawSingleCommand(canvas, new, 1f)
+            return
+        }
+        val blended = JSONObject(new.toString())
+        numericFieldsByType[type]?.forEach { field ->
+            if (old.has(field) && new.has(field)) {
+                blended.put(field, lerp(old.getDouble(field).toFloat(), new.getDouble(field).toFloat(), progress).toDouble())
+            }
+        }
+        colorFieldsByType[type]?.forEach { field ->
+            if (old.has(field) && new.has(field)) {
+                val fromColor = Color.parseColor(old.getString(field))
+                val toColor = Color.parseColor(new.getString(field))
+                val evaluated = argbEvaluator.evaluate(progress, fromColor, toColor) as Int
+                blended.put(field, String.format("#%08X", evaluated))
+            }
+        }
+        drawSingleCommand(canvas, blended, 1f)
+    }
+
+    private fun drawSingleCommand(canvas: Canvas, command: JSONObject, alpha: Float) {
+        when (command.getString("type")) {
+            "rect" -> drawRectCommand(canvas, command, alpha)
+            "text" -> drawTextCommand(canvas, command, alpha)
+            "icon" -> drawIconCommand(canvas, command, alpha)
+            "image" -> drawImageCommand(canvas, command, alpha)
+            "circle" -> drawCircleCommand(canvas, command, alpha)
+            "line" -> drawLineCommand(canvas, command, alpha)
+            "arc" -> drawArcCommand(canvas, command, alpha)
+        }
     }
 
     private fun lerp(from: Float, to: Float, progress: Float): Float = from + (to - from) * progress
@@ -480,26 +565,13 @@ class NativeCanvasView(context: Context) : View(context) {
         alpha: Float,
         fixed: Boolean,
         excludeHeroTags: Set<String> = emptySet(),
-        onlyHeroTag: String? = null,
     ) {
         for (index in 0 until list.length()) {
             val command = list.getJSONObject(index)
             if (command.optBoolean("fixed", false) != fixed) continue
             val hero = command.optString("hero", "").ifEmpty { null }
-            if (onlyHeroTag != null) {
-                if (hero != onlyHeroTag) continue
-            } else if (hero != null && excludeHeroTags.contains(hero)) {
-                continue
-            }
-            when (command.getString("type")) {
-                "rect" -> drawRectCommand(canvas, command, alpha)
-                "text" -> drawTextCommand(canvas, command, alpha)
-                "icon" -> drawIconCommand(canvas, command, alpha)
-                "image" -> drawImageCommand(canvas, command, alpha)
-                "circle" -> drawCircleCommand(canvas, command, alpha)
-                "line" -> drawLineCommand(canvas, command, alpha)
-                "arc" -> drawArcCommand(canvas, command, alpha)
-            }
+            if (hero != null && excludeHeroTags.contains(hero)) continue
+            drawSingleCommand(canvas, command, alpha)
         }
     }
 

@@ -13,6 +13,7 @@ use Engine\Native\NativePageView;
 use Engine\Native\NativeScaffold;
 use Engine\Native\NativeTable;
 use Engine\Native\RenderAlign;
+use Engine\Native\RenderAnimated;
 use Engine\Native\RenderCenter;
 use Engine\Native\RenderContainer;
 use Engine\Native\RenderCustomPaint;
@@ -33,24 +34,24 @@ use Engine\Native\Tokens;
  * Button, Canvas, PageView, Hero all have a real native equivalent by now
  * (see packages/ui/src/Native/'s widget layer). Full parity reached.
  *
- * FadeIn/AnimatedContainer aren't separate widgets here because
- * NativeCanvasView.kt already does something structurally equivalent for
- * every screen: setCommands() crossfades the previous draw-command list
- * into the new one (fadeProgress/previousCommands) on every re-render —
- * so any element that's new, resized, or recolored between two requests
- * already eases into place, the same "ease into what changed" effect
- * those two widgets exist for, just applied screen-wide instead of
- * per-element.
+ * FadeIn isn't a separate widget here because NativeCanvasView.kt already
+ * does something structurally equivalent for every screen: setCommands()
+ * crossfades the previous draw-command list into the new one
+ * (fadeProgress/previousCommands) on every re-render — any element that's
+ * new or removed already eases in/out, the same effect FadeIn exists for,
+ * just applied screen-wide instead of per-element.
  *
- * Hero is RenderHero — same $tag idea as Engine\Hero, but since there's no
- * DOM/CSS transition to hand off to, NativeCanvasView.kt itself flies the
- * tagged subtree from its old rect to its new one (a real Matrix-based
- * FLIP, see drawHeroTransition()) whenever the same tag shows up at a
- * different rect between two renders. The demo below toggles the same
- * tagged box between a small inline badge and a large centered card —
- * exactly the "same element, different rect" case the mechanism detects,
- * whether that swap comes from a local toggle like this or an actual
- * cross-screen navigation.
+ * Hero (RenderHero) and AnimatedContainer (RenderAnimated) are the SAME
+ * primitive at the Kotlin level: both tag a subtree by key
+ * (NativeCanvas::beginHero()/endHero(), heroRegions in the JSON payload)
+ * and NativeCanvasView.kt's drawHeroTransition() flies that subtree from
+ * its old rect to its new one via a Matrix, interpolating each command's
+ * own geometry/color fields too (not just the outer rect) — so a
+ * background color or radius change eases smoothly, not just position and
+ * size. RenderHero is for a cross-screen navigation; RenderAnimated is
+ * the same mechanism used locally, for "this element looks different now,
+ * ease into it" — Flutter's AnimatedContainer/AnimatedPositioned/
+ * AnimatedOpacity unified into one implicit-animation primitive.
  */
 final class NativeWidgetsLayoutScreen
 {
@@ -59,6 +60,7 @@ final class NativeWidgetsLayoutScreen
         $contentWidth = $screenWidth - 2 * Tokens::SPACE_XL;
         $layoutPage = (int) ($_GET['layout_page'] ?? '0');
         $heroOpen = ($_GET['hero_open'] ?? '') === '1';
+        $animatedOpen = ($_GET['animated_open'] ?? '') === '1';
 
         $caption = static fn (string $text): RenderNode => new RenderPadding(
             EdgeInsets::only(top: Tokens::SPACE_LG, bottom: Tokens::SPACE_SM),
@@ -151,6 +153,25 @@ final class NativeWidgetsLayoutScreen
                                 'layout-hero-demo',
                             ),
                             'toggle:hero_open',
+                            ['next' => '1'],
+                        ),
+
+                    $caption('AnimatedContainer — taille + couleur + rayon, tous animés (tape pour agrandir)'),
+                    $animatedOpen
+                        ? new RenderTappable(
+                            new RenderAnimated(
+                                new RenderContainer(width: $contentWidth, height: 140, background: Color::of('emerald', 600), radius: Tokens::RADIUS_LG),
+                                'layout-animated-demo',
+                            ),
+                            'toggle:animated_open',
+                            ['next' => '0'],
+                        )
+                        : new RenderTappable(
+                            new RenderAnimated(
+                                new RenderContainer(width: 96, height: 48, background: Color::of('orange', 600), radius: Tokens::RADIUS_SM),
+                                'layout-animated-demo',
+                            ),
+                            'toggle:animated_open',
                             ['next' => '1'],
                         ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
