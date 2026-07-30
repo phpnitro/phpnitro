@@ -4,7 +4,6 @@
 
 ```bash
 composer install
-npm install   # uniquement pour reconstruire tailwind.css
 ```
 
 Voir [docs/getting-started.md](docs/getting-started.md) pour la structure complète d'un projet.
@@ -17,7 +16,7 @@ php -l chemin/vers/fichier.php               # vérification syntaxique rapide
 vendor/bin/phpstan analyse packages lib      # analyse statique
 ```
 
-Un `bin/phpx serve` local + un test manuel dans le navigateur reste le moyen le plus sûr de valider un changement touchant au rendu ou à `nav.js`. Pour tout ce qui touche au pont natif Android (`WebAppInterface.kt`, permissions, capteurs...), il n'y a pas de substitut à un test sur device réel via `adb` — les tests PHPUnit ne couvrent que la génération des trigger JS côté PHP, jamais le code Kotlin lui-même.
+Un `bin/phpx serve` local + `curl` sur `/native/layout-demo?screen=...` reste le moyen le plus sûr de valider un changement touchant au moteur de rendu natif (`packages/ui/src/Native/`, `lib/pages/app/Native*Screen.php`). Pour tout ce qui touche au pont natif Android (`NativeDeviceBridge.kt`, `NativeCanvasView.kt`, permissions, capteurs...), il n'y a pas de substitut à un `./gradlew assembleDebug` réel (voire un test sur device via `adb`) — les tests PHPUnit ne couvrent que la génération des commandes de dessin côté PHP, jamais le code Kotlin lui-même.
 
 ## Où va le code
 

@@ -3,7 +3,6 @@
 ## Prérequis
 
 - PHP ≥ 8.1 avec Composer
-- Node.js + npm (uniquement pour reconstruire le CSS Tailwind si tu changes des classes utilitaires)
 - Pour builder l'APK Android : Android SDK (compileSdk 35), Gradle ≥ 8.9, JDK 17 — voir [docs/mobile-builds.md](mobile-builds.md)
 
 ## Structure d'un projet
@@ -11,18 +10,22 @@
 ```
 mon-app/
   composer.json  UN SEUL, à la racine — un seul vendor/ pour tout le projet
-  public/        front controller (index.php, router.php, tailwind.css) — le point d'entrée HTTP
+  public/        front controller (index.php, router.php) — le point d'entrée HTTP,
+                  y compris /native/layout-demo (le moteur de rendu natif)
   lib/
-    pages/     tes écrans (Screen) — vide au départ, tu les crées avec `phpx make:page`
+    pages/     tes écrans natifs (packages/ui/src/Native/RenderNode) — vide au
+               départ, dispatchés par nom depuis public/index.php
     backend/   pure librairie "façon Symfony" (Controller / Entity / Repository / Service)
   packages/
-    ui/src/         le widget SDK (Text, Button, Column...) — phpnitro/ui
+    ui/src/Native/   le moteur de rendu natif (RenderContainer, RenderFlex,
+                     NativeButton, NativeCanvas...) — packages/ui/src lui-même ne
+                     garde que Color et NativeDrawCommand, plus de widgets Tailwind/HTML
     database/src/   connexion base de données — phpnitro/database
-    ... (device, payments, maps, dialogs, firebase, countries, preferences,
-         connectivity, launcher, diagnostics, format, socialauth)
-  android/   app Android (WebView native + PHP embarqué) — vérifiée sur device réel
+    ... (firebase, countries, preferences, format)
+  android/   app Android — NativeRenderPocActivity peint sur un vrai Canvas
+             (Skia), zéro WebView dans le rendu — vérifiée sur device réel
   ios/       pont natif Swift complet — non compilé (pas de Mac disponible)
-  assets/    images, polices, JS du framework — copiés automatiquement dans public/assets
+  assets/    images, polices, audio du framework — copiés automatiquement dans public/assets
   .env       config partagée par tout le projet
   bin/       phpx (CLI)
 ```
