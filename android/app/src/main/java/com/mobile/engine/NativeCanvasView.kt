@@ -108,7 +108,44 @@ class NativeCanvasView(context: Context) : View(context) {
     // the duration of heroAnimator, read by drawHeroTransition().
     private var heroRegions: Map<String, RectF> = emptyMap()
     private var previousHeroRegions: Map<String, RectF>? = null
+    // Curve::name (a per-tag choice — see NativeCanvas::beginHero()'s
+    // $curve) or null for the default. heroAnimator itself always runs
+    // linear time (see startHeroTransition()); drawHeroTransition()
+    // reshapes heroProgress through this tag's own Interpolator, so
+    // several concurrently-flying tags can each ease differently without
+    // needing one ValueAnimator per tag.
+    private var heroCurves: Map<String, String?> = emptyMap()
     private var heroAnimator: ValueAnimator? = null
+
+    // Drives drawSpinnerCommand()'s continuous rotation — started the
+    // first time a "spinner" command appears anywhere in the current
+    // commands list, stopped the moment none remain, so an app with no
+    // indeterminate spinner on screen never pays for a perpetual redraw
+    // loop.
+    private var spinnerAnimator: ValueAnimator? = null
+
+    private fun updateSpinnerAnimator() {
+        val hasSpinner = (0 until commands.length()).any { commands.getJSONObject(it).optString("type") == "spinner" }
+        if (hasSpinner) {
+            if (spinnerAnimator == null) {
+                spinnerAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+                    duration = 16
+                    repeatCount = ValueAnimator.INFINITE
+                    addUpdateListener { invalidate() }
+                    start()
+                }
+            }
+        } else {
+            spinnerAnimator?.cancel()
+            spinnerAnimator = null
+        }
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        spinnerAnimator?.cancel()
+        spinnerAnimator = null
+    }
     private var heroProgress: Float = 1f
     private var activeHeroFlights: Map<String, Pair<RectF, RectF>> = emptyMap()
     // regionDp is the tapped hit region's own rect, in the same dp space
@@ -316,9 +353,11 @@ class NativeCanvasView(context: Context) : View(context) {
 
             previousCommands = if (commands.length() > 0) commands else null
             commands = newCommands
+            updateSpinnerAnimator()
 
             previousHeroRegions = if (heroRegions.isNotEmpty()) heroRegions else null
             heroRegions = parseHeroRegions(payload.optJSONArray("heroRegions"))
+            heroCurves = parseHeroCurves(payload.optJSONArray("heroRegions"))
             dismissRegions = parseDismissRegions(payload.optJSONArray("dismissRegions"))
             dismissedKeys.clear()
             reorderItems = parseReorderItems(payload.optJSONArray("reorderRegions"))
@@ -388,6 +427,26 @@ class NativeCanvasView(context: Context) : View(context) {
         return result
     }
 
+    private fun parseHeroCurves(array: JSONArray?): Map<String, String?> {
+        if (array == null) return emptyMap()
+        val result = mutableMapOf<String, String?>()
+        for (index in 0 until array.length()) {
+            val region = array.getJSONObject(index)
+            result[region.getString("tag")] = region.optString("curve", "").ifEmpty { null }
+        }
+        return result
+    }
+
+    /** Curve::name -> the closest built-in Android Interpolator (see Curve.php's docblock for ELASTIC's caveat). */
+    private fun curveInterpolator(name: String?): android.view.animation.Interpolator = when (name) {
+        "LINEAR" -> android.view.animation.LinearInterpolator()
+        "EASE_IN" -> android.view.animation.AccelerateInterpolator()
+        "EASE_IN_OUT" -> android.view.animation.AccelerateDecelerateInterpolator()
+        "BOUNCE" -> android.view.animation.BounceInterpolator()
+        "ELASTIC" -> android.view.animation.OvershootInterpolator(2f)
+        else -> DecelerateInterpolator() // EASE_OUT and the no-curve default — matches this pipeline's original fixed behavior.
+    }
+
     private fun parseDismissRegions(array: JSONArray?): List<DismissRegion> {
         if (array == null) return emptyList()
         val result = mutableListOf<DismissRegion>()
@@ -440,9 +499,13 @@ class NativeCanvasView(context: Context) : View(context) {
         }
         if (activeHeroFlights.isEmpty()) return
         heroProgress = 0f
+        // Linear time on purpose — drawHeroTransition() reshapes this raw
+        // 0..1 fraction through each tag's OWN Interpolator
+        // (curveInterpolator()), so several tags flying at once can each
+        // ease differently without needing a separate animator per tag.
         heroAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = 280
-            interpolator = DecelerateInterpolator()
+            interpolator = android.view.animation.LinearInterpolator()
             addUpdateListener {
                 heroProgress = it.animatedValue as Float
                 invalidate()
@@ -468,11 +531,12 @@ class NativeCanvasView(context: Context) : View(context) {
         val previous = previousCommands
         for ((tag, flight) in activeHeroFlights) {
             val (oldRect, newRect) = flight
+            val eased = curveInterpolator(heroCurves[tag]).getInterpolation(heroProgress)
             val interpRect = RectF(
-                lerp(oldRect.left, newRect.left, heroProgress),
-                lerp(oldRect.top, newRect.top, heroProgress),
-                lerp(oldRect.right, newRect.right, heroProgress),
-                lerp(oldRect.bottom, newRect.bottom, heroProgress),
+                lerp(oldRect.left, newRect.left, eased),
+                lerp(oldRect.top, newRect.top, eased),
+                lerp(oldRect.right, newRect.right, eased),
+                lerp(oldRect.bottom, newRect.bottom, eased),
             )
             val matrix = Matrix()
             matrix.postTranslate(-newRect.left, -newRect.top)
@@ -494,7 +558,7 @@ class NativeCanvasView(context: Context) : View(context) {
             val innerSaved = canvas.save()
             canvas.concat(matrix)
             for (index in newTagged.indices) {
-                drawInterpolated(canvas, oldTagged.getOrNull(index), newTagged[index], heroProgress)
+                drawInterpolated(canvas, oldTagged.getOrNull(index), newTagged[index], eased)
             }
             canvas.restoreToCount(innerSaved)
         }
@@ -571,7 +635,43 @@ class NativeCanvasView(context: Context) : View(context) {
             "line" -> drawLineCommand(canvas, command, alpha)
             "arc" -> drawArcCommand(canvas, command, alpha)
             "clientPanel" -> drawClientPanelCommand(canvas, command, alpha)
+            "spinner" -> drawSpinnerCommand(canvas, command, alpha)
         }
+    }
+
+    // No rotation angle travels with this command at all (see
+    // NativeCanvas::spinner()'s docblock) — computed fresh from the
+    // system clock every single frame, driven by spinnerAnimator's
+    // continuous invalidate() ticks rather than a fresh setCommands().
+    private fun drawSpinnerCommand(canvas: Canvas, command: JSONObject, alpha: Float) {
+        val x = command.getDouble("x").toFloat()
+        val y = command.getDouble("y").toFloat()
+        val size = command.getDouble("size").toFloat()
+        val strokeWidth = command.getDouble("strokeWidth").toFloat()
+        val center = size / 2
+        val radius = center - strokeWidth / 2
+        val cx = x + center
+        val cy = y + center
+        val rect = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
+
+        val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            this.strokeWidth = strokeWidth
+            color = Color.parseColor(command.getString("trackColor"))
+            this.alpha = (this.alpha * alpha).toInt()
+        }
+        canvas.drawArc(rect, 0f, 360f, false, trackPaint)
+
+        val sweepPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            this.strokeWidth = strokeWidth
+            strokeCap = Paint.Cap.ROUND
+            color = Color.parseColor(command.getString("color"))
+            this.alpha = (this.alpha * alpha).toInt()
+        }
+        val periodMs = 1100f
+        val rotation = (android.os.SystemClock.uptimeMillis() % periodMs.toLong()) / periodMs * 360f
+        canvas.drawArc(rect, rotation, 110f, false, sweepPaint)
     }
 
     // Only the panel whose index matches this group's current local

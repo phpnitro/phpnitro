@@ -27,6 +27,7 @@ final class RenderHero implements RenderNode
     public function __construct(
         private readonly RenderNode $child,
         private readonly string $tag,
+        private readonly ?Curve $curve = null,
     ) {
         $this->size = Size::zero();
     }
@@ -40,7 +41,7 @@ final class RenderHero implements RenderNode
 
     public function paint(NativeCanvas $canvas, float $x, float $y): void
     {
-        $canvas->beginHero($this->tag, $x, $y, $this->size->width, $this->size->height);
+        $canvas->beginHero($this->tag, $x, $y, $this->size->width, $this->size->height, $this->curve);
         $this->child->paint($canvas, $x, $y);
         $canvas->endHero();
     }

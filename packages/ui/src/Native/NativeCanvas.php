@@ -124,10 +124,17 @@ final class NativeCanvas
      * see drawHeroTransition()) instead of just crossfading in place like
      * everything else. See RenderHero, which is what actually calls this.
      */
-    public function beginHero(string $tag, float $x, float $y, float $width, float $height): self
+    public function beginHero(string $tag, float $x, float $y, float $width, float $height, ?Curve $curve = null): self
     {
         $this->heroTag = $tag;
-        $this->heroRegions[] = ['tag' => $tag, 'x' => $x, 'y' => $y, 'width' => $width, 'height' => $height];
+        $this->heroRegions[] = array_filter([
+            'tag' => $tag,
+            'x' => $x,
+            'y' => $y,
+            'width' => $width,
+            'height' => $height,
+            'curve' => $curve?->name,
+        ], static fn (mixed $value): bool => $value !== null);
 
         return $this;
     }
@@ -232,6 +239,34 @@ final class NativeCanvas
             'loop' => $loop,
             'autoplay' => $autoplay,
         ];
+
+        return $this;
+    }
+
+    /**
+     * An indeterminate spinner — Flutter's CircularProgressIndicator()
+     * with no `value`. Unlike NativeCircularProgress (a determinate
+     * percent, fully described by one PHP-computed frame), a spinner has
+     * to keep rotating between renders with nobody re-fetching anything,
+     * which this request/response pipeline has no way to express as a
+     * static command. So this command carries no rotation angle at all —
+     * NativeCanvasView.kt's drawSpinnerCommand() computes it from its own
+     * clock every frame, and keeps invalidating on its own (a small
+     * continuously-repeating ValueAnimator, started/stopped based on
+     * whether any "spinner" command is present) for as long as one is on
+     * screen. See RenderSpinner.
+     */
+    public function spinner(float $x, float $y, float $size, string $color, string $trackColor, float $strokeWidth): self
+    {
+        $this->commands[] = $this->tagFixed([
+            'type' => 'spinner',
+            'x' => $x,
+            'y' => $y,
+            'size' => $size,
+            'color' => $color,
+            'trackColor' => $trackColor,
+            'strokeWidth' => $strokeWidth,
+        ]);
 
         return $this;
     }
