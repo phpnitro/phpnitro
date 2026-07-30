@@ -43,10 +43,16 @@ final class NativeCanvas
      */
     private array $hitRegions = [];
 
+    /**
+     * @var array<int, array<string, mixed>>
+     */
+    private array $heroRegions = [];
+
     private float $contentHeight = 0.0;
     private ?float $renderTimeMs = null;
     private ?string $redirect = null;
     private bool $fixedMode = false;
+    private ?string $heroTag = null;
 
     /**
      * Everything painted between beginFixed()/endFixed() is tagged
@@ -71,6 +77,31 @@ final class NativeCanvas
     }
 
     /**
+     * The native equivalent of Engine\Hero: everything painted between
+     * beginHero($tag)/endHero() is tagged "hero": $tag, and the wrapper's
+     * own bounding box is recorded in heroRegions. When the SAME tag shows
+     * up in two consecutive renders at two different rects,
+     * NativeCanvasView.kt flies that tagged subtree from its old rect to
+     * its new one (a real FLIP transition — translate+scale via a Matrix,
+     * see drawHeroTransition()) instead of just crossfading in place like
+     * everything else. See RenderHero, which is what actually calls this.
+     */
+    public function beginHero(string $tag, float $x, float $y, float $width, float $height): self
+    {
+        $this->heroTag = $tag;
+        $this->heroRegions[] = ['tag' => $tag, 'x' => $x, 'y' => $y, 'width' => $width, 'height' => $height];
+
+        return $this;
+    }
+
+    public function endHero(): self
+    {
+        $this->heroTag = null;
+
+        return $this;
+    }
+
+    /**
      * @param array<string, mixed> $command
      * @return array<string, mixed>
      */
@@ -78,6 +109,9 @@ final class NativeCanvas
     {
         if ($this->fixedMode) {
             $command['fixed'] = true;
+        }
+        if ($this->heroTag !== null) {
+            $command['hero'] = $this->heroTag;
         }
 
         return $command;
@@ -302,6 +336,7 @@ final class NativeCanvas
         return json_encode(array_filter([
             'commands' => $this->commands,
             'hitRegions' => $this->hitRegions,
+            'heroRegions' => $this->heroRegions !== [] ? $this->heroRegions : null,
             'contentHeight' => $this->contentHeight,
             'renderTimeMs' => $this->renderTimeMs,
             'redirect' => $this->redirect,

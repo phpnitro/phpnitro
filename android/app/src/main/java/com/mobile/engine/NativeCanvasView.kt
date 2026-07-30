@@ -87,6 +87,19 @@ class NativeCanvasView(context: Context) : View(context) {
     private var previousCommands: JSONArray? = null
     private var fadeAnimator: ValueAnimator? = null
     private var fadeProgress: Float = 1f
+
+    // Hero FLIP transition (NativeCanvas::beginHero()/heroRegions in the
+    // JSON payload): heroRegions is this render's {tag: rect} map;
+    // previousHeroRegions is the prior render's. A tag present in both at
+    // two DIFFERENT rects means that subtree should fly from the old rect
+    // to the new one instead of just crossfading in place like everything
+    // else — activeHeroFlights holds (oldRect, newRect) per flying tag for
+    // the duration of heroAnimator, read by drawHeroTransition().
+    private var heroRegions: Map<String, RectF> = emptyMap()
+    private var previousHeroRegions: Map<String, RectF>? = null
+    private var heroAnimator: ValueAnimator? = null
+    private var heroProgress: Float = 1f
+    private var activeHeroFlights: Map<String, Pair<RectF, RectF>> = emptyMap()
     // regionDp is the tapped hit region's own rect, in the same dp space
     // as every draw command — NativeRenderPocActivity needs it for
     // "focus:" actions, to position a real EditText overlay exactly over
@@ -157,8 +170,12 @@ class NativeCanvasView(context: Context) : View(context) {
 
             previousCommands = if (commands.length() > 0) commands else null
             commands = newCommands
+
+            previousHeroRegions = if (heroRegions.isNotEmpty()) heroRegions else null
+            heroRegions = parseHeroRegions(payload.optJSONArray("heroRegions"))
             Log.i("NativeCanvasView", "setCommands: ${commands.length()} commands, ${hitRegions.length()} hit regions, contentHeight=$contentHeight, view size ${width}x${height}")
             startCrossfade()
+            startHeroTransition()
         } catch (e: org.json.JSONException) {
             Log.e("NativeCanvasView", "setCommands: response wasn't valid JSON: $json", e)
         }
@@ -182,6 +199,81 @@ class NativeCanvasView(context: Context) : View(context) {
             start()
         }
     }
+
+    private fun parseHeroRegions(array: JSONArray?): Map<String, RectF> {
+        if (array == null) return emptyMap()
+        val result = mutableMapOf<String, RectF>()
+        for (index in 0 until array.length()) {
+            val region = array.getJSONObject(index)
+            val left = region.getDouble("x").toFloat()
+            val top = region.getDouble("y").toFloat()
+            result[region.getString("tag")] = RectF(left, top, left + region.getDouble("width").toFloat(), top + region.getDouble("height").toFloat())
+        }
+        return result
+    }
+
+    private fun startHeroTransition() {
+        val previous = previousHeroRegions
+        heroAnimator?.cancel()
+        activeHeroFlights = if (previous == null) {
+            emptyMap()
+        } else {
+            heroRegions.mapNotNull { (tag, newRect) ->
+                val oldRect = previous[tag]
+                if (oldRect != null && oldRect != newRect) tag to (oldRect to newRect) else null
+            }.toMap()
+        }
+        if (activeHeroFlights.isEmpty()) return
+        heroProgress = 0f
+        heroAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 280
+            interpolator = DecelerateInterpolator()
+            addUpdateListener {
+                heroProgress = it.animatedValue as Float
+                invalidate()
+            }
+            start()
+        }
+    }
+
+    /**
+     * Flies each tagged subtree from its old rect to its new one — a real
+     * FLIP transition, not a crossfade: the new render's own commands for
+     * that tag are replayed through a Matrix mapping their authored (new)
+     * rect onto this frame's interpolated rect, so the element visibly
+     * translates+scales across the screen instead of just fading. Drawn in
+     * screen space (density scale only, no scroll translate) since a Hero
+     * flight crosses a navigation boundary where the two screens' scroll
+     * positions aren't comparable.
+     */
+    private fun drawHeroTransition(canvas: Canvas) {
+        if (activeHeroFlights.isEmpty()) return
+        val saved = canvas.save()
+        canvas.scale(density, density)
+        for ((tag, flight) in activeHeroFlights) {
+            val (oldRect, newRect) = flight
+            val interpRect = RectF(
+                lerp(oldRect.left, newRect.left, heroProgress),
+                lerp(oldRect.top, newRect.top, heroProgress),
+                lerp(oldRect.right, newRect.right, heroProgress),
+                lerp(oldRect.bottom, newRect.bottom, heroProgress),
+            )
+            val matrix = Matrix()
+            matrix.postTranslate(-newRect.left, -newRect.top)
+            if (newRect.width() > 0 && newRect.height() > 0) {
+                matrix.postScale(interpRect.width() / newRect.width(), interpRect.height() / newRect.height())
+            }
+            matrix.postTranslate(interpRect.left, interpRect.top)
+            val innerSaved = canvas.save()
+            canvas.concat(matrix)
+            drawCommands(canvas, commands, 1f, fixed = false, onlyHeroTag = tag)
+            drawCommands(canvas, commands, 1f, fixed = true, onlyHeroTag = tag)
+            canvas.restoreToCount(innerSaved)
+        }
+        canvas.restoreToCount(saved)
+    }
+
+    private fun lerp(from: Float, to: Float, progress: Float): Float = from + (to - from) * progress
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val maxScroll = maxScrollY()
@@ -328,14 +420,19 @@ class NativeCanvasView(context: Context) : View(context) {
 
         val previous = previousCommands
 
+        val flyingTags = activeHeroFlights.keys
+
         // Scrollable pass: translated by -scrollY, fixed commands excluded.
+        // Commands belonging to a tag currently in flight are skipped here
+        // (in both the outgoing and incoming lists) — drawHeroTransition()
+        // draws that tag's own pass instead, so it isn't drawn twice.
         var savedState = canvas.save()
         canvas.scale(density, density)
         canvas.translate(0f, -scrollY)
         if (previous != null && fadeProgress < 1f) {
-            drawCommands(canvas, previous, 1f - fadeProgress, fixed = false)
+            drawCommands(canvas, previous, 1f - fadeProgress, fixed = false, excludeHeroTags = flyingTags)
         }
-        drawCommands(canvas, commands, fadeProgress, fixed = false)
+        drawCommands(canvas, commands, fadeProgress, fixed = false, excludeHeroTags = flyingTags)
         canvas.restoreToCount(savedState)
 
         // Fixed pass: same density scale, no scroll translate — an
@@ -344,10 +441,12 @@ class NativeCanvasView(context: Context) : View(context) {
         savedState = canvas.save()
         canvas.scale(density, density)
         if (previous != null && fadeProgress < 1f) {
-            drawCommands(canvas, previous, 1f - fadeProgress, fixed = true)
+            drawCommands(canvas, previous, 1f - fadeProgress, fixed = true, excludeHeroTags = flyingTags)
         }
-        drawCommands(canvas, commands, fadeProgress, fixed = true)
+        drawCommands(canvas, commands, fadeProgress, fixed = true, excludeHeroTags = flyingTags)
         canvas.restoreToCount(savedState)
+
+        drawHeroTransition(canvas)
     }
 
     /**
@@ -375,10 +474,23 @@ class NativeCanvasView(context: Context) : View(context) {
         canvas.restoreToCount(saved)
     }
 
-    private fun drawCommands(canvas: Canvas, list: JSONArray, alpha: Float, fixed: Boolean) {
+    private fun drawCommands(
+        canvas: Canvas,
+        list: JSONArray,
+        alpha: Float,
+        fixed: Boolean,
+        excludeHeroTags: Set<String> = emptySet(),
+        onlyHeroTag: String? = null,
+    ) {
         for (index in 0 until list.length()) {
             val command = list.getJSONObject(index)
             if (command.optBoolean("fixed", false) != fixed) continue
+            val hero = command.optString("hero", "").ifEmpty { null }
+            if (onlyHeroTag != null) {
+                if (hero != onlyHeroTag) continue
+            } else if (hero != null && excludeHeroTags.contains(hero)) {
+                continue
+            }
             when (command.getString("type")) {
                 "rect" -> drawRectCommand(canvas, command, alpha)
                 "text" -> drawTextCommand(canvas, command, alpha)

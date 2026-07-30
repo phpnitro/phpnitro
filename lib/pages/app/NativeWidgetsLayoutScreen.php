@@ -17,10 +17,12 @@ use Engine\Native\RenderCenter;
 use Engine\Native\RenderContainer;
 use Engine\Native\RenderCustomPaint;
 use Engine\Native\RenderFlex;
+use Engine\Native\RenderHero;
 use Engine\Native\RenderNode;
 use Engine\Native\RenderPadding;
 use Engine\Native\RenderPositioned;
 use Engine\Native\RenderStack;
+use Engine\Native\RenderTappable;
 use Engine\Native\RenderText;
 use Engine\Native\RenderWrap;
 use Engine\Native\Tokens;
@@ -28,8 +30,8 @@ use Engine\Native\Tokens;
 /**
  * The native conversion of WidgetsLayoutPage.php's static half — Align,
  * Center, Container, Row, Margin/Padding, Table, Stack/Positioned, Wrap,
- * Button, Canvas, PageView all have a real native equivalent by now (see
- * packages/ui/src/Native/'s widget layer).
+ * Button, Canvas, PageView, Hero all have a real native equivalent by now
+ * (see packages/ui/src/Native/'s widget layer). Full parity reached.
  *
  * FadeIn/AnimatedContainer aren't separate widgets here because
  * NativeCanvasView.kt already does something structurally equivalent for
@@ -40,11 +42,15 @@ use Engine\Native\Tokens;
  * those two widgets exist for, just applied screen-wide instead of
  * per-element.
  *
- * Hero (a specific tagged element FLIP-animating its own position/size
- * between two screens, independently of the rest of the transition) is
- * the one genuine gap — that needs per-element tracking across a
- * navigation, not just a whole-screen crossfade, real additional work
- * this doesn't attempt. Stays WebView-only.
+ * Hero is RenderHero — same $tag idea as Engine\Hero, but since there's no
+ * DOM/CSS transition to hand off to, NativeCanvasView.kt itself flies the
+ * tagged subtree from its old rect to its new one (a real Matrix-based
+ * FLIP, see drawHeroTransition()) whenever the same tag shows up at a
+ * different rect between two renders. The demo below toggles the same
+ * tagged box between a small inline badge and a large centered card —
+ * exactly the "same element, different rect" case the mechanism detects,
+ * whether that swap comes from a local toggle like this or an actual
+ * cross-screen navigation.
  */
 final class NativeWidgetsLayoutScreen
 {
@@ -52,6 +58,7 @@ final class NativeWidgetsLayoutScreen
     {
         $contentWidth = $screenWidth - 2 * Tokens::SPACE_XL;
         $layoutPage = (int) ($_GET['layout_page'] ?? '0');
+        $heroOpen = ($_GET['hero_open'] ?? '') === '1';
 
         $caption = static fn (string $text): RenderNode => new RenderPadding(
             EdgeInsets::only(top: Tokens::SPACE_LG, bottom: Tokens::SPACE_SM),
@@ -128,14 +135,24 @@ final class NativeWidgetsLayoutScreen
                     ], $layoutPage, 'layout_page'),
 
                     new NativeDivider(),
-                    new RenderPadding(
-                        EdgeInsets::only(top: Tokens::SPACE_LG),
-                        new RenderText('Hero (FLIP par élément entre deux écrans) reste sur le pipeline WebView.', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
-                    ),
-                    new RenderPadding(
-                        EdgeInsets::only(top: Tokens::SPACE_MD),
-                        new NativeButton('Voir sur WebView', 'webview:/widgets/layout', background: Tokens::surfaceMuted(), foreground: Tokens::ink()),
-                    ),
+                    $caption('Hero — FLIP réel par élément (tape pour agrandir)'),
+                    $heroOpen
+                        ? new RenderTappable(
+                            new RenderHero(
+                                new RenderContainer(new RenderCenter(new RenderText('hero', Tokens::TEXT_TITLE, Color::white()->toHex(), bold: true)), width: $contentWidth, height: 160, background: Color::of('purple', 600), radius: Tokens::RADIUS_LG),
+                                'layout-hero-demo',
+                            ),
+                            'toggle:hero_open',
+                            ['next' => '0'],
+                        )
+                        : new RenderTappable(
+                            new RenderHero(
+                                new RenderContainer(new RenderCenter(new RenderText('hero', Tokens::TEXT_BODY_SMALL, Color::white()->toHex(), bold: true)), width: 72, height: 40, background: Color::of('purple', 600), radius: Tokens::RADIUS_SM),
+                                'layout-hero-demo',
+                            ),
+                            'toggle:hero_open',
+                            ['next' => '1'],
+                        ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,
