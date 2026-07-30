@@ -700,13 +700,17 @@ function cmdNew(string $directory): void
 
     mkdir($targetDir, 0777, true);
 
-    // `packages/` ships alongside `lib/` and `public/` (not published to
-    // Packagist yet) so composer.json's autoload map ("packages/ui/src",
-    // "packages/database/src") keeps resolving correctly in the new project —
-    // same relative shape as this framework's own checkout. Once phpnitro/ui
-    // and phpnitro/database are on Packagist, new projects won't need this
-    // local copy at all.
-    foreach (['lib', 'packages', 'android', 'ios', 'assets', 'bin', 'public'] as $part) {
+    // `packages/` is NOT copied — phpnitro/ui, phpnitro/database,
+    // phpnitro/firebase, phpnitro/countries, phpnitro/preferences, and
+    // phpnitro/format are real Packagist packages now (mirrored read-only
+    // from this monorepo's own packages/*), declared as ordinary
+    // composer.json dependencies below and resolved into vendor/ like any
+    // other library — the same relationship a Flutter project has with
+    // the Flutter SDK: referenced, not copied. `bin/` isn't copied either
+    // — phpx is meant to be installed once, globally (see this file's own
+    // top-of-file docblock), and every internal `__DIR__`-relative lookup
+    // (generate-android-icon.php, etc.) already assumes exactly that.
+    foreach (['lib', 'android', 'ios', 'assets', 'public'] as $part) {
         $source = PHPX_TOOL_ROOT . '/' . $part;
         $destination = $targetDir . '/' . $part;
         copyDirectory($source, $destination, [
@@ -715,36 +719,54 @@ function cmdNew(string $directory): void
         echo "Copied {$part}/ to {$destination}\n";
     }
 
-    foreach (['.env', 'composer.json', 'package.json', 'package-lock.json', 'phpnitro.yml'] as $file) {
+    foreach (['.env', 'package.json', 'package-lock.json', 'phpnitro.yml'] as $file) {
         copy(PHPX_TOOL_ROOT . '/' . $file, $targetDir . '/' . $file);
         echo "Copied {$file} to {$targetDir}/{$file}\n";
     }
 
-    // copy() never preserves the source's permission bits — bin/phpx would
-    // otherwise land non-executable, breaking the "bin/phpx serve" this
-    // command's own next-steps hint suggests running. Set explicitly rather
-    // than read back from the source: fileperms() on a phar:// source (when
-    // this command itself runs from a packaged phpx.phar) reports a
-    // synthetic 0444 for every entry regardless of the real file mode, so
-    // copying that value forward would make the destination read-only too.
-    chmod($targetDir . '/bin/phpx', 0755);
-
-    // When this command itself runs from a packaged phpx.phar, box strips
-    // bin/phpx's shebang line from the copy it bundles as the phar's "main"
-    // entry point (it's invoked via require from the phar's own stub, not
-    // executed directly) — so the copy landing in the new project is
-    // missing the "#!/usr/bin/env php" line the shell needs to run
-    // ./bin/phpx directly, even with the executable bit set above.
-    $binPhpxPath = $targetDir . '/bin/phpx';
-    $binPhpxContent = file_get_contents($binPhpxPath);
-    if ($binPhpxContent !== false && !str_starts_with($binPhpxContent, "#!")) {
-        file_put_contents($binPhpxPath, "#!/usr/bin/env php\n" . $binPhpxContent);
-    }
+    file_put_contents($targetDir . '/composer.json', newProjectComposerJson());
+    echo "Wrote {$targetDir}/composer.json (phpnitro/* packages as Packagist dependencies)\n";
 
     resetPagesForNewProject($targetDir);
 
     echo "Project scaffolded at {$targetDir}\n";
-    echo "Next: cd {$directory} && composer install && bin/phpx make:page Home / && bin/phpx serve\n";
+    echo "Next: cd {$directory} && composer install && phpx make:page Home / && phpx serve\n";
+}
+
+/**
+ * A fresh, minimal composer.json for a scaffolded project — the
+ * phpnitro/* packages as ordinary version-constrained dependencies
+ * (resolved from Packagist into vendor/), not a copy of this monorepo's
+ * own composer.json (whose autoload map points at packages/*, which no
+ * longer exists in a new project).
+ */
+function newProjectComposerJson(): string
+{
+    return json_encode([
+        'license' => 'MIT',
+        'require' => [
+            'php' => '>=8.1',
+            'phpnitro/ui' => '^1.0',
+            'phpnitro/database' => '^1.0',
+            'phpnitro/firebase' => '^1.0',
+            'phpnitro/countries' => '^1.0',
+            'phpnitro/preferences' => '^1.0',
+            'phpnitro/format' => '^1.0',
+            'symfony/http-foundation' => '^8.1',
+            'symfony/dotenv' => '^8.1',
+            'symfony/yaml' => '^8.1',
+        ],
+        'require-dev' => [
+            'phpunit/phpunit' => '^13.2',
+            'phpstan/phpstan' => '^2.1',
+        ],
+        'autoload' => [
+            'psr-4' => [
+                'Engine\\App\\' => 'lib/pages/app/',
+                'Backend\\' => 'lib/backend/src/',
+            ],
+        ],
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 }
 
 /**
@@ -760,7 +782,14 @@ function resetPagesForNewProject(string $targetDir): void
     foreach (glob($appDir . '/*.php') ?: [] as $file) {
         unlink($file);
     }
-    touch($appDir . '/.gitkeep');
+    // A fresh scaffold still needs ONE working screen — public/index.php's
+    // /native/layout-demo route (rewritten below) always falls back to
+    // NativeHomeScreen for any unmatched ?screen=, including the very
+    // first request NativeRenderPocActivity ever makes. Leaving lib/pages/
+    // app/ completely empty would 500 on that first request instead of
+    // showing a real, if minimal, screen — the same reason `flutter
+    // create` ships a working counter app instead of a blank main.dart.
+    file_put_contents($appDir . '/NativeHomeScreen.php', nativeHomeScreenTemplate());
 
     $indexPath = $targetDir . '/public/index.php';
     $content = file_get_contents($indexPath);
@@ -781,7 +810,109 @@ function resetPagesForNewProject(string $targetDir): void
         $content,
     );
 
+    // The /native/layout-demo route itself isn't just the match($screen)
+    // table — it's ~240 lines seeding demo-specific state unconditionally
+    // on every request (dismissible_items/reorder_items into $_SESSION,
+    // stepperStep/stepperData, tapCount, loginError, firebaseError,
+    // redirectScreen — all in service of screens just deleted above), so
+    // trimming only the match table left dead calls like
+    // NativeWidgetsDismissibleScreen::initialItems() still executing
+    // before the match() even ran. Replaced wholesale with the minimal
+    // core every screen actually needs (width/height, MediaQuery::init(),
+    // action/scrollY, the lastHash short-circuit) — anchored on the
+    // '/native/layout-demo' and '/_dev/version' markers so this survives
+    // future edits to either route without re-deriving byte offsets.
+    $startMarker = "if (\$path === '/native/layout-demo') {";
+    $endMarker = "if (\$debug && \$path === '/_dev/version') {";
+    $startPos = strpos($content, $startMarker);
+    $endPos = strpos($content, $endMarker);
+    if ($startPos !== false && $endPos !== false && $endPos > $startPos) {
+        $content = substr($content, 0, $startPos) . minimalLayoutDemoRoute() . "\n" . substr($content, $endPos);
+    }
+
     file_put_contents($indexPath, $content);
+}
+
+/**
+ * The minimal core of /native/layout-demo every screen — including one
+ * the developer hasn't written yet — actually needs: dp width/height (and
+ * MediaQuery::init(), so a widget nested under the screen's own build()
+ * can still read it), ?action=/?scroll_y= passthrough, and the
+ * incremental-rendering "unchanged" short-circuit (NativeCanvas::
+ * stableHash()). Demo-specific bootstrapping (session-seeded lists,
+ * multi-step form state, third-party auth error strings) belongs in a
+ * developer's OWN screen, not this route — see any Native*Screen.php this
+ * framework ships for the pattern.
+ */
+function minimalLayoutDemoRoute(): string
+{
+    return <<<'PHP'
+    if ($path === '/native/layout-demo') {
+        header('Content-Type: application/json');
+        $renderStart = microtime(true);
+
+        $screenWidth = (float) ($_GET['width'] ?? 360);
+        $screenHeight = (float) ($_GET['height'] ?? 720);
+        \Engine\Native\MediaQuery::init($screenWidth, $screenHeight);
+        $screen = $_GET['screen'] ?? 'home';
+        $action = $_GET['action'] ?? null;
+        $scrollY = (float) ($_GET['scroll_y'] ?? 0);
+
+        $tree = match ($screen) {
+            default => \Engine\App\NativeHomeScreen::build($screenWidth, $screenHeight),
+        };
+
+        $contentSize = $tree->layout(new Constraints($screenWidth, $screenWidth, 0, Constraints::INFINITY));
+
+        $canvas = new NativeCanvas();
+        $canvas->setContentHeight($contentSize->height);
+        $tree->paint($canvas, 0, 0);
+        $canvas->setRenderTimeMs((microtime(true) - $renderStart) * 1000);
+
+        $hash = $canvas->stableHash();
+        if (($_GET['lastHash'] ?? null) === $hash) {
+            echo json_encode(['unchanged' => true, 'hash' => $hash]);
+        } else {
+            echo $canvas->toJson();
+        }
+        exit;
+    }
+
+    PHP;
+}
+
+/**
+ * A real, working starter screen — not an empty canvas — so `phpx new` +
+ * `composer install` + `phpx serve` produces something on screen
+ * immediately, the same "you get a running app on the first try" promise
+ * `flutter create`'s default counter app makes.
+ */
+function nativeHomeScreenTemplate(): string
+{
+    return <<<'PHP'
+    <?php
+
+    namespace Engine\App;
+
+    use Engine\Native\NativeScaffold;
+    use Engine\Native\RenderCenter;
+    use Engine\Native\RenderNode;
+    use Engine\Native\RenderText;
+    use Engine\Native\Tokens;
+
+    final class NativeHomeScreen
+    {
+        public static function build(float $screenWidth, float $screenHeight): RenderNode
+        {
+            return new NativeScaffold(
+                new RenderCenter(new RenderText('Bienvenue sur PhpNitro', Tokens::TEXT_TITLE, Tokens::ink()->toHex(), bold: true)),
+                $screenWidth,
+                $screenHeight,
+            );
+        }
+    }
+
+    PHP;
 }
 
 /**
