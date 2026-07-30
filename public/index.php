@@ -109,6 +109,10 @@ if ($path === '/native/layout-demo') {
     $screenHeight = (float) ($_GET['height'] ?? 720);
     $screen = $_GET['screen'] ?? 'home';
     $action = $_GET['action'] ?? null;
+    // RenderLazyList's windowed prefetch — see NativeCanvasView.kt's
+    // checkScrollFollow(). Every screen receives this; only ones that
+    // build a RenderLazyList actually read it.
+    $scrollY = (float) ($_GET['scroll_y'] ?? 0);
 
     // php -S spawns a fresh process per request — no in-memory global
     // survives between the initial render and a later tap — so the tap
@@ -247,6 +251,7 @@ if ($path === '/native/layout-demo') {
         'widgets' => \Engine\App\NativeWidgetsIndexScreen::build($screenWidth, $screenHeight),
         'widgets-forms' => \Engine\App\NativeWidgetsFormsScreen::build($screenWidth),
         'widgets-layout' => \Engine\App\NativeWidgetsLayoutScreen::build($screenWidth, $screenHeight),
+        'widgets-lazylist' => \Engine\App\NativeWidgetsLazyListScreen::build($screenWidth, $screenHeight, $scrollY),
         'widgets-dialogs' => \Engine\App\NativeWidgetsDialogsScreen::build($screenWidth, $screenHeight),
         'widgets-stepper' => \Engine\App\NativeWidgetsStepperScreen::build($screenWidth, $screenHeight, $stepperStep, $stepperData),
         'widgets-countries' => \Engine\App\NativeWidgetsCountriesScreen::build($screenWidth, $screenHeight),
@@ -260,6 +265,9 @@ if ($path === '/native/layout-demo') {
 
     $canvas = new NativeCanvas();
     $canvas->setContentHeight($contentSize->height);
+    if ($screen === 'widgets-lazylist') {
+        $canvas->setScrollFollow();
+    }
     $tree->paint($canvas, 0, 0);
     $canvas->setRenderTimeMs((microtime(true) - $renderStart) * 1000);
     if ($redirectScreen !== null) {

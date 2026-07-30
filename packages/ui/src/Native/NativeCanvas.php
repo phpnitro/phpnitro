@@ -53,6 +53,24 @@ final class NativeCanvas
     private ?string $redirect = null;
     private bool $fixedMode = false;
     private ?string $heroTag = null;
+    private bool $scrollFollow = false;
+
+    /**
+     * RenderLazyList only builds/paints the items within its current
+     * scroll window, but reports the FULL virtual list height as its
+     * Size — this flag tells NativeCanvasView.kt "re-send scrollY and
+     * re-fetch as the user scrolls near the edge of what's actually
+     * loaded" instead of only ever building the first screenful once.
+     * Screens with no lazy list have nothing to prefetch and leave this
+     * false, so a normal scroll stays purely client-side with zero extra
+     * network chatter.
+     */
+    public function setScrollFollow(bool $follow = true): self
+    {
+        $this->scrollFollow = $follow;
+
+        return $this;
+    }
 
     /**
      * Everything painted between beginFixed()/endFixed() is tagged
@@ -340,6 +358,7 @@ final class NativeCanvas
             'contentHeight' => $this->contentHeight,
             'renderTimeMs' => $this->renderTimeMs,
             'redirect' => $this->redirect,
+            'scrollFollow' => $this->scrollFollow ? true : null,
         ], static fn (mixed $value): bool => $value !== null), JSON_THROW_ON_ERROR);
     }
 }

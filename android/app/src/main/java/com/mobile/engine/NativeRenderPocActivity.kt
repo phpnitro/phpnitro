@@ -129,6 +129,11 @@ class NativeRenderPocActivity : AppCompatActivity() {
         canvasView = NativeCanvasView(this)
         canvasView.density = resources.displayMetrics.density
         canvasView.onAction = { action, regionDp, meta -> onTap(action, regionDp, meta) }
+        // RenderLazyList screens: scrolled near the edge of the currently
+        // loaded window, re-fetch with the new scrollY so PHP can build
+        // the next one. No screen state changes (action stays null), same
+        // idiom as a plain re-render with the field values already held.
+        canvasView.onScrollFollow = { refetch(action = null, includeFields = true) }
 
         rootLayout = FrameLayout(this)
         rootLayout.addView(canvasView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -594,6 +599,10 @@ class NativeRenderPocActivity : AppCompatActivity() {
         val idParam = if (screenParam != null) "&id=${URLEncoder.encode(screenParam, "UTF-8")}" else ""
         val actionParam = if (action != null) "&action=${URLEncoder.encode(action, "UTF-8")}" else ""
         val onlineParam = "&online=${if (deviceBridge.isOnline()) 1 else 0}"
+        // RenderLazyList's windowed prefetch needs to know where the user
+        // actually is in the virtual list to build the right window —
+        // harmless for every other screen, which simply never reads it.
+        val scrollYParam = "&scroll_y=${canvasView.currentScrollYDp}"
         val fieldsParam = if (includeFields) {
             fieldValues.entries.joinToString("") { (name, value) -> "&${URLEncoder.encode(name, "UTF-8")}=${URLEncoder.encode(value, "UTF-8")}" }
         } else {
@@ -608,7 +617,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
         // "network/parse overhead" instead of one opaque total.
         val startNanos = System.nanoTime()
         try {
-            val connection = URL("http://127.0.0.1:$port/native/layout-demo?width=$screenWidthDp&height=$screenHeightDp&screen=$screen$idParam$actionParam$onlineParam$fieldsParam").openConnection() as HttpURLConnection
+            val connection = URL("http://127.0.0.1:$port/native/layout-demo?width=$screenWidthDp&height=$screenHeightDp&screen=$screen$idParam$actionParam$onlineParam$scrollYParam$fieldsParam").openConnection() as HttpURLConnection
             connection.connectTimeout = 5000
             Log.i(TAG, "Fetching /native/layout-demo (screen=$screen, action=$action), response code ${connection.responseCode}")
             val json = connection.inputStream.bufferedReader().use { it.readText() }

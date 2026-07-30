@@ -113,6 +113,33 @@ class NativeCanvasView(context: Context) : View(context) {
     // (contentHeight); scrollY is clamped to [0, contentHeight - viewport].
     private var contentHeight: Float = 0f
     private var scrollY: Float = 0f
+
+    // RenderLazyList support: PHP only builds/paints the items within a
+    // window around the scrollY it was given (NativeCanvas::
+    // setScrollFollow()), so scrolling far enough from where that window
+    // was centered needs a re-fetch to load the next window — otherwise
+    // the user scrolls into blank space past whatever was last built.
+    // lastFetchedScrollY is the scrollY that produced the CURRENT
+    // commands; a re-fetch is triggered once actual scroll drifts more
+    // than one viewport-height away from it, well inside
+    // RenderLazyList's default 2-viewport buffer so the new window is
+    // very likely already loaded by the time the user reaches its edge.
+    private var scrollFollow: Boolean = false
+    private var lastFetchedScrollY: Float = 0f
+    var onScrollFollow: ((scrollYDp: Float) -> Unit)? = null
+
+    /** Current scroll position in dp — NativeRenderPocActivity reports this on every fetch. */
+    val currentScrollYDp: Float get() = scrollY
+
+    private fun checkScrollFollow() {
+        if (!scrollFollow) return
+        val viewportDp = if (density > 0) height / density else 0f
+        if (viewportDp <= 0f) return
+        if (abs(scrollY - lastFetchedScrollY) > viewportDp) {
+            lastFetchedScrollY = scrollY
+            onScrollFollow?.invoke(scrollY)
+        }
+    }
     private var scrollAnimator: ValueAnimator? = null
     private var velocityTracker: VelocityTracker? = null
     private var touchDownX = 0f
@@ -166,7 +193,9 @@ class NativeCanvasView(context: Context) : View(context) {
             hitRegions = payload.optJSONArray("hitRegions") ?: JSONArray()
             contentHeight = payload.optDouble("contentHeight", 0.0).toFloat()
             lastScreenWidthDp = screenWidthDp
+            scrollFollow = payload.optBoolean("scrollFollow", false)
             scrollY = scrollY.coerceIn(0f, maxScrollY())
+            lastFetchedScrollY = scrollY
 
             previousCommands = if (commands.length() > 0) commands else null
             commands = newCommands
@@ -392,6 +421,7 @@ class NativeCanvasView(context: Context) : View(context) {
                     val deltaDp = (lastTouchY - event.y) / density
                     scrollY = (scrollY + deltaDp).coerceIn(0f, maxScroll)
                     lastTouchY = event.y
+                    checkScrollFollow()
                     invalidate()
                 }
             }
@@ -434,6 +464,7 @@ class NativeCanvasView(context: Context) : View(context) {
             interpolator = DecelerateInterpolator()
             addUpdateListener {
                 scrollY = it.animatedValue as Float
+                checkScrollFollow()
                 invalidate()
             }
             start()
