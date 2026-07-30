@@ -11,7 +11,9 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Shader
+import android.graphics.Rect
 import android.graphics.Typeface
+import android.os.Bundle
 import android.util.Log
 import android.view.GestureDetector
 import android.view.HapticFeedbackConstants
@@ -19,6 +21,9 @@ import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.view.View
 import android.view.ViewConfiguration
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityNodeProvider
 import android.view.animation.DecelerateInterpolator
 import org.json.JSONArray
 import org.json.JSONObject
@@ -80,6 +85,12 @@ class NativeCanvasView(context: Context) : View(context) {
         // non-issue.
         setLayerType(LAYER_TYPE_SOFTWARE, null)
         isClickable = true
+        // The Canvas draws pixels, not real Views — with nothing else, a
+        // screen reader has one giant unlabeled surface to announce.
+        // getAccessibilityNodeProvider() below exposes a virtual node per
+        // hitRegion/text command instead, so TalkBack's explore-by-touch
+        // and swipe navigation work the way they would over real widgets.
+        importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
     }
 
     private var commands: JSONArray = JSONArray()
@@ -268,6 +279,7 @@ class NativeCanvasView(context: Context) : View(context) {
             reorderItems = parseReorderItems(payload.optJSONArray("reorderRegions"))
             reorderOrder.clear()
             reorderAnimatedY.clear()
+            rebuildAccessibilityNodes()
             Log.i("NativeCanvasView", "setCommands: ${commands.length()} commands, ${hitRegions.length()} hit regions, contentHeight=$contentHeight, view size ${width}x${height}")
             startCrossfade()
             startHeroTransition()
@@ -1185,6 +1197,209 @@ class NativeCanvasView(context: Context) : View(context) {
         } else {
             val srcRect = android.graphics.Rect(0, 0, bitmap.width, bitmap.height)
             canvas.drawBitmap(bitmap, srcRect, rect, paint)
+        }
+    }
+
+    // Accessibility: a virtual node tree built from hitRegions
+    // (interactive — gets ACTION_CLICK) plus any "text" draw command not
+    // already covered by one (read-only — a plain label/heading TalkBack
+    // should still announce). Rebuilt on every setCommands() since the
+    // whole point of this pipeline is that both change on every render.
+    // Content description resolution, in order: an explicit "label" in
+    // the hitRegion's meta (see RenderTappable's $label param) > any text
+    // command whose baseline falls inside the region's rect (covers
+    // NativeButton/NativeListTile/NativeSelectBox for free, no per-widget
+    // wiring needed) > a humanized version of the action string itself
+    // (last resort for an icon-only region with no nearby text).
+    private data class AccessibilityNode(
+        val id: Int,
+        val rect: RectF,
+        val fixed: Boolean,
+        val description: String,
+        val clickable: Boolean,
+        val action: String?,
+    )
+
+    private var accessibilityNodes: List<AccessibilityNode> = emptyList()
+    private val accessibilityNodeProvider by lazy { CanvasAccessibilityNodeProvider() }
+
+    override fun getAccessibilityNodeProvider(): AccessibilityNodeProvider = accessibilityNodeProvider
+
+    private fun humanizeAction(action: String): String {
+        val token = action.substringAfterLast(':').substringBefore(':')
+        val words = token.replace('_', ' ').replace('-', ' ').trim()
+        return if (words.isEmpty()) action else words.replaceFirstChar { it.uppercase() }
+    }
+
+    private fun measureTextWidth(command: JSONObject): Float {
+        val paint = Paint().apply {
+            textSize = command.optDouble("size", 16.0).toFloat()
+            typeface = if (command.optBoolean("bold", false)) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+        }
+        return paint.measureText(command.optString("text", "")) / density
+    }
+
+    /** Text commands whose baseline falls inside `rect` (same fixed-ness), concatenated in document order. */
+    private fun inferLabelFromCommands(rect: RectF, fixed: Boolean, claimed: MutableSet<Int>): String? {
+        val parts = mutableListOf<String>()
+        for (index in 0 until commands.length()) {
+            if (index in claimed) continue
+            val command = commands.getJSONObject(index)
+            if (command.optString("type") != "text") continue
+            if (command.optBoolean("fixed", false) != fixed) continue
+            val x = command.getDouble("x").toFloat()
+            val y = command.getDouble("y").toFloat()
+            val size = command.optDouble("size", 16.0).toFloat()
+            // "text"'s (x, y) is a baseline point, not a box top-left —
+            // same ~80%-of-size baseline offset used everywhere else in
+            // this file approximates the glyph's actual top back out.
+            val top = y - size * 0.8f
+            if (x < rect.left - 1f || x > rect.right + 1f) continue
+            if (top < rect.top - 1f || top > rect.bottom + 1f) continue
+            parts.add(command.getString("text"))
+            claimed.add(index)
+        }
+        return if (parts.isEmpty()) null else parts.joinToString(" ")
+    }
+
+    private fun rebuildAccessibilityNodes() {
+        val nodes = mutableListOf<AccessibilityNode>()
+        val claimed = mutableSetOf<Int>()
+        var nextId = 1
+
+        for (index in 0 until hitRegions.length()) {
+            val region = hitRegions.getJSONObject(index)
+            val fixed = region.optBoolean("fixed", false)
+            val left = region.getDouble("x").toFloat()
+            val top = region.getDouble("y").toFloat()
+            val rect = RectF(left, top, left + region.getDouble("width").toFloat(), top + region.getDouble("height").toFloat())
+            val action = region.getString("action")
+            val explicitLabel = region.optJSONObject("meta")?.optString("label", "")?.takeIf { it.isNotEmpty() }
+            val label = explicitLabel ?: inferLabelFromCommands(rect, fixed, claimed) ?: humanizeAction(action)
+            nodes.add(AccessibilityNode(nextId++, rect, fixed, label, clickable = true, action = action))
+        }
+
+        for (index in 0 until commands.length()) {
+            if (index in claimed) continue
+            val command = commands.getJSONObject(index)
+            if (command.optString("type") != "text") continue
+            val text = command.optString("text", "")
+            if (text.isBlank()) continue
+            val fixed = command.optBoolean("fixed", false)
+            val x = command.getDouble("x").toFloat()
+            val y = command.getDouble("y").toFloat()
+            val size = command.optDouble("size", 16.0).toFloat()
+            val top = y - size * 0.8f
+            val rect = RectF(x, top, x + measureTextWidth(command), top + size * 1.25f)
+            nodes.add(AccessibilityNode(nextId++, rect, fixed, text, clickable = false, action = null))
+        }
+
+        accessibilityNodes = nodes
+        sendAccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED)
+    }
+
+    private fun dpRectToLocalPixels(rect: RectF, fixed: Boolean): Rect {
+        val scrollOffsetDp = if (fixed) 0f else scrollY
+        return Rect(
+            (rect.left * density).toInt(),
+            ((rect.top - scrollOffsetDp) * density).toInt(),
+            (rect.right * density).toInt(),
+            ((rect.bottom - scrollOffsetDp) * density).toInt(),
+        )
+    }
+
+    private fun dpRectToScreenPixels(rect: RectF, fixed: Boolean): Rect {
+        val location = IntArray(2)
+        getLocationOnScreen(location)
+        val local = dpRectToLocalPixels(rect, fixed)
+        return Rect(
+            location[0] + local.left,
+            location[1] + local.top,
+            location[0] + local.right,
+            location[1] + local.bottom,
+        )
+    }
+
+    // AccessibilityNodeInfo.obtain()/AccessibilityEvent.obtain() are
+    // deprecated in favor of their own constructors, but that constructor
+    // path is a recent addition (API 26+/33+ depending on the overload) —
+    // this app's minSdk is 24, and .obtain() remains fully functional (not
+    // scheduled for removal), the same pattern AOSP's own accessibility
+    // samples still use for a virtual node provider like this one.
+    @Suppress("DEPRECATION")
+    private inner class CanvasAccessibilityNodeProvider : AccessibilityNodeProvider() {
+        override fun createAccessibilityNodeInfo(virtualViewId: Int): AccessibilityNodeInfo? {
+            if (virtualViewId == AccessibilityNodeProvider.HOST_VIEW_ID) {
+                val info = AccessibilityNodeInfo.obtain(this@NativeCanvasView)
+                info.className = NativeCanvasView::class.java.name
+                info.setBoundsInParent(Rect(0, 0, width, height))
+                val location = IntArray(2)
+                getLocationOnScreen(location)
+                info.setBoundsInScreen(Rect(location[0], location[1], location[0] + width, location[1] + height))
+                val viewport = Rect(0, 0, width, height)
+                accessibilityNodes.forEach { node ->
+                    if (Rect.intersects(dpRectToLocalPixels(node.rect, node.fixed), viewport)) {
+                        info.addChild(this@NativeCanvasView, node.id)
+                    }
+                }
+                return info
+            }
+
+            val node = accessibilityNodes.firstOrNull { it.id == virtualViewId } ?: return null
+            val info = AccessibilityNodeInfo.obtain(this@NativeCanvasView, virtualViewId)
+            info.className = if (node.clickable) "android.widget.Button" else "android.widget.TextView"
+            info.packageName = context.packageName
+            info.text = node.description
+            info.contentDescription = node.description
+            info.setBoundsInParent(dpRectToLocalPixels(node.rect, node.fixed))
+            info.setBoundsInScreen(dpRectToScreenPixels(node.rect, node.fixed))
+            info.isClickable = node.clickable
+            info.isFocusable = true
+            info.isVisibleToUser = true
+            info.isEnabled = true
+            info.setParent(this@NativeCanvasView)
+            if (node.clickable) {
+                info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLICK)
+            }
+            info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_ACCESSIBILITY_FOCUS)
+            info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLEAR_ACCESSIBILITY_FOCUS)
+            return info
+        }
+
+        override fun performAction(virtualViewId: Int, action: Int, arguments: Bundle?): Boolean {
+            val node = accessibilityNodes.firstOrNull { it.id == virtualViewId }
+            return when (action) {
+                AccessibilityNodeInfo.ACTION_CLICK -> {
+                    if (node == null || !node.clickable || node.action == null) {
+                        false
+                    } else {
+                        performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                        onAction?.invoke(node.action, node.rect, null)
+                        true
+                    }
+                }
+                AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS -> {
+                    sendAccessibilityEventForVirtualView(virtualViewId, AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED)
+                    true
+                }
+                AccessibilityNodeInfo.ACTION_CLEAR_ACCESSIBILITY_FOCUS -> {
+                    sendAccessibilityEventForVirtualView(virtualViewId, AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUS_CLEARED)
+                    true
+                }
+                else -> false
+            }
+        }
+
+        override fun findAccessibilityNodeInfosByText(text: String?, virtualViewId: Int): List<AccessibilityNodeInfo> = emptyList()
+
+        private fun sendAccessibilityEventForVirtualView(virtualViewId: Int, eventType: Int) {
+            val node = accessibilityNodes.firstOrNull { it.id == virtualViewId } ?: return
+            val event = AccessibilityEvent.obtain(eventType)
+            event.packageName = context.packageName
+            event.className = NativeCanvasView::class.java.name
+            event.contentDescription = node.description
+            event.setSource(this@NativeCanvasView, virtualViewId)
+            (parent as? android.view.ViewGroup)?.requestSendAccessibilityEvent(this@NativeCanvasView, event)
         }
     }
 

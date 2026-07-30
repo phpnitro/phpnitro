@@ -29,6 +29,14 @@ final class RenderTappable implements RenderNode
      * @param ?array<string, mixed> $meta Extra data the client needs to handle this action —
      *                                    e.g. a SelectBox's options, a dialog's message/title.
      *                                    Not needed for plain navigate:/submit:/device: actions.
+     *                                    A `'label'` entry is also the escape hatch for
+     *                                    NativeCanvasView.kt's accessibility tree
+     *                                    (rebuildAccessibilityNodes()): it infers a
+     *                                    TalkBack content description from nearby text
+     *                                    commands automatically for most widgets, but an
+     *                                    icon-only region with no visible text (a raw
+     *                                    RenderTappable around an icon, say) has nothing to
+     *                                    infer from without one.
      */
     public function __construct(
         private readonly RenderNode $child,
