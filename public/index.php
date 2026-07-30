@@ -302,6 +302,7 @@ if ($path === '/native/layout-demo') {
         'widgets-lottie' => \Engine\App\NativeWidgetsLottieScreen::build($screenWidth, $screenHeight),
         'widgets-splash' => \Engine\App\NativeWidgetsSplashScreen::build($screenWidth, $screenHeight),
         'widgets-clienttabs' => \Engine\App\NativeWidgetsClientTabsScreen::build($screenWidth, $screenHeight),
+        'widgets-async' => \Engine\App\NativeWidgetsAsyncScreen::build($screenWidth, $screenHeight),
         default => \Engine\App\NativeHomeScreen::build($screenWidth, $screenHeight),
     };
 

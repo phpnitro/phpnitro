@@ -149,8 +149,13 @@ class NativeRenderPocActivity : AppCompatActivity() {
         // own -c/-b cookie jar and never exercised this path. One
         // process-wide CookieManager fixes it for every HttpURLConnection
         // this Activity ever makes, no per-call plumbing needed.
+        // PersistentCookieStore (not CookieManager's own in-memory default)
+        // so PHPSESSID — and therefore every $_SESSION value above — also
+        // survives Android killing the whole app process while
+        // backgrounded, not just a tap-to-tap sequence within one process
+        // lifetime. See its own docblock.
         if (java.net.CookieHandler.getDefault() == null) {
-            java.net.CookieHandler.setDefault(java.net.CookieManager(null, java.net.CookiePolicy.ACCEPT_ALL))
+            java.net.CookieHandler.setDefault(java.net.CookieManager(PersistentCookieStore(applicationContext), java.net.CookiePolicy.ACCEPT_ALL))
         }
 
         // osmdroid's tile server ToS requires a real user agent — the
@@ -158,7 +163,15 @@ class NativeRenderPocActivity : AppCompatActivity() {
         // any other OSM client is expected to set.
         org.osmdroid.config.Configuration.getInstance().userAgentValue = packageName
 
-        screenStack.add(intent.getStringExtra("screen") ?: "home")
+        // savedInstanceState carries screenStack back across a process
+        // death Android chose to recover from (see onSaveInstanceState) —
+        // only fall back to the intent's own screen (a fresh launch, or a
+        // process death Android didn't attempt to recover) when there's
+        // nothing to restore.
+        savedInstanceState?.getStringArrayList(STATE_SCREEN_STACK)?.let { screenStack.addAll(it) }
+        if (screenStack.isEmpty()) {
+            screenStack.add(intent.getStringExtra("screen") ?: "home")
+        }
 
         canvasView = NativeCanvasView(this)
         canvasView.density = resources.displayMetrics.density
@@ -873,12 +886,12 @@ class NativeRenderPocActivity : AppCompatActivity() {
     // RenderAnimated's per-element transitions are unaffected either way,
     // since those are opt-in and driven by their own tag matching, not
     // this blanket fade.
-    private fun refetch(action: String?, includeFields: Boolean = false, isNavigation: Boolean = false) {
+    private fun refetch(action: String?, includeFields: Boolean = false, isNavigation: Boolean = false, isPoll: Boolean = false) {
         if (serverPort == 0) return
-        thread { fetchDrawCommands(serverPort, action, includeFields, isNavigation) }
+        thread { fetchDrawCommands(serverPort, action, includeFields, isNavigation, isPoll) }
     }
 
-    private fun fetchDrawCommands(port: Int, action: String?, includeFields: Boolean = false, isNavigation: Boolean = false) {
+    private fun fetchDrawCommands(port: Int, action: String?, includeFields: Boolean = false, isNavigation: Boolean = false, isPoll: Boolean = false) {
         // dp-space width/height, not raw device pixels — every size the
         // PHP side hands back (font sizes, radii, button heights, Tokens'
         // whole scale) is authored as a dp-like number, and
@@ -913,8 +926,13 @@ class NativeRenderPocActivity : AppCompatActivity() {
         // Only sent for a same-screen refetch — a real navigation always
         // wants the fresh screen's full content regardless of what hash
         // happened to be lying around from wherever the user was before.
+        // Never sent for a poll (RenderAsync/NativeCanvas::pollAgain()):
+        // the entire point of a poll is noticing that AsyncTask moved
+        // from pending to done, so short-circuiting it to "unchanged"
+        // the one time it might actually differ would silently stop the
+        // polling loop — see scheduleTimedRefetch()'s pollAgain branch.
         // See NativeCanvas::stableHash().
-        val lastHashParam = if (!isNavigation && lastAppliedHash != null) "&lastHash=$lastAppliedHash" else ""
+        val lastHashParam = if (!isNavigation && !isPoll && lastAppliedHash != null) "&lastHash=$lastAppliedHash" else ""
         // Point 3 of the "grow the framework" pass: a real performance
         // number, not an intuition. roundTripMs is tap-to-parsed-frame —
         // HTTP + PHP compute + JSON parse — everything except the actual
@@ -968,7 +986,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
         canvasView.setCommands(json, screenWidthDp, isNavigation)
         syncLottieOverlays(canvasView.lottieRegions)
         firstScreenRendered = true
-        scheduleAutoNavigate(json)
+        scheduleTimedRefetch(json)
         lastAppliedHash = Regex("\"hash\":\"([0-9a-f]+)\"").find(json)?.groupValues?.get(1)
         if (devToolsPanel != null) updateDevToolsPanel(screenStack.lastOrNull() ?: "?", wasUnchanged = false)
     }
@@ -979,20 +997,38 @@ class NativeRenderPocActivity : AppCompatActivity() {
     // anything. Any previously queued jump is cancelled first — if this
     // same screen re-renders without the field (a real navigation already
     // happened, or a splash re-render came from something else), the stale
-    // jump must not fire on top of wherever the user is now.
-    private fun scheduleAutoNavigate(json: String) {
+    // jump must not fire on top of wherever the user is now. Same handler
+    // (and same cancel-first discipline) covers RenderAsync's
+    // "pollAgain":N field — a poll never mutates screenStack, it just
+    // refetches the SAME screen so AsyncTask::poll() gets asked again.
+    // Only one of the two fields can ever be present in a given response
+    // (autoNavigate wins if somehow both were), matching "a screen only
+    // ever wants to schedule one timed thing" from autoNavigate()'s own
+    // docblock.
+    private fun scheduleTimedRefetch(json: String) {
         autoNavigateHandler.removeCallbacksAndMessages(null)
-        val match = Regex("\"autoNavigate\":\\{\"screen\":\"([a-zA-Z0-9_/]+)\",\"afterMs\":([0-9]+)\\}").find(json) ?: return
-        val (screen, afterMs) = match.destructured
+
+        val autoNav = Regex("\"autoNavigate\":\\{\"screen\":\"([a-zA-Z0-9_/]+)\",\"afterMs\":([0-9]+)\\}").find(json)
+        if (autoNav != null) {
+            val (screen, afterMs) = autoNav.destructured
+            autoNavigateHandler.postDelayed({
+                clearTextInput()
+                if (screenStack.isNotEmpty()) screenStack[screenStack.size - 1] = screen else screenStack.add(screen)
+                refetch(action = null, isNavigation = true)
+            }, afterMs.toLong())
+            return
+        }
+
+        val pollAgain = Regex("\"pollAgain\":([0-9]+)").find(json) ?: return
+        val afterMs = pollAgain.groupValues[1].toLong()
         autoNavigateHandler.postDelayed({
-            clearTextInput()
-            if (screenStack.isNotEmpty()) screenStack[screenStack.size - 1] = screen else screenStack.add(screen)
-            refetch(action = null, isNavigation = true)
-        }, afterMs.toLong())
+            refetch(action = null, isNavigation = false, isPoll = true)
+        }, afterMs)
     }
 
     companion object {
         private const val TAG = "NativeRenderPoc"
+        private const val STATE_SCREEN_STACK = "screenStack"
 
         // `phpx dev:push` -> HotReloadReceiver's only way to reach a live
         // Activity instance (a manifest-registered BroadcastReceiver is
@@ -1091,6 +1127,18 @@ class NativeRenderPocActivity : AppCompatActivity() {
         if (hotReloadInstance?.get() === this) hotReloadInstance = null
         nfcAdapter?.disableForegroundDispatch(this)
         activeMapView?.onPause()
+    }
+
+    // Android can recover a killed background process's Activity later
+    // with this same Bundle handed back to onCreate() — the PHP session
+    // itself already survives that (see PersistentCookieStore), but
+    // "which screen was on top" only ever lived in this in-memory list
+    // until now, so a real process kill used to always land back on the
+    // launch screen even when the server-side session picked up right
+    // where it left off underneath it.
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putStringArrayList(STATE_SCREEN_STACK, ArrayList(screenStack))
     }
 
     override fun onDestroy() {

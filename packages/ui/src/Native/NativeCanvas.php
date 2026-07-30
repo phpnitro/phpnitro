@@ -69,6 +69,7 @@ final class NativeCanvas
 
     /** @var array{screen: string, afterMs: int}|null */
     private ?array $autoNavigate = null;
+    private ?int $pollAgainMs = null;
     private bool $fixedMode = false;
     private ?string $heroTag = null;
     private ?string $dismissKey = null;
@@ -575,6 +576,23 @@ final class NativeCanvas
     }
 
     /**
+     * RenderAsync's polling primitive: "refetch this SAME screen again in
+     * $afterMs, nothing navigates." NativeRenderPocActivity.kt deliberately
+     * never sends ?lastHash= on a poll-triggered refetch (see its own
+     * isPoll flag) even though it would otherwise qualify for the
+     * "unchanged" short-circuit — a poll's entire purpose is checking
+     * whether AsyncTask::poll() moved from pending to done, so skipping
+     * the real payload the one time it might have changed would silently
+     * stop the polling loop dead.
+     */
+    public function pollAgain(int $afterMs): self
+    {
+        $this->pollAgainMs = $afterMs;
+
+        return $this;
+    }
+
+    /**
      * A hash of everything that decides what's actually on screen —
      * deliberately excluding renderTimeMs (differs on literally every
      * request, real content or not) and the hash itself. index.php
@@ -597,6 +615,7 @@ final class NativeCanvas
             'reorderRegions' => $this->reorderRegions !== [] ? $this->reorderRegions : null,
             'lottieRegions' => $this->lottieRegions !== [] ? $this->lottieRegions : null,
             'autoNavigate' => $this->autoNavigate,
+            'pollAgain' => $this->pollAgainMs,
             'contentHeight' => $this->contentHeight,
             'redirect' => $this->redirect,
             'scrollFollow' => $this->scrollFollow ? true : null,
@@ -613,6 +632,7 @@ final class NativeCanvas
             'reorderRegions' => $this->reorderRegions !== [] ? $this->reorderRegions : null,
             'lottieRegions' => $this->lottieRegions !== [] ? $this->lottieRegions : null,
             'autoNavigate' => $this->autoNavigate,
+            'pollAgain' => $this->pollAgainMs,
             'contentHeight' => $this->contentHeight,
             'renderTimeMs' => $this->renderTimeMs,
             'redirect' => $this->redirect,

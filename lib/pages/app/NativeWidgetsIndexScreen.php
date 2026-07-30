@@ -89,6 +89,10 @@ final class NativeWidgetsIndexScreen
                         EdgeInsets::only(top: Tokens::SPACE_MD),
                         new NativeListTile('Onglets (état client)', 'Changer d\'onglet — zéro aller-retour serveur', 'tab', trailingIcon: 'chevron_right', action: 'navigate:widgets-clienttabs'),
                     ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeListTile('Async (Isolates)', 'Calcul lourd dans un vrai processus séparé', 'bolt', trailingIcon: 'chevron_right', action: 'navigate:widgets-async'),
+                    ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,
