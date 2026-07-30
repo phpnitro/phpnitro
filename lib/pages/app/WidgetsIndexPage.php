@@ -44,8 +44,8 @@ final class WidgetsIndexPage extends Screen
             // ouvrent l'écran natif qui les remplace.
             Button::make("Boîtes de dialogue (Engine\\Dialogs\\)", onClick: "phpxDevice.openNativeRenderPreviewAt('widgets-dialogs')", classes: 'text-blue-600 hover:underline text-left'),
             Button::make('Stepper (assistant multi-étapes)', onClick: "phpxDevice.openNativeRenderPreviewAt('widgets-stepper')", classes: 'text-blue-600 hover:underline text-left'),
-            Link::make('Firebase Auth (Engine\\Firebase\\)', '/widgets/firebase-auth'),
             Button::make('Countries (Engine\\Countries\\, offline, 194 pays)', onClick: "phpxDevice.openNativeRenderPreviewAt('widgets-countries')", classes: 'text-blue-600 hover:underline text-left'),
+            Button::make("Firebase Auth (Engine\\Firebase\\)", onClick: "phpxDevice.openNativeRenderPreviewAt('widgets-firebase-auth')", classes: 'text-blue-600 hover:underline text-left'),
             Button::make('Média (AudioPlayer, VideoPlayer, GoogleTranslate...)', onClick: "phpxDevice.openNativeRenderPreviewAt('widgets-media')", classes: 'text-blue-600 hover:underline text-left'),
             Button::make('Cartes (osmdroid, pan/zoom réel)', onClick: "phpxDevice.openNativeRenderPreviewAt('widgets-maps')", classes: 'text-blue-600 hover:underline text-left'),
             Text::make(

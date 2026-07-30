@@ -6,7 +6,6 @@ use Engine\App\AppNav;
 use Engine\App\DevicePage;
 use Engine\App\ProductPage;
 use Engine\App\SettingsPage;
-use Engine\App\WidgetsFirebaseAuthPage;
 use Engine\App\WidgetsFormsPage;
 use Engine\App\WidgetsIndexPage;
 use Engine\App\WidgetsLayoutPage;
@@ -330,12 +329,12 @@ if ($debug && $path === '/_dev/version') {
 }
 
 // '/', '/api', '/login', '/widgets/dialogs', '/widgets/stepper',
-// '/widgets/countries', '/widgets/media' and '/widgets/maps' are
-// deliberately absent — their WebView pages were removed once the native
-// conversion (lib/pages/app/Native*Screen.php) reached full parity.
-// Every remaining WebView link/nav item that used to point at one of them
-// now calls phpxDevice.openNativeRenderPreviewAt() instead (see
-// AppNav.php, ProductPage.php, WidgetsIndexPage.php). MainActivity is no
+// '/widgets/countries', '/widgets/media', '/widgets/maps' and
+// '/widgets/firebase-auth' are deliberately absent — their WebView pages
+// were removed once the native conversion (lib/pages/app/Native*Screen.php)
+// reached full parity. Every remaining WebView link/nav item that used to
+// point at one of them now calls phpxDevice.openNativeRenderPreviewAt()
+// instead (see AppNav.php, ProductPage.php, WidgetsIndexPage.php). MainActivity is no
 // longer the app's launcher (see AndroidManifest.xml) so nothing opens
 // this WebView server at a bare '/' anymore — every MainActivity launch
 // now targets one specific still-WebView-only path via
@@ -347,7 +346,6 @@ $router = new Router([
     '/widgets' => WidgetsIndexPage::class,
     '/widgets/layout' => WidgetsLayoutPage::class,
     '/widgets/forms' => WidgetsFormsPage::class,
-    '/widgets/firebase-auth' => WidgetsFirebaseAuthPage::class,
 ]);
 
 try {
