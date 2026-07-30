@@ -1,145 +1,149 @@
 # Widgets
 
-Chaque widget est une classe PHP avec un constructeur (propriétés configurables, comme dans Flutter) et une méthode `render(): string` qui produit du HTML :
+Chaque widget implémente `RenderNode` (`packages/ui/src/Native/RenderNode.php`) — `layout(Constraints): Size` puis `paint(NativeCanvas, x, y): void`, exactement comme un `RenderObject` Flutter. Toutes les classes vivent sous `Engine\Native\` (`packages/ui/src/Native/`). Voir [docs/architecture.md](architecture.md) pour le cycle complet.
+
+`packages/ui/src` lui-même (hors `Native/`) ne garde que `Color` (palette Tailwind typée, réutilisée pour son `toHex()`) et `NativeDrawCommand` (le protocole `/native/demo` figé, Phase 0) — tout le reste a été supprimé une fois converti.
+
+Un écran est une classe statique :
 
 ```php
-Button::make('Connexion');
-// -> <button class="bg-blue-600 ...">Connexion</button>
+final class MyScreen
+{
+    public static function build(float $screenWidth, float $screenHeight): RenderNode
+    {
+        return new NativeScaffold(
+            $body,
+            $screenWidth,
+            $screenHeight,
+            appBar: new NativeAppBar($screenWidth, 'Titre', backAction: 'back'),
+        );
+    }
+}
 ```
 
-Toutes les classes sont dans le namespace `Engine\` sauf préfixe explicite (`Maps\`, `Dialogs\`, `Payments\`, `Firebase\`, `Device\`, `Countries\`, `SocialAuth\`, `Connectivity\`, `Launcher\`, `Preferences\`, `Format\`) — des packages dédiés, chacun un second namespace PSR-4 dans le `composer.json` racine, pas des packages Composer séparés.
-
-**Widgets vs services.** La plupart des classes ci-dessous sont des widgets : `::make()` retourne un `Widget` qui rend son propre HTML complet. Mais un bouton d'action pré-stylé (paiement, vibreur, partage, authentification sociale...) impose sa propre apparence — si tu veux ton propre label/style, tu es coincé. `Engine\Device\`, `Engine\SocialAuth\` et une partie d'`Engine\Payments\` sont donc des **services** : des méthodes statiques qui retournent une expression JS brute (ou une redirection) à attacher à N'IMPORTE QUEL bouton via `Button::make($label, onClick: ...)`, plutôt qu'un widget imposé.
-
-Chaque widget est démontré quelque part : la route `/widgets` de l'app démo couvre tout sauf les paiements (voir [examples/ecom](../examples/ecom/README.md#paiement)).
+dispatchée par nom depuis `public/index.php`'s `match ($screen) { 'monecran' => MyScreen::build(...), ... }`.
 
 ## Mise en page
 
-| PHP | Rend en |
+| PHP | Rôle |
 |---|---|
-| `Column::make([$children], $classes)` | `<div class="flex flex-col ...">` |
-| `Row::make([$children], $classes)` | `<div class="flex flex-row ...">` |
-| `Wrap::make([$children], $classes)` | comme `Row`, mais passe à la ligne (`flex-wrap`) au lieu de déborder |
-| `Container::make($child, $classes, background: ?Color, rounded: ?Rounded)` | `<div>` à un seul enfant — `background`/`rounded` typés s'ajoutent par-dessus `$classes` |
-| `Stack::make([$children], $classes = 'relative')` | superpose les enfants ; un enfant `Positioned` reçoit un offset explicite, les autres remplissent la zone |
-| `Positioned::make($child, top:, right:, bottom:, left:)` | positionnement absolu explicite (pixels), seulement utile dans un `Stack` |
-| `Center::make($child)` | centre l'enfant |
-| `Align::make($child, $alignment)` | aligne l'enfant selon une constante `Alignment::*` |
-| `Padding::make($child, $classes = 'p-4')` | espacement interne |
-| `Margin::make($child, $classes = 'm-4')` | espacement externe |
-| `Divider::make($classes)` | `<hr>` |
-| `SingleScrollView::make($child, $classes)` | conteneur défilable vertical |
-| `ListView::make([$children], $classes)` | liste verticale avec séparateurs |
-| `Table::make($rows, $headers, $border)` | `<table>` ; `$rows` accepte des chaînes ou des `Widget` par cellule |
-| `PageView::make([$pages])` | carrousel de pages avec swipe natif (CSS `scroll-snap`, zéro JS) |
+| `RenderFlex::row([$children], mainAxisAlignment:, crossAxisAlignment:)` / `::column(...)` | Flutter's `Row`/`Column` — même algorithme deux passes (enfants inflexibles d'abord, `Flexible` se partagent le reste) |
+| `Flexible($child, flex: 1)` | enfant flexible dans un `RenderFlex`, comme `Flexible`/`Expanded` Flutter |
+| `RenderWrap([$children], spacing:, runSpacing:)` | comme une `Row`, mais passe à la ligne au lieu de déborder |
+| `RenderContainer($child, width:, height:, background:, radius:, borderColor:, borderWidth:, elevation:, gradientFrom:, gradientTo:, padding:)` | boîte à un seul enfant — fond, coins arrondis, bordure, ombre (élévation Material), dégradé |
+| `RenderStack([$children])` | superpose les enfants ; un enfant `RenderPositioned` reçoit un offset explicite, les autres remplissent la zone |
+| `RenderPositioned($child, top:, right:, bottom:, left:)` | positionnement absolu, seulement utile dans un `RenderStack` |
+| `RenderCenter($child)` | centre l'enfant |
+| `RenderAlign($child, Alignment::*)` | aligne l'enfant selon `Alignment::TOP_LEFT\|TOP_CENTER\|TOP_RIGHT\|CENTER_LEFT\|CENTER\|CENTER_RIGHT\|BOTTOM_LEFT\|BOTTOM_CENTER\|BOTTOM_RIGHT` |
+| `RenderPadding(EdgeInsets, $child)` | espacement interne — `EdgeInsets::all($v)` / `::symmetric(horizontal:, vertical:)` / `::only(left:, top:, right:, bottom:)` |
+| `RenderSizedBox($width, $height, $child = null)` | force une taille exacte, avec ou sans enfant |
+| `NativeDivider()` | ligne de séparation |
+| `NativeTable($rows, $headers = [])` | tableau ; `$rows`/cellules acceptent des `RenderNode` |
+| `NativePageView([$pages], $currentIndex, $fieldName)` | pagination par tap (chevrons + points), état porté par un champ `$_GET` |
+| `RenderLazyList($itemCount, $itemBuilder, $itemHeight, $scrollY, $viewportHeight)` | liste virtualisée — voir [docs/architecture.md#listes-longues-fenêtre-pas-tout](architecture.md) |
 
-`Alignment::TOP_LEFT\|TOP_CENTER\|TOP_RIGHT\|CENTER_LEFT\|CENTER\|CENTER_RIGHT\|BOTTOM_LEFT\|BOTTOM_CENTER\|BOTTOM_RIGHT` — préréglages `items-*`/`justify-*` Tailwind. `Rounded::NONE\|SM\|MD\|LG\|XL\|FULL`.
+`RenderFlex::row/column` prennent `MainAxisAlignment::START\|CENTER\|END\|SPACE_BETWEEN\|SPACE_AROUND\|SPACE_EVENLY` et `CrossAxisAlignment::START\|CENTER\|END\|STRETCH`.
 
 ## Structure d'écran
 
 | PHP | Rôle |
 |---|---|
-| `Scaffold::make($body, appBar:, hasBottomNav:, floatingActionButton:, drawer:)` | structure standard : AppBar fixe, corps défilable, FAB, Drawer |
-| `AppBar::make($title, leading:, actions:)` | barre supérieure fixe |
-| `BottomNavigation::make([['label','href'], ...])` | `<nav>` fixée en bas, rendue **une seule fois**, jamais recréée par `nav.js` |
-| `FloatingActionButton::make($label, action:, classes:, ariaLabel:)` | bouton rond flottant (bottom-right, `position: fixed`) |
-| `Drawer::make([$items], $title)` + `DrawerToggle::make()` | menu latéral coulissant, zéro JS |
-| `Dropdown::make($label, [$items])` | menu déroulant natif (`<details>`) |
+| `NativeScaffold($body, $screenWidth, $viewportHeight, appBar:, bottomNav:, fab:, drawer:)` | structure standard : réserve l'espace pour l'AppBar/BottomNav dans le corps défilable, peint le reste en overlay fixe |
+| `NativeAppBar($screenWidth, $title, backAction:, leading:, background:)` | barre supérieure fixe |
+| `NativeBottomNavigation($screenWidth, $items, $currentScreen, activeColor:)` | barre d'onglets fixe |
+| `NativeFab($icon, $action, background:)` | bouton rond flottant |
+| `NativeDrawer($screenWidth, $viewportHeight, $items, $title)` | menu latéral coulissant |
+| `NativeCard($child, padding:, background:, borderColor:, borderWidth:, radius:, elevation:)` | conteneur avec padding par défaut + fond + coins arrondis |
+| `NativeListTile($title, $subtitle, $leadingIcon, leadingColor:, trailingIcon:, trailingText:, action:, meta:)` | ligne icône + titre/sous-titre + traînée, la brique de base de la plupart des menus |
 
 ## Formulaires
 
-| PHP | Rend en |
+| PHP | Rôle |
 |---|---|
-| `Form::make([$fields], action:)` | `<form>` avec CSRF |
-| `TextField::make($name, label:, value:, type:, error:)` | `<input>` |
-| `Textarea::make($name, label:, value:, placeholder:, rows:, error:)` | `<textarea>` |
-| `SelectBox::make($name, [$options], value:, label:, error:)` | `<select>` |
-| `Checkbox::make($name, $label, checked:)` | case à cocher |
-| `SwitchToggle::make($name, $label, $on)` | interrupteur on/off, zéro JS |
-| `DatePicker::make($name, label:, value:, min:, max:)` | `<input type="date">` — sélecteur natif |
-| `TimePicker::make($name, label:, value:)` | `<input type="time">` |
-| `ErrorBanner::make($message)` | boîte d'erreur explicite |
-| `ProgressBar::make($value)` | barre linéaire (0-100) |
-| `CircularProgress::make($value, $size)` | indicateur circulaire (SVG pur) |
-| `Stepper::make($currentStep, $totalSteps, $stepLabels, $body, backAction:, nextAction:)` | assistant multi-étapes |
+| `NativeTextField($name, $value, $placeholder, obscure:, multiline:)` | ouvre un vrai `EditText` overlay au tap (pas de saisie dessinée sur le Canvas) |
+| `NativeSelectBox($name, $options, $selected)` | ouvre un vrai `AlertDialog.setItems()` |
+| `NativeCheckbox($name, $label, $checked, accentColor:)` | case à cocher |
+| `NativeSwitch($name, $label, $on, activeColor:)` | interrupteur on/off |
+| `NativeDatePicker($name, $value)` | ouvre un vrai `DatePickerDialog` |
+| `NativeTimePicker($name, $value)` | ouvre un vrai `TimePickerDialog` |
+| `NativeBanner($message, $icon = 'warning', background:, foreground:)` | bandeau d'alerte/erreur — ne peint rien si `$message` est `null` |
+| `NativeProgressBar($width, $percent, $height:, trackColor:, fillColor:)` | barre linéaire (0.0–1.0) |
+| `NativeCircularProgress($percent, $size:, trackColor:, color:)` | indicateur circulaire (arc réel, `NativeCanvas::arc()`) |
+| `NativeAlertButton($message, $title = 'Alerte')` | ouvre un vrai `AlertDialog` |
+| `NativeConfirmButton($message, $action, $label)` | `AlertDialog` de confirmation ; n'appelle `$action` que depuis le callback OK |
+
+Chaque champ lit/écrit sa valeur via `$_GET['nom-du-champ']` — pas de binding automatique, l'écran est responsable de relire ces valeurs au prochain rendu (voir n'importe quel `Native*Screen.php` pour le pattern).
+
+## Texte riche
+
+| PHP | Rôle |
+|---|---|
+| `RenderText($text, $fontSize, $color, bold:, letterSpacing:)` | un seul style, wrap automatique (mesure de caractère réelle, `TextMetrics`) |
+| `RenderRichText([TextSpan, ...], $fontSize, $color)` | plusieurs styles dans UN paragraphe qui wrap ensemble — `TextSpan($text, color:, bold:, size:, letterSpacing:, action:)`, un `action` rend ce run précis tappable (lien inline) |
+| `RenderIcon($name, $size, $color)` | glyphe Material Icons (2235 noms, `MaterialIcons::codepoint()`) |
+| `RenderImage($url, $width, $height, radius:)` | bitmap chargé en arrière-plan (cache mémoire LRU), coins arrondis via `BitmapShader` |
+
+```php
+new RenderRichText([
+    new TextSpan('PhpNitro rend en '),
+    new TextSpan('natif', bold: true, color: Tokens::success()->toHex()),
+    new TextSpan(', voir les '),
+    new TextSpan('conditions', color: Tokens::inkSecondary()->toHex(), action: 'navigate:terms'),
+    new TextSpan('.'),
+], fontSize: Tokens::TEXT_BODY, color: Tokens::ink()->toHex());
+```
 
 ## Animations
 
-**Ce que ce n'est PAS** : il n'y a aucune réactivité/diffing côté client — chaque interaction est un aller-retour serveur complet. Un `AnimatedContainer` façon Flutter (qui anime la transition **entre deux valeurs**) n'existe donc pas. Ce qui existe : des animations d'entrée pures CSS, jouées au montage.
+Deux mécanismes, décrits en détail dans [docs/architecture.md#animations](architecture.md) :
 
 | PHP | Effet |
 |---|---|
-| `FadeIn::make($child, durationMs:, delayMs:, curve:, distancePx:)` | fondu + léger glissement au montage |
-| `Curves::LINEAR\|EASE\|EASE_IN\|EASE_OUT\|EASE_IN_OUT\|FAST_OUT_SLOW_IN\|OVERSHOOT` | courbes nommées (chaînes CSS `timing-function`) |
-| `AnimatedText::make([$texts], typeSpeedMs:, pauseMs:, deleteSpeedMs:)` | effet machine à écrire, cycle entre plusieurs chaînes |
-| `AutoSizeText::make($text, minSize:, maxSize:)` | réduit la taille de police jusqu'à tenir dans son conteneur |
-| `LottieView::make($src, loop:, autoplay:)` | animation Lottie (JSON), lecteur `lottie-web` vendorisé (offline, pas de CDN) |
+| *(rien à écrire)* | crossfade automatique entre deux rendus d'écran (`fadeProgress` côté Kotlin) |
+| `RenderHero($child, $tag)` | FLIP réel entre deux écrans — même `$tag` des deux côtés d'une navigation |
+| `RenderAnimated($child, $key)` | FLIP réel local — la même `$key` produisant un rectangle/couleur/rayon différent au rendu suivant anime au lieu de sauter, l'équivalent unifié de `AnimatedContainer`/`AnimatedPositioned`/`AnimatedOpacity` |
 
-Une vraie navigation entre écrans joue aussi un fondu (`nav.js`), respecte `prefers-reduced-motion`.
-
-## Contenu dynamique
+## Gestes
 
 | PHP | Rôle |
 |---|---|
-| `StreamBuilder::make($endpoint, $render)` | interroge une route JSON en polling, re-rend au changement |
-| `FutureBuilder::make($endpoint, $loading)` | charge une route une seule fois au chargement |
-| `InfiniteScrollList::make($endpoint, [$initialItems])` | charge la page suivante au scroll (`?page=N`, `IntersectionObserver`) |
-| `GestureDetector::make($child, onDoubleClick:, onSwipeLeft:, onSwipeRight:)` | détecte double-clic/swipe, déclenche une action serveur |
-| `Flash::set($message)` + `FlashMessage::make()` | message flash en session, auto-masqué |
-
-## Média & icônes
-
-| PHP | Rend en |
-|---|---|
-| `Image::make($src, alt:, classes:)` / `Image::network(...)` | `<img>` |
-| `AudioPlayer::make($src, controls:, autoplay:, loop:)` | `<audio>` natif |
-| `VideoPlayer::make($src, controls:, autoplay:, loop:, poster:)` | `<video>` natif |
-| `Icon::home()`, `::settings()`, `::check()`, `::close()`, `::search()`, `::heart()`, `::star()`, `::trash()`, `::edit()`, `::download()`, `::upload()`, `::share()`, `::calendar()`, `::clock()`, `::mail()`, `::phone()`, `::lock()`, `::bell()`, `::plus()`, `::minus()`, `::chevronLeft\|Right\|Up\|Down()`, `::arrowLeft\|Right()`, `::info()`, `::eye()`, ... | icônes SVG inline, construites à la main (pas un port de Font Awesome — pas de licence tierce, pas de données de tracé mal reproduites) |
-
-## Divers
-
-| PHP | Rôle |
-|---|---|
-| `Link::make($label, $href, $classes)` | `<a href>` — vraie route HTTP |
-| `Navigator::to($path)` / `::back($fallback)` / `::link($label, $path)` | sucre de nommage façon Flutter |
-| `LocationButton::make($label)` | déclenche `navigator.geolocation` |
-| `Html::raw($html)` | passthrough HTML/JS brut |
-| `GoogleTranslate::make($pageLanguage, $includedLanguages)` | widget officiel Google Website Translator |
-| `Translator::load($locale, $translations)` / `::t($key, $params)` | i18n par clés, côté serveur |
-| `ThemeToggle::make()` | bouton bascule clair/sombre |
-
-## API de style typée (façon Flutter)
-
-En plus de `$classes` (chaîne Tailwind libre), certains widgets acceptent des paramètres typés qui priment sur `$classes` :
+| `RenderTappable($child, $action, $meta = null)` | enregistre une hit region — la brique derrière tous les widgets tappables |
+| `NativeGestureDetector($child, onDoubleClick:, onSwipeLeft:, onSwipeRight:)` | double-tap/swipe rapide, détectés via `android.view.GestureDetector` côté Kotlin |
+| `RenderDismissible($child, $key, $action)` | swipe-to-dismiss — le SEUL geste dont le suivi du doigt reste 100% côté client (`NativeCanvasView.checkScrollFollow`/drag), `$action` n'est appelé qu'au relâchement, une fois le seuil dépassé |
+| `RenderFixed($child)` | épingle un sous-arbre au viewport (ne défile pas avec le corps) — ce que `NativeScaffold` utilise pour l'AppBar/BottomNav |
 
 ```php
-Text::make('Titre', size: TextSize::XL2, weight: FontWeight::BOLD, color: Color::gray(900));
-
-Container::make(
-    Text::make('badge', color: Color::of('white', 0)),
-    background: Color::blue(600),
-    rounded: Rounded::FULL,
+new RenderDismissible(
+    new NativeListTile($label, 'Glisse pour supprimer', 'task_alt'),
+    "item-{$id}",
+    "dismiss:{$id}",
 );
+// Côté public/index.php :
+if ($action !== null && str_starts_with($action, 'dismiss:')) {
+    // retirer l'item — PHP ne voit jamais le geste, seulement le résultat
+}
 ```
 
-- `Text` : `size` (`TextSize::SM|BASE|LG|XL|XL2|XL3`), `weight` (`FontWeight::NORMAL|MEDIUM|SEMIBOLD|BOLD`), `color` (`Color::gray/blue/red/green(shade)` ou `Color::of('nom', shade)`) — remplacent entièrement `$classes` dès qu'un seul est fourni.
-- `Container` : `background`/`rounded` — s'**ajoutent** à `$classes` au lieu de le remplacer (`$classes` porte souvent du layout structurel que le style typé n'a pas vocation à effacer).
-- `Padding`/`Margin` gardent **volontairement** une chaîne Tailwind brute — pas d'objet de valeur dédié, choix assumé pour rester DOM-natif.
+## Dessin bas niveau
 
-Reste non typé : la plupart des ~75 widgets n'acceptent que `$classes` en chaîne brute. Pas de thème injectable façon `ThemeData` — seul un bascule clair/sombre binaire existe.
-
-## Concepts internes Flutter sans équivalent DOM
-
-PhpNitro rend vers du DOM/CSS (pas de moteur de rendu custom comme Skia), donc certains types Flutter n'ont pas de classe dédiée : ils se traduisent directement en classes Tailwind.
-
-| Flutter | Équivalent PhpNitro |
+| PHP | Rôle |
 |---|---|
-| `BoxFit` | `object-cover`/`object-contain`/`object-fill` sur `Image` |
-| `BoxShape` | `rounded-full` vs `rounded-none`/`rounded-lg` |
-| `Brightness` | bascule clair/sombre déjà native |
-| `Clip` | `overflow-hidden` + `rounded-*` |
-| `MainAxisAlignment`/`CrossAxisAlignment` | classes flex Tailwind directement sur `Column`/`Row`, ou `Alignment::*` |
+| `RenderCustomPaint::make($width, $height)->rect(...)->circle(...)->line(...)->text(...)` | primitives dessinées une fois au montage — ce qu'`Engine\Canvas` demandait côté HTML |
+| `NativeCanvas::rect/circle/line/arc/text/icon/image()` | l'API bas niveau que tous les widgets ci-dessus appellent en interne — rarement appelée directement |
 
-## Accessibilité
+## Tokens (design system)
 
-HTML sémantique + `aria-label` (`IconButton`, `FloatingActionButton`). Premier audit réel effectué avec TalkBack (Android) : deux bugs trouvés et corrigés (contrôles pilotés par case à cocher cachée invisibles pour un lecteur d'écran — corrigés avec `role="button" tabindex="0"` ; FAB annoncé par son glyphe brut — corrigé avec `ariaLabel`). Reste non audité : le reste de l'app, VoiceOver (iOS).
+`Engine\Native\Tokens` centralise espacement/rayons/tailles de texte/couleurs sémantiques — préfère toujours ça à une valeur en dur :
+
+```php
+Tokens::SPACE_XS|SM|MD|LG|XL|XXL      // 4/8/12/16/20/28
+Tokens::RADIUS_SM|MD|LG|PILL          // 10/14/18/999
+Tokens::TEXT_DISPLAY|TITLE|BODY|BODY_SMALL|CAPTION
+Tokens::ink()|inkSecondary()|inkMuted()|surface()|surfaceMuted()|border()|success()|danger()  // -> Color
+```
+
+`Engine\Color` reste la palette Tailwind typée (`Color::blue(600)`, `Color::of('emerald', 600)`) — son `toHex()` est ce que tout widget natif consomme réellement, pas de classe CSS.
+
+## Ce qui reste WebView-only
+
+Rien, actuellement — la dernière page WebView (`WidgetsLayoutPage.php`) a été supprimée une fois `RenderHero` construit. Un futur widget qui aurait vraiment besoin d'un moteur HTML (rendu Markdown riche, iframe...) redeviendrait candidat à une page WebView ponctuelle, ouverte via `NativeDeviceBridge.kt::openWebView()`.
