@@ -23,8 +23,10 @@ use Engine\Native\RenderFlex;
 use Engine\Native\RenderIcon;
 use Engine\Native\RenderNode;
 use Engine\Native\RenderPadding;
+use Engine\Native\RenderRichText;
 use Engine\Native\RenderText;
 use Engine\Native\RenderWrap;
+use Engine\Native\TextSpan;
 use Engine\Native\Tokens;
 
 /**
@@ -112,6 +114,15 @@ final class NativeWidgetsFormsScreen
                         static fn (string $name): RenderNode => new RenderIcon($name, 22.0, Tokens::inkSecondary()->toHex()),
                         ['check', 'close', 'search', 'favorite', 'star', 'delete', 'edit', 'download', 'upload', 'share', 'event', 'schedule', 'mail', 'phone', 'lock', 'notifications', 'info', 'visibility'],
                     ), spacing: Tokens::SPACE_MD, runSpacing: Tokens::SPACE_MD),
+
+                    $caption('RenderRichText — styles mixés dans un seul paragraphe'),
+                    new RenderRichText([
+                        new TextSpan('PhpNitro rend en '),
+                        new TextSpan('natif', bold: true, color: Tokens::success()->toHex()),
+                        new TextSpan(', pas en WebView — voir les '),
+                        new TextSpan('conditions', color: Tokens::inkSecondary()->toHex(), action: 'navigate:widgets'),
+                        new TextSpan('.'),
+                    ], fontSize: Tokens::TEXT_BODY, color: Tokens::ink()->toHex()),
 
                     new NativeDivider(),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
