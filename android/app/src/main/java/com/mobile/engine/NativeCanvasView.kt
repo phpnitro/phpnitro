@@ -1368,6 +1368,7 @@ class NativeCanvasView(context: Context) : View(context) {
 
         override fun performAction(virtualViewId: Int, action: Int, arguments: Bundle?): Boolean {
             val node = accessibilityNodes.firstOrNull { it.id == virtualViewId }
+            Log.i("NativeCanvasView", "performAction($virtualViewId, $action) node=${node?.description}")
             return when (action) {
                 AccessibilityNodeInfo.ACTION_CLICK -> {
                     if (node == null || !node.clickable || node.action == null) {

@@ -119,6 +119,21 @@ class NativeRenderPocActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         splashScreen.setKeepOnScreenCondition { serverPort == 0 || !firstScreenRendered }
 
+        // Without this, every fetchDrawCommands() request gets a BRAND NEW
+        // PHPSESSID — java.net.HttpURLConnection never sends/stores cookies
+        // on its own, and nothing else in this app ever installed a
+        // CookieHandler. $_SESSION (auth_user, the stepper's step/data,
+        // RenderDismissible/RenderReorderable's demo state, anything a
+        // screen persists server-side) silently never actually persisted
+        // across taps — caught only by testing on a real device, since
+        // every curl-based verification this project's history used its
+        // own -c/-b cookie jar and never exercised this path. One
+        // process-wide CookieManager fixes it for every HttpURLConnection
+        // this Activity ever makes, no per-call plumbing needed.
+        if (java.net.CookieHandler.getDefault() == null) {
+            java.net.CookieHandler.setDefault(java.net.CookieManager(null, java.net.CookiePolicy.ACCEPT_ALL))
+        }
+
         // osmdroid's tile server ToS requires a real user agent — the
         // package name identifies which app is pulling tiles, same as
         // any other OSM client is expected to set.
