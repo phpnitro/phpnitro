@@ -178,6 +178,20 @@ if ($path === '/native/layout-demo') {
         \Engine\Preferences\Preferences::set('native_home_counter', (string) ((int) \Engine\Preferences\Preferences::get('native_home_counter', '0') - 1));
     }
 
+    // Mirrors SettingsPage::onSetAccent() — the accent SelectBox's pick
+    // travels back as a plain field (see NativeSettingsScreen's
+    // "select:accent_choice" action), and since Preferences is the same
+    // store SettingsPage.php reads/writes, persisting it here is enough to
+    // keep both rendering paths in sync.
+    if ($screen === 'settings' && isset($_GET['accent_choice'])) {
+        \Engine\Preferences\Preferences::set('accent_color', $_GET['accent_choice']);
+    }
+    // Mirrors SettingsPage::onToggleNativePreview().
+    if ($screen === 'settings' && $action === 'togglenativepreview') {
+        $currentlyEnabled = \Engine\Preferences\Preferences::get('native_render_preview_enabled', '0') === '1';
+        \Engine\Preferences\Preferences::set('native_render_preview_enabled', $currentlyEnabled ? '0' : '1');
+    }
+
     // Mirrors LoginPage.php's onLogin(): a "submit:login" NativeButton
     // collects both NativeTextField values client-side and sends them
     // along with the request (see NativeRenderPocActivity's

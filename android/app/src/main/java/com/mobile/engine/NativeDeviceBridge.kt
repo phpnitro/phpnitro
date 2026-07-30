@@ -92,6 +92,14 @@ class NativeDeviceBridge(private val context: Context) {
         return if (adapter.isEnabled) "on" else "off"
     }
 
+    /** Same real ConnectivityManager check WebAppInterface.getConnectionType() uses — the native replacement for Engine\Connectivity\ConnectivityBadge's JS-side navigator.onLine. */
+    fun isOnline(): Boolean {
+        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        val network = manager.activeNetwork ?: return false
+        val capabilities = manager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+
     // Same Keystore-backed file WebAppInterface's secureStore/secureRetrieve
     // use ("phpx_secure_storage") — a secret stored via one rendering path
     // is readable from the other, which is the correct behavior for an

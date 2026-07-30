@@ -42,6 +42,10 @@ final class NativeListTile implements RenderNode
         // NativeDocumentsScreen's red tracked-uppercase "OBLIGATOIRE"
         // badge, for instance. Wins over $subtitle when given.
         ?RenderNode $subtitleNode = null,
+        // Extra data $action's handler needs without a second round-trip —
+        // a "select:" action's options, same as NativeSelectBox's own use
+        // of RenderTappable's $meta. Ignored when $action is null.
+        ?array $meta = null,
     ) {
         $trailing = match (true) {
             $trailingIcon !== null => new NativeIconCircle(
@@ -79,7 +83,7 @@ final class NativeListTile implements RenderNode
             borderWidth: $borderWidth,
         );
 
-        $this->content = $action !== null ? new RenderTappable($card, $action) : $card;
+        $this->content = $action !== null ? new RenderTappable($card, $action, $meta) : $card;
     }
 
     public function layout(Constraints $constraints): Size

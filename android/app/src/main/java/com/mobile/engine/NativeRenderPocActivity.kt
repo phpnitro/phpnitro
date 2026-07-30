@@ -593,6 +593,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
         val screenParam = screenToken.substringAfter('/', missingDelimiterValue = "").ifEmpty { null }
         val idParam = if (screenParam != null) "&id=${URLEncoder.encode(screenParam, "UTF-8")}" else ""
         val actionParam = if (action != null) "&action=${URLEncoder.encode(action, "UTF-8")}" else ""
+        val onlineParam = "&online=${if (deviceBridge.isOnline()) 1 else 0}"
         val fieldsParam = if (includeFields) {
             fieldValues.entries.joinToString("") { (name, value) -> "&${URLEncoder.encode(name, "UTF-8")}=${URLEncoder.encode(value, "UTF-8")}" }
         } else {
@@ -607,7 +608,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
         // "network/parse overhead" instead of one opaque total.
         val startNanos = System.nanoTime()
         try {
-            val connection = URL("http://127.0.0.1:$port/native/layout-demo?width=$screenWidthDp&height=$screenHeightDp&screen=$screen$idParam$actionParam$fieldsParam").openConnection() as HttpURLConnection
+            val connection = URL("http://127.0.0.1:$port/native/layout-demo?width=$screenWidthDp&height=$screenHeightDp&screen=$screen$idParam$actionParam$onlineParam$fieldsParam").openConnection() as HttpURLConnection
             connection.connectTimeout = 5000
             Log.i(TAG, "Fetching /native/layout-demo (screen=$screen, action=$action), response code ${connection.responseCode}")
             val json = connection.inputStream.bufferedReader().use { it.readText() }
