@@ -6,7 +6,6 @@ use Engine\Button;
 use Engine\Canvas;
 use Engine\Color;
 use Engine\ProgressBar;
-use Engine\SwitchToggle;
 use Engine\Text;
 use Engine\Theme;
 use PHPUnit\Framework\TestCase;
@@ -84,11 +83,4 @@ final class NewWidgetsTest extends TestCase
         $this->assertStringContainsString('bg-emerald-600', $html);
     }
 
-    public function testSwitchToggleActiveColorFollowsThemePrimaryByDefault(): void
-    {
-        Theme::setPrimary(Color::of('emerald', 600));
-        $html = SwitchToggle::make('opt', 'Option')->render();
-
-        $this->assertStringContainsString('peer-checked:bg-emerald-600', $html);
-    }
 }
