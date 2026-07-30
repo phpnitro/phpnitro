@@ -6,7 +6,6 @@ use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\NativeAlertButton;
 use Engine\Native\NativeBanner;
-use Engine\Native\NativeButton;
 use Engine\Native\NativeCheckbox;
 use Engine\Native\NativeCircularProgress;
 use Engine\Native\NativeConfirmButton;
@@ -21,19 +20,21 @@ use Engine\Native\NativeTextField;
 use Engine\Native\NativeTimePicker;
 use Engine\Native\RenderContainer;
 use Engine\Native\RenderFlex;
+use Engine\Native\RenderIcon;
 use Engine\Native\RenderNode;
 use Engine\Native\RenderPadding;
 use Engine\Native\RenderText;
+use Engine\Native\RenderWrap;
 use Engine\Native\Tokens;
 
 /**
- * The interactive-overlay half of WidgetsFormsPage.php's demo — SelectBox
- * and DatePicker both open a real Android dialog (AlertDialog /
- * DatePickerDialog) rather than anything drawn on the Canvas itself; the
- * dialog buttons (NativeAlertButton/NativeConfirmButton) show the same
- * native-dialog pattern for Engine\Dialogs\'s two widgets. ProgressBar and
- * Table are static, so they're demonstrated here too rather than
- * splitting one screen into two for no reason.
+ * The native conversion of WidgetsFormsPage.php — full parity. SelectBox
+ * and DatePicker/TimePicker both open a real Android dialog (AlertDialog /
+ * DatePickerDialog/TimePickerDialog) rather than anything drawn on the
+ * Canvas itself; the dialog buttons (NativeAlertButton/NativeConfirmButton)
+ * show the same native-dialog pattern for Engine\Dialogs\'s two widgets.
+ * IconButton needs no separate demo here — NativeIconCircle already
+ * covers it throughout the app (every screen's back button is one).
  */
 final class NativeWidgetsFormsScreen
 {
@@ -106,15 +107,13 @@ final class NativeWidgetsFormsScreen
                     $caption('Textarea — EditText multiligne réel'),
                     new NativeTextField('note', $note, 'Un commentaire...', multiline: true),
 
+                    $caption('Icon — jeu étendu (2235 glyphes disponibles, voir MaterialIcons.php)'),
+                    new RenderWrap(array_map(
+                        static fn (string $name): RenderNode => new RenderIcon($name, 22.0, Tokens::inkSecondary()->toHex()),
+                        ['check', 'close', 'search', 'favorite', 'star', 'delete', 'edit', 'download', 'upload', 'share', 'event', 'schedule', 'mail', 'phone', 'lock', 'notifications', 'info', 'visibility'],
+                    ), spacing: Tokens::SPACE_MD, runSpacing: Tokens::SPACE_MD),
+
                     new NativeDivider(),
-                    new RenderPadding(
-                        EdgeInsets::only(top: Tokens::SPACE_LG),
-                        new RenderText("La vitrine étendue des icônes n'est pas encore portée.", Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
-                    ),
-                    new RenderPadding(
-                        EdgeInsets::only(top: Tokens::SPACE_MD),
-                        new NativeButton('Voir sur WebView', 'webview:/widgets/forms', background: Tokens::surfaceMuted(), foreground: Tokens::ink()),
-                    ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,
