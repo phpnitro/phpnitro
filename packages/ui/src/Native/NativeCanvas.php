@@ -53,12 +53,18 @@ final class NativeCanvas
      */
     private array $dismissRegions = [];
 
+    /**
+     * @var array<int, array<string, mixed>>
+     */
+    private array $reorderRegions = [];
+
     private float $contentHeight = 0.0;
     private ?float $renderTimeMs = null;
     private ?string $redirect = null;
     private bool $fixedMode = false;
     private ?string $heroTag = null;
     private ?string $dismissKey = null;
+    private ?string $reorderKey = null;
     private bool $scrollFollow = false;
 
     /**
@@ -161,6 +167,39 @@ final class NativeCanvas
     }
 
     /**
+     * Drag-to-reorder — the same "PHP never sees the gesture, only its
+     * outcome" split as dismissible(), applied to reordering a whole
+     * group instead of removing one item. Each item in a
+     * RenderReorderable registers its own rect + stable $key under a
+     * shared $group here (reorderRegions); NativeCanvasView.kt tracks a
+     * long-press-then-drag entirely client-side — following the finger,
+     * swapping slot assignments as the dragged item crosses a neighbor's
+     * midpoint, animating the displaced items into their new slots — and
+     * only calls back once the finger lifts, with the group's action and
+     * the final key order. See RenderReorderable.
+     */
+    public function reorderItem(string $group, string $key, float $x, float $y, float $width, float $height, string $action): self
+    {
+        $this->reorderRegions[] = ['group' => $group, 'key' => $key, 'x' => $x, 'y' => $y, 'width' => $width, 'height' => $height, 'action' => $action];
+
+        return $this;
+    }
+
+    public function beginReorder(string $key): self
+    {
+        $this->reorderKey = $key;
+
+        return $this;
+    }
+
+    public function endReorder(): self
+    {
+        $this->reorderKey = null;
+
+        return $this;
+    }
+
+    /**
      * @param array<string, mixed> $command
      * @return array<string, mixed>
      */
@@ -174,6 +213,9 @@ final class NativeCanvas
         }
         if ($this->dismissKey !== null) {
             $command['dismiss'] = $this->dismissKey;
+        }
+        if ($this->reorderKey !== null) {
+            $command['reorder'] = $this->reorderKey;
         }
 
         return $command;
@@ -400,6 +442,7 @@ final class NativeCanvas
             'hitRegions' => $this->hitRegions,
             'heroRegions' => $this->heroRegions !== [] ? $this->heroRegions : null,
             'dismissRegions' => $this->dismissRegions !== [] ? $this->dismissRegions : null,
+            'reorderRegions' => $this->reorderRegions !== [] ? $this->reorderRegions : null,
             'contentHeight' => $this->contentHeight,
             'renderTimeMs' => $this->renderTimeMs,
             'redirect' => $this->redirect,

@@ -198,6 +198,25 @@ if ($path === '/native/layout-demo') {
         unset($_SESSION['dismissible_items'][substr($action, strlen('dismiss:'))]);
     }
 
+    // RenderReorderable's whole point: PHP never sees the drag, only its
+    // outcome — a comma-separated key order riding on the action string,
+    // sent once the finger lifts and NativeCanvasView.kt's own settle
+    // animation has already finished. See NativeWidgetsReorderScreen.
+    if (!isset($_SESSION['reorder_items'])) {
+        $_SESSION['reorder_items'] = \Engine\App\NativeWidgetsReorderScreen::initialItems();
+    }
+    if ($action !== null && str_starts_with($action, 'reorder:')) {
+        $orderedIds = explode(',', substr($action, strlen('reorder:')));
+        $current = $_SESSION['reorder_items'];
+        $reordered = [];
+        foreach ($orderedIds as $id) {
+            if (isset($current[$id])) {
+                $reordered[$id] = $current[$id];
+            }
+        }
+        $_SESSION['reorder_items'] = $reordered;
+    }
+
     // Mirrors WidgetsFirebaseAuthPage.php's onSignIn()/onSignUp() — a
     // plain server-side REST call to Firebase's Identity Toolkit API
     // (Engine\Firebase\FirebaseAuth, no client SDK/JS involved at all),
@@ -268,6 +287,7 @@ if ($path === '/native/layout-demo') {
         'widgets-layout' => \Engine\App\NativeWidgetsLayoutScreen::build($screenWidth, $screenHeight),
         'widgets-lazylist' => \Engine\App\NativeWidgetsLazyListScreen::build($screenWidth, $screenHeight, $scrollY),
         'widgets-dismissible' => \Engine\App\NativeWidgetsDismissibleScreen::build($screenWidth, $screenHeight, $_SESSION['dismissible_items']),
+        'widgets-reorder' => \Engine\App\NativeWidgetsReorderScreen::build($screenWidth, $screenHeight, $_SESSION['reorder_items']),
         'widgets-dialogs' => \Engine\App\NativeWidgetsDialogsScreen::build($screenWidth, $screenHeight),
         'widgets-stepper' => \Engine\App\NativeWidgetsStepperScreen::build($screenWidth, $screenHeight, $stepperStep, $stepperData),
         'widgets-countries' => \Engine\App\NativeWidgetsCountriesScreen::build($screenWidth, $screenHeight),

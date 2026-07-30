@@ -161,6 +161,26 @@ class NativeCanvasView(context: Context) : View(context) {
     private var dismissSettleAnimator: ValueAnimator? = null
     private val dismissedKeys = mutableSetOf<String>()
 
+    // RenderReorderable (NativeCanvas::reorderItem()/beginReorder()/
+    // endReorder()) — a long-press on an item commits to a drag (a plain
+    // tap or a vertical scroll starting on the same item must NOT
+    // trigger it, hence waiting for GestureDetector's own long-press
+    // timer rather than reacting to the first move sample like dismiss
+    // does). reorderOrder holds the CURRENT key order per group, mutated
+    // live as the dragged item's center crosses a neighbor's — every
+    // other key's slot is whatever original rect that position in the
+    // order now maps to, and reorderAnimatedY eases each displaced key
+    // into its new slot instead of snapping.
+    private data class ReorderItem(val group: String, val key: String, val rect: RectF, val action: String)
+    private var reorderItems: List<ReorderItem> = emptyList()
+    private val reorderOrder = mutableMapOf<String, MutableList<String>>()
+    private var reorderLongPressCandidate: ReorderItem? = null
+    private var activeReorder: ReorderItem? = null
+    private var reorderDragOffsetY = 0f
+    private val reorderAnimatedY = mutableMapOf<String, Float>()
+    private val reorderSlotAnimators = mutableMapOf<String, ValueAnimator>()
+    private var reorderSettleAnimator: ValueAnimator? = null
+
     private var scrollAnimator: ValueAnimator? = null
     private var velocityTracker: VelocityTracker? = null
     private var touchDownX = 0f
@@ -192,6 +212,26 @@ class NativeCanvasView(context: Context) : View(context) {
                 return true
             }
             return false
+        }
+
+        override fun onLongPress(e: MotionEvent) {
+            if (activeDismiss != null || activeReorder != null) return
+            val candidate = hitTestReorder(e) ?: return
+            reorderSettleAnimator?.cancel()
+            reorderSlotAnimators.values.forEach { it.cancel() }
+            reorderSlotAnimators.clear()
+            val order = reorderOrder.getOrPut(candidate.group) {
+                reorderItems.filter { it.group == candidate.group }
+                    .sortedBy { it.rect.top }
+                    .map { it.key }
+                    .toMutableList()
+            }
+            order.forEach { key -> reorderAnimatedY[key] = slotRectFor(candidate.group, key)?.top ?: 0f }
+            activeReorder = candidate
+            reorderDragOffsetY = 0f
+            gestureConsumedThisTouch = true
+            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            invalidate()
         }
     })
 
@@ -225,6 +265,9 @@ class NativeCanvasView(context: Context) : View(context) {
             heroRegions = parseHeroRegions(payload.optJSONArray("heroRegions"))
             dismissRegions = parseDismissRegions(payload.optJSONArray("dismissRegions"))
             dismissedKeys.clear()
+            reorderItems = parseReorderItems(payload.optJSONArray("reorderRegions"))
+            reorderOrder.clear()
+            reorderAnimatedY.clear()
             Log.i("NativeCanvasView", "setCommands: ${commands.length()} commands, ${hitRegions.length()} hit regions, contentHeight=$contentHeight, view size ${width}x${height}")
             startCrossfade()
             startHeroTransition()
@@ -273,6 +316,19 @@ class NativeCanvasView(context: Context) : View(context) {
             val top = region.getDouble("y").toFloat()
             val rect = RectF(left, top, left + region.getDouble("width").toFloat(), top + region.getDouble("height").toFloat())
             result.add(DismissRegion(region.getString("key"), rect, region.getString("action")))
+        }
+        return result
+    }
+
+    private fun parseReorderItems(array: JSONArray?): List<ReorderItem> {
+        if (array == null) return emptyList()
+        val result = mutableListOf<ReorderItem>()
+        for (index in 0 until array.length()) {
+            val item = array.getJSONObject(index)
+            val left = item.getDouble("x").toFloat()
+            val top = item.getDouble("y").toFloat()
+            val rect = RectF(left, top, left + item.getDouble("width").toFloat(), top + item.getDouble("height").toFloat())
+            result.add(ReorderItem(item.getString("group"), item.getString("key"), rect, item.getString("action")))
         }
         return result
     }
@@ -440,11 +496,12 @@ class NativeCanvasView(context: Context) : View(context) {
             MotionEvent.ACTION_DOWN -> {
                 scrollAnimator?.cancel()
                 dismissSettleAnimator?.cancel()
+                reorderSettleAnimator?.cancel()
                 touchDownX = event.x
                 touchDownY = event.y
                 lastTouchY = event.y
                 isDragging = false
-                pendingDismiss = if (activeDismiss == null) hitTestDismiss(event) else null
+                pendingDismiss = if (activeDismiss == null && activeReorder == null) hitTestDismiss(event) else null
                 velocityTracker?.recycle()
                 velocityTracker = VelocityTracker.obtain().also { it.addMovement(event) }
             }
@@ -453,6 +510,11 @@ class NativeCanvasView(context: Context) : View(context) {
                 velocityTracker?.addMovement(event)
                 val totalDeltaY = event.y - touchDownY
                 val totalDeltaX = event.x - touchDownX
+
+                if (activeReorder != null) {
+                    updateReorderDrag(totalDeltaY)
+                    return true
+                }
 
                 if (activeDismiss == null && pendingDismiss != null && !isDragging &&
                     abs(totalDeltaX) > touchSlop && abs(totalDeltaX) > abs(totalDeltaY)
@@ -487,7 +549,9 @@ class NativeCanvasView(context: Context) : View(context) {
             }
 
             MotionEvent.ACTION_UP -> {
-                if (activeDismiss != null) {
+                if (activeReorder != null) {
+                    settleReorder()
+                } else if (activeDismiss != null) {
                     settleDismiss()
                 } else if (isDragging) {
                     velocityTracker?.let {
@@ -504,6 +568,9 @@ class NativeCanvasView(context: Context) : View(context) {
             }
 
             MotionEvent.ACTION_CANCEL -> {
+                if (activeReorder != null) {
+                    cancelReorder()
+                }
                 if (activeDismiss != null) {
                     springBackDismiss()
                 }
@@ -514,6 +581,113 @@ class NativeCanvasView(context: Context) : View(context) {
         }
 
         return true
+    }
+
+    private fun hitTestReorder(event: MotionEvent): ReorderItem? {
+        val touchX = event.x / density
+        val touchY = event.y / density + scrollY
+        return reorderItems.firstOrNull { item ->
+            touchX >= item.rect.left && touchX <= item.rect.right &&
+                touchY >= item.rect.top && touchY <= item.rect.bottom
+        }
+    }
+
+    private fun originalSlotRects(group: String): List<RectF> =
+        reorderItems.filter { it.group == group }.sortedBy { it.rect.top }.map { it.rect }
+
+    private fun slotRectFor(group: String, key: String): RectF? {
+        val order = reorderOrder[group] ?: return null
+        val index = order.indexOf(key)
+        if (index < 0) return null
+        return originalSlotRects(group).getOrNull(index)
+    }
+
+    private fun animateReorderSlot(key: String, from: Float, to: Float) {
+        reorderSlotAnimators[key]?.cancel()
+        val animator = ValueAnimator.ofFloat(from, to).apply {
+            duration = 200
+            interpolator = DecelerateInterpolator()
+            addUpdateListener {
+                reorderAnimatedY[key] = it.animatedValue as Float
+                invalidate()
+            }
+        }
+        reorderSlotAnimators[key] = animator
+        animator.start()
+    }
+
+    // Called on every move sample while a reorder drag is active: finds
+    // which slot the dragged item's CENTER now falls past (comparing
+    // against each slot's own original center — the layout PHP already
+    // authored, never recomputed mid-drag) and, if that's a different
+    // slot than the dragged key currently occupies, swaps it into the
+    // order and eases every displaced key into its new slot.
+    private fun updateReorderDrag(totalDeltaY: Float) {
+        val active = activeReorder ?: return
+        reorderDragOffsetY = totalDeltaY / density
+        invalidate()
+
+        val order = reorderOrder[active.group] ?: return
+        val slotRects = originalSlotRects(active.group)
+        if (slotRects.isEmpty()) return
+        val draggedCenterY = active.rect.top + active.rect.height() / 2 + reorderDragOffsetY
+
+        var targetIndex = slotRects.indexOfLast { draggedCenterY >= it.top + it.height() / 2 }
+        if (targetIndex < 0) targetIndex = 0
+        val currentIndex = order.indexOf(active.key)
+        if (targetIndex == currentIndex) return
+
+        order.removeAt(currentIndex)
+        order.add(targetIndex, active.key)
+        order.forEachIndexed { index, key ->
+            if (key == active.key) return@forEachIndexed
+            val targetY = slotRects[index].top
+            val currentY = reorderAnimatedY[key] ?: targetY
+            if (abs(currentY - targetY) > 0.5f) {
+                animateReorderSlot(key, currentY, targetY)
+            }
+        }
+    }
+
+    // Past release: the dragged item eases from wherever the finger left
+    // it into its final slot, THEN — once that animation the user
+    // actually watched has finished — the group's action fires with the
+    // final key order as a comma-separated suffix. PHP sees the outcome,
+    // never the gesture, same split as settleDismiss().
+    private fun settleReorder() {
+        val active = activeReorder ?: return
+        val order = reorderOrder[active.group]?.toList() ?: run { activeReorder = null; return }
+        val finalIndex = order.indexOf(active.key)
+        val targetRect = originalSlotRects(active.group).getOrNull(finalIndex) ?: active.rect
+        val targetOffset = targetRect.top - active.rect.top
+
+        reorderSettleAnimator?.cancel()
+        reorderSettleAnimator = ValueAnimator.ofFloat(reorderDragOffsetY, targetOffset).apply {
+            duration = 200
+            interpolator = DecelerateInterpolator()
+            addUpdateListener {
+                reorderDragOffsetY = it.animatedValue as Float
+                invalidate()
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    activeReorder = null
+                    reorderDragOffsetY = 0f
+                    invalidate()
+                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    onAction?.invoke("${active.action}:${order.joinToString(",")}", active.rect, null)
+                }
+            })
+            start()
+        }
+    }
+
+    private fun cancelReorder() {
+        reorderSlotAnimators.values.forEach { it.cancel() }
+        reorderSlotAnimators.clear()
+        activeReorder = null
+        reorderDragOffsetY = 0f
+        invalidate()
     }
 
     private fun hitTestDismiss(event: MotionEvent): DismissRegion? {
@@ -696,6 +870,38 @@ class NativeCanvasView(context: Context) : View(context) {
 
         drawHeroTransition(canvas)
         drawDismissOverlay(canvas)
+        drawReorderOverlay(canvas)
+    }
+
+    /**
+     * Every item in the group currently being dragged — not just the
+     * dragged item itself, ALL of them, since a neighbor whose slot
+     * changed needs to be redrawn at its eased position too. The dragged
+     * key follows the finger (its own original rect + the live drag
+     * offset); every other key in the group draws at reorderAnimatedY,
+     * which animateReorderSlot() eases toward whenever the order changes.
+     */
+    private fun drawReorderOverlay(canvas: Canvas) {
+        val active = activeReorder ?: return
+        val order = reorderOrder[active.group] ?: return
+        val saved = canvas.save()
+        canvas.scale(density, density)
+        canvas.translate(0f, -scrollY)
+        for (key in order) {
+            val offsetY = if (key == active.key) {
+                active.rect.top + reorderDragOffsetY
+            } else {
+                reorderAnimatedY[key] ?: slotRectFor(active.group, key)?.top ?: continue
+            }
+            val itemRect = reorderItems.firstOrNull { it.group == active.group && it.key == key }?.rect ?: continue
+            val innerSaved = canvas.save()
+            canvas.translate(0f, offsetY - itemRect.top)
+            for (command in collectByField(commands, "reorder", key)) {
+                drawSingleCommand(canvas, command, 1f)
+            }
+            canvas.restoreToCount(innerSaved)
+        }
+        canvas.restoreToCount(saved)
     }
 
     /**
@@ -760,6 +966,8 @@ class NativeCanvasView(context: Context) : View(context) {
             if (hero != null && excludeHeroTags.contains(hero)) continue
             val dismiss = command.optString("dismiss", "").ifEmpty { null }
             if (dismiss != null && (dismissedKeys.contains(dismiss) || dismiss == activeDismiss?.key)) continue
+            val reorder = command.optString("reorder", "").ifEmpty { null }
+            if (reorder != null && activeReorder != null && reorderOrder[activeReorder!!.group]?.contains(reorder) == true) continue
             drawSingleCommand(canvas, command, alpha)
         }
     }

@@ -77,6 +77,10 @@ final class NativeWidgetsIndexScreen
                         EdgeInsets::only(top: Tokens::SPACE_MD),
                         new NativeListTile('Tâches', 'Glisser pour supprimer — geste continu réel', 'swipe', trailingIcon: 'chevron_right', action: 'navigate:widgets-dismissible'),
                     ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeListTile('Étapes', 'Appui long + glisser pour réordonner', 'drag_indicator', trailingIcon: 'chevron_right', action: 'navigate:widgets-reorder'),
+                    ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,
