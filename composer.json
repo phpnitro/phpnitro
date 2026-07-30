@@ -15,34 +15,22 @@
         "psr-4": {
             "Engine\\": "packages/ui/src/",
             "Engine\\Database\\": "packages/database/src/",
-            "Engine\\Maps\\": "packages/maps/src/",
-            "Engine\\Dialogs\\": "packages/dialogs/src/",
             "Engine\\Firebase\\": "packages/firebase/src/",
             "Engine\\Countries\\": "packages/countries/src/",
             "Engine\\Preferences\\": "packages/preferences/src/",
-            "Engine\\Connectivity\\": "packages/connectivity/src/",
             "Engine\\App\\": "lib/pages/app/",
             "Backend\\": "lib/backend/src/",
-            "Engine\\Launcher\\": "packages/launcher/src/",
-            "Engine\\Diagnostics\\": "packages/diagnostics/src/",
-            "Engine\\Format\\": "packages/format/src/",
-            "Engine\\SocialAuth\\": "packages/socialauth/src/"
+            "Engine\\Format\\": "packages/format/src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
             "Engine\\Tests\\": "packages/ui/tests/",
             "Engine\\Database\\Tests\\": "packages/database/tests/",
-            "Engine\\Maps\\Tests\\": "packages/maps/tests/",
-            "Engine\\Dialogs\\Tests\\": "packages/dialogs/tests/",
             "Engine\\Firebase\\Tests\\": "packages/firebase/tests/",
             "Engine\\Countries\\Tests\\": "packages/countries/tests/",
             "Engine\\Preferences\\Tests\\": "packages/preferences/tests/",
-            "Engine\\Connectivity\\Tests\\": "packages/connectivity/tests/",
-            "Engine\\Launcher\\Tests\\": "packages/launcher/tests/",
-            "Engine\\Diagnostics\\Tests\\": "packages/diagnostics/tests/",
-            "Engine\\Format\\Tests\\": "packages/format/tests/",
-            "Engine\\SocialAuth\\Tests\\": "packages/socialauth/tests/"
+            "Engine\\Format\\Tests\\": "packages/format/tests/"
         }
     }
 }

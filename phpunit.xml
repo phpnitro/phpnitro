@@ -10,12 +10,6 @@
         <testsuite name="database">
             <directory>packages/database/tests</directory>
         </testsuite>
-        <testsuite name="maps">
-            <directory>packages/maps/tests</directory>
-        </testsuite>
-        <testsuite name="dialogs">
-            <directory>packages/dialogs/tests</directory>
-        </testsuite>
         <testsuite name="firebase">
             <directory>packages/firebase/tests</directory>
         </testsuite>
@@ -25,20 +19,8 @@
         <testsuite name="preferences">
             <directory>packages/preferences/tests</directory>
         </testsuite>
-        <testsuite name="connectivity">
-            <directory>packages/connectivity/tests</directory>
-        </testsuite>
-        <testsuite name="launcher">
-            <directory>packages/launcher/tests</directory>
-        </testsuite>
-        <testsuite name="diagnostics">
-            <directory>packages/diagnostics/tests</directory>
-        </testsuite>
         <testsuite name="format">
             <directory>packages/format/tests</directory>
-        </testsuite>
-        <testsuite name="socialauth">
-            <directory>packages/socialauth/tests</directory>
         </testsuite>
     </testsuites>
 </phpunit>
