@@ -237,6 +237,57 @@ final class NativeCanvas
     }
 
     /**
+     * A pre-rendered RenderClientTabs panel — the actual client-side state
+     * primitive. $panel already ran layout()/paint() into its own nested
+     * NativeCanvas by the time this is called (see RenderClientTabs), so
+     * this just embeds that panel's own commands/hitRegions as one
+     * "clientPanel" command in $this->commands. NativeCanvasView.kt keeps a
+     * local `key -> selected index` map (seeded once from whichever panel
+     * has $initiallyActive, never overwritten by a later render for the
+     * same key) and draws/hit-tests only the panel matching the current
+     * selection — switching tabs is a local redraw, never a server round
+     * trip, the same way Flutter's TabBarView holds its selected index in
+     * local State rather than asking the backend which tab is open.
+     *
+     * @param array<int, array<string, mixed>> $panelCommands
+     * @param array<int, array<string, mixed>> $panelHitRegions
+     */
+    public function clientTabPanel(string $key, int $index, bool $initiallyActive, float $x, float $y, array $panelCommands, array $panelHitRegions): self
+    {
+        $this->commands[] = $this->tagFixed([
+            'type' => 'clientPanel',
+            'key' => $key,
+            'index' => $index,
+            'initiallyActive' => $initiallyActive,
+            'x' => $x,
+            'y' => $y,
+            'commands' => $panelCommands,
+            'hitRegions' => $panelHitRegions,
+        ]);
+
+        return $this;
+    }
+
+    /**
+     * Raw command/hitRegion arrays, no envelope — clientTabPanel() embeds
+     * a whole nested NativeCanvas's output as one command, which needs the
+     * bare arrays toJson() would otherwise wrap in {commands, hitRegions,
+     * ...}.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function rawCommands(): array
+    {
+        return $this->commands;
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    public function rawHitRegions(): array
+    {
+        return $this->hitRegions;
+    }
+
+    /**
      * @param array<string, mixed> $command
      * @return array<string, mixed>
      */
@@ -488,6 +539,35 @@ final class NativeCanvas
         return $this;
     }
 
+    /**
+     * A hash of everything that decides what's actually on screen —
+     * deliberately excluding renderTimeMs (differs on literally every
+     * request, real content or not) and the hash itself. index.php
+     * compares this against the client's own last-applied hash
+     * (NativeRenderPocActivity's lastAppliedHash, sent back as
+     * ?lastHash=) and skips sending the full payload at all when nothing
+     * actually changed — the same "don't do the work if the output would
+     * be identical" instinct behind React/Flutter's own diffing, just
+     * applied at the transport layer instead of a widget tree, since this
+     * architecture re-renders the whole screen server-side on every
+     * request rather than keeping a persistent tree to diff.
+     */
+    public function stableHash(): string
+    {
+        return hash('xxh128', json_encode(array_filter([
+            'commands' => $this->commands,
+            'hitRegions' => $this->hitRegions,
+            'heroRegions' => $this->heroRegions !== [] ? $this->heroRegions : null,
+            'dismissRegions' => $this->dismissRegions !== [] ? $this->dismissRegions : null,
+            'reorderRegions' => $this->reorderRegions !== [] ? $this->reorderRegions : null,
+            'lottieRegions' => $this->lottieRegions !== [] ? $this->lottieRegions : null,
+            'autoNavigate' => $this->autoNavigate,
+            'contentHeight' => $this->contentHeight,
+            'redirect' => $this->redirect,
+            'scrollFollow' => $this->scrollFollow ? true : null,
+        ], static fn (mixed $value): bool => $value !== null), JSON_THROW_ON_ERROR));
+    }
+
     public function toJson(): string
     {
         return json_encode(array_filter([
@@ -502,6 +582,7 @@ final class NativeCanvas
             'renderTimeMs' => $this->renderTimeMs,
             'redirect' => $this->redirect,
             'scrollFollow' => $this->scrollFollow ? true : null,
+            'hash' => $this->stableHash(),
         ], static fn (mixed $value): bool => $value !== null), JSON_THROW_ON_ERROR);
     }
 }

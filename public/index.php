@@ -296,6 +296,7 @@ if ($path === '/native/layout-demo') {
         'widgets-firebase-auth' => \Engine\App\NativeWidgetsFirebaseAuthScreen::build($screenWidth, $screenHeight, $firebaseError, $_GET['fb_mode'] ?? 'signin'),
         'widgets-lottie' => \Engine\App\NativeWidgetsLottieScreen::build($screenWidth, $screenHeight),
         'widgets-splash' => \Engine\App\NativeWidgetsSplashScreen::build($screenWidth, $screenHeight),
+        'widgets-clienttabs' => \Engine\App\NativeWidgetsClientTabsScreen::build($screenWidth, $screenHeight),
         default => \Engine\App\NativeHomeScreen::build($screenWidth, $screenHeight),
     };
 
@@ -311,7 +312,20 @@ if ($path === '/native/layout-demo') {
     if ($redirectScreen !== null) {
         $canvas->setRedirect($redirectScreen);
     }
-    echo $canvas->toJson();
+
+    // NativeRenderPocActivity sends back the hash of the last response it
+    // actually applied (only for a same-screen refetch — see
+    // NativeCanvas::stableHash()'s docblock). An identical hash means
+    // nothing visible would change, so skip re-sending the whole payload
+    // (and Kotlin skips re-parsing/redrawing it) — most valuable for
+    // RenderLazyList's scroll-follow prefetch ticks and any action whose
+    // outcome happens not to touch what's on screen.
+    $hash = $canvas->stableHash();
+    if (($_GET['lastHash'] ?? null) === $hash) {
+        echo json_encode(['unchanged' => true, 'hash' => $hash]);
+    } else {
+        echo $canvas->toJson();
+    }
     exit;
 }
 

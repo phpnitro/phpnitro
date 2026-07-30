@@ -83,6 +83,13 @@ class NativeRenderPocActivity : AppCompatActivity() {
     private var activeEditText: EditText? = null
     private val deviceBridge by lazy { NativeDeviceBridge(this) }
     private var firstScreenRendered = false
+    // NativeCanvas::stableHash() of the last response actually applied —
+    // sent back as lastHash= on the next same-screen refetch so PHP can
+    // reply {"unchanged":true} instead of the whole payload when nothing
+    // visible would change. Reset to null whenever a real navigation
+    // happens (see refetch()'s isNavigation branches) so a fresh screen
+    // never risks matching a stale hash from wherever the user was before.
+    var lastAppliedHash: String? = null
     // RenderSplash's timed self-navigation — a single handler reused across
     // screens so a fresh scheduleAutoNavigate() call can always cancel
     // whatever the previous screen queued via the same instance.
@@ -166,6 +173,8 @@ class NativeRenderPocActivity : AppCompatActivity() {
         rootLayout.addView(canvasView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         setContentView(rootLayout)
 
+        if (isDebuggable()) setupDevTools()
+
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (screenStack.size > 1) {
@@ -246,6 +255,15 @@ class NativeRenderPocActivity : AppCompatActivity() {
             action.startsWith("toggle:") -> {
                 fieldValues[action.removePrefix("toggle:")] = meta?.optString("next", "") ?: ""
                 refetch(action = null, includeFields = true)
+            }
+            // RenderClientTabs — the tab selection lives entirely in
+            // NativeCanvasView's own clientTabState, never PHP/session
+            // state, so switching tabs never touches the network at all
+            // (every panel's content already arrived in this same
+            // response). See NativeCanvas::clientTabPanel().
+            action.startsWith("clientTab:") -> {
+                val (key, index) = action.removePrefix("clientTab:").split(":", limit = 2)
+                canvasView.setClientTab(key, index.toInt())
             }
             action == "dialog:alert" -> showAlertDialog(meta)
             action == "dialog:confirm" -> showConfirmDialog(meta)
@@ -768,6 +786,83 @@ class NativeRenderPocActivity : AppCompatActivity() {
         activeMapView = null
     }
 
+    // --- DevTools -----------------------------------------------------
+    // A minimal DevTools-equivalent: not a separate connected tool (no
+    // protocol, no companion app), just a small on-device overlay
+    // surfacing the numbers this session's work only ever exposed as
+    // logcat lines (PERF roundTripMs/phpRenderTimeMs) plus the new
+    // engine-internals no log line covered at all — whether a refetch's
+    // output was skipped entirely (NativeCanvas::stableHash()'s
+    // "unchanged") and whether the redraw that followed was a partial
+    // dirty-rect invalidate or a full one (NativeCanvasView's
+    // computeDirtyRects()). Only ever constructed when isDebuggable() —
+    // never present in a release build, no runtime cost either way.
+    private var devToolsPanel: TextView? = null
+    private var devToolsVisible = false
+    private var lastRoundTripMs = 0.0
+    private var lastPhpRenderTimeMs: Double? = null
+
+    private fun isDebuggable(): Boolean =
+        (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+
+    private fun setupDevTools() {
+        val density = resources.displayMetrics.density
+        fun dp(value: Float) = (value * density).toInt()
+
+        val badge = TextView(this).apply {
+            text = "🛠"
+            textSize = 18f
+            setPadding(dp(10f), dp(6f), dp(10f), dp(6f))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(android.graphics.Color.parseColor("#CC111827"))
+                cornerRadius = dp(20f).toFloat()
+            }
+            setTextColor(android.graphics.Color.WHITE)
+            isClickable = true
+            setOnClickListener {
+                devToolsVisible = !devToolsVisible
+                devToolsPanel?.visibility = if (devToolsVisible) android.view.View.VISIBLE else android.view.View.GONE
+            }
+        }
+        val badgeParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            gravity = Gravity.BOTTOM or Gravity.END
+            marginEnd = dp(16f)
+            bottomMargin = dp(24f)
+        }
+        rootLayout.addView(badge, badgeParams)
+
+        val panel = TextView(this).apply {
+            typeface = Typeface.MONOSPACE
+            textSize = 11f
+            setTextColor(android.graphics.Color.parseColor("#E5E7EB"))
+            setPadding(dp(12f), dp(10f), dp(12f), dp(10f))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(android.graphics.Color.parseColor("#DD111827"))
+                cornerRadius = dp(10f).toFloat()
+            }
+            visibility = android.view.View.GONE
+        }
+        val panelParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            gravity = Gravity.BOTTOM or Gravity.END
+            marginEnd = dp(16f)
+            bottomMargin = dp(72f)
+        }
+        rootLayout.addView(panel, panelParams)
+        devToolsPanel = panel
+    }
+
+    private fun updateDevToolsPanel(screen: String, wasUnchanged: Boolean) {
+        val panel = devToolsPanel ?: return
+        val phpMs = lastPhpRenderTimeMs?.let { "%.2f".format(it) } ?: "?"
+        panel.text = """
+            screen: $screen (stack depth ${screenStack.size})
+            roundTrip: ${"%.1f".format(lastRoundTripMs)} ms  php: $phpMs ms
+            commands: ${canvasView.lastCommandCount}  hitRegions: ${canvasView.lastHitRegionCount}
+            last fetch: ${if (wasUnchanged) "skipped (unchanged)" else "applied"}
+            last redraw: ${if (canvasView.lastInvalidateWasPartial) "partial (dirty rect)" else "full"}
+        """.trimIndent()
+    }
+
     // isNavigation gates NativeCanvasView's whole-screen crossfade
     // (startCrossfade()) — true for an actual scene change (navigate:/
     // tab:/back, or a server-side redirect), false for every other
@@ -815,6 +910,11 @@ class NativeRenderPocActivity : AppCompatActivity() {
         } else {
             ""
         }
+        // Only sent for a same-screen refetch — a real navigation always
+        // wants the fresh screen's full content regardless of what hash
+        // happened to be lying around from wherever the user was before.
+        // See NativeCanvas::stableHash().
+        val lastHashParam = if (!isNavigation && lastAppliedHash != null) "&lastHash=$lastAppliedHash" else ""
         // Point 3 of the "grow the framework" pass: a real performance
         // number, not an intuition. roundTripMs is tap-to-parsed-frame —
         // HTTP + PHP compute + JSON parse — everything except the actual
@@ -824,7 +924,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
         // "network/parse overhead" instead of one opaque total.
         val startNanos = System.nanoTime()
         try {
-            val connection = URL("http://127.0.0.1:$port/native/layout-demo?width=$screenWidthDp&height=$screenHeightDp&screen=$screen$idParam$actionParam$onlineParam$scrollYParam$fieldsParam").openConnection() as HttpURLConnection
+            val connection = URL("http://127.0.0.1:$port/native/layout-demo?width=$screenWidthDp&height=$screenHeightDp&screen=$screen$idParam$actionParam$onlineParam$scrollYParam$fieldsParam$lastHashParam").openConnection() as HttpURLConnection
             connection.connectTimeout = 5000
             Log.i(TAG, "Fetching /native/layout-demo (screen=$screen, action=$action), response code ${connection.responseCode}")
             val json = connection.inputStream.bufferedReader().use { it.readText() }
@@ -832,6 +932,8 @@ class NativeRenderPocActivity : AppCompatActivity() {
             val roundTripMs = (System.nanoTime() - startNanos) / 1_000_000.0
             val renderTimeMs = Regex("\"renderTimeMs\":([0-9.]+)").find(json)?.groupValues?.get(1)?.toDoubleOrNull()
             Log.i(TAG, "PERF screen=$screen roundTripMs=${"%.1f".format(roundTripMs)} phpRenderTimeMs=${renderTimeMs?.let { "%.2f".format(it) } ?: "?"}")
+            lastRoundTripMs = roundTripMs
+            lastPhpRenderTimeMs = renderTimeMs
 
             Handler(Looper.getMainLooper()).post { applyResponse(json, screenWidthDp, isNavigation) }
         } catch (e: Exception) {
@@ -845,6 +947,18 @@ class NativeRenderPocActivity : AppCompatActivity() {
     // handling). Swap the stack's top entry and re-fetch instead of
     // drawing the stale response.
     private fun applyResponse(json: String, screenWidthDp: Float, isNavigation: Boolean) {
+        if (isNavigation) lastAppliedHash = null
+
+        // {"unchanged":true} — PHP determined its output would be byte-
+        // identical to the lastHash= this same request sent, so it skipped
+        // building the full payload entirely. Nothing to parse, nothing
+        // to redraw: the screen already shows this exact content.
+        if (json.contains("\"unchanged\":true")) {
+            firstScreenRendered = true
+            if (devToolsPanel != null) updateDevToolsPanel(screenStack.lastOrNull() ?: "?", wasUnchanged = true)
+            return
+        }
+
         val redirect = Regex("\"redirect\":\"([a-zA-Z0-9_/]+)\"").find(json)?.groupValues?.get(1)
         if (redirect != null && screenStack.isNotEmpty()) {
             screenStack[screenStack.size - 1] = redirect
@@ -855,6 +969,8 @@ class NativeRenderPocActivity : AppCompatActivity() {
         syncLottieOverlays(canvasView.lottieRegions)
         firstScreenRendered = true
         scheduleAutoNavigate(json)
+        lastAppliedHash = Regex("\"hash\":\"([0-9a-f]+)\"").find(json)?.groupValues?.get(1)
+        if (devToolsPanel != null) updateDevToolsPanel(screenStack.lastOrNull() ?: "?", wasUnchanged = false)
     }
 
     // RenderSplash emits an "autoNavigate":{"screen":"...","afterMs":N}
@@ -877,6 +993,24 @@ class NativeRenderPocActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "NativeRenderPoc"
+
+        // `phpx dev:push` -> HotReloadReceiver's only way to reach a live
+        // Activity instance (a manifest-registered BroadcastReceiver is
+        // instantiated fresh per broadcast, with no reference of its own to
+        // whatever Activity is on screen). WeakReference so a killed/
+        // recreated Activity can't be kept alive by this static field.
+        var hotReloadInstance: java.lang.ref.WeakReference<NativeRenderPocActivity>? = null
+    }
+
+    // Re-fetches the current screen with isNavigation = false — same
+    // instant, no-flash path a counter increment already takes. Edited PHP
+    // was just pushed straight into filesDir/www (see PhpServer.kt), and
+    // `php -S` recompiles straight off disk with no persistent opcache, so
+    // this refetch is already hitting the new code. No Activity restart:
+    // screenStack and the PHP session are both untouched.
+    fun hotReload() {
+        Log.i(TAG, "Hot reload: refetching current screen")
+        refetch(action = null, isNavigation = false)
     }
 
     // android:launchMode="singleTask" (AndroidManifest.xml, needed so
@@ -939,6 +1073,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        hotReloadInstance = java.lang.ref.WeakReference(this)
         if (nfcListening) enableNfcForegroundDispatch()
         activeMapView?.onResume()
     }
@@ -953,6 +1088,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        if (hotReloadInstance?.get() === this) hotReloadInstance = null
         nfcAdapter?.disableForegroundDispatch(this)
         activeMapView?.onPause()
     }

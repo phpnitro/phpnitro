@@ -85,6 +85,10 @@ final class NativeWidgetsIndexScreen
                         EdgeInsets::only(top: Tokens::SPACE_MD),
                         new NativeListTile('Lottie', 'Animation en boucle — LottieAnimationView réel', 'animation', trailingIcon: 'chevron_right', action: 'navigate:widgets-lottie'),
                     ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeListTile('Onglets (état client)', 'Changer d\'onglet — zéro aller-retour serveur', 'tab', trailingIcon: 'chevron_right', action: 'navigate:widgets-clienttabs'),
+                    ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,

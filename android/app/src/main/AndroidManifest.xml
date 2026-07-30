@@ -152,5 +152,10 @@
 
         <receiver android:name=".AlarmReceiver" android:exported="false" />
         <receiver android:name=".GeofenceReceiver" android:exported="false" />
+        <!-- `phpx dev:push`'s trigger — non-exported, but `adb shell am
+             broadcast -n` can still target it explicitly on a debuggable
+             build, same as the two receivers above. See
+             HotReloadReceiver.kt. -->
+        <receiver android:name=".HotReloadReceiver" android:exported="false" />
     </application>
 </manifest>

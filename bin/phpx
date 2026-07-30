@@ -11,6 +11,7 @@
  *   phpx new <directory>              Scaffold a new project: android/ ios/ lib/ packages/ public/ assets/ bin/
  *   phpx bundle:android               Copy public/ + lib/ + packages/ + .env into the Android app
  *   phpx build:android [debug|release] Bundle + gradle assemble, auto-installing Gradle if needed
+ *   phpx dev:push [--watch]           Push PHP straight to a connected device's running app, no rebuild/reinstall
  *   phpx payments                     List phpnitro.yml's declared payment gateways and their .env status
  *   phpx maps                         List phpnitro.yml's declared map providers and their .env status
  *   phpx icon                         Regenerate the Android launcher icon from phpnitro.yml's `icon`
@@ -916,6 +917,140 @@ function cmdBundleAndroid(): void
 }
 
 /**
+ * Reads applicationId straight out of android/app/build.gradle.kts — same
+ * "never hardcode what a config file already declares" reasoning as
+ * resolveOrInstallAndroidSdk() reading compileSdk from the same file.
+ */
+function readApplicationId(): string
+{
+    $buildGradle = file_get_contents(PHPX_ROOT . '/android/app/build.gradle.kts');
+    if ($buildGradle === false) {
+        phpxFail('android/app/build.gradle.kts not found — is this a phpx project?');
+    }
+    preg_match('/applicationId\s*=\s*"([^"]+)"/', $buildGradle, $match);
+
+    return $match[1] ?? phpxFail('could not read applicationId from android/app/build.gradle.kts');
+}
+
+/**
+ * Stages public/ + lib/ + packages/*\/src the exact same way
+ * cmdBundleAndroid() does (so dev:push can never drift from what a real
+ * build would ship), but skips `composer install` unless composer.json
+ * itself changed since the last push — re-resolving/copying vendor/ on
+ * every single edit would turn "hot" reload into a several-second wait for
+ * the common case (editing one .php file, not adding a dependency).
+ */
+function stageForDevPush(): string
+{
+    syncAssets();
+    syncManifestToEnv();
+
+    $staging = PHPX_ROOT . '/android/app/src/main/assets/www';
+    $stagedComposerJson = "{$staging}/composer.json";
+    $composerChanged = !is_file($stagedComposerJson)
+        || !is_dir("{$staging}/vendor")
+        || file_get_contents($stagedComposerJson) !== file_get_contents(PHPX_ROOT . '/composer.json');
+
+    passthruOrFail('rm -rf ' . escapeshellarg("{$staging}/public") . ' ' . escapeshellarg("{$staging}/lib"));
+    copyDirectory(PHPX_ROOT . '/public', "{$staging}/public", minifyPhp: true);
+    copyDirectory(PHPX_ROOT . '/lib/pages/app', "{$staging}/lib/pages/app", minifyPhp: true);
+    copyDirectory(PHPX_ROOT . '/lib/backend/src', "{$staging}/lib/backend/src", minifyPhp: true);
+
+    foreach (glob(PHPX_ROOT . '/packages/*/src', GLOB_ONLYDIR) ?: [] as $packageSrcDir) {
+        $packageName = basename(dirname($packageSrcDir));
+        passthruOrFail('rm -rf ' . escapeshellarg("{$staging}/packages/{$packageName}/src"));
+        copyDirectory($packageSrcDir, "{$staging}/packages/{$packageName}/src", minifyPhp: true);
+    }
+
+    if ($composerChanged) {
+        echo "composer.json changed — reinstalling vendor/ (this push will be slower)...\n";
+        copy(PHPX_ROOT . '/composer.json', $stagedComposerJson);
+        passthruOrFail('composer install --no-dev --no-interaction --quiet --working-dir=' . escapeshellarg($staging));
+        passthruOrFail('rm -f ' . escapeshellarg($staging . '/composer.lock'));
+    }
+
+    file_put_contents("{$staging}/env", (string) file_get_contents(PHPX_ROOT . '/.env'));
+
+    return $staging;
+}
+
+/**
+ * Pushes the staged PHP app straight into the running app's own
+ * filesDir/www over adb, then broadcasts HotReloadReceiver so the
+ * currently open screen refetches itself — no `assembleDebug`, no
+ * `adb install`, no Activity restart, no lost screenStack/session. Relies
+ * on PhpServer.kt's `-S` dev server re-reading/recompiling .php files
+ * straight off disk (no persistent opcache) and on the app being a debug
+ * build (`run-as` requires it). See HotReloadReceiver.kt for the other
+ * half of this mechanism.
+ */
+function cmdDevPush(bool $watch): void
+{
+    if (trim((string) shell_exec('command -v adb 2>/dev/null')) === '') {
+        phpxFail('adb not found on PATH — connect a device via Android Studio/platform-tools first.');
+    }
+
+    $pkg = readApplicationId();
+
+    do {
+        $staging = stageForDevPush();
+
+        // Separate adb shell invocations, no "&&"/sh -c nesting — adb
+        // rejoins a multi-argument `adb shell a b c` into one string
+        // before it reaches the device, which silently mangles nested
+        // quoting/operators (a compound `sh -c 'rm ... && cp ...'` arrived
+        // on-device as two unrelated top-level commands the one time this
+        // was tried as a single call). One unambiguous command per call
+        // sidesteps that rejoin entirely.
+        $remote = '/data/local/tmp/phpnitro_hotreload';
+        passthruOrFail('adb shell rm -rf ' . escapeshellarg($remote));
+        passthruOrFail('adb push ' . escapeshellarg($staging) . ' ' . escapeshellarg($remote) . ' > /dev/null');
+        passthruOrFail('adb shell run-as ' . escapeshellarg($pkg) . ' rm -rf files/www');
+        passthruOrFail('adb shell run-as ' . escapeshellarg($pkg) . ' cp -r ' . escapeshellarg($remote) . ' files/www');
+        passthruOrFail('adb shell rm -rf ' . escapeshellarg($remote));
+        passthruOrFail('adb shell am broadcast -n ' . escapeshellarg("{$pkg}/.HotReloadReceiver") . ' > /dev/null');
+
+        echo '[' . date('H:i:s') . "] Pushed to device, current screen refetched.\n";
+
+        if ($watch) {
+            waitForSourceChange();
+        }
+    } while ($watch);
+}
+
+/**
+ * Polls mtimes across public/, lib/, packages/*\/src every second — no
+ * inotify dependency (not guaranteed installed), and this only needs to
+ * notice "something changed", not exactly what.
+ */
+function waitForSourceChange(): void
+{
+    $watchedDirs = array_merge(
+        [PHPX_ROOT . '/public', PHPX_ROOT . '/lib'],
+        glob(PHPX_ROOT . '/packages/*/src', GLOB_ONLYDIR) ?: [],
+    );
+
+    $baseline = latestMtime($watchedDirs);
+    echo "Watching for changes (Ctrl+C to stop)...\n";
+    while (latestMtime($watchedDirs) <= $baseline) {
+        usleep(500_000);
+    }
+}
+
+function latestMtime(array $dirs): int
+{
+    $latest = 0;
+    foreach ($dirs as $dir) {
+        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS));
+        foreach ($iterator as $file) {
+            $latest = max($latest, $file->getMTime());
+        }
+    }
+
+    return $latest;
+}
+
+/**
  * Buildozer-style one-command build: bundle + assemble, auto-installing
  * Gradle (into ~/.phpx/tools, cached across projects/runs) if none of the
  * required version is already on PATH — closes the exact gap this project
@@ -1093,6 +1228,9 @@ switch ($command) {
     case 'bundle:android':
         cmdBundleAndroid();
         break;
+    case 'dev:push':
+        cmdDevPush(in_array('--watch', $argv, true));
+        break;
     case 'build:android':
         cmdBuildAndroid($argv[2] ?? 'debug');
         break;
@@ -1112,5 +1250,5 @@ switch ($command) {
         cmdGenerateApiDocs();
         break;
     default:
-        phpxFail('usage: phpx <make:page|make:entity|serve|new|bundle:android|payments|maps|icon|firebase|docs:api> ...');
+        phpxFail('usage: phpx <make:page|make:entity|serve|new|bundle:android|build:android|dev:push|payments|maps|icon|firebase|docs:api> ...');
 }

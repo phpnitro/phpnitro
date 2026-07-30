@@ -202,6 +202,41 @@ class NativeCanvasView(context: Context) : View(context) {
     var lottieRegions: List<LottieRegion> = emptyList()
         private set
 
+    // RenderClientTabs' whole point — which panel is selected per group
+    // key lives here, on the client, and NOTHING else. Seeded once from
+    // whichever panel declared itself initiallyActive; a later render of
+    // the same screen (a completely unrelated refetch) must never reset a
+    // tab the user has already switched away from, so seedClientTabState()
+    // only fills in keys this map doesn't already have.
+    private val clientTabState = mutableMapOf<String, Int>()
+
+    private fun seedClientTabState(list: JSONArray) {
+        for (index in 0 until list.length()) {
+            val command = list.getJSONObject(index)
+            if (command.optString("type") != "clientPanel") continue
+            val key = command.getString("key")
+            if (clientTabState.containsKey(key)) continue
+            if (command.optBoolean("initiallyActive", false)) {
+                clientTabState[key] = command.getInt("index")
+            }
+        }
+    }
+
+    /** Called by NativeRenderPocActivity for a "clientTab:key:index" tap — no refetch, ever. */
+    fun setClientTab(key: String, index: Int) {
+        clientTabState[key] = index
+        invalidate()
+    }
+
+    // DevTools overlay readouts — set at the end of setCommands(), read
+    // (never written) by NativeRenderPocActivity's updateDevToolsPanel().
+    var lastCommandCount: Int = 0
+        private set
+    var lastHitRegionCount: Int = 0
+        private set
+    var lastInvalidateWasPartial: Boolean = false
+        private set
+
     private var scrollAnimator: ValueAnimator? = null
     private var velocityTracker: VelocityTracker? = null
     private var touchDownX = 0f
@@ -290,7 +325,10 @@ class NativeCanvasView(context: Context) : View(context) {
             reorderOrder.clear()
             reorderAnimatedY.clear()
             lottieRegions = parseLottieRegions(payload.optJSONArray("lottieRegions"))
+            seedClientTabState(commands)
             rebuildAccessibilityNodes()
+            lastCommandCount = commands.length()
+            lastHitRegionCount = hitRegions.length()
             Log.i("NativeCanvasView", "setCommands: ${commands.length()} commands, ${hitRegions.length()} hit regions, contentHeight=$contentHeight, view size ${width}x${height}")
             // Only an actual scene change (navigate:/tab:/back, a
             // redirect, or the very first load) gets the whole-screen
@@ -300,11 +338,18 @@ class NativeCanvasView(context: Context) : View(context) {
             // reloaded". RenderHero/RenderAnimated's own per-element
             // transitions are separate and always run either way.
             if (isNavigation) {
+                lastInvalidateWasPartial = false
                 startCrossfade()
             } else {
                 fadeAnimator?.cancel()
                 fadeProgress = 1f
-                invalidate()
+                val dirtyPixelRect = computeDirtyRects(previousCommands, commands)?.let { toPixelRect(it) }
+                lastInvalidateWasPartial = dirtyPixelRect != null
+                if (dirtyPixelRect != null) {
+                    invalidate(dirtyPixelRect)
+                } else {
+                    invalidate()
+                }
             }
             startHeroTransition()
         } catch (e: org.json.JSONException) {
@@ -525,7 +570,24 @@ class NativeCanvasView(context: Context) : View(context) {
             "circle" -> drawCircleCommand(canvas, command, alpha)
             "line" -> drawLineCommand(canvas, command, alpha)
             "arc" -> drawArcCommand(canvas, command, alpha)
+            "clientPanel" -> drawClientPanelCommand(canvas, command, alpha)
         }
+    }
+
+    // Only the panel whose index matches this group's current local
+    // selection draws — every other panel this same command list carries
+    // (there's one clientPanel command per RenderClientTabs panel, all
+    // sharing the same rect) is skipped outright, same idea as the
+    // dismiss/reorder key checks in drawCommands() just above.
+    private fun drawClientPanelCommand(canvas: Canvas, command: JSONObject, alpha: Float) {
+        if (clientTabState[command.getString("key")] != command.getInt("index")) return
+        val saved = canvas.save()
+        canvas.translate(command.getDouble("x").toFloat(), command.getDouble("y").toFloat())
+        val nested = command.getJSONArray("commands")
+        for (index in 0 until nested.length()) {
+            drawSingleCommand(canvas, nested.getJSONObject(index), alpha)
+        }
+        canvas.restoreToCount(saved)
     }
 
     private fun lerp(from: Float, to: Float, progress: Float): Float = from + (to - from) * progress
@@ -884,6 +946,45 @@ class NativeCanvasView(context: Context) : View(context) {
                 return
             }
         }
+
+        handleClientPanelTap(touchX, rawTouchY)
+    }
+
+    // RenderClientTabs panels carry their own hitRegions embedded inside
+    // their "clientPanel" command (see NativeCanvas::clientTabPanel()),
+    // not merged into the top-level hitRegions array above — only the
+    // currently selected panel of each group is a real tap target, and
+    // "currently selected" is purely local state, so PHP has no way to
+    // have pre-merged the right subset itself. Regions are stored relative
+    // to the panel's own nested canvas, so the panel's (x, y) is added back
+    // before comparing against the touch point.
+    private fun handleClientPanelTap(touchX: Float, rawTouchY: Float) {
+        for (index in 0 until commands.length()) {
+            val command = commands.getJSONObject(index)
+            if (command.optString("type") != "clientPanel") continue
+            if (clientTabState[command.getString("key")] != command.getInt("index")) continue
+
+            val fixed = command.optBoolean("fixed", false)
+            val touchY = if (fixed) rawTouchY else rawTouchY + scrollY
+            val offsetX = command.getDouble("x")
+            val offsetY = command.getDouble("y")
+            val nestedRegions = command.getJSONArray("hitRegions")
+
+            for (regionIndex in 0 until nestedRegions.length()) {
+                val region = nestedRegions.getJSONObject(regionIndex)
+                val left = offsetX + region.getDouble("x")
+                val top = offsetY + region.getDouble("y")
+                val right = left + region.getDouble("width")
+                val bottom = top + region.getDouble("height")
+
+                if (touchX >= left && touchX <= right && touchY >= top && touchY <= bottom) {
+                    Log.i("NativeCanvasView", "tap hit region (client panel): ${region.getString("action")}")
+                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    onAction?.invoke(region.getString("action"), RectF(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat()), region.optJSONObject("meta"))
+                    return
+                }
+            }
+        }
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -1017,8 +1118,127 @@ class NativeCanvasView(context: Context) : View(context) {
             if (dismiss != null && (dismissedKeys.contains(dismiss) || dismiss == activeDismiss?.key)) continue
             val reorder = command.optString("reorder", "").ifEmpty { null }
             if (reorder != null && activeReorder != null && reorderOrder[activeReorder!!.group]?.contains(reorder) == true) continue
+            // Canvas is already scaled/translated into the same dp space
+            // these bounds are computed in (see onDraw's scale+translate
+            // before calling this), so quickReject can compare them
+            // directly — skips the Paint/typeface/drawXxx cost for
+            // anything outside the current clip, the same win a partial
+            // invalidate(Rect) is meant to buy, but it also helps for free
+            // during an ordinary full invalidate while scrolled (content
+            // above/below the viewport never needed drawing either).
+            val bounds = commandBoundsDp(command)
+            if (bounds != null && canvas.quickReject(bounds.left, bounds.top, bounds.right, bounds.bottom, Canvas.EdgeType.BW)) continue
             drawSingleCommand(canvas, command, alpha)
         }
+    }
+
+    /**
+     * Exact or deliberately generous bounds for every command type that
+     * can appear outside a clientPanel (rect/image/circle/arc/line/icon
+     * are exact; text pads measureTextWidth() since no explicit width
+     * travelled with the command) — used both to quickReject off-clip
+     * commands above and to build a dirty rect below. Returns null for
+     * anything not covered (clientPanel today), which both call sites
+     * treat as "can't be sure, don't skip/don't shrink the invalidate".
+     */
+    private fun commandBoundsDp(command: JSONObject): RectF? = when (command.optString("type")) {
+        "rect", "image" -> RectF(
+            command.getDouble("x").toFloat(),
+            command.getDouble("y").toFloat(),
+            (command.getDouble("x") + command.getDouble("width")).toFloat(),
+            (command.getDouble("y") + command.getDouble("height")).toFloat(),
+        )
+        "circle" -> {
+            val cx = command.getDouble("cx").toFloat()
+            val cy = command.getDouble("cy").toFloat()
+            val r = command.getDouble("radius").toFloat()
+            RectF(cx - r, cy - r, cx + r, cy + r)
+        }
+        "arc" -> {
+            val cx = command.getDouble("cx").toFloat()
+            val cy = command.getDouble("cy").toFloat()
+            val r = command.getDouble("radius").toFloat() + command.getDouble("strokeWidth").toFloat()
+            RectF(cx - r, cy - r, cx + r, cy + r)
+        }
+        "line" -> {
+            val pad = command.optDouble("width", 1.0).toFloat() + 1f
+            val x1 = command.getDouble("x1").toFloat()
+            val y1 = command.getDouble("y1").toFloat()
+            val x2 = command.getDouble("x2").toFloat()
+            val y2 = command.getDouble("y2").toFloat()
+            RectF(minOf(x1, x2) - pad, minOf(y1, y2) - pad, maxOf(x1, x2) + pad, maxOf(y1, y2) + pad)
+        }
+        "icon" -> {
+            val x = command.getDouble("x").toFloat()
+            val y = command.getDouble("y").toFloat()
+            val size = command.getDouble("size").toFloat()
+            RectF(x, y, x + size, y + size)
+        }
+        "text" -> {
+            val x = command.getDouble("x").toFloat()
+            val y = command.getDouble("y").toFloat()
+            val size = command.optDouble("size", 16.0).toFloat()
+            val width = measureTextWidth(command) * 1.2f
+            RectF(x, y - size * 1.1f, x + width, y + size * 0.4f)
+        }
+        else -> null
+    }
+
+    private class DirtyRects(val scrollable: RectF?, val fixed: RectF?)
+
+    /**
+     * Same-length, index-aligned diff against the previous render's
+     * commands — correct only because PHP emits a stable, deterministic
+     * command order for the same screen/state shape every time (no
+     * randomness, no unordered map iteration in the layout engine), so
+     * "command i is now different" reliably means "widget i changed",
+     * not "the list got reshuffled". A structural change (an item added/
+     * removed, e.g. a list growing) makes the lengths differ, which bails
+     * out to null — full invalidate, always correct, just not partial.
+     */
+    private fun computeDirtyRects(old: JSONArray?, new: JSONArray): DirtyRects? {
+        if (old == null || old.length() != new.length()) return null
+
+        var scrollable: RectF? = null
+        var fixed: RectF? = null
+        for (index in 0 until new.length()) {
+            val previous = old.getJSONObject(index)
+            val current = new.getJSONObject(index)
+            if (previous.toString() == current.toString()) continue
+
+            for (command in listOf(previous, current)) {
+                val bounds = commandBoundsDp(command) ?: return null
+                if (command.optBoolean("fixed", false)) {
+                    fixed = fixed?.apply { union(bounds) } ?: RectF(bounds)
+                } else {
+                    scrollable = scrollable?.apply { union(bounds) } ?: RectF(bounds)
+                }
+            }
+        }
+
+        return if (scrollable == null && fixed == null) null else DirtyRects(scrollable, fixed)
+    }
+
+    /**
+     * dp -> device pixels, matching onDraw's own two passes: the
+     * scrollable pass is scaled by density and translated by -scrollY,
+     * the fixed pass only scaled. A couple pixels of padding absorb
+     * antialiasing/rounding slop at the rect's edges.
+     */
+    private fun toPixelRect(dirty: DirtyRects): Rect? {
+        var union: RectF? = null
+        dirty.scrollable?.let {
+            val r = RectF(it.left * density, (it.top - scrollY) * density, it.right * density, (it.bottom - scrollY) * density)
+            union = union?.apply { union(r) } ?: r
+        }
+        dirty.fixed?.let {
+            val r = RectF(it.left * density, it.top * density, it.right * density, it.bottom * density)
+            union = union?.apply { union(r) } ?: r
+        }
+        val result = union ?: return null
+        result.inset(-2f, -2f)
+
+        return Rect(result.left.toInt(), result.top.toInt(), result.right.toInt(), result.bottom.toInt())
     }
 
     private fun drawRectCommand(canvas: Canvas, command: JSONObject, alpha: Float) {
