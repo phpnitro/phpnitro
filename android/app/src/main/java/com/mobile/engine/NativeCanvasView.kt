@@ -192,6 +192,16 @@ class NativeCanvasView(context: Context) : View(context) {
     private val reorderSlotAnimators = mutableMapOf<String, ValueAnimator>()
     private var reorderSettleAnimator: ValueAnimator? = null
 
+    // RenderLottie (NativeCanvas::lottieRegion()) — read by
+    // NativeRenderPocActivity after every setCommands() to reconcile a
+    // real LottieAnimationView overlay per key (added/repositioned/
+    // removed), the same "no Canvas concept for this, overlay a real
+    // View" idiom as the video/map overlays, just synced every render
+    // instead of only on tap since a Lottie animation autoplays.
+    data class LottieRegion(val key: String, val rect: RectF, val url: String, val loop: Boolean, val autoplay: Boolean)
+    var lottieRegions: List<LottieRegion> = emptyList()
+        private set
+
     private var scrollAnimator: ValueAnimator? = null
     private var velocityTracker: VelocityTracker? = null
     private var touchDownX = 0f
@@ -279,6 +289,7 @@ class NativeCanvasView(context: Context) : View(context) {
             reorderItems = parseReorderItems(payload.optJSONArray("reorderRegions"))
             reorderOrder.clear()
             reorderAnimatedY.clear()
+            lottieRegions = parseLottieRegions(payload.optJSONArray("lottieRegions"))
             rebuildAccessibilityNodes()
             Log.i("NativeCanvasView", "setCommands: ${commands.length()} commands, ${hitRegions.length()} hit regions, contentHeight=$contentHeight, view size ${width}x${height}")
             // Only an actual scene change (navigate:/tab:/back, a
@@ -354,6 +365,19 @@ class NativeCanvasView(context: Context) : View(context) {
             val top = item.getDouble("y").toFloat()
             val rect = RectF(left, top, left + item.getDouble("width").toFloat(), top + item.getDouble("height").toFloat())
             result.add(ReorderItem(item.getString("group"), item.getString("key"), rect, item.getString("action")))
+        }
+        return result
+    }
+
+    private fun parseLottieRegions(array: JSONArray?): List<LottieRegion> {
+        if (array == null) return emptyList()
+        val result = mutableListOf<LottieRegion>()
+        for (index in 0 until array.length()) {
+            val item = array.getJSONObject(index)
+            val left = item.getDouble("x").toFloat()
+            val top = item.getDouble("y").toFloat()
+            val rect = RectF(left, top, left + item.getDouble("width").toFloat(), top + item.getDouble("height").toFloat())
+            result.add(LottieRegion(item.getString("key"), rect, item.getString("url"), item.getBoolean("loop"), item.getBoolean("autoplay")))
         }
         return result
     }

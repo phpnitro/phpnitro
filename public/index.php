@@ -294,6 +294,8 @@ if ($path === '/native/layout-demo') {
         'widgets-media' => \Engine\App\NativeWidgetsMediaScreen::build($screenWidth, $screenHeight),
         'widgets-maps' => \Engine\App\NativeWidgetsMapsScreen::build($screenWidth, $screenHeight),
         'widgets-firebase-auth' => \Engine\App\NativeWidgetsFirebaseAuthScreen::build($screenWidth, $screenHeight, $firebaseError, $_GET['fb_mode'] ?? 'signin'),
+        'widgets-lottie' => \Engine\App\NativeWidgetsLottieScreen::build($screenWidth, $screenHeight),
+        'widgets-splash' => \Engine\App\NativeWidgetsSplashScreen::build($screenWidth, $screenHeight),
         default => \Engine\App\NativeHomeScreen::build($screenWidth, $screenHeight),
     };
 

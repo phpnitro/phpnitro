@@ -83,6 +83,10 @@ class NativeRenderPocActivity : AppCompatActivity() {
     private var activeEditText: EditText? = null
     private val deviceBridge by lazy { NativeDeviceBridge(this) }
     private var firstScreenRendered = false
+    // RenderSplash's timed self-navigation — a single handler reused across
+    // screens so a fresh scheduleAutoNavigate() call can always cancel
+    // whatever the previous screen queued via the same instance.
+    private val autoNavigateHandler = Handler(Looper.getMainLooper())
 
     // Same push-based (not poll-based) NFC model as MainActivity's —
     // nfcListening is the flag onNewIntent() checks before treating an
@@ -652,6 +656,50 @@ class NativeRenderPocActivity : AppCompatActivity() {
         clearMapOverlay()
     }
 
+    // RenderLottie: unlike the video/map overlays below (shown only on
+    // tap), a Lottie animation autoplays — this is reconciled after
+    // EVERY setCommands(), not from onTap()'s dispatch.
+    private val activeLottieViews = mutableMapOf<String, com.airbnb.lottie.LottieAnimationView>()
+
+    private fun syncLottieOverlays(regions: List<NativeCanvasView.LottieRegion>) {
+        val density = resources.displayMetrics.density
+        val seenKeys = mutableSetOf<String>()
+        for (region in regions) {
+            seenKeys.add(region.key)
+            val params = FrameLayout.LayoutParams(
+                (region.rect.width() * density).toInt(),
+                (region.rect.height() * density).toInt(),
+            ).apply {
+                leftMargin = (region.rect.left * density).toInt()
+                topMargin = (region.rect.top * density).toInt()
+            }
+            val existing = activeLottieViews[region.key]
+            if (existing != null) {
+                existing.layoutParams = params
+                continue
+            }
+            val view = com.airbnb.lottie.LottieAnimationView(this).apply {
+                repeatCount = if (region.loop) com.airbnb.lottie.LottieDrawable.INFINITE else 0
+                if (region.url.startsWith("http")) {
+                    setAnimationFromUrl(region.url)
+                } else {
+                    setAnimation(region.url)
+                }
+                if (region.autoplay) playAnimation()
+            }
+            rootLayout.addView(view, params)
+            activeLottieViews[region.key] = view
+        }
+
+        val staleKeys = activeLottieViews.keys - seenKeys
+        for (key in staleKeys) {
+            activeLottieViews.remove(key)?.let {
+                it.cancelAnimation()
+                rootLayout.removeView(it)
+            }
+        }
+    }
+
     private var activeVideoView: android.widget.VideoView? = null
 
     private fun showVideoOverlay(url: String, regionDp: RectF) {
@@ -804,7 +852,27 @@ class NativeRenderPocActivity : AppCompatActivity() {
             return
         }
         canvasView.setCommands(json, screenWidthDp, isNavigation)
+        syncLottieOverlays(canvasView.lottieRegions)
         firstScreenRendered = true
+        scheduleAutoNavigate(json)
+    }
+
+    // RenderSplash emits an "autoNavigate":{"screen":"...","afterMs":N}
+    // field so a splash screen can push itself to its target screen once
+    // its animation has had time to play, without the user tapping
+    // anything. Any previously queued jump is cancelled first — if this
+    // same screen re-renders without the field (a real navigation already
+    // happened, or a splash re-render came from something else), the stale
+    // jump must not fire on top of wherever the user is now.
+    private fun scheduleAutoNavigate(json: String) {
+        autoNavigateHandler.removeCallbacksAndMessages(null)
+        val match = Regex("\"autoNavigate\":\\{\"screen\":\"([a-zA-Z0-9_/]+)\",\"afterMs\":([0-9]+)\\}").find(json) ?: return
+        val (screen, afterMs) = match.destructured
+        autoNavigateHandler.postDelayed({
+            clearTextInput()
+            if (screenStack.isNotEmpty()) screenStack[screenStack.size - 1] = screen else screenStack.add(screen)
+            refetch(action = null, isNavigation = true)
+        }, afterMs.toLong())
     }
 
     companion object {
@@ -890,6 +958,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        autoNavigateHandler.removeCallbacksAndMessages(null)
         phpServer.stop()
         super.onDestroy()
     }

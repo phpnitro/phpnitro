@@ -58,9 +58,17 @@ final class NativeCanvas
      */
     private array $reorderRegions = [];
 
+    /**
+     * @var array<int, array<string, mixed>>
+     */
+    private array $lottieRegions = [];
+
     private float $contentHeight = 0.0;
     private ?float $renderTimeMs = null;
     private ?string $redirect = null;
+
+    /** @var array{screen: string, afterMs: int}|null */
+    private ?array $autoNavigate = null;
     private bool $fixedMode = false;
     private ?string $heroTag = null;
     private ?string $dismissKey = null;
@@ -195,6 +203,35 @@ final class NativeCanvas
     public function endReorder(): self
     {
         $this->reorderKey = null;
+
+        return $this;
+    }
+
+    /**
+     * Registers a rect for a real com.airbnb.android.lottie.
+     * LottieAnimationView overlay — Lottie's whole point is a continuous
+     * frame-by-frame animation loop, which has no equivalent in a
+     * "PHP computes one frame, Kotlin replays it" draw-command pipeline.
+     * NativeCanvasView.kt reconciles a live overlay View per registered
+     * $key against this list on every render (added when new, repositioned
+     * when it moves, removed when it disappears) — the same "overlay a
+     * real Android View, there's no Canvas concept for this" idiom
+     * NativeVideoPlayer/NativeMapView already use, just synced on every
+     * render instead of only on tap, since a Lottie animation is expected
+     * to autoplay rather than wait for one. See RenderLottie.
+     */
+    public function lottieRegion(string $key, float $x, float $y, float $width, float $height, string $url, bool $loop, bool $autoplay): self
+    {
+        $this->lottieRegions[] = [
+            'key' => $key,
+            'x' => $x,
+            'y' => $y,
+            'width' => $width,
+            'height' => $height,
+            'url' => $url,
+            'loop' => $loop,
+            'autoplay' => $autoplay,
+        ];
 
         return $this;
     }
@@ -435,6 +472,22 @@ final class NativeCanvas
         return $this;
     }
 
+    /**
+     * Queues a client-side, timer-driven navigation — the same
+     * navigate:/screenStack push NativeRenderPocActivity.kt already does
+     * for a tapped RenderTappable, just fired by a Handler.postDelayed()
+     * instead of a touch. Used by RenderSplash so a splash screen can send
+     * itself to its real home screen once its animation has had time to
+     * play, with no user interaction required. Only the last call in a
+     * paint pass wins — a screen only ever wants to schedule one jump.
+     */
+    public function autoNavigate(string $screen, int $afterMs): self
+    {
+        $this->autoNavigate = ['screen' => $screen, 'afterMs' => $afterMs];
+
+        return $this;
+    }
+
     public function toJson(): string
     {
         return json_encode(array_filter([
@@ -443,6 +496,8 @@ final class NativeCanvas
             'heroRegions' => $this->heroRegions !== [] ? $this->heroRegions : null,
             'dismissRegions' => $this->dismissRegions !== [] ? $this->dismissRegions : null,
             'reorderRegions' => $this->reorderRegions !== [] ? $this->reorderRegions : null,
+            'lottieRegions' => $this->lottieRegions !== [] ? $this->lottieRegions : null,
+            'autoNavigate' => $this->autoNavigate,
             'contentHeight' => $this->contentHeight,
             'renderTimeMs' => $this->renderTimeMs,
             'redirect' => $this->redirect,

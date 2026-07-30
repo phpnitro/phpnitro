@@ -87,6 +87,12 @@ dependencies {
     // web-based translate.google.com widget. Genuinely more "native" than
     // what it replaces, not just a workaround.
     implementation("com.google.mlkit:translate:17.0.3")
+    // RenderLottie — a real com.airbnb.android.lottie.LottieAnimationView
+    // overlaid at the widget's rect (same "no Canvas concept for a
+    // continuous animation loop, overlay a real Android View instead"
+    // idiom NativeVideoPlayer/NativeMapView already use), not a hand-rolled
+    // frame-by-frame Canvas replay.
+    implementation("com.airbnb.android:lottie:6.5.2")
 
     // Push notifications — uncomment together with the plugin above and
     // google-services.json, see FcmService.kt.example.

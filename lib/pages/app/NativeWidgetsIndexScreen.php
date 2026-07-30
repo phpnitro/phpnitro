@@ -81,6 +81,10 @@ final class NativeWidgetsIndexScreen
                         EdgeInsets::only(top: Tokens::SPACE_MD),
                         new NativeListTile('Étapes', 'Appui long + glisser pour réordonner', 'drag_indicator', trailingIcon: 'chevron_right', action: 'navigate:widgets-reorder'),
                     ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeListTile('Lottie', 'Animation en boucle — LottieAnimationView réel', 'animation', trailingIcon: 'chevron_right', action: 'navigate:widgets-lottie'),
+                    ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,
