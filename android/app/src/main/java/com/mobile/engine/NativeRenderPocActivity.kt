@@ -5,7 +5,11 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.graphics.RectF
+import android.graphics.Typeface
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -13,10 +17,14 @@ import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
 import android.util.Log
+import android.util.TypedValue
+import android.view.Gravity
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -159,7 +167,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 if (screenStack.size > 1) {
                     screenStack.removeAt(screenStack.size - 1)
                     clearTextInput()
-                    refetch(action = null)
+                    refetch(action = null, isNavigation = true)
                 } else {
                     isEnabled = false
                     onBackPressedDispatcher.onBackPressed()
@@ -174,7 +182,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
             val port = phpServer.start()
             serverPort = port
             Log.i(TAG, "PhpServer started on port $port")
-            refetch(action = null)
+            refetch(action = null, isNavigation = true)
         }
     }
 
@@ -240,7 +248,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
             action.startsWith("navigate:") -> {
                 clearTextInput()
                 screenStack.add(action.removePrefix("navigate:"))
-                refetch(action = null)
+                refetch(action = null, isNavigation = true)
             }
             // A NativeBottomNavigation tab switch — resets the whole stack
             // to that one screen instead of pushing, so hopping between
@@ -250,12 +258,12 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 clearTextInput()
                 screenStack.clear()
                 screenStack.add(action.removePrefix("tab:"))
-                refetch(action = null)
+                refetch(action = null, isNavigation = true)
             }
             action == "back" -> {
                 clearTextInput()
                 if (screenStack.size > 1) screenStack.removeAt(screenStack.size - 1)
-                refetch(action = null)
+                refetch(action = null, isNavigation = true)
             }
             else -> refetch(action)
         }
@@ -330,11 +338,14 @@ class NativeRenderPocActivity : AppCompatActivity() {
     // app. No server round-trip needed, the message/title already travelled
     // in meta.
     private fun showAlertDialog(meta: JSONObject?) {
-        AlertDialog.Builder(this)
-            .setTitle(meta?.optString("title", "")?.ifEmpty { null })
-            .setMessage(meta?.optString("message", ""))
-            .setPositiveButton("OK", null)
-            .show()
+        showStyledDialog(
+            title = meta?.optString("title", "")?.ifEmpty { null },
+            message = meta?.optString("message", "") ?: "",
+            negativeLabel = null,
+            positiveLabel = "OK",
+            positiveIsDanger = false,
+            onPositive = {},
+        )
     }
 
     // Same "don't call the server until confirmed" guarantee
@@ -344,12 +355,135 @@ class NativeRenderPocActivity : AppCompatActivity() {
         val confirmAction = meta?.optString("confirmAction")
         if (confirmAction.isNullOrEmpty()) return
 
-        AlertDialog.Builder(this)
-            .setTitle(meta.optString("title", "").ifEmpty { null })
-            .setMessage(meta.optString("message", ""))
-            .setPositiveButton(meta.optString("label", "Confirmer")) { _, _ -> refetch(confirmAction, includeFields = true) }
-            .setNegativeButton("Annuler", null)
-            .show()
+        showStyledDialog(
+            title = meta.optString("title", "").ifEmpty { null },
+            message = meta.optString("message", ""),
+            negativeLabel = "Annuler",
+            positiveLabel = meta.optString("label", "Confirmer"),
+            positiveIsDanger = true,
+            onPositive = { refetch(confirmAction, includeFields = true) },
+        )
+    }
+
+    @Volatile
+    private var cachedDialogTypefaceRegular: Typeface? = null
+
+    @Volatile
+    private var cachedDialogTypefaceBold: Typeface? = null
+
+    private fun dialogTypeface(bold: Boolean): Typeface {
+        val regular = cachedDialogTypefaceRegular
+            ?: Typeface.createFromAsset(assets, "fonts/Roboto-Regular.ttf").also { cachedDialogTypefaceRegular = it }
+        if (!bold) return regular
+        return cachedDialogTypefaceBold ?: Typeface.create(regular, Typeface.BOLD).also { cachedDialogTypefaceBold = it }
+    }
+
+    /**
+     * A rounded white card (Tokens::RADIUS_LG, Tokens::SPACE_XL padding)
+     * with pill-shaped buttons matching NativeButton's own shape/colors
+     * (Tokens::ink() for a plain confirmation, Tokens::danger() for a
+     * destructive one) — the stock AlertDialog chrome this replaced was
+     * the one place in the app that still looked like generic Android UI
+     * instead of PhpNitro's own Canvas-drawn design language. Still a
+     * real android.app.AlertDialog underneath (back-button dismiss,
+     * outside-tap dismiss, focus handling all still work) — only
+     * `.setView()` + a transparent window background changed.
+     */
+    private fun showStyledDialog(
+        title: String?,
+        message: String,
+        negativeLabel: String?,
+        positiveLabel: String,
+        positiveIsDanger: Boolean,
+        onPositive: () -> Unit,
+    ) {
+        val density = resources.displayMetrics.density
+        fun dp(value: Float) = (value * density).toInt()
+
+        val dialog = AlertDialog.Builder(this).create()
+
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20f), dp(20f), dp(20f), dp(20f))
+            background = GradientDrawable().apply {
+                setColor(Color.WHITE)
+                cornerRadius = dp(18f).toFloat()
+            }
+        }
+
+        if (title != null) {
+            card.addView(TextView(this).apply {
+                text = title
+                setTextColor(Color.parseColor("#111827"))
+                textSize = 19f
+                typeface = dialogTypeface(bold = true)
+            })
+        }
+
+        card.addView(TextView(this).apply {
+            text = message
+            setTextColor(Color.parseColor("#6B7280"))
+            textSize = 15f
+            typeface = dialogTypeface(bold = false)
+            setLineSpacing(dp(2f).toFloat(), 1f)
+        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = if (title != null) dp(8f) else 0
+        })
+
+        val buttonRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END
+        }
+
+        fun pillButton(label: String, filled: Boolean, backgroundColor: Int, textColor: Int, onClick: () -> Unit): TextView {
+            return TextView(this).apply {
+                text = label
+                setTextColor(textColor)
+                textSize = 15f
+                typeface = dialogTypeface(bold = true)
+                gravity = Gravity.CENTER
+                setPadding(dp(20f), dp(10f), dp(20f), dp(10f))
+                isClickable = true
+                isFocusable = true
+                val outValue = TypedValue()
+                theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, outValue, true)
+                foreground = androidx.core.content.ContextCompat.getDrawable(this@NativeRenderPocActivity, outValue.resourceId)
+                if (filled) {
+                    background = GradientDrawable().apply {
+                        setColor(backgroundColor)
+                        cornerRadius = dp(999f).toFloat()
+                    }
+                }
+                setOnClickListener {
+                    dialog.dismiss()
+                    onClick()
+                }
+            }
+        }
+
+        if (negativeLabel != null) {
+            buttonRow.addView(pillButton(negativeLabel, filled = false, backgroundColor = 0, textColor = Color.parseColor("#6B7280")) {})
+        }
+        buttonRow.addView(
+            pillButton(
+                positiveLabel,
+                filled = true,
+                backgroundColor = Color.parseColor(if (positiveIsDanger) "#DC2626" else "#111827"),
+                textColor = Color.WHITE,
+                onClick = onPositive,
+            ),
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                marginStart = if (negativeLabel != null) dp(12f) else 0
+            },
+        )
+
+        card.addView(buttonRow, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dp(20f)
+        })
+
+        dialog.setView(card)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.show()
     }
 
     // "device:X" calls straight into NativeDeviceBridge — no PHP
@@ -586,12 +720,22 @@ class NativeRenderPocActivity : AppCompatActivity() {
         activeMapView = null
     }
 
-    private fun refetch(action: String?, includeFields: Boolean = false) {
+    // isNavigation gates NativeCanvasView's whole-screen crossfade
+    // (startCrossfade()) — true for an actual scene change (navigate:/
+    // tab:/back, or a server-side redirect), false for every other
+    // refetch (a toggle, a counter increment, a field update). Without
+    // this split, EVERY tap fades the entire screen out and back in even
+    // when only one piece of text changed, which reads as "the screen
+    // just reloaded" rather than "the counter went up" — RenderHero/
+    // RenderAnimated's per-element transitions are unaffected either way,
+    // since those are opt-in and driven by their own tag matching, not
+    // this blanket fade.
+    private fun refetch(action: String?, includeFields: Boolean = false, isNavigation: Boolean = false) {
         if (serverPort == 0) return
-        thread { fetchDrawCommands(serverPort, action, includeFields) }
+        thread { fetchDrawCommands(serverPort, action, includeFields, isNavigation) }
     }
 
-    private fun fetchDrawCommands(port: Int, action: String?, includeFields: Boolean = false) {
+    private fun fetchDrawCommands(port: Int, action: String?, includeFields: Boolean = false, isNavigation: Boolean = false) {
         // dp-space width/height, not raw device pixels — every size the
         // PHP side hands back (font sizes, radii, button heights, Tokens'
         // whole scale) is authored as a dp-like number, and
@@ -641,7 +785,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
             val renderTimeMs = Regex("\"renderTimeMs\":([0-9.]+)").find(json)?.groupValues?.get(1)?.toDoubleOrNull()
             Log.i(TAG, "PERF screen=$screen roundTripMs=${"%.1f".format(roundTripMs)} phpRenderTimeMs=${renderTimeMs?.let { "%.2f".format(it) } ?: "?"}")
 
-            Handler(Looper.getMainLooper()).post { applyResponse(json, screenWidthDp) }
+            Handler(Looper.getMainLooper()).post { applyResponse(json, screenWidthDp, isNavigation) }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch draw commands", e)
         }
@@ -652,14 +796,14 @@ class NativeRenderPocActivity : AppCompatActivity() {
     // a path, translated to this architecture — see public/index.php's
     // handling). Swap the stack's top entry and re-fetch instead of
     // drawing the stale response.
-    private fun applyResponse(json: String, screenWidthDp: Float) {
+    private fun applyResponse(json: String, screenWidthDp: Float, isNavigation: Boolean) {
         val redirect = Regex("\"redirect\":\"([a-zA-Z0-9_/]+)\"").find(json)?.groupValues?.get(1)
         if (redirect != null && screenStack.isNotEmpty()) {
             screenStack[screenStack.size - 1] = redirect
-            refetch(action = null)
+            refetch(action = null, isNavigation = true)
             return
         }
-        canvasView.setCommands(json, screenWidthDp)
+        canvasView.setCommands(json, screenWidthDp, isNavigation)
         firstScreenRendered = true
     }
 
@@ -685,7 +829,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
         val screen = intent.getStringExtra("screen") ?: return
         clearTextInput()
         screenStack.add(screen)
-        refetch(action = null)
+        refetch(action = null, isNavigation = true)
     }
 
     // Same tag-reading logic as MainActivity.handleNfcIntent() — an NDEF

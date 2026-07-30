@@ -253,7 +253,7 @@ class NativeCanvasView(context: Context) : View(context) {
     // for, the same way onDraw() above needs `density` to scale them.
     var lastScreenWidthDp: Float = 360f
 
-    fun setCommands(json: String, screenWidthDp: Float = lastScreenWidthDp) {
+    fun setCommands(json: String, screenWidthDp: Float = lastScreenWidthDp, isNavigation: Boolean = false) {
         // A PHP warning/notice ahead of the JSON (a bad file path, an
         // undefined-variable notice in debug mode, etc.) turns this into
         // plain HTML — that's a server-side bug to fix, but the app
@@ -281,7 +281,20 @@ class NativeCanvasView(context: Context) : View(context) {
             reorderAnimatedY.clear()
             rebuildAccessibilityNodes()
             Log.i("NativeCanvasView", "setCommands: ${commands.length()} commands, ${hitRegions.length()} hit regions, contentHeight=$contentHeight, view size ${width}x${height}")
-            startCrossfade()
+            // Only an actual scene change (navigate:/tab:/back, a
+            // redirect, or the very first load) gets the whole-screen
+            // crossfade — a same-screen refetch (a counter increment, a
+            // toggle, a dismiss/reorder settling) updates instantly
+            // instead, so tapping "+" doesn't read as "the screen just
+            // reloaded". RenderHero/RenderAnimated's own per-element
+            // transitions are separate and always run either way.
+            if (isNavigation) {
+                startCrossfade()
+            } else {
+                fadeAnimator?.cancel()
+                fadeProgress = 1f
+                invalidate()
+            }
             startHeroTransition()
         } catch (e: org.json.JSONException) {
             Log.e("NativeCanvasView", "setCommands: response wasn't valid JSON: $json", e)
@@ -1115,7 +1128,7 @@ class NativeCanvasView(context: Context) : View(context) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor(command.optString("color", "#000000"))
             textSize = command.optDouble("size", 16.0).toFloat()
-            typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+            typeface = robotoTypeface(context, bold)
             letterSpacing = command.optDouble("letterSpacing", 0.0).toFloat()
             this.alpha = (this.alpha * alpha).toInt()
         }
@@ -1234,7 +1247,7 @@ class NativeCanvasView(context: Context) : View(context) {
     private fun measureTextWidth(command: JSONObject): Float {
         val paint = Paint().apply {
             textSize = command.optDouble("size", 16.0).toFloat()
-            typeface = if (command.optBoolean("bold", false)) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+            typeface = robotoTypeface(context, command.optBoolean("bold", false))
         }
         return paint.measureText(command.optString("text", "")) / density
     }
@@ -1411,6 +1424,42 @@ class NativeCanvasView(context: Context) : View(context) {
         private fun materialIconsTypeface(context: Context): Typeface {
             return cachedMaterialIconsTypeface ?: Typeface.createFromAsset(context.assets, "fonts/MaterialIcons-Regular.ttf").also {
                 cachedMaterialIconsTypeface = it
+            }
+        }
+
+        @Volatile
+        private var cachedRobotoRegular: Typeface? = null
+
+        @Volatile
+        private var cachedRobotoBold: Typeface? = null
+
+        /**
+         * TextMetrics.php's per-character advance-width tables (what
+         * RenderText/RenderRichText's word-wrap and RenderCenter's
+         * centering math are computed against) were measured against real
+         * Roboto — but Typeface.DEFAULT/DEFAULT_BOLD is whatever the
+         * OEM's Android skin ships as the system default, which on a
+         * non-stock build (Transsion/XOS confirmed by hand, almost
+         * certainly others too) is a DIFFERENT font with different glyph
+         * widths. PHP's measured width and Kotlin's drawn width silently
+         * disagreeing is exactly what makes centered text look
+         * off-center: the button's own width was computed correctly, but
+         * the label was centered using a wrong measurement of itself.
+         * Bundling the actual Roboto (pulled from a real device's own
+         * /system/fonts/, same Apache-2.0 AOSP font either way) and
+         * loading it explicitly — the same fix MaterialIcons already
+         * needed, and for the identical reason — makes drawn width match
+         * measured width on every device, not just ones that happen to
+         * default to Roboto already.
+         */
+        private fun robotoTypeface(context: Context, bold: Boolean): Typeface {
+            if (bold) {
+                return cachedRobotoBold ?: Typeface.create(robotoTypeface(context, bold = false), Typeface.BOLD).also {
+                    cachedRobotoBold = it
+                }
+            }
+            return cachedRobotoRegular ?: Typeface.createFromAsset(context.assets, "fonts/Roboto-Regular.ttf").also {
+                cachedRobotoRegular = it
             }
         }
     }
