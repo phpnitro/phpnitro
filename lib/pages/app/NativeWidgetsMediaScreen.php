@@ -6,6 +6,7 @@ use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\NativeAppBar;
 use Engine\Native\NativeButton;
+use Engine\Native\NativeDivider;
 use Engine\Native\NativeScaffold;
 use Engine\Native\NativeSelectBox;
 use Engine\Native\NativeVideoPlayer;
@@ -13,6 +14,7 @@ use Engine\Native\RenderContainer;
 use Engine\Native\RenderFlex;
 use Engine\Native\RenderNode;
 use Engine\Native\RenderPadding;
+use Engine\Native\RenderTappable;
 use Engine\Native\RenderText;
 use Engine\Native\Tokens;
 
@@ -36,6 +38,12 @@ use Engine\Native\Tokens;
  * does real on-device translation, no API key, no network dependency
  * once the language model is cached — genuinely more "native" than what
  * it replaces, not a workaround for it.
+ *
+ * FutureBuilder needs no native equivalent: its whole point is "load
+ * once per mount, don't re-poll" — every native screen render already
+ * IS a one-shot fetch, there's no separate concept to demonstrate.
+ * LinkWrap needs no dedicated widget either — RenderTappable already
+ * wraps any RenderNode in a hit region, which is all LinkWrap ever was.
  */
 final class NativeWidgetsMediaScreen
 {
@@ -83,9 +91,12 @@ final class NativeWidgetsMediaScreen
                     ),
                     ...($translateOut !== null ? [new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_MD), new RenderText($translateOut, Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true))] : []),
 
-                    new RenderPadding(
-                        EdgeInsets::only(top: Tokens::SPACE_XL),
-                        new NativeButton('Voir sur WebView', 'webview:/widgets/media', background: Tokens::surfaceMuted(), foreground: Tokens::ink()),
+                    new NativeDivider(),
+                    $caption('FutureBuilder — chaque écran natif est déjà un chargement unique, sans re-polling'),
+                    $caption('LinkWrap — RenderTappable enveloppe déjà n\'importe quel widget'),
+                    new RenderTappable(
+                        new RenderText('Toute cette zone est cliquable →', Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true),
+                        'navigate:widgets',
                     ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),

@@ -36,17 +36,18 @@ final class WidgetsIndexPage extends Screen
             ),
             Link::make('Mise en page (Align, Center, Container, Row...)', '/widgets/layout'),
             Link::make('Formulaires (DatePicker, SelectBox, ProgressBar...)', '/widgets/forms'),
-            Link::make('Média (AudioPlayer, VideoPlayer, GoogleTranslate...)', '/widgets/media'),
             Link::make('Capacités device (vibreur, son, notif, empreinte...)', '/device'),
-            Link::make('Cartes (Mapbox, Google Maps, OpenStreetMap)', '/widgets/maps'),
-            // Boîtes de dialogue / Stepper / Countries : leurs pages
-            // WebView ont été retirées une fois leur conversion native
-            // à parité complète (voir lib/pages/app/NativeWidgets*Screen.php)
-            // — ces boutons ouvrent l'écran natif qui les remplace.
+            // Boîtes de dialogue / Stepper / Countries / Média / Cartes :
+            // leurs pages WebView ont été retirées une fois leur
+            // conversion native à parité complète (voir
+            // lib/pages/app/NativeWidgets*Screen.php) — ces boutons
+            // ouvrent l'écran natif qui les remplace.
             Button::make("Boîtes de dialogue (Engine\\Dialogs\\)", onClick: "phpxDevice.openNativeRenderPreviewAt('widgets-dialogs')", classes: 'text-blue-600 hover:underline text-left'),
             Button::make('Stepper (assistant multi-étapes)', onClick: "phpxDevice.openNativeRenderPreviewAt('widgets-stepper')", classes: 'text-blue-600 hover:underline text-left'),
             Link::make('Firebase Auth (Engine\\Firebase\\)', '/widgets/firebase-auth'),
             Button::make('Countries (Engine\\Countries\\, offline, 194 pays)', onClick: "phpxDevice.openNativeRenderPreviewAt('widgets-countries')", classes: 'text-blue-600 hover:underline text-left'),
+            Button::make('Média (AudioPlayer, VideoPlayer, GoogleTranslate...)', onClick: "phpxDevice.openNativeRenderPreviewAt('widgets-media')", classes: 'text-blue-600 hover:underline text-left'),
+            Button::make('Cartes (osmdroid, pan/zoom réel)', onClick: "phpxDevice.openNativeRenderPreviewAt('widgets-maps')", classes: 'text-blue-600 hover:underline text-left'),
             Text::make(
                 "Paiement (Engine\\Payments\\) : 7 gateways réels — voir packages/payments/, ils ont besoin d'une vraie clé pour s'afficher.",
                 'text-sm text-gray-500 dark:text-gray-400',

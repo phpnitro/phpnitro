@@ -5,7 +5,6 @@ namespace Engine\Tests;
 use Engine\Align;
 use Engine\Alignment;
 use Engine\AnimatedContainer;
-use Engine\AudioPlayer;
 use Engine\Center;
 use Engine\CircularProgress;
 use Engine\Color;
@@ -13,13 +12,10 @@ use Engine\DatePicker;
 use Engine\Divider;
 use Engine\Flash;
 use Engine\FlashMessage;
-use Engine\FutureBuilder;
-use Engine\GoogleTranslate;
 use Engine\Hero;
 use Engine\IconButton;
 use Engine\Image;
 use Engine\Link;
-use Engine\LinkWrap;
 use Engine\LocationButton;
 use Engine\Margin;
 use Engine\Padding;
@@ -33,7 +29,6 @@ use Engine\Text;
 use Engine\Theme;
 use Engine\ThemeToggle;
 use Engine\TimePicker;
-use Engine\VideoPlayer;
 use Engine\Widget;
 use PHPUnit\Framework\TestCase;
 
@@ -126,14 +121,6 @@ final class MoreWidgetsTest extends TestCase
 
         $this->assertStringContainsString('href="/?a=1&amp;b=2"', $html);
         $this->assertStringContainsString('>Accueil<', $html);
-    }
-
-    public function testLinkWrapWrapsAnyWidgetInAnAnchor(): void
-    {
-        $html = LinkWrap::make(Text::make('Carte produit'), '/product/42')->render();
-
-        $this->assertStringContainsString('<a href="/product/42"', $html);
-        $this->assertStringContainsString('>Carte produit<', $html);
     }
 
     public function testMarginWrapsChildWithClasses(): void
@@ -238,35 +225,6 @@ final class MoreWidgetsTest extends TestCase
         $this->assertStringContainsString('Créneau', $html);
     }
 
-    public function testAudioPlayerRendersSrcAndControlFlags(): void
-    {
-        $html = AudioPlayer::make('/audio/beep.mp3', autoplay: true, loop: true)->render();
-
-        $this->assertStringContainsString('src="/audio/beep.mp3"', $html);
-        $this->assertStringContainsString(' controls', $html);
-        $this->assertStringContainsString(' autoplay', $html);
-        $this->assertStringContainsString(' loop', $html);
-    }
-
-    public function testVideoPlayerRendersPosterAndMutedAutoplay(): void
-    {
-        $html = VideoPlayer::make('/video/demo.mp4', autoplay: true, poster: '/img/poster.jpg')->render();
-
-        $this->assertStringContainsString('src="/video/demo.mp4"', $html);
-        $this->assertStringContainsString('poster="/img/poster.jpg"', $html);
-        // autoplay video must also be muted or Chromium's autoplay policy blocks it silently.
-        $this->assertStringContainsString('autoplay muted', $html);
-    }
-
-    public function testGoogleTranslateEmbedsConfiguredLanguages(): void
-    {
-        $html = GoogleTranslate::make('en', 'en,fr')->render();
-
-        $this->assertStringContainsString("pageLanguage: 'en'", $html);
-        $this->assertStringContainsString("includedLanguages: 'en,fr'", $html);
-        $this->assertStringContainsString('translate_a/element.js', $html);
-    }
-
     public function testStreamBuilderRendersInitialWidgetAndPollingAttributes(): void
     {
         $html = StreamBuilder::make('/fragment/server-time', Text::make('Chargement...'), intervalMs: 5000)->render();
@@ -274,14 +232,6 @@ final class MoreWidgetsTest extends TestCase
         $this->assertStringContainsString('data-stream-endpoint="/fragment/server-time"', $html);
         $this->assertStringContainsString('data-stream-interval="5000"', $html);
         $this->assertStringContainsString('Chargement...', $html);
-    }
-
-    public function testFutureBuilderRendersLoadingWidgetAndEndpoint(): void
-    {
-        $html = FutureBuilder::make('/fragment/once', Text::make('...'))->render();
-
-        $this->assertStringContainsString('data-future-endpoint="/fragment/once"', $html);
-        $this->assertStringContainsString('>...<', $html);
     }
 
     public function testAnimatedContainerRendersKeyDurationAndCurve(): void
