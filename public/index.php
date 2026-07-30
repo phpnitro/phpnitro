@@ -3,7 +3,6 @@
 require __DIR__ . '/../vendor/autoload.php';
 
 use Engine\App\AppNav;
-use Engine\App\DevicePage;
 use Engine\App\SettingsPage;
 use Engine\App\WidgetsIndexPage;
 use Engine\App\WidgetsLayoutPage;
@@ -328,19 +327,18 @@ if ($debug && $path === '/_dev/version') {
 
 // '/', '/api', '/login', '/product/{id}', '/widgets/dialogs',
 // '/widgets/stepper', '/widgets/countries', '/widgets/media',
-// '/widgets/maps', '/widgets/firebase-auth' and '/widgets/forms' are
-// deliberately absent — their WebView pages were removed once the native
-// conversion (lib/pages/app/Native*Screen.php) reached full parity. Every
-// remaining WebView link/nav item that used to point at one of them now
-// calls phpxDevice.openNativeRenderPreviewAt() instead (see AppNav.php,
-// SettingsPage.php, WidgetsIndexPage.php). MainActivity is no longer the
-// app's launcher (see AndroidManifest.xml) so nothing opens this WebView
-// server at a bare '/' anymore — every MainActivity launch now targets
-// one specific still-WebView-only path via NativeDeviceBridge.kt's
-// openWebView().
+// '/widgets/maps', '/widgets/firebase-auth', '/widgets/forms' and
+// '/device' are deliberately absent — their WebView pages were removed
+// once the native conversion (lib/pages/app/Native*Screen.php) reached
+// full parity. Every remaining WebView link/nav item that used to point
+// at one of them now calls phpxDevice.openNativeRenderPreviewAt() instead
+// (see AppNav.php, SettingsPage.php, WidgetsIndexPage.php). MainActivity
+// is no longer the app's launcher (see AndroidManifest.xml) so nothing
+// opens this WebView server at a bare '/' anymore — every MainActivity
+// launch now targets one specific still-WebView-only path via
+// NativeDeviceBridge.kt's openWebView().
 $router = new Router([
     '/settings' => SettingsPage::class,
-    '/device' => DevicePage::class,
     '/widgets' => WidgetsIndexPage::class,
     '/widgets/layout' => WidgetsLayoutPage::class,
 ]);

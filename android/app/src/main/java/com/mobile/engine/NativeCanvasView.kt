@@ -134,7 +134,14 @@ class NativeCanvasView(context: Context) : View(context) {
         }
     })
 
-    fun setCommands(json: String) {
+    // Set alongside commands from the same request that produced them
+    // (NativeRenderPocActivity.fetchDrawCommands already computes this dp
+    // width to ask PHP to lay out against) — NativePrintAdapter needs it to
+    // know what dp-space width the commands' coordinates were authored
+    // for, the same way onDraw() above needs `density` to scale them.
+    var lastScreenWidthDp: Float = 360f
+
+    fun setCommands(json: String, screenWidthDp: Float = lastScreenWidthDp) {
         // A PHP warning/notice ahead of the JSON (a bad file path, an
         // undefined-variable notice in debug mode, etc.) turns this into
         // plain HTML — that's a server-side bug to fix, but the app
@@ -145,6 +152,7 @@ class NativeCanvasView(context: Context) : View(context) {
             val newCommands = payload.getJSONArray("commands")
             hitRegions = payload.optJSONArray("hitRegions") ?: JSONArray()
             contentHeight = payload.optDouble("contentHeight", 0.0).toFloat()
+            lastScreenWidthDp = screenWidthDp
             scrollY = scrollY.coerceIn(0f, maxScrollY())
 
             previousCommands = if (commands.length() > 0) commands else null
@@ -340,6 +348,31 @@ class NativeCanvasView(context: Context) : View(context) {
         }
         drawCommands(canvas, commands, fadeProgress, fixed = true)
         canvas.restoreToCount(savedState)
+    }
+
+    /**
+     * The current commands/contentHeight, for NativePrintAdapter to replay
+     * onto a PdfDocument.Page's own Canvas — a document has no scroll
+     * position and no viewport to pin "fixed" commands against, so
+     * drawForPrint() below just paints the whole flat list once, laid out
+     * at the dp coordinates PHP already computed.
+     */
+    fun printSnapshot(): Pair<JSONArray, Float> = commands to contentHeight
+
+    /**
+     * scale: device-independent px per dp for the target page (so PHP's
+     * dp-authored coordinates land at the right physical size on paper,
+     * same idea as onDraw()'s `density` scale). pageOffsetDp: how far down
+     * this page starts into the full contentHeight-tall document, for
+     * simple top-to-bottom pagination across multiple pages.
+     */
+    fun drawForPrint(canvas: Canvas, list: JSONArray, scale: Float, pageOffsetDp: Float) {
+        val saved = canvas.save()
+        canvas.scale(scale, scale)
+        canvas.translate(0f, -pageOffsetDp)
+        drawCommands(canvas, list, 1f, fixed = false)
+        drawCommands(canvas, list, 1f, fixed = true)
+        canvas.restoreToCount(saved)
     }
 
     private fun drawCommands(canvas: Canvas, list: JSONArray, alpha: Float, fixed: Boolean) {

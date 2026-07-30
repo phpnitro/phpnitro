@@ -3,6 +3,7 @@ package com.mobile.engine
 import android.app.AlertDialog
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.content.Context
 import android.content.Intent
 import android.graphics.RectF
 import android.os.Bundle
@@ -424,7 +425,20 @@ class NativeRenderPocActivity : AppCompatActivity() {
             "geofenceremove" -> deviceBridge.removeGeofence("paris_demo")
             "bgschedule" -> deviceBridge.scheduleBackgroundTask("/api/ping", 15)
             "bgcancel" -> deviceBridge.cancelBackgroundTask()
+            "printpdf" -> printCurrentScreen()
         }
+    }
+
+    // Real android.print.PrintManager pipeline — NativePrintAdapter
+    // replays this screen's own draw commands onto a PdfDocument.Page's
+    // Canvas (see NativeCanvasView.drawForPrint()), same system print
+    // dialog WebAppInterface.printPage() opens, but with no WebView
+    // involved anywhere in the document's construction.
+    private fun printCurrentScreen() {
+        val printManager = getSystemService(Context.PRINT_SERVICE) as android.print.PrintManager
+        val jobName = "PhpNitro-${screenStack.lastOrNull()?.substringBefore('/') ?: "screen"}"
+        val adapter = NativePrintAdapter(this, canvasView, jobName)
+        printManager.print(jobName, adapter, android.print.PrintAttributes.Builder().build())
     }
 
     // Overlays a real EditText at the tapped field's rect — there's no
@@ -602,7 +616,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
             val renderTimeMs = Regex("\"renderTimeMs\":([0-9.]+)").find(json)?.groupValues?.get(1)?.toDoubleOrNull()
             Log.i(TAG, "PERF screen=$screen roundTripMs=${"%.1f".format(roundTripMs)} phpRenderTimeMs=${renderTimeMs?.let { "%.2f".format(it) } ?: "?"}")
 
-            Handler(Looper.getMainLooper()).post { applyResponse(json) }
+            Handler(Looper.getMainLooper()).post { applyResponse(json, screenWidthDp) }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch draw commands", e)
         }
@@ -613,14 +627,14 @@ class NativeRenderPocActivity : AppCompatActivity() {
     // a path, translated to this architecture — see public/index.php's
     // handling). Swap the stack's top entry and re-fetch instead of
     // drawing the stale response.
-    private fun applyResponse(json: String) {
+    private fun applyResponse(json: String, screenWidthDp: Float) {
         val redirect = Regex("\"redirect\":\"([a-zA-Z0-9_/]+)\"").find(json)?.groupValues?.get(1)
         if (redirect != null && screenStack.isNotEmpty()) {
             screenStack[screenStack.size - 1] = redirect
             refetch(action = null)
             return
         }
-        canvasView.setCommands(json)
+        canvasView.setCommands(json, screenWidthDp)
         firstScreenRendered = true
     }
 

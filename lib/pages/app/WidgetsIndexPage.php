@@ -35,7 +35,7 @@ final class WidgetsIndexPage extends Screen
                 'text-sm text-gray-500 dark:text-gray-400',
             ),
             Link::make('Mise en page (Align, Center, Container, Row...)', '/widgets/layout'),
-            Link::make('Capacités device (vibreur, son, notif, empreinte...)', '/device'),
+            Button::make('Capacités device (vibreur, son, notif, empreinte...)', onClick: "phpxDevice.openNativeRenderPreviewAt('device')", classes: 'text-blue-600 hover:underline text-left'),
             Button::make('Formulaires (DatePicker, SelectBox, ProgressBar...)', onClick: "phpxDevice.openNativeRenderPreviewAt('widgets-forms')", classes: 'text-blue-600 hover:underline text-left'),
             // Boîtes de dialogue / Stepper / Countries / Média / Cartes :
             // leurs pages WebView ont été retirées une fois leur

@@ -18,11 +18,12 @@ final class AppNav
         return [
             ['label' => 'Accueil', 'href' => '/', 'icon' => Icon::home()],
             ['label' => 'Réglages', 'href' => '/settings', 'icon' => Icon::settings()],
-            ['label' => 'Device', 'href' => '/device', 'icon' => Icon::camera()],
-            // '/api' has no WebView route anymore — ApiPage.php was
-            // removed once NativeApiScreen.php reached full parity — this
-            // tab opens the native screen that replaced it instead of
-            // navigating to a route that no longer exists.
+            // '/device' and '/api' have no WebView route anymore —
+            // DevicePage.php/ApiPage.php were removed once their native
+            // conversions reached full parity — these tabs open the native
+            // screen that replaced them instead of navigating to a route
+            // that no longer exists.
+            ['label' => 'Device', 'href' => '#', 'icon' => Icon::camera(), 'onClick' => "phpxDevice.openNativeRenderPreviewAt('device')"],
             ['label' => 'API', 'href' => '#', 'icon' => Icon::link(), 'onClick' => "phpxDevice.openNativeRenderPreviewAt('api')"],
         ];
     }

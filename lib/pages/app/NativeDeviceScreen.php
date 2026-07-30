@@ -34,9 +34,11 @@ use Engine\Native\Tokens;
  * foreground dispatch, geofencing, in-app purchase and periodic
  * background tasks are all real native calls now too (see
  * NativeDeviceBridge.kt / NativeRenderPocActivity.kt's NFC lifecycle
- * hooks). Printing is the one exception that stays WebView-only for good:
- * it needs WebView.createPrintDocumentAdapter, so there's no document
- * source without a WebView.
+ * hooks). Printing is real too now — android.print.PrintManager +
+ * NativePrintAdapter, which replays this screen's own draw commands onto
+ * a PdfDocument.Page's Canvas (NativeCanvasView.drawForPrint()) instead of
+ * WebView.createPrintDocumentAdapter(). Full parity reached — DevicePage.php
+ * (the WebView version) has been removed.
  */
 final class NativeDeviceScreen
 {
@@ -100,18 +102,7 @@ final class NativeDeviceScreen
                     $row('Planifier tâche de fond', 'device:bgschedule'),
                     $row('Annuler tâche de fond', 'device:bgcancel'),
                     new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_LG), new NativeDivider()),
-                    new RenderPadding(
-                        EdgeInsets::only(top: Tokens::SPACE_LG),
-                        new RenderText(
-                            "L'impression nécessite encore une WebView (source du document).",
-                            Tokens::TEXT_BODY_SMALL,
-                            Tokens::inkMuted()->toHex(),
-                        ),
-                    ),
-                    new RenderPadding(
-                        EdgeInsets::only(top: Tokens::SPACE_MD),
-                        new NativeButton('Fonctionnalités avancées (WebView)', 'webview:/device', background: Tokens::surfaceMuted(), foreground: Tokens::ink()),
-                    ),
+                    $row('Imprimer (PDF)', 'device:printpdf'),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,

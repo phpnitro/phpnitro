@@ -8,7 +8,6 @@ use Engine\Device\Fingerprint;
 use Engine\Device\ImagePicker;
 use Engine\Device\Microphone;
 use Engine\Device\Notify;
-use Engine\Device\Printer;
 use Engine\Device\Share;
 use Engine\Device\Sound;
 use Engine\Device\Vibrate;
@@ -37,11 +36,6 @@ final class DeviceTest extends TestCase
     public function testSoundOnClickEncodesUrl(): void
     {
         $this->assertSame('phpxDevice.playSound("\/assets\/audio\/beep.wav")', Sound::onClick('/assets/audio/beep.wav'));
-    }
-
-    public function testPrinterOnClickTakesNoArguments(): void
-    {
-        $this->assertSame('phpxDevice.print()', Printer::onClick());
     }
 
     public function testMicrophoneOnClickReferencesOutputId(): void
