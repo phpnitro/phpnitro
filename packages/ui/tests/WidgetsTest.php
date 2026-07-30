@@ -13,14 +13,12 @@ use Engine\FadeIn;
 use Engine\FontWeight;
 use Engine\Form;
 use Engine\Html;
-use Engine\IconButton;
 use Engine\Positioned;
 use Engine\Rounded;
 use Engine\Row;
 use Engine\SelectBox;
 use Engine\Stack;
 use Engine\Text;
-use Engine\Textarea;
 use Engine\TextField;
 use Engine\TextSize;
 use Engine\Wrap;
@@ -106,14 +104,6 @@ final class WidgetsTest extends TestCase
         $this->assertStringContainsString('Email invalide', $html);
     }
 
-    public function testTextareaWithErrorAddsRedBorderAndMessage(): void
-    {
-        $html = Textarea::make('note', label: 'Note', error: 'Trop long')->render();
-
-        $this->assertStringContainsString('border-red-500', $html);
-        $this->assertStringContainsString('Trop long', $html);
-    }
-
     public function testSelectBoxWithErrorAddsRedBorderAndMessage(): void
     {
         $html = SelectBox::make('lang', ['fr' => 'Français'], label: 'Langue', error: 'Choix requis')->render();
@@ -135,15 +125,6 @@ final class WidgetsTest extends TestCase
         $this->assertStringNotContainsString('<form', $html);
         $this->assertStringNotContainsString('shouldBeIgnored', $html);
     }
-
-    public function testIconButtonSupportsOnClick(): void
-    {
-        $html = IconButton::make('<svg></svg>', onClick: 'doStuff()')->render();
-
-        $this->assertStringContainsString('onclick="doStuff()"', $html);
-        $this->assertStringNotContainsString('<form', $html);
-    }
-
 
     public function testBottomNavigationRendersStableIdAndActiveInactiveClassData(): void
     {

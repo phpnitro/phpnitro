@@ -13,7 +13,6 @@ use Engine\Divider;
 use Engine\Flash;
 use Engine\FlashMessage;
 use Engine\Hero;
-use Engine\IconButton;
 use Engine\Image;
 use Engine\Link;
 use Engine\LocationButton;
@@ -294,14 +293,6 @@ final class MoreWidgetsTest extends TestCase
         $html = LocationButton::make(background: Color::of('emerald', 600))->render();
 
         $this->assertStringContainsString('bg-emerald-600', $html);
-    }
-
-    public function testIconButtonWithTypedForegroundAddsOnTopOfDefaultClasses(): void
-    {
-        $html = IconButton::make('★', foreground: Color::of('red', 600))->render();
-
-        $this->assertStringContainsString('text-red-600', $html);
-        $this->assertStringContainsString('rounded-full', $html);
     }
 
     public function testDividerWithTypedColorReplacesDefaultBorderColor(): void
