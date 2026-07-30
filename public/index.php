@@ -2,57 +2,25 @@
 
 require __DIR__ . '/../vendor/autoload.php';
 
-use Engine\App\AppNav;
-use Engine\App\SettingsPage;
-use Engine\App\WidgetsIndexPage;
-use Engine\App\WidgetsLayoutPage;
-use Engine\BottomNavigation;
-use Engine\Button;
-use Engine\Center;
-use Engine\Column;
-use Engine\Container;
-use Engine\Csrf;
 use Engine\Database\Database;
-use Engine\Html;
-use Engine\Icon;
 use Engine\Native\Constraints;
 use Engine\Native\NativeCanvas;
-use Engine\Navigation;
-use Engine\PageRenderer;
-use Engine\Router;
-use Engine\Text;
 use Symfony\Component\Dotenv\Dotenv;
 
 /**
- * Shared by both 404 sites below (initial route resolution, and a partial
- * action's redirect target resolving to nothing) — replaces a bare,
- * unstyled `<h1>` with a properly centered page matching the rest of the
- * app's look. Also fixes a real bug: the partial-mode call site used to
- * echo raw HTML while nav.js's request() always does `await
- * response.json()` on that path — a 404 after a redirect would throw a
- * JSON parse error client-side instead of showing anything. Routing
- * through PageRenderer::render() means it now respects
- * Navigation::isPartial() like every other response.
+ * The app has no WebView content pages left (see git history for the last
+ * one, WidgetsLayoutPage.php/SettingsPage.php/WidgetsIndexPage.php — all
+ * removed once their native conversions reached full parity), so this is
+ * plain HTML, not a styled Tailwind page — nothing legitimate should ever
+ * hit this route; NativeRenderPocActivity never links here, it only talks
+ * to /native/layout-demo.
  */
-function renderNotFound(bool $debug): never
+function renderNotFound(): never
 {
-    $body = Container::make(
-        Center::make(Container::make(
-            Column::make([
-                Html::raw(Icon::warning('w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto')),
-                Text::make('404', 'text-5xl font-bold text-gray-900 dark:text-gray-100 text-center'),
-                Text::make('Cette page n\'existe pas.', 'text-gray-500 dark:text-gray-400 text-center'),
-                // '/' has no WebView route anymore — see ProductPage.php's
-                // same fix.
-                Button::make("Retour à l'accueil", onClick: "phpxDevice.openNativeRenderPreviewAt('home')", classes: 'text-blue-600 hover:underline text-left'),
-            ], 'flex flex-col items-center gap-3'),
-            'p-8',
-        )),
-        'min-h-screen',
-    );
-
     http_response_code(404);
-    PageRenderer::render($body, '/404', $_ENV['APP_NAME'] ?? 'PHP Engine', [], $debug, showBottomNav: false);
+    echo '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>404</title></head>'
+        . '<body><h1>404</h1><p>Cette page n\'existe pas.</p></body></html>';
+    exit;
 }
 
 // ".env" in dev; "env" (no dot) in the Android bundle, because AAPT drops
@@ -107,18 +75,10 @@ if (str_starts_with($path, '/api/')) {
     exit;
 }
 
-// Fragment routes: raw widget HTML (no page wrapper), polled by
-// StreamBuilder's client-side script (stream.js) to fake "live" content
-// without a WebSocket server.
-if ($path === '/fragment/server-time') {
-    echo \Engine\Text::make('Heure serveur : ' . date('H:i:s'))->render();
-    exit;
-}
-
 // Phase 0 of docs/proposals/moteur-rendu-natif.md — a parallel, experimental
 // rendering path that bypasses the HTML pipeline entirely: raw JSON draw
 // commands, fetched and replayed by NativeCanvasView.kt against a real
-// Android Canvas. Not part of the normal Router below on purpose.
+// Android Canvas.
 if ($path === '/native/demo') {
     header('Content-Type: application/json');
     echo \Engine\NativeDrawCommand::make()
@@ -339,90 +299,10 @@ if ($debug && $path === '/_dev/version') {
     exit;
 }
 
-// '/', '/api', '/login', '/product/{id}', '/widgets/dialogs',
-// '/widgets/stepper', '/widgets/countries', '/widgets/media',
-// '/widgets/maps', '/widgets/firebase-auth', '/widgets/forms' and
-// '/device' are deliberately absent — their WebView pages were removed
-// once the native conversion (lib/pages/app/Native*Screen.php) reached
-// full parity. Every remaining WebView link/nav item that used to point
-// at one of them now calls phpxDevice.openNativeRenderPreviewAt() instead
-// (see AppNav.php, SettingsPage.php, WidgetsIndexPage.php). MainActivity
-// is no longer the app's launcher (see AndroidManifest.xml) so nothing
-// opens this WebView server at a bare '/' anymore — every MainActivity
-// launch now targets one specific still-WebView-only path via
-// NativeDeviceBridge.kt's openWebView().
-$router = new Router([
-    '/settings' => SettingsPage::class,
-    '/widgets' => WidgetsIndexPage::class,
-    '/widgets/layout' => WidgetsLayoutPage::class,
-]);
-
-try {
-    $resolved = $router->resolve($path);
-} catch (\RuntimeException $e) {
-    renderNotFound($debug);
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!Csrf::verify($_POST['_token'] ?? null)) {
-        http_response_code(419);
-        echo '<h1>419 — session expirée, recharge la page</h1>';
-        exit;
-    }
-
-    if (($_POST['_action'] ?? null) === 'toggleTheme') {
-        $_SESSION['theme'] = ($_SESSION['theme'] ?? 'light') === 'dark' ? 'light' : 'dark';
-
-        if (!Navigation::isPartial()) {
-            header('Location: ' . $_SERVER['REQUEST_URI'], true, 303);
-            exit;
-        }
-        // Partial mode: same path, just re-render below with the new theme.
-    } elseif (isset($_POST['_action'])) {
-        $screen = new $resolved['class']($resolved['params']);
-        $data = array_diff_key($_POST, ['_action' => null, '_token' => null]);
-        $redirect = $screen->handle($_POST['_action'], $data) ?? $path;
-
-        if (!Navigation::isPartial()) {
-            header('Location: ' . $redirect, true, 303);
-            exit;
-        }
-
-        if (PageRenderer::isExternalUrl($redirect)) {
-            PageRenderer::redirectExternally($redirect);
-        }
-
-        // Partial mode: an action can redirect to a DIFFERENT screen (e.g.
-        // checkout -> /order/5) — re-resolve that path and render its page
-        // as the fragment, instead of making nav.js do a second round-trip
-        // to follow a redirect it would otherwise receive.
-        $path = $redirect;
-
-        try {
-            $resolved = $router->resolve($path);
-        } catch (\RuntimeException $e) {
-            renderNotFound($debug);
-        }
-    }
-}
-
-$screen = new $resolved['class']($resolved['params']);
-$widgetTree = $screen->build();
-
-PageRenderer::render($widgetTree, $path, $_ENV['APP_NAME'] ?? 'PHP Engine', [
-    '/assets/js/gestures.js',
-    '/assets/js/device.js',
-    '/assets/js/connectivity.js',
-    '/assets/js/autosize-text.js',
-    '/assets/js/animated-text.js',
-    '/assets/js/infinite-scroll.js',
-    '/assets/js/vendor/lottie.min.js',
-    '/assets/js/lottie-view.js',
-    '/assets/js/canvas.js',
-    '/assets/js/animated-container.js',
-    '/assets/js/hero.js',
-    '/assets/js/dialogs.js',
-    '/assets/js/stream.js',
-    '/assets/js/future.js',
-    '/assets/js/nav.js',
-], $debug, BottomNavigation::make(AppNav::items(), variant: BottomNavigation::VARIANT_PILLS), $screen->showsBottomNav(), $screen);
+// No WebView content pages left (see the removal of
+// SettingsPage.php/WidgetsIndexPage.php/WidgetsLayoutPage.php once their
+// native conversions reached full parity) — every request past this
+// point is either a stray link to a route that no longer exists, or a
+// crawler/probe. NativeRenderPocActivity only ever talks to
+// /native/layout-demo above.
+renderNotFound();
