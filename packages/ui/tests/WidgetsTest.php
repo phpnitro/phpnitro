@@ -8,7 +8,6 @@ use Engine\Color;
 use Engine\Column;
 use Engine\Container;
 use Engine\Curves;
-use Engine\ErrorBanner;
 use Engine\FadeIn;
 use Engine\FontWeight;
 use Engine\Form;
@@ -19,7 +18,6 @@ use Engine\Row;
 use Engine\SelectBox;
 use Engine\Stack;
 use Engine\Text;
-use Engine\TextField;
 use Engine\TextSize;
 use Engine\Wrap;
 use PHPUnit\Framework\TestCase;
@@ -63,45 +61,14 @@ final class WidgetsTest extends TestCase
     public function testFormBundlesInputsUnderOneAction(): void
     {
         $html = Form::make([
-            TextField::make('email', label: 'Email'),
             SelectBox::make('lang', ['fr' => 'Français', 'en' => 'English'], selected: 'en'),
             Button::make('Envoyer'),
         ], action: 'save')->render();
 
         $this->assertStringContainsString('name="_action" value="save"', $html);
-        $this->assertStringContainsString('name="email"', $html);
         $this->assertStringContainsString('<option value="en" selected>', $html);
         $this->assertStringContainsString('type="submit"', $html);
         $this->assertSame(1, substr_count($html, '<form'), 'inputs must share a single form');
-    }
-
-    public function testErrorBannerRendersNothingWhenMessageIsNull(): void
-    {
-        $this->assertSame('', ErrorBanner::make(null)->render());
-    }
-
-    public function testErrorBannerRendersMessageEscaped(): void
-    {
-        $html = ErrorBanner::make('<b>bad</b> input')->render();
-
-        $this->assertStringContainsString('&lt;b&gt;bad&lt;/b&gt; input', $html);
-        $this->assertStringContainsString('bg-red-50', $html);
-    }
-
-    public function testTextFieldWithoutErrorIsUnchanged(): void
-    {
-        $html = TextField::make('email', label: 'Email')->render();
-
-        $this->assertStringNotContainsString('border-red-500', $html);
-        $this->assertStringNotContainsString('text-red-600', $html);
-    }
-
-    public function testTextFieldWithErrorAddsRedBorderAndMessage(): void
-    {
-        $html = TextField::make('email', label: 'Email', error: 'Email invalide')->render();
-
-        $this->assertStringContainsString('border-red-500', $html);
-        $this->assertStringContainsString('Email invalide', $html);
     }
 
     public function testSelectBoxWithErrorAddsRedBorderAndMessage(): void

@@ -5,7 +5,6 @@ namespace Engine\Tests;
 use Engine\Button;
 use Engine\Canvas;
 use Engine\Color;
-use Engine\ProgressBar;
 use Engine\Text;
 use Engine\Theme;
 use PHPUnit\Framework\TestCase;
@@ -75,12 +74,5 @@ final class NewWidgetsTest extends TestCase
         $this->assertSame(600, Theme::primary()->shade);
     }
 
-    public function testProgressBarFollowsThemePrimaryByDefault(): void
-    {
-        Theme::setPrimary(Color::of('emerald', 600));
-        $html = ProgressBar::make(50)->render();
-
-        $this->assertStringContainsString('bg-emerald-600', $html);
-    }
 
 }

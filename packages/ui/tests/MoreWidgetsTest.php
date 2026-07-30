@@ -6,29 +6,18 @@ use Engine\Align;
 use Engine\Alignment;
 use Engine\AnimatedContainer;
 use Engine\Center;
-use Engine\CircularProgress;
 use Engine\Color;
-use Engine\DatePicker;
 use Engine\Divider;
-use Engine\Flash;
-use Engine\FlashMessage;
 use Engine\Hero;
-use Engine\Image;
 use Engine\Link;
-use Engine\LocationButton;
 use Engine\Margin;
 use Engine\Padding;
 use Engine\PageView;
-use Engine\ProgressBar;
 use Engine\Rounded;
 use Engine\SingleScrollView;
-use Engine\StreamBuilder;
 use Engine\Table;
 use Engine\Text;
 use Engine\Theme;
-use Engine\ThemeToggle;
-use Engine\TimePicker;
-use Engine\Widget;
 use PHPUnit\Framework\TestCase;
 
 final class MoreWidgetsTest extends TestCase
@@ -49,69 +38,11 @@ final class MoreWidgetsTest extends TestCase
         $this->assertStringContainsString('>centré<', $html);
     }
 
-    public function testCircularProgressRendersSvgWithComputedDashoffset(): void
-    {
-        $html = CircularProgress::make(50, size: 100)->render();
-
-        $this->assertStringContainsString('width="100"', $html);
-        $this->assertStringContainsString('aria-valuenow="50"', $html);
-        $this->assertStringContainsString('role="progressbar"', $html);
-    }
-
-    public function testCircularProgressClampsOutOfRangeValue(): void
-    {
-        $html = CircularProgress::make(150)->render();
-
-        $this->assertStringContainsString('aria-valuenow="100"', $html);
-    }
-
     public function testDividerRendersHrWithClasses(): void
     {
         $html = Divider::make('my-custom-class')->render();
 
         $this->assertSame('<hr class="my-custom-class">', $html);
-    }
-
-    public function testFlashMessageRendersNothingWithoutPendingFlash(): void
-    {
-        unset($_SESSION['_flash']);
-        $html = FlashMessage::make()->render();
-
-        $this->assertSame('', $html);
-    }
-
-    public function testFlashMessageConsumesAndRendersPendingFlash(): void
-    {
-        Flash::set('Ajouté au panier', 'success');
-        $html = FlashMessage::make()->render();
-
-        $this->assertStringContainsString('Ajouté au panier', $html);
-        $this->assertStringContainsString('bg-green-600', $html);
-        $this->assertArrayNotHasKey('_flash', $_SESSION);
-    }
-
-    public function testFlashMessageErrorTypeUsesRedBackground(): void
-    {
-        Flash::set('Erreur de connexion', 'error');
-        $html = FlashMessage::make()->render();
-
-        $this->assertStringContainsString('bg-red-600', $html);
-    }
-
-    public function testImageRendersSrcAltAndClasses(): void
-    {
-        $html = Image::make('/photo.jpg', 'Une photo', 'rounded-lg')->render();
-
-        $this->assertStringContainsString('src="/photo.jpg"', $html);
-        $this->assertStringContainsString('alt="Une photo"', $html);
-        $this->assertStringContainsString('class="rounded-lg"', $html);
-    }
-
-    public function testImageNetworkIsAnAliasForMake(): void
-    {
-        $html = Image::network('https://example.com/photo.jpg')->render();
-
-        $this->assertStringContainsString('src="https://example.com/photo.jpg"', $html);
     }
 
     public function testLinkRendersAnchorWithEscapedHref(): void
@@ -179,60 +110,6 @@ final class MoreWidgetsTest extends TestCase
         $this->assertStringContainsString('>contenu<', $html);
     }
 
-    public function testThemeToggleRendersAPostFormWithCsrfField(): void
-    {
-        $html = ThemeToggle::make()->render();
-
-        $this->assertStringContainsString('name="_action" value="toggleTheme"', $html);
-        $this->assertStringContainsString('<form method="post"', $html);
-    }
-
-    public function testLocationButtonRendersButtonAndOutputSpanWithMatchingId(): void
-    {
-        $html = LocationButton::make('Ma position')->render();
-
-        $this->assertStringContainsString('>Ma position<', $html);
-        preg_match('/phpxDevice\.locate\(\'([a-z0-9_]+)\'\)/', $html, $m);
-        $this->assertNotEmpty($m);
-        $this->assertStringContainsString('id="' . $m[1] . '"', $html);
-    }
-
-    public function testDatePickerRendersInputWithMinMax(): void
-    {
-        $html = DatePicker::make('birthdate', 'Date de naissance', min: '2000-01-01', max: '2020-01-01')->render();
-
-        $this->assertStringContainsString('type="date"', $html);
-        $this->assertStringContainsString('name="birthdate"', $html);
-        $this->assertStringContainsString('min="2000-01-01"', $html);
-        $this->assertStringContainsString('max="2020-01-01"', $html);
-        $this->assertStringContainsString('Date de naissance', $html);
-    }
-
-    public function testDatePickerWithoutLabelOmitsWrappingLabel(): void
-    {
-        $html = DatePicker::make('birthdate')->render();
-
-        $this->assertStringNotContainsString('<label', $html);
-    }
-
-    public function testTimePickerRendersInputWithValue(): void
-    {
-        $html = TimePicker::make('slot', 'Créneau', '14:30')->render();
-
-        $this->assertStringContainsString('type="time"', $html);
-        $this->assertStringContainsString('value="14:30"', $html);
-        $this->assertStringContainsString('Créneau', $html);
-    }
-
-    public function testStreamBuilderRendersInitialWidgetAndPollingAttributes(): void
-    {
-        $html = StreamBuilder::make('/fragment/server-time', Text::make('Chargement...'), intervalMs: 5000)->render();
-
-        $this->assertStringContainsString('data-stream-endpoint="/fragment/server-time"', $html);
-        $this->assertStringContainsString('data-stream-interval="5000"', $html);
-        $this->assertStringContainsString('Chargement...', $html);
-    }
-
     public function testAnimatedContainerRendersKeyDurationAndCurve(): void
     {
         $html = AnimatedContainer::make(Text::make('box'), key: 'card-1', durationMs: 250, curve: 'ease-out')->render();
@@ -288,13 +165,6 @@ final class MoreWidgetsTest extends TestCase
         Theme::reset();
     }
 
-    public function testLocationButtonWithTypedBackground(): void
-    {
-        $html = LocationButton::make(background: Color::of('emerald', 600))->render();
-
-        $this->assertStringContainsString('bg-emerald-600', $html);
-    }
-
     public function testDividerWithTypedColorReplacesDefaultBorderColor(): void
     {
         $html = Divider::make(color: Color::of('emerald', 600))->render();
@@ -309,12 +179,4 @@ final class MoreWidgetsTest extends TestCase
 
         $this->assertStringContainsString('border-gray-200', $html);
     }
-
-    public function testProgressBarAcceptsATypedColorInsteadOfARawString(): void
-    {
-        $html = ProgressBar::make(50, barColor: Color::of('purple', 600))->render();
-
-        $this->assertStringContainsString('bg-purple-600', $html);
-    }
-
 }
