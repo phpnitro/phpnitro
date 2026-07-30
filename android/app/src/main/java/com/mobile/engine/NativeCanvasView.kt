@@ -140,6 +140,27 @@ class NativeCanvasView(context: Context) : View(context) {
             onScrollFollow?.invoke(scrollY)
         }
     }
+
+    // RenderDismissible (NativeCanvas::dismissible()/beginDismiss()/
+    // endDismiss()) — the one genuinely continuous gesture in this
+    // pipeline. The drag itself is tracked entirely here, no round-trip
+    // per frame: pendingDismiss is a hit-tested candidate the moment a
+    // finger goes down on a dismissible rect, promoted to activeDismiss
+    // once the first decisive move sample confirms a horizontal drag
+    // (a vertical one falls through to the normal page-scroll path
+    // instead, same axis-detection idea the scroll/tap split already
+    // uses). dismissedKeys is this render generation's "already swiped
+    // away" set — cleared on the next setCommands(), since a confirmed
+    // dismiss's own server round-trip will re-render without that item
+    // anyway.
+    private data class DismissRegion(val key: String, val rect: RectF, val action: String)
+    private var dismissRegions: List<DismissRegion> = emptyList()
+    private var pendingDismiss: DismissRegion? = null
+    private var activeDismiss: DismissRegion? = null
+    private var dismissOffsetX = 0f
+    private var dismissSettleAnimator: ValueAnimator? = null
+    private val dismissedKeys = mutableSetOf<String>()
+
     private var scrollAnimator: ValueAnimator? = null
     private var velocityTracker: VelocityTracker? = null
     private var touchDownX = 0f
@@ -202,6 +223,8 @@ class NativeCanvasView(context: Context) : View(context) {
 
             previousHeroRegions = if (heroRegions.isNotEmpty()) heroRegions else null
             heroRegions = parseHeroRegions(payload.optJSONArray("heroRegions"))
+            dismissRegions = parseDismissRegions(payload.optJSONArray("dismissRegions"))
+            dismissedKeys.clear()
             Log.i("NativeCanvasView", "setCommands: ${commands.length()} commands, ${hitRegions.length()} hit regions, contentHeight=$contentHeight, view size ${width}x${height}")
             startCrossfade()
             startHeroTransition()
@@ -237,6 +260,19 @@ class NativeCanvasView(context: Context) : View(context) {
             val left = region.getDouble("x").toFloat()
             val top = region.getDouble("y").toFloat()
             result[region.getString("tag")] = RectF(left, top, left + region.getDouble("width").toFloat(), top + region.getDouble("height").toFloat())
+        }
+        return result
+    }
+
+    private fun parseDismissRegions(array: JSONArray?): List<DismissRegion> {
+        if (array == null) return emptyList()
+        val result = mutableListOf<DismissRegion>()
+        for (index in 0 until array.length()) {
+            val region = array.getJSONObject(index)
+            val left = region.getDouble("x").toFloat()
+            val top = region.getDouble("y").toFloat()
+            val rect = RectF(left, top, left + region.getDouble("width").toFloat(), top + region.getDouble("height").toFloat())
+            result.add(DismissRegion(region.getString("key"), rect, region.getString("action")))
         }
         return result
     }
@@ -302,8 +338,8 @@ class NativeCanvasView(context: Context) : View(context) {
             // Paired by index within the tag, the same "structure doesn't
             // change, only property values do" assumption Flutter's own
             // implicit animations make about a widget's identity.
-            val newTagged = collectTaggedCommands(commands, tag)
-            val oldTagged = previous?.let { collectTaggedCommands(it, tag) } ?: emptyList()
+            val newTagged = collectByField(commands, "hero", tag)
+            val oldTagged = previous?.let { collectByField(it, "hero", tag) } ?: emptyList()
 
             val innerSaved = canvas.save()
             canvas.concat(matrix)
@@ -315,11 +351,11 @@ class NativeCanvasView(context: Context) : View(context) {
         canvas.restoreToCount(saved)
     }
 
-    private fun collectTaggedCommands(list: JSONArray, tag: String): List<JSONObject> {
+    private fun collectByField(list: JSONArray, field: String, value: String): List<JSONObject> {
         val result = mutableListOf<JSONObject>()
         for (index in 0 until list.length()) {
             val command = list.getJSONObject(index)
-            if (command.optString("hero", "") == tag) result.add(command)
+            if (command.optString(field, "") == value) result.add(command)
         }
         return result
     }
@@ -403,31 +439,57 @@ class NativeCanvasView(context: Context) : View(context) {
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 scrollAnimator?.cancel()
+                dismissSettleAnimator?.cancel()
                 touchDownX = event.x
                 touchDownY = event.y
                 lastTouchY = event.y
                 isDragging = false
+                pendingDismiss = if (activeDismiss == null) hitTestDismiss(event) else null
                 velocityTracker?.recycle()
                 velocityTracker = VelocityTracker.obtain().also { it.addMovement(event) }
             }
 
             MotionEvent.ACTION_MOVE -> {
                 velocityTracker?.addMovement(event)
-                val totalDelta = event.y - touchDownY
-                if (!isDragging && maxScroll > 0f && abs(totalDelta) > touchSlop && abs(totalDelta) > abs(event.x - touchDownX)) {
-                    isDragging = true
+                val totalDeltaY = event.y - touchDownY
+                val totalDeltaX = event.x - touchDownX
+
+                if (activeDismiss == null && pendingDismiss != null && !isDragging &&
+                    abs(totalDeltaX) > touchSlop && abs(totalDeltaX) > abs(totalDeltaY)
+                ) {
+                    // First decisive move was horizontal over a dismissible
+                    // rect — commit to a dismiss drag instead of a page
+                    // scroll for the rest of this gesture.
+                    activeDismiss = pendingDismiss
+                    pendingDismiss = null
+                } else if (!isDragging && pendingDismiss != null &&
+                    abs(totalDeltaY) > touchSlop && abs(totalDeltaY) > abs(totalDeltaX)
+                ) {
+                    // Vertical instead — this was never a dismiss gesture.
+                    pendingDismiss = null
                 }
-                if (isDragging) {
-                    val deltaDp = (lastTouchY - event.y) / density
-                    scrollY = (scrollY + deltaDp).coerceIn(0f, maxScroll)
-                    lastTouchY = event.y
-                    checkScrollFollow()
+
+                if (activeDismiss != null) {
+                    dismissOffsetX = totalDeltaX / density
                     invalidate()
+                } else {
+                    if (!isDragging && maxScroll > 0f && abs(totalDeltaY) > touchSlop && abs(totalDeltaY) > abs(totalDeltaX)) {
+                        isDragging = true
+                    }
+                    if (isDragging) {
+                        val deltaDp = (lastTouchY - event.y) / density
+                        scrollY = (scrollY + deltaDp).coerceIn(0f, maxScroll)
+                        lastTouchY = event.y
+                        checkScrollFollow()
+                        invalidate()
+                    }
                 }
             }
 
             MotionEvent.ACTION_UP -> {
-                if (isDragging) {
+                if (activeDismiss != null) {
+                    settleDismiss()
+                } else if (isDragging) {
                     velocityTracker?.let {
                         it.addMovement(event)
                         it.computeCurrentVelocity(1000)
@@ -436,17 +498,87 @@ class NativeCanvasView(context: Context) : View(context) {
                 } else if (!gestureConsumedThisTouch) {
                     handleTap(event)
                 }
+                pendingDismiss = null
                 velocityTracker?.recycle()
                 velocityTracker = null
             }
 
             MotionEvent.ACTION_CANCEL -> {
+                if (activeDismiss != null) {
+                    springBackDismiss()
+                }
+                pendingDismiss = null
                 velocityTracker?.recycle()
                 velocityTracker = null
             }
         }
 
         return true
+    }
+
+    private fun hitTestDismiss(event: MotionEvent): DismissRegion? {
+        val touchX = event.x / density
+        val touchY = event.y / density + scrollY
+        return dismissRegions.firstOrNull { region ->
+            touchX >= region.rect.left && touchX <= region.rect.right &&
+                touchY >= region.rect.top && touchY <= region.rect.bottom
+        }
+    }
+
+    // Past threshold: finish the swipe off-screen, hide the item locally
+    // (dismissedKeys), THEN fire $action — PHP only hears about the
+    // outcome once the animation the user actually watched has completed,
+    // never mid-drag.
+    private fun settleDismiss() {
+        val region = activeDismiss ?: return
+        val threshold = region.rect.width() * 0.35f
+        if (abs(dismissOffsetX) <= threshold) {
+            springBackDismiss()
+            return
+        }
+        val direction = if (dismissOffsetX >= 0) 1f else -1f
+        val target = direction * region.rect.width() * 1.2f
+        dismissSettleAnimator?.cancel()
+        dismissSettleAnimator = ValueAnimator.ofFloat(dismissOffsetX, target).apply {
+            duration = 200
+            interpolator = DecelerateInterpolator()
+            addUpdateListener {
+                dismissOffsetX = it.animatedValue as Float
+                invalidate()
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    dismissedKeys.add(region.key)
+                    activeDismiss = null
+                    dismissOffsetX = 0f
+                    invalidate()
+                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    onAction?.invoke(region.action, region.rect, null)
+                }
+            })
+            start()
+        }
+    }
+
+    private fun springBackDismiss() {
+        activeDismiss ?: return
+        dismissSettleAnimator?.cancel()
+        dismissSettleAnimator = ValueAnimator.ofFloat(dismissOffsetX, 0f).apply {
+            duration = 200
+            interpolator = DecelerateInterpolator()
+            addUpdateListener {
+                dismissOffsetX = it.animatedValue as Float
+                invalidate()
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    activeDismiss = null
+                    dismissOffsetX = 0f
+                    invalidate()
+                }
+            })
+            start()
+        }
     }
 
     // Momentum scrolling: a decelerating ValueAnimator from the release
@@ -563,6 +695,30 @@ class NativeCanvasView(context: Context) : View(context) {
         canvas.restoreToCount(savedState)
 
         drawHeroTransition(canvas)
+        drawDismissOverlay(canvas)
+    }
+
+    /**
+     * The item currently being swiped (or settling back/away after
+     * release) — excluded from the normal passes above, drawn here
+     * instead so a live horizontal offset (and a fade as it nears
+     * threshold) can be applied without touching every other command's
+     * draw path. Still respects the page's own scroll translate — a
+     * dismissible is body content, not fixed — so it stays aligned with
+     * whatever it's sitting next to while being dragged sideways.
+     */
+    private fun drawDismissOverlay(canvas: Canvas) {
+        val active = activeDismiss ?: return
+        val saved = canvas.save()
+        canvas.scale(density, density)
+        canvas.translate(0f, -scrollY)
+        canvas.translate(dismissOffsetX, 0f)
+        val progress = (abs(dismissOffsetX) / active.rect.width()).coerceIn(0f, 1f)
+        val alpha = 1f - progress * 0.7f
+        for (command in collectByField(commands, "dismiss", active.key)) {
+            drawSingleCommand(canvas, command, alpha)
+        }
+        canvas.restoreToCount(saved)
     }
 
     /**
@@ -602,6 +758,8 @@ class NativeCanvasView(context: Context) : View(context) {
             if (command.optBoolean("fixed", false) != fixed) continue
             val hero = command.optString("hero", "").ifEmpty { null }
             if (hero != null && excludeHeroTags.contains(hero)) continue
+            val dismiss = command.optString("dismiss", "").ifEmpty { null }
+            if (dismiss != null && (dismissedKeys.contains(dismiss) || dismiss == activeDismiss?.key)) continue
             drawSingleCommand(canvas, command, alpha)
         }
     }

@@ -183,6 +183,21 @@ if ($path === '/native/layout-demo') {
         unset($_SESSION['auth_user']);
     }
 
+    // RenderDismissible's whole point: PHP never sees the swipe, only its
+    // outcome, once NativeCanvasView.kt's own animation has already
+    // finished — see NativeWidgetsDismissibleScreen. $_SESSION stands in
+    // for "a real list backed by a database row"; a production screen
+    // would DELETE a row here instead.
+    if (!isset($_SESSION['dismissible_items'])) {
+        $_SESSION['dismissible_items'] = array_combine(
+            array_map(static fn (int $i): string => (string) $i, array_keys(\Engine\App\NativeWidgetsDismissibleScreen::initialItems())),
+            \Engine\App\NativeWidgetsDismissibleScreen::initialItems(),
+        );
+    }
+    if ($action !== null && str_starts_with($action, 'dismiss:')) {
+        unset($_SESSION['dismissible_items'][substr($action, strlen('dismiss:'))]);
+    }
+
     // Mirrors WidgetsFirebaseAuthPage.php's onSignIn()/onSignUp() — a
     // plain server-side REST call to Firebase's Identity Toolkit API
     // (Engine\Firebase\FirebaseAuth, no client SDK/JS involved at all),
@@ -252,6 +267,7 @@ if ($path === '/native/layout-demo') {
         'widgets-forms' => \Engine\App\NativeWidgetsFormsScreen::build($screenWidth),
         'widgets-layout' => \Engine\App\NativeWidgetsLayoutScreen::build($screenWidth, $screenHeight),
         'widgets-lazylist' => \Engine\App\NativeWidgetsLazyListScreen::build($screenWidth, $screenHeight, $scrollY),
+        'widgets-dismissible' => \Engine\App\NativeWidgetsDismissibleScreen::build($screenWidth, $screenHeight, $_SESSION['dismissible_items']),
         'widgets-dialogs' => \Engine\App\NativeWidgetsDialogsScreen::build($screenWidth, $screenHeight),
         'widgets-stepper' => \Engine\App\NativeWidgetsStepperScreen::build($screenWidth, $screenHeight, $stepperStep, $stepperData),
         'widgets-countries' => \Engine\App\NativeWidgetsCountriesScreen::build($screenWidth, $screenHeight),

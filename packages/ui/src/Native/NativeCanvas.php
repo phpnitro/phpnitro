@@ -48,11 +48,17 @@ final class NativeCanvas
      */
     private array $heroRegions = [];
 
+    /**
+     * @var array<int, array<string, mixed>>
+     */
+    private array $dismissRegions = [];
+
     private float $contentHeight = 0.0;
     private ?float $renderTimeMs = null;
     private ?string $redirect = null;
     private bool $fixedMode = false;
     private ?string $heroTag = null;
+    private ?string $dismissKey = null;
     private bool $scrollFollow = false;
 
     /**
@@ -120,6 +126,41 @@ final class NativeCanvas
     }
 
     /**
+     * The one genuinely continuous gesture in this pipeline: swiping an
+     * item registers its rect + $action here (dismissRegions), and
+     * everything painted between beginDismiss($key)/endDismiss() is
+     * tagged "dismiss": $key. NativeCanvasView.kt tracks the drag entirely
+     * client-side — translating the tagged commands live under the
+     * finger, no round-trip per frame — and only calls back to PHP with
+     * $action once the swipe commits past threshold on release (see
+     * RenderDismissible, drawDismissOverlay(), and
+     * NativeRenderPocActivity's onTap() handling "dismiss:" actions the
+     * same as any other). PHP never sees the gesture itself, only its
+     * outcome — the "sync only on release" split this whole primitive
+     * exists for.
+     */
+    public function dismissible(string $key, float $x, float $y, float $width, float $height, string $action): self
+    {
+        $this->dismissRegions[] = ['key' => $key, 'x' => $x, 'y' => $y, 'width' => $width, 'height' => $height, 'action' => $action];
+
+        return $this;
+    }
+
+    public function beginDismiss(string $key): self
+    {
+        $this->dismissKey = $key;
+
+        return $this;
+    }
+
+    public function endDismiss(): self
+    {
+        $this->dismissKey = null;
+
+        return $this;
+    }
+
+    /**
      * @param array<string, mixed> $command
      * @return array<string, mixed>
      */
@@ -130,6 +171,9 @@ final class NativeCanvas
         }
         if ($this->heroTag !== null) {
             $command['hero'] = $this->heroTag;
+        }
+        if ($this->dismissKey !== null) {
+            $command['dismiss'] = $this->dismissKey;
         }
 
         return $command;
@@ -355,6 +399,7 @@ final class NativeCanvas
             'commands' => $this->commands,
             'hitRegions' => $this->hitRegions,
             'heroRegions' => $this->heroRegions !== [] ? $this->heroRegions : null,
+            'dismissRegions' => $this->dismissRegions !== [] ? $this->dismissRegions : null,
             'contentHeight' => $this->contentHeight,
             'renderTimeMs' => $this->renderTimeMs,
             'redirect' => $this->redirect,

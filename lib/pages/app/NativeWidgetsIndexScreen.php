@@ -73,6 +73,10 @@ final class NativeWidgetsIndexScreen
                         EdgeInsets::only(top: Tokens::SPACE_MD),
                         new NativeListTile('Liste virtualisée', '5000 lignes, rendu paresseux réel', 'view_list', trailingIcon: 'chevron_right', action: 'navigate:widgets-lazylist'),
                     ),
+                    new RenderPadding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new NativeListTile('Tâches', 'Glisser pour supprimer — geste continu réel', 'swipe', trailingIcon: 'chevron_right', action: 'navigate:widgets-dismissible'),
+                    ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,
