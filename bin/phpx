@@ -36,6 +36,12 @@
 define('PHPX_TOOL_ROOT', dirname(__DIR__));
 define('PHPX_ROOT', getcwd());
 
+// The github.com/phpnitro/android-engine tag a scaffolded project's
+// android/app/build.gradle.kts pins via JitPack — bump alongside a real
+// android/engine/ release (see this monorepo's own android/engine/ for
+// the source that tag mirrors).
+define('ANDROID_ENGINE_VERSION', 'v1.0.0');
+
 function phpxFail(string $message): never
 {
     fwrite(STDERR, "phpx: {$message}\n");
@@ -710,13 +716,80 @@ function cmdNew(string $directory): void
     // — phpx is meant to be installed once, globally (see this file's own
     // top-of-file docblock), and every internal `__DIR__`-relative lookup
     // (generate-android-icon.php, etc.) already assumes exactly that.
-    foreach (['lib', 'android', 'ios', 'assets', 'public'] as $part) {
+    foreach (['lib', 'ios', 'assets', 'public'] as $part) {
         $source = PHPX_TOOL_ROOT . '/' . $part;
         $destination = $targetDir . '/' . $part;
         copyDirectory($source, $destination, [
             'vendor', 'node_modules', '.gradle', 'build', '.kotlin', 'local.properties', 'var',
         ]);
         echo "Copied {$part}/ to {$destination}\n";
+    }
+
+    // android/ is NOT copied wholesale — android/engine/ is the compiled
+    // com.phpnitro:android-engine library (published via JitPack from
+    // github.com/phpnitro/android-engine, itself a read-only mirror of
+    // this same monorepo's android/engine/), referenced the way a Flutter
+    // project references the Flutter SDK, never copied in as source. Only
+    // android/app/ (the thin per-app shell: applicationId, res/, deep
+    // links, keystore config) plus root-level Gradle config is copied,
+    // and that root config is written fresh below rather than copied,
+    // since a scaffolded project's settings.gradle.kts/build.gradle.kts
+    // differ from this monorepo's own (no `:engine` module to include,
+    // JitPack's repository instead of a project() dependency).
+    // 'www' excluded deliberately: assets/www is bundle:android's own
+    // BUILD OUTPUT (gitignored, regenerated fresh by every bundle:android
+    // run) — copying it here would leak whatever this monorepo's own dev
+    // checkout happened to have bundled most recently (right down to a
+    // stale copy of packages/*/src, the very thing this whole
+    // Composer-package migration was meant to stop shipping) into every
+    // new project's checkout before it ever ran bundle:android itself.
+    copyDirectory(PHPX_TOOL_ROOT . '/android/app', "{$targetDir}/android/app", [
+        'vendor', 'node_modules', '.gradle', 'build', '.kotlin', 'local.properties', 'var', 'www',
+    ]);
+    echo "Copied android/app/ to {$targetDir}/android/app\n";
+
+    foreach (['keystore.properties.example', 'gradle.properties'] as $file) {
+        copy(PHPX_TOOL_ROOT . "/android/{$file}", "{$targetDir}/android/{$file}");
+    }
+    file_put_contents("{$targetDir}/android/settings.gradle.kts", newProjectAndroidSettingsGradleKts());
+    file_put_contents("{$targetDir}/android/build.gradle.kts", newProjectAndroidBuildGradleKts());
+    echo "Wrote {$targetDir}/android/{settings,build}.gradle.kts (com.github.phpnitro:android-engine via JitPack)\n";
+
+    $appBuildGradlePath = "{$targetDir}/android/app/build.gradle.kts";
+    $appBuildGradle = file_get_contents($appBuildGradlePath);
+    if ($appBuildGradle !== false) {
+        // Built line-by-line with an explicit 4-space prefix (matching
+        // this block's real indentation inside `dependencies { ... }`)
+        // rather than a heredoc — a heredoc's closing-marker-driven
+        // whitespace stripping silently produced 0-space-indented lines
+        // here, which then never matched the file's real 4-space
+        // indentation and left the monorepo-specific comment (and the
+        // project() dependency) in every scaffolded project untouched.
+        $monorepoComment = implode("\n", array_map(static fn (string $line): string => rtrim("    {$line}"), [
+            '// The native render engine itself — NativeRenderPocActivity,',
+            "// NativeCanvasView, PhpServer, MainActivity's WebView pipeline, every",
+            '// Device/*Receiver, libphp.so/libsqlite3.so, and every dependency the',
+            "// engine's own code needs (biometric, billing, maps, translate,",
+            '// lottie...) come in transitively as `api` dependencies of :engine —',
+            '// see android/engine/build.gradle.kts. A project scaffolded via',
+            '// `phpx new` instead depends on the published com.phpnitro:engine',
+            '// artifact; this project() dependency is this monorepo\'s own',
+            '// "developing the framework itself" path.',
+            'implementation(project(":engine"))',
+        ]));
+        $scaffoldedComment = implode("\n", array_map(static fn (string $line): string => rtrim("    {$line}"), [
+            '// The native render engine itself — NativeRenderPocActivity,',
+            "// NativeCanvasView, PhpServer, MainActivity's WebView pipeline, every",
+            '// Device/*Receiver, libphp.so/libsqlite3.so, and every dependency the',
+            "// engine's own code needs (biometric, billing, maps, translate,",
+            '// lottie...) come in transitively as `api` dependencies of this one',
+            '// artifact, published from github.com/phpnitro/android-engine via',
+            '// JitPack (see android/settings.gradle.kts\'s repository) — the exact',
+            '// relationship a Flutter project has with the Flutter SDK: referenced,',
+            '// never copied into your project as source.',
+            'implementation("com.github.phpnitro:android-engine:' . ANDROID_ENGINE_VERSION . '")',
+        ]));
+        file_put_contents($appBuildGradlePath, str_replace($monorepoComment, $scaffoldedComment, $appBuildGradle));
     }
 
     foreach (['.env', 'package.json', 'package-lock.json', 'phpnitro.yml'] as $file) {
@@ -767,6 +840,55 @@ function newProjectComposerJson(): string
             ],
         ],
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
+}
+
+/**
+ * A scaffolded project has no `:engine` module of its own (unlike this
+ * monorepo, which develops android/engine/ in place) — JitPack's own
+ * Maven repository is where com.github.phpnitro:android-engine resolves
+ * from instead. Everything else (Google/Maven Central, the plugin
+ * management block) mirrors this monorepo's own android/settings.gradle.kts.
+ */
+function newProjectAndroidSettingsGradleKts(): string
+{
+    return <<<'GRADLE'
+    pluginManagement {
+        repositories {
+            google()
+            mavenCentral()
+            gradlePluginPortal()
+        }
+    }
+
+    dependencyResolutionManagement {
+        repositories {
+            google()
+            mavenCentral()
+            maven("https://jitpack.io")
+        }
+    }
+
+    rootProject.name = "app"
+    include(":app")
+
+    GRADLE;
+}
+
+/**
+ * Only the com.android.application plugin — a scaffolded project has no
+ * com.android.library module of its own to declare `apply false` for
+ * (unlike this monorepo's own android/build.gradle.kts, which also
+ * declares com.android.library for android/engine/).
+ */
+function newProjectAndroidBuildGradleKts(): string
+{
+    return <<<'GRADLE'
+    plugins {
+        id("com.android.application") version "8.7.2" apply false
+        id("org.jetbrains.kotlin.android") version "2.0.21" apply false
+    }
+
+    GRADLE;
 }
 
 /**
