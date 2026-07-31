@@ -1,0 +1,59 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The one permission every consuming app needs unconditionally —
+         PhpServer's embedded PHP process always talks to itself over
+         127.0.0.1, and most screens make outbound HTTPS calls (Firebase
+         Auth, OpenStreetMap tiles, translation model downloads). Every
+         other capability's permission (camera, biometric, billing,
+         geofencing, NFC, contacts, calendar, bluetooth...) is declared by
+         the CONSUMING app instead, only for the capabilities it actually
+         uses — the engine module itself doesn't assume any of them.
+         Android's manifest merger unions this with whatever the app's own
+         manifest adds. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application>
+        <!-- Both activities are complete, launchable as-is — a consuming
+             app references them directly by this fully-qualified name (see
+             android/app/src/main/AndroidManifest.xml in this same repo for
+             the reference shape: deep links, the dynamic-icon
+             activity-alias, and any capability-specific permissions all
+             live in the APP's own manifest, merged on top of this one). -->
+        <activity
+            android:name=".MainActivity"
+            android:theme="@style/Theme.App.Starting"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <!-- NFC foreground dispatch (onResume/onPause) intercepts tag
+                 scans before this filter ever matches while the app is in
+                 front; TECH_DISCOVERED + NDEF catches any NDEF-formatted
+                 tag without requiring a specific registered MIME type. -->
+            <intent-filter>
+                <action android:name="android.nfc.action.TECH_DISCOVERED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.nfc.action.TECH_DISCOVERED"
+                android:resource="@xml/nfc_tech_filter" />
+        </activity>
+
+        <activity
+            android:name=".NativeRenderPocActivity"
+            android:theme="@style/Theme.App.Starting"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.nfc.action.TECH_DISCOVERED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.nfc.action.TECH_DISCOVERED"
+                android:resource="@xml/nfc_tech_filter" />
+        </activity>
+
+        <receiver android:name=".AlarmReceiver" android:exported="false" />
+        <receiver android:name=".GeofenceReceiver" android:exported="false" />
+        <!-- `phpx dev:push`'s trigger — non-exported, but `adb shell am
+             broadcast -n` can still target it explicitly on a debuggable
+             build. See HotReloadReceiver.kt. -->
+        <receiver android:name=".HotReloadReceiver" android:exported="false" />
+    </application>
+</manifest>

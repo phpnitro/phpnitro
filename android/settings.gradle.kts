@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "engine-android"
 include(":app")
+include(":engine")

@@ -1,4 +1,4 @@
-package com.mobile.engine
+package com.phpnitro.engine
 
 import android.bluetooth.BluetoothManager
 import android.content.ComponentName
@@ -260,8 +260,8 @@ class NativeDeviceBridge(private val context: Context) {
      */
     fun setAppIcon(iconKey: String) {
         val packageManager = context.packageManager
-        val defaultAlias = ComponentName(context, "com.mobile.engine.MainActivityDefault")
-        val altAlias = ComponentName(context, "com.mobile.engine.MainActivityAlt")
+        val defaultAlias = ComponentName(context, "${context.packageName}.MainActivityDefault")
+        val altAlias = ComponentName(context, "${context.packageName}.MainActivityAlt")
         val (enable, disable) = if (iconKey == "alt") altAlias to defaultAlias else defaultAlias to altAlias
 
         packageManager.setComponentEnabledSetting(

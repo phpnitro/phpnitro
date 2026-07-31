@@ -1,6 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- android.permission.INTERNET is already declared by :engine
+         (PhpServer always needs it) — everything below is capability-
+         specific, only needed because THIS demo app's screens exercise
+         every optional capability the engine supports. A real app should
+         trim this list to whatever it actually uses. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -37,11 +41,12 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.AppCompat.DayNight.NoActionBar"
         android:usesCleartextTraffic="true">
-        <activity
-            android:name=".MainActivity"
-            android:theme="@style/Theme.App.Starting"
-            android:exported="true"
-            android:launchMode="singleTask">
+        <!-- :engine's own manifest already declares this activity (theme,
+             launchMode, NFC intent-filter) — redeclared here by fully-
+             qualified name just to add the deep-link intent-filters,
+             which are an app-specific choice (scheme, verified domain),
+             not the engine's. Android's manifest merger unions the two. -->
+        <activity android:name="com.phpnitro.engine.MainActivity">
             <!-- Custom-scheme deep link (phpnitro://<path>), e.g.
                  phpnitro://product/42 opens /product/42 — see
                  MainActivity.kt's deepLinkPath(). A real HTTPS App Link
@@ -68,17 +73,6 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="app.example.com" />
             </intent-filter>
-
-            <!-- NFC foreground dispatch (MainActivity.onResume) intercepts
-                 tag scans before this filter ever matches while the app is
-                 in front; TECH_DISCOVERED + NDEF catches any NDEF-formatted
-                 tag without requiring a specific registered MIME type. -->
-            <intent-filter>
-                <action android:name="android.nfc.action.TECH_DISCOVERED" />
-            </intent-filter>
-            <meta-data
-                android:name="android.nfc.action.TECH_DISCOVERED"
-                android:resource="@xml/nfc_tech_filter" />
         </activity>
 
         <!-- Dynamic app icon: the MAIN/LAUNCHER entry point moved here (off
@@ -100,11 +94,14 @@
              dispatch, VideoPlayer, interactive maps, animations —
              reachable from native screens via "Voir sur WebView" buttons,
              see NativeDeviceBridge.kt's openWebView()), not the default
-             experience. MainActivity itself is untouched below — still a
-             real, independently launchable Activity (deep links, NFC). -->
+             experience. This activity-alias mechanism is itself an app
+             choice — a project that doesn't want a swappable icon can
+             drop it entirely and just let :engine's own MAIN/LAUNCHER
+             registration (none by default — see NativeRenderPocActivity's
+             docblock) or its own single alias take over. -->
         <activity-alias
             android:name=".MainActivityDefault"
-            android:targetActivity=".NativeRenderPocActivity"
+            android:targetActivity="com.phpnitro.engine.NativeRenderPocActivity"
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
             android:enabled="true"
@@ -117,7 +114,7 @@
 
         <activity-alias
             android:name=".MainActivityAlt"
-            android:targetActivity=".NativeRenderPocActivity"
+            android:targetActivity="com.phpnitro.engine.NativeRenderPocActivity"
             android:icon="@mipmap/ic_launcher_alt"
             android:roundIcon="@mipmap/ic_launcher_alt_round"
             android:enabled="false"
@@ -127,35 +124,5 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
-
-        <!-- The app's real production entry point as of this pass — see
-             the activity-alias docblock above. android:launchMode
-             ="singleTask" matches MainActivity's (re-tapping the launcher
-             icon should resume the existing instance, not stack a second
-             one on top). -->
-        <activity
-            android:name=".NativeRenderPocActivity"
-            android:theme="@style/Theme.App.Starting"
-            android:exported="true"
-            android:launchMode="singleTask">
-            <!-- Foreground dispatch (onResume/onPause) intercepts tag
-                 scans while this Activity is in front; this filter is
-                 what catches a scan while the app is backgrounded,
-                 mirroring MainActivity's identical filter. -->
-            <intent-filter>
-                <action android:name="android.nfc.action.TECH_DISCOVERED" />
-            </intent-filter>
-            <meta-data
-                android:name="android.nfc.action.TECH_DISCOVERED"
-                android:resource="@xml/nfc_tech_filter" />
-        </activity>
-
-        <receiver android:name=".AlarmReceiver" android:exported="false" />
-        <receiver android:name=".GeofenceReceiver" android:exported="false" />
-        <!-- `phpx dev:push`'s trigger — non-exported, but `adb shell am
-             broadcast -n` can still target it explicitly on a debuggable
-             build, same as the two receivers above. See
-             HotReloadReceiver.kt. -->
-        <receiver android:name=".HotReloadReceiver" android:exported="false" />
     </application>
 </manifest>

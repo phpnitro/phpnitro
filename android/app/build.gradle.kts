@@ -69,30 +69,16 @@ android {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("androidx.biometric:biometric:1.1.0")
-    implementation("androidx.core:core-splashscreen:1.0.1")
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
-    implementation("androidx.work:work-runtime-ktx:2.9.1")
-    implementation("com.android.billingclient:billing-ktx:7.1.1")
-    implementation("com.google.android.gms:play-services-location:21.3.0")
-    // A real interactive map (pan/zoom) with zero API key — same
-    // OpenStreetMap tiles NativeWidgetsMapsScreen.php's static-tile
-    // fallback already fetches directly, now behind a genuine MapView
-    // instead of a single non-interactive image.
-    implementation("org.osmdroid:osmdroid-android:6.1.20")
-    // On-device translation — no API key, no network dependency once the
-    // language model is downloaded once, unlike Engine\GoogleTranslate's
-    // web-based translate.google.com widget. Genuinely more "native" than
-    // what it replaces, not just a workaround.
-    implementation("com.google.mlkit:translate:17.0.3")
-    // RenderLottie — a real com.airbnb.android.lottie.LottieAnimationView
-    // overlaid at the widget's rect (same "no Canvas concept for a
-    // continuous animation loop, overlay a real Android View instead"
-    // idiom NativeVideoPlayer/NativeMapView already use), not a hand-rolled
-    // frame-by-frame Canvas replay.
-    implementation("com.airbnb.android:lottie:6.5.2")
+    // The native render engine itself — NativeRenderPocActivity,
+    // NativeCanvasView, PhpServer, MainActivity's WebView pipeline, every
+    // Device/*Receiver, libphp.so/libsqlite3.so, and every dependency the
+    // engine's own code needs (biometric, billing, maps, translate,
+    // lottie...) come in transitively as `api` dependencies of :engine —
+    // see android/engine/build.gradle.kts. A project scaffolded via
+    // `phpx new` instead depends on the published com.phpnitro:engine
+    // artifact; this project() dependency is this monorepo's own
+    // "developing the framework itself" path.
+    implementation(project(":engine"))
 
     // Push notifications — uncomment together with the plugin above and
     // google-services.json, see FcmService.kt.example.
