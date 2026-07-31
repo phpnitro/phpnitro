@@ -702,6 +702,19 @@ function cmdNew(string $directory): void
     ]);
     echo "Copied android/app/ to {$targetDir}/android/app\n";
 
+    // This monorepo's own AndroidManifest.xml is the DEMO app's — it
+    // declares every permission the ~30 capability screens exercise
+    // (camera, biometrics, location, Bluetooth, contacts, NFC, billing...).
+    // A blank project hasn't asked for any of that yet, so it gets a
+    // minimal manifest instead of inheriting the demo's permission list —
+    // the same reason a fresh `flutter create` ships an empty
+    // AndroidManifest.xml, not one with every plugin's permissions
+    // pre-declared.
+    file_put_contents(
+        "{$targetDir}/android/app/src/main/AndroidManifest.xml",
+        newProjectAndroidManifestXml(),
+    );
+
     foreach (['keystore.properties.example', 'gradle.properties'] as $file) {
         copy(PHPX_TOOL_ROOT . "/android/{$file}", "{$targetDir}/android/{$file}");
     }
@@ -850,6 +863,55 @@ function newProjectAndroidBuildGradleKts(): string
     }
 
     GRADLE;
+}
+
+/**
+ * A blank project's manifest — no capability-specific permission (camera,
+ * location, Bluetooth, contacts, NFC, billing...) is declared until the
+ * developer's own screens actually use one; :engine already contributes
+ * android.permission.INTERNET on its own (PhpServer always needs it), so
+ * there is nothing to add here for that. The single activity-alias below
+ * is NOT optional the way it is in the demo app: :engine's own
+ * NativeRenderPocActivity declares no MAIN/LAUNCHER intent-filter (an app
+ * decides its own entry point), so without this the app would install but
+ * never appear on the home screen at all.
+ */
+function newProjectAndroidManifestXml(): string
+{
+    return <<<'XML'
+    <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+        <application
+            android:label="@string/app_name"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:theme="@style/Theme.AppCompat.DayNight.NoActionBar"
+            android:usesCleartextTraffic="true">
+
+            <!-- Makes the app launchable — see this function's own docblock.
+                 Add your own <uses-permission> above this <application> tag
+                 as your screens need one (Engine\Device\* docblocks say
+                 which permission each capability requires), and re-declare
+                 com.phpnitro.engine.MainActivity here with your own
+                 intent-filter if you need deep linking (see this monorepo's
+                 own android/app/src/main/AndroidManifest.xml for an example
+                 of both). -->
+            <activity-alias
+                android:name=".MainActivityDefault"
+                android:targetActivity="com.phpnitro.engine.NativeRenderPocActivity"
+                android:icon="@mipmap/ic_launcher"
+                android:roundIcon="@mipmap/ic_launcher_round"
+                android:enabled="true"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+            </activity-alias>
+        </application>
+    </manifest>
+
+    XML;
 }
 
 /**
