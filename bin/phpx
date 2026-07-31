@@ -17,6 +17,7 @@
  *   phpx icon                         Regenerate the Android launcher icon from phpnitro.yml's `icon`
  *   phpx firebase                     List phpnitro.yml's declared Firebase config and their .env status
  *   phpx docs:api                     Generate docs/api/*.md from every public class's docblocks + signatures
+ *   phpx doctor                       Check the local machine's readiness for phpx development
  *
  * phpnitro.yml (project root) is the app manifest — name/description/version,
  * the payment gateways and map providers the app declares, and optionally
@@ -817,7 +818,12 @@ function cmdNew(string $directory): void
         file_put_contents($appBuildGradlePath, str_replace($monorepoComment, $scaffoldedComment, $appBuildGradle));
     }
 
-    foreach (['.env', 'package.json', 'package-lock.json', 'phpnitro.yml'] as $file) {
+    // package.json/package-lock.json aren't copied — the only reason a Node
+    // toolchain existed here was Tailwind CSS, removed along with the last
+    // WebView page (see git history: "remove Tailwind CSS and its JS
+    // assets"); copying them used to silently no-op since neither file
+    // exists in this monorepo anymore.
+    foreach (['.env', 'phpnitro.yml'] as $file) {
         copy(PHPX_TOOL_ROOT . '/' . $file, $targetDir . '/' . $file);
         echo "Copied {$file} to {$targetDir}/{$file}\n";
     }
@@ -1553,6 +1559,77 @@ function resolveOrInstallGradle(): string
     return $gradleBin;
 }
 
+/**
+ * One line of `phpx doctor` output — mirrors `flutter doctor`'s [✓]/[✗]
+ * format. $required means phpx itself is broken without it (php, composer);
+ * a failing non-required check only means one specific command
+ * (build:android, dev:push) won't work.
+ */
+function doctorCheck(string $label, bool $ok, string $detail, bool $required = true): bool
+{
+    $icon = $ok ? '✓' : ($required ? '✗' : '!');
+    echo "  [{$icon}] {$label}" . ($detail !== '' ? " — {$detail}" : '') . "\n";
+
+    return $ok || !$required;
+}
+
+/**
+ * Checks the local machine's readiness for phpx development — no
+ * installing, unlike resolveOrInstallGradle()/resolveOrInstallAndroidSdk(),
+ * which cmdBuildAndroid() already calls (and which auto-install Gradle/the
+ * SDK on demand) — this command's whole point is to tell you WHAT'S missing
+ * before you hit a build failure explaining it, the same job `flutter
+ * doctor` does for a Flutter install.
+ */
+function cmdDoctor(): void
+{
+    $allOk = true;
+
+    echo "PHP\n";
+    $allOk = doctorCheck('PHP >= 8.1', version_compare(PHP_VERSION, '8.1.0', '>='), 'found ' . PHP_VERSION) && $allOk;
+    foreach (['pdo_sqlite', 'curl', 'mbstring', 'json', 'tokenizer', 'zip'] as $extension) {
+        $allOk = doctorCheck("ext-{$extension}", extension_loaded($extension), '') && $allOk;
+    }
+
+    echo "\nPHP tooling\n";
+    $composer = trim((string) shell_exec('command -v composer 2>/dev/null'));
+    $allOk = doctorCheck('Composer', $composer !== '', $composer !== '' ? $composer : 'not found on PATH — https://getcomposer.org') && $allOk;
+
+    echo "\nAndroid toolchain (only needed for build:android / dev:push)\n";
+    $java = trim((string) shell_exec('command -v java 2>/dev/null'));
+    doctorCheck('Java (JDK)', $java !== '', $java !== '' ? $java : 'not found on PATH', required: false);
+
+    $gradle = trim((string) shell_exec('command -v gradle 2>/dev/null'));
+    if ($gradle === '') {
+        $dataHome = getenv('XDG_DATA_HOME') ?: (getenv('HOME') . '/.local/share');
+        $cachedGradle = glob("{$dataHome}/phpnitro-tools/gradle-*/bin/gradle");
+        $gradle = $cachedGradle[0] ?? '';
+    }
+    doctorCheck('Gradle', $gradle !== '', $gradle !== '' ? $gradle : 'not found — build:android downloads it automatically on first use', required: false);
+
+    $sdkRoot = $_ENV['ANDROID_HOME'] ?? $_ENV['ANDROID_SDK_ROOT'] ?? null;
+    foreach ([$sdkRoot, getenv('HOME') . '/Android/Sdk', getenv('HOME') . '/Library/Android/sdk'] as $candidate) {
+        if ($candidate !== null && is_dir($candidate)) {
+            $sdkRoot = $candidate;
+            break;
+        }
+    }
+    $sdkFound = $sdkRoot !== null && is_dir($sdkRoot);
+    doctorCheck('Android SDK', $sdkFound, $sdkFound ? $sdkRoot : 'not found — build:android downloads platform-tools automatically on first use', required: false);
+
+    $adb = trim((string) shell_exec('command -v adb 2>/dev/null'));
+    doctorCheck('adb', $adb !== '', $adb !== '' ? $adb : 'not found on PATH — only needed for dev:push against a real device', required: false);
+
+    echo "\n";
+    echo $allOk
+        ? "phpx is ready — every required tool is present.\n"
+        : "phpx is missing required tools — see [✗] lines above.\n";
+
+    if (!$allOk) {
+        exit(1);
+    }
+}
+
 $command = $argv[1] ?? null;
 
 switch ($command) {
@@ -1592,6 +1669,9 @@ switch ($command) {
     case 'docs:api':
         cmdGenerateApiDocs();
         break;
+    case 'doctor':
+        cmdDoctor();
+        break;
     default:
-        phpxFail('usage: phpx <make:page|make:entity|serve|new|bundle:android|build:android|dev:push|payments|maps|icon|firebase|docs:api> ...');
+        phpxFail('usage: phpx <make:page|make:entity|serve|new|bundle:android|build:android|dev:push|payments|maps|icon|firebase|docs:api|doctor> ...');
 }
