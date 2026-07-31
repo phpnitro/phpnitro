@@ -716,11 +716,19 @@ function cmdNew(string $directory): void
     // — phpx is meant to be installed once, globally (see this file's own
     // top-of-file docblock), and every internal `__DIR__`-relative lookup
     // (generate-android-icon.php, etc.) already assumes exactly that.
+    // 'assets' in the skip list only ever matches public/assets/ during
+    // this loop (there's no "assets" subdirectory INSIDE the top-level
+    // assets/ folder itself) — public/assets/ is syncAssets()'s own BUILD
+    // OUTPUT (gitignored, mirrors assets/ fresh on every `phpx serve`/
+    // `bundle:android` run), so copying it here would leak this
+    // monorepo's own dev checkout's currently-synced copy, the same
+    // stale-build-artifact mistake already fixed for android/app's
+    // assets/www.
     foreach (['lib', 'ios', 'assets', 'public'] as $part) {
         $source = PHPX_TOOL_ROOT . '/' . $part;
         $destination = $targetDir . '/' . $part;
         copyDirectory($source, $destination, [
-            'vendor', 'node_modules', '.gradle', 'build', '.kotlin', 'local.properties', 'var',
+            'vendor', 'node_modules', '.gradle', 'build', '.kotlin', 'local.properties', 'var', 'assets',
         ]);
         echo "Copied {$part}/ to {$destination}\n";
     }
@@ -953,6 +961,70 @@ function resetPagesForNewProject(string $targetDir): void
     }
 
     file_put_contents($indexPath, $content);
+
+    // lib/backend/src/{Controller,Repository,Service,Entity} hold this
+    // demo's OWN backend (FcmController, UploadController's image-upload
+    // pipeline, VisitRepository's visit counter...) — every .php file goes
+    // the same way lib/pages/app's demo screens did, README.md left in
+    // place (each explains what belongs in that folder, not what USED to).
+    foreach (['Controller', 'Repository', 'Service', 'Entity'] as $layer) {
+        foreach (glob("{$targetDir}/lib/backend/src/{$layer}/*.php") ?: [] as $file) {
+            unlink($file);
+        }
+    }
+    file_put_contents("{$targetDir}/lib/backend/src/Kernel.php", minimalKernelTemplate());
+
+    // assets/audio/beep.wav only exists for NativeWidgetsMediaScreen.php's
+    // AudioPlayer demo, just deleted above along with every other demo
+    // screen — assets/README.md (the actual generic guidance) stays.
+    $demoAudioDir = "{$targetDir}/assets/audio";
+    if (is_dir($demoAudioDir)) {
+        foreach (glob("{$demoAudioDir}/*") ?: [] as $file) {
+            unlink($file);
+        }
+        rmdir($demoAudioDir);
+    }
+}
+
+/**
+ * lib/backend/src/Kernel.php with no demo routes/Controller imports —
+ * just the dispatch shape (Backend\Kernel::handle(), called in-process
+ * from public/index.php's own /api/ prefix check) a developer adds their
+ * own `'/api/whatever' => (new WhateverController())->action($request),`
+ * arms to, the same "structurally minimal, not empty" shape
+ * nativeHomeScreenTemplate() gives lib/pages/app/.
+ */
+function minimalKernelTemplate(): string
+{
+    return <<<'PHP'
+    <?php
+
+    namespace Backend;
+
+    use Symfony\Component\HttpFoundation\JsonResponse;
+    use Symfony\Component\HttpFoundation\Request;
+    use Symfony\Component\HttpFoundation\Response;
+
+    /**
+     * Routes an already-built Request to a Controller and returns the Response.
+     * Called in-process from the single front controller (public/index.php) —
+     * no second server/port, backend/ has no public/ of its own. Add your own
+     * routes to the match() below, and `phpx make:page` will do it for you
+     * when the page you're generating needs a paired Controller.
+     */
+    final class Kernel
+    {
+        public function handle(Request $request): Response
+        {
+            $path = $request->getPathInfo();
+
+            return match ($path) {
+                default => new JsonResponse(['error' => 'Not found'], 404),
+            };
+        }
+    }
+
+    PHP;
 }
 
 /**
