@@ -15,7 +15,7 @@ parameters:
         - packages/diagnostics/src
         - packages/format/src
         - packages/socialauth/src
-        - lib/pages/app
+        - lib/pages
         - lib/backend/src
         - public/index.php
         - public/router.php

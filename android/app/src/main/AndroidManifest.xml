@@ -86,7 +86,7 @@
              Both aliases target NativeRenderPocActivity, not MainActivity —
              the native render engine (docs/proposals/moteur-rendu-natif.md)
              is the app's real launcher now, not an opt-in preview: every
-             production route (lib/pages/app/Native*Screen.php) reaches
+             production route (lib/pages/Native*Screen.php) reaches
              full parity with its WebView original gets that WebView page
              deleted (see e.g. HomePage.php's removal), so MainActivity's
              WebView pipeline is what's left over for the genuinely

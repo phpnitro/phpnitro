@@ -70,7 +70,7 @@ $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
 // The backend (Symfony HttpFoundation) is handled from this SAME PHP
 // process — no second server/port to launch, which is what makes it
 // available implicitly, including inside the Android app.
-if (str_starts_with($path, '/api/')) {
+if ($path === '/api' || str_starts_with($path, '/api/')) {
     (new \Backend\Kernel())->handle(\Symfony\Component\HttpFoundation\Request::createFromGlobals())->send();
     exit;
 }
@@ -273,7 +273,7 @@ if ($path === '/native/layout-demo') {
         $_SESSION['widgets_stepper_data'] = $stepperData;
     }
 
-    // Screen builders live in lib/pages/app/Native*.php — captures/ has
+    // Screen builders live in lib/pages/Native*.php — captures/ has
     // multiple reference screens, and this route just dispatches to
     // whichever one ?screen= asks for instead of growing one giant
     // function per screen added. 'home' — the real HomePage.php
@@ -345,7 +345,7 @@ if ($debug && $path === '/_dev/version') {
     // reload triggered by an assets/ edit would just show the stale copy.
     $latest = 0;
     $watchedDirs = array_merge(
-        ['lib/pages/app', 'lib/backend/src', 'public'],
+        ['lib/pages', 'lib/backend/src', 'public'],
         array_map(
             static fn (string $dir) => 'packages/' . basename(dirname($dir)) . '/src',
             glob(dirname(__DIR__) . '/packages/*/src', GLOB_ONLYDIR) ?: [],

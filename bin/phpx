@@ -83,23 +83,21 @@ function pageTemplate(string $className): string
 
     namespace Engine\App;
 
-    use Engine\Column;
-    use Engine\Screen;
-    use Engine\Text;
-    use Engine\Widget;
+    use Engine\Native\NativeScaffold;
+    use Engine\Native\RenderCenter;
+    use Engine\Native\RenderNode;
+    use Engine\Native\RenderText;
+    use Engine\Native\Tokens;
 
-    final class {$className} extends Screen
+    final class {$className}
     {
-        protected function initialState(): array
+        public static function build(float \$screenWidth, float \$screenHeight): RenderNode
         {
-            return [];
-        }
-
-        public function build(): Widget
-        {
-            return Column::make([
-                Text::make('{$className}', 'text-2xl font-bold text-gray-900 dark:text-gray-100'),
-            ]);
+            return new NativeScaffold(
+                new RenderCenter(new RenderText('{$className}', Tokens::TEXT_TITLE, Tokens::ink()->toHex(), bold: true)),
+                \$screenWidth,
+                \$screenHeight,
+            );
         }
     }
 
@@ -128,6 +126,14 @@ function controllerTemplate(string $className): string
     PHP;
 }
 
+/**
+ * Wires a generated Page into the /native/layout-demo route's `match ($screen)`
+ * dispatch table (see minimalLayoutDemoRoute()) — the framework's actual
+ * routing model since the native render engine replaced the old WebView
+ * Engine\Router/Screen/Widget pipeline. $route's leading slash becomes the
+ * ?screen= key ('/about' -> 'about'); a root route ('/') maps to the
+ * table's own `default` arm, so nothing needs inserting for it.
+ */
 function registerRoute(string $indexPath, string $className, string $route): void
 {
     $content = file_get_contents($indexPath);
@@ -137,12 +143,23 @@ function registerRoute(string $indexPath, string $className, string $route): voi
 
     $useLine = "use Engine\\App\\{$className};\n";
     if (!str_contains($content, $useLine)) {
-        $content = str_replace("use Engine\\Router;\n", $useLine . "use Engine\\Router;\n", $content);
+        $content = str_replace(
+            "use Engine\\Native\\NativeCanvas;\n",
+            $useLine . "use Engine\\Native\\NativeCanvas;\n",
+            $content,
+        );
     }
 
-    $routeLine = "    '{$route}' => {$className}::class,\n";
-    if (!str_contains($content, $routeLine)) {
-        $content = str_replace("\$router = new Router([\n", "\$router = new Router([\n{$routeLine}", $content);
+    $screen = ltrim($route, '/');
+    if ($screen !== '') {
+        $caseLine = "            '{$screen}' => \\Engine\\App\\{$className}::build(\$screenWidth, \$screenHeight),\n";
+        if (!str_contains($content, $caseLine)) {
+            $content = str_replace(
+                "            default => \\Engine\\App\\NativeHomeScreen::build(\$screenWidth, \$screenHeight),\n",
+                $caseLine . "            default => \\Engine\\App\\NativeHomeScreen::build(\$screenWidth, \$screenHeight),\n",
+                $content,
+            );
+        }
     }
 
     file_put_contents($indexPath, $content);
@@ -184,7 +201,7 @@ function registerApiRoute(string $kernelPath, string $className, string $route):
 function cmdMakePage(string $name, ?string $route): void
 {
     $className = pageClassName($name);
-    $pagePath = PHPX_ROOT . "/lib/pages/app/{$className}.php";
+    $pagePath = PHPX_ROOT . "/lib/pages/{$className}.php";
     $controllerClassName = controllerClassNameFor($className);
     $controllerPath = PHPX_ROOT . "/lib/backend/src/Controller/{$controllerClassName}.php";
 
@@ -843,7 +860,7 @@ function newProjectComposerJson(): string
         ],
         'autoload' => [
             'psr-4' => [
-                'Engine\\App\\' => 'lib/pages/app/',
+                'Engine\\App\\' => 'lib/pages/',
                 'Backend\\' => 'lib/backend/src/',
             ],
         ],
@@ -900,7 +917,7 @@ function newProjectAndroidBuildGradleKts(): string
 }
 
 /**
- * This framework's own lib/pages/app/ holds demo pages, useful for developing
+ * This framework's own lib/pages/ holds demo pages, useful for developing
  * phpx itself — but a new project should start with an empty canvas, the
  * developer creates their own pages via `phpx make:page`. Strips the demo
  * pages + their routes from the freshly-copied scaffold (never touches
@@ -908,7 +925,7 @@ function newProjectAndroidBuildGradleKts(): string
  */
 function resetPagesForNewProject(string $targetDir): void
 {
-    $appDir = $targetDir . '/lib/pages/app';
+    $appDir = $targetDir . '/lib/pages';
     foreach (glob($appDir . '/*.php') ?: [] as $file) {
         unlink($file);
     }
@@ -965,8 +982,9 @@ function resetPagesForNewProject(string $targetDir): void
     // lib/backend/src/{Controller,Repository,Service,Entity} hold this
     // demo's OWN backend (FcmController, UploadController's image-upload
     // pipeline, VisitRepository's visit counter...) — every .php file goes
-    // the same way lib/pages/app's demo screens did, README.md left in
-    // place (each explains what belongs in that folder, not what USED to).
+    // the same way lib/pages's demo screens just did above, README.md
+    // left in place (each explains what belongs in that folder, not what
+    // USED to).
     foreach (['Controller', 'Repository', 'Service', 'Entity'] as $layer) {
         foreach (glob("{$targetDir}/lib/backend/src/{$layer}/*.php") ?: [] as $file) {
             unlink($file);
@@ -992,7 +1010,7 @@ function resetPagesForNewProject(string $targetDir): void
  * from public/index.php's own /api/ prefix check) a developer adds their
  * own `'/api/whatever' => (new WhateverController())->action($request),`
  * arms to, the same "structurally minimal, not empty" shape
- * nativeHomeScreenTemplate() gives lib/pages/app/.
+ * nativeHomeScreenTemplate() gives lib/pages/.
  */
 function minimalKernelTemplate(): string
 {
@@ -1206,7 +1224,7 @@ function cmdBundleAndroid(): void
     // bundle — no path rewriting, no vendor symlinks to flatten (there are
     // none: nothing here is a Composer path repository anymore).
     copyDirectory(PHPX_ROOT . '/public', "{$staging}/public", minifyPhp: true);
-    copyDirectory(PHPX_ROOT . '/lib/pages/app', "{$staging}/lib/pages/app", minifyPhp: true);
+    copyDirectory(PHPX_ROOT . '/lib/pages', "{$staging}/lib/pages", minifyPhp: true);
     copyDirectory(PHPX_ROOT . '/lib/backend/src', "{$staging}/lib/backend/src", minifyPhp: true);
     // Was a hardcoded per-package list — every package added after it was
     // last updated (this session: countries, preferences, connectivity,
@@ -1278,7 +1296,7 @@ function stageForDevPush(): string
 
     passthruOrFail('rm -rf ' . escapeshellarg("{$staging}/public") . ' ' . escapeshellarg("{$staging}/lib"));
     copyDirectory(PHPX_ROOT . '/public', "{$staging}/public", minifyPhp: true);
-    copyDirectory(PHPX_ROOT . '/lib/pages/app', "{$staging}/lib/pages/app", minifyPhp: true);
+    copyDirectory(PHPX_ROOT . '/lib/pages', "{$staging}/lib/pages", minifyPhp: true);
     copyDirectory(PHPX_ROOT . '/lib/backend/src', "{$staging}/lib/backend/src", minifyPhp: true);
 
     foreach (glob(PHPX_ROOT . '/packages/*/src', GLOB_ONLYDIR) ?: [] as $packageSrcDir) {

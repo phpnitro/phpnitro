@@ -18,7 +18,7 @@
             "Engine\\Firebase\\": "packages/firebase/src/",
             "Engine\\Countries\\": "packages/countries/src/",
             "Engine\\Preferences\\": "packages/preferences/src/",
-            "Engine\\App\\": "lib/pages/app/",
+            "Engine\\App\\": "lib/pages/",
             "Backend\\": "lib/backend/src/",
             "Engine\\Format\\": "packages/format/src/"
         }
