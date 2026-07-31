@@ -4,20 +4,43 @@
          (PhpServer always needs it) — everything below is capability-
          specific, only needed because THIS demo app's screens exercise
          every optional capability the engine supports. A real app should
-         trim this list to whatever it actually uses. -->
+         trim this list to whatever it actually uses (a blank `phpx new`
+         project starts with none of these — see
+         newProjectAndroidManifestXml() in bin/phpx). -->
+
+    <!-- Live camera preview + photo capture (Engine\Device\Camera). -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Audio recording for VoiceRecorder (Engine\Device\VoiceRecorder). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Precise GPS/network location for Geolocation/Geofence
+         (Engine\Device\Geolocation, Engine\Device\Geofence). -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Coarser network-based location fallback, same screens as above. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Haptic feedback for HapticFeedback (Engine\Device\HapticFeedback). -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Required on Android 13+ (API 33) to actually show local/push
+         notifications (Engine\Device\LocalNotification, FCM). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Lets Connectivity (Engine\Device\Connectivity) read the current
+         network state (Wi-Fi/mobile/offline) without a location permission. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Exact-time alarm scheduling for AlarmReceiver
+         (Engine\Device\LocalNotification's scheduled variant), required on
+         Android 12+ (API 31) alongside USE_EXACT_ALARM below. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- Bluetooth device scanning/connection for a paired-device screen
+         (Engine\Device\Bluetooth). -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <!-- Reading the device's contact list (Engine\Device\Contacts). -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Reading the device's calendar events (Engine\Device\Calendar). -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <!-- NFC tag read/write and foreground dispatch
+         (NativeRenderPocActivity's NFC intent-filter, see
+         res/xml/nfc_tech_filter.xml). -->
     <uses-permission android:name="android.permission.NFC" />
     <!-- Billing (Engine\Device\InAppPurchase) requires this exact permission
          string — Play Billing silently no-ops purchase flows without it. -->
