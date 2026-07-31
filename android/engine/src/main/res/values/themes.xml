@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- A working default so :engine builds standalone (AAPT2's library
+         resource verification needs every manifest-referenced style to
+         resolve at THIS module's own build time, not just once merged
+         into a consuming app) — every real app is expected to override
+         this with its own branding by declaring a style of the same name
+         in its own res/values/themes.xml; Android resource merging lets
+         the app's definition win over the library's default. See
+         android/app/src/main/res/values/themes.xml in this same monorepo
+         for a real branded example (a custom color + animated icon). No
+         windowSplashScreenAnimatedIcon here — core-splashscreen falls
+         back to the app's own launcher icon when none is set, so this
+         default needs no placeholder icon drawable of its own. -->
+    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/phpnitro_engine_default_splash_background</item>
+        <item name="postSplashScreenTheme">@style/Theme.AppCompat.DayNight.NoActionBar</item>
+    </style>
+</resources>
