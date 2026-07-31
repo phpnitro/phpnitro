@@ -5,7 +5,7 @@
  * phpx — CLI for PhpNitro, the PHP mobile framework.
  *
  * Commands:
- *   phpx make:page <Name> [route]     Generate a Page + a paired backend Controller, register both routes
+ *   phpx make:page <Name>              Generate a Page + a paired backend Controller (auto-discovered, no route to register)
  *   phpx make:entity <Name>           Generate an Entity + a paired Repository
  *   phpx serve [port]                 Serve public/ (defaults to 8090)
  *   phpx new <directory>              Scaffold a new project: android/ ios/ lib/ packages/ public/ assets/ bin/
@@ -69,14 +69,6 @@ function controllerClassNameFor(string $pageClassName): string
     return preg_replace('/Page$/', '', $pageClassName) . 'Controller';
 }
 
-function defaultRoute(string $className): string
-{
-    $base = preg_replace('/Page$/', '', $className);
-    $kebab = strtolower(preg_replace('/(?<!^)[A-Z]/', '-$0', $base));
-
-    return $kebab === '' ? '/' : '/' . $kebab;
-}
-
 function pageTemplate(string $className): string
 {
     return <<<PHP
@@ -128,79 +120,19 @@ function controllerTemplate(string $className): string
 }
 
 /**
- * Wires a generated Page into the /native/layout-demo route's `match ($screen)`
- * dispatch table (see minimalLayoutDemoRoute()) — the framework's actual
- * routing model since the native render engine replaced the old WebView
- * Engine\Router/Screen/Widget pipeline. $route's leading slash becomes the
- * ?screen= key ('/about' -> 'about'); a root route ('/') maps to the
- * table's own `default` arm, so nothing needs inserting for it.
+ * Just creates the files — nothing to wire up. Both /native/layout-demo
+ * (via minimalLayoutDemoRoute()) and Kernel::handle() (via
+ * minimalKernelTemplate()) discover pages/controllers straight from
+ * lib/pages/ and lib/backend/src/Controller/ at request time
+ * (Engine\AutoRouter::discover()), keyed by class name convention — the
+ * same file-presence-is-the-route-table model Next.js's pages/ directory
+ * or Flutter's generated go_router routes use, instead of a table this
+ * command would otherwise have to keep in sync by editing generated files.
  */
-function registerRoute(string $indexPath, string $className, string $route): void
+function cmdMakePage(string $name): void
 {
-    $content = file_get_contents($indexPath);
-    if ($content === false) {
-        phpxFail("unable to read {$indexPath}");
-    }
+    require_once PHPX_ROOT . '/vendor/autoload.php';
 
-    $useLine = "use Engine\\App\\{$className};\n";
-    if (!str_contains($content, $useLine)) {
-        $content = str_replace(
-            "use Engine\\Native\\NativeCanvas;\n",
-            $useLine . "use Engine\\Native\\NativeCanvas;\n",
-            $content,
-        );
-    }
-
-    $screen = ltrim($route, '/');
-    if ($screen !== '') {
-        $caseLine = "            '{$screen}' => \\Engine\\App\\{$className}::build(\$screenWidth, \$screenHeight),\n";
-        if (!str_contains($content, $caseLine)) {
-            $content = str_replace(
-                "            default => \\Engine\\App\\NativeHomeScreen::build(\$screenWidth, \$screenHeight),\n",
-                $caseLine . "            default => \\Engine\\App\\NativeHomeScreen::build(\$screenWidth, \$screenHeight),\n",
-                $content,
-            );
-        }
-    }
-
-    file_put_contents($indexPath, $content);
-}
-
-/**
- * Wires a generated Controller into Kernel's dispatch match() — the same
- * hand-registered style as the built-in controllers, just appended instead
- * of hand-written.
- */
-function registerApiRoute(string $kernelPath, string $className, string $route): void
-{
-    $content = file_get_contents($kernelPath);
-    if ($content === false) {
-        phpxFail("unable to read {$kernelPath}");
-    }
-
-    $useLine = "use Backend\\Controller\\{$className};\n";
-    if (!str_contains($content, $useLine)) {
-        $content = str_replace(
-            "use Symfony\\Component\\HttpFoundation\\JsonResponse;\n",
-            $useLine . "use Symfony\\Component\\HttpFoundation\\JsonResponse;\n",
-            $content,
-        );
-    }
-
-    $caseLine = "            '{$route}' => (new {$className}())->handle(\$request),\n";
-    if (!str_contains($content, $caseLine)) {
-        $content = str_replace(
-            "            default => new JsonResponse(['error' => 'Not found'], 404),\n",
-            $caseLine . "            default => new JsonResponse(['error' => 'Not found'], 404),\n",
-            $content,
-        );
-    }
-
-    file_put_contents($kernelPath, $content);
-}
-
-function cmdMakePage(string $name, ?string $route): void
-{
     $className = pageClassName($name);
     $pagePath = PHPX_ROOT . "/lib/pages/{$className}.php";
     $controllerClassName = controllerClassNameFor($className);
@@ -213,18 +145,14 @@ function cmdMakePage(string $name, ?string $route): void
         phpxFail("controller already exists: {$controllerPath}");
     }
 
-    $route ??= defaultRoute($className);
-    $apiRoute = '/api' . ($route === '/' ? '' : $route);
+    $screenKey = \Engine\AutoRouter::routeKey($className, ['Page', 'Screen']);
+    $apiKey = \Engine\AutoRouter::routeKey($controllerClassName, ['Controller']);
 
     file_put_contents($pagePath, pageTemplate($className));
-    echo "Created {$pagePath}\n";
-    registerRoute(PHPX_ROOT . '/public/index.php', $className, $route);
-    echo "Registered route {$route} => Engine\\App\\{$className}\n";
+    echo "Created {$pagePath} (reachable at ?screen={$screenKey})\n";
 
     file_put_contents($controllerPath, controllerTemplate($controllerClassName));
-    echo "Created {$controllerPath}\n";
-    registerApiRoute(PHPX_ROOT . '/lib/backend/src/Kernel.php', $controllerClassName, $apiRoute);
-    echo "Registered route {$apiRoute} => Backend\\Controller\\{$controllerClassName}\n";
+    echo "Created {$controllerPath} (reachable at /api" . ($apiKey === 'home' ? '' : "/{$apiKey}") . ")\n";
 }
 
 function entityClassName(string $name): string
@@ -834,7 +762,7 @@ function cmdNew(string $directory): void
     resetPagesForNewProject($targetDir);
 
     echo "Project scaffolded at {$targetDir}\n";
-    echo "Next: cd {$directory} && composer install && phpx make:page Home / && phpx serve\n";
+    echo "Next: cd {$directory} && composer install && phpx make:page Home && phpx serve\n";
 }
 
 /**
@@ -846,16 +774,18 @@ function cmdNew(string $directory): void
  */
 function newProjectComposerJson(): string
 {
+    // Only the core rendering package is a hard dependency — a blank
+    // project has no database, no Firebase project, no country picker yet.
+    // phpnitro/database, phpnitro/firebase, phpnitro/countries,
+    // phpnitro/preferences, phpnitro/format are real Packagist packages a
+    // developer adds with a plain `composer require phpnitro/<name>` the
+    // moment their app actually needs one — the same relationship a Flutter
+    // project has with pub.dev packages, not something bundled upfront.
     return json_encode([
         'license' => 'MIT',
         'require' => [
             'php' => '>=8.1',
             'phpnitro/ui' => '^1.0',
-            'phpnitro/database' => '^1.0',
-            'phpnitro/firebase' => '^1.0',
-            'phpnitro/countries' => '^1.0',
-            'phpnitro/preferences' => '^1.0',
-            'phpnitro/format' => '^1.0',
             'symfony/http-foundation' => '^8.1',
             'symfony/dotenv' => '^8.1',
             'symfony/yaml' => '^8.1',
@@ -1011,12 +941,13 @@ function resetPagesForNewProject(string $targetDir): void
 }
 
 /**
- * lib/backend/src/Kernel.php with no demo routes/Controller imports —
- * just the dispatch shape (Backend\Kernel::handle(), called in-process
- * from public/index.php's own /api/ prefix check) a developer adds their
- * own `'/api/whatever' => (new WhateverController())->action($request),`
- * arms to, the same "structurally minimal, not empty" shape
- * nativeHomeScreenTemplate() gives lib/pages/.
+ * lib/backend/src/Kernel.php — no demo routes/Controller imports, and
+ * nothing to hand-edit either: every class under lib/backend/src/Controller/
+ * with a handle(Request): Response method is discovered at request time
+ * (Engine\AutoRouter::discover()) and reachable at /api/<kebab-name> (the
+ * Controller paired with a root page is reachable at bare /api — see
+ * AutoRouter::routeKey()'s 'home' fallback). `phpx make:page` only needs to
+ * create the file; there is nothing left here for it to touch.
  */
 function minimalKernelTemplate(): string
 {
@@ -1025,6 +956,7 @@ function minimalKernelTemplate(): string
 
     namespace Backend;
 
+    use Engine\AutoRouter;
     use Symfony\Component\HttpFoundation\JsonResponse;
     use Symfony\Component\HttpFoundation\Request;
     use Symfony\Component\HttpFoundation\Response;
@@ -1032,19 +964,30 @@ function minimalKernelTemplate(): string
     /**
      * Routes an already-built Request to a Controller and returns the Response.
      * Called in-process from the single front controller (public/index.php) —
-     * no second server/port, backend/ has no public/ of its own. Add your own
-     * routes to the match() below, and `phpx make:page` will do it for you
-     * when the page you're generating needs a paired Controller.
+     * no second server/port, backend/ has no public/ of its own. Add a
+     * Controller under lib/backend/src/Controller/ (phpx make:page does this
+     * for you) and it's reachable the moment the file exists — no route to
+     * register here.
      */
     final class Kernel
     {
         public function handle(Request $request): Response
         {
             $path = $request->getPathInfo();
+            $key = $path === '/api' ? 'home' : ltrim(substr($path, strlen('/api/')), '/');
 
-            return match ($path) {
-                default => new JsonResponse(['error' => 'Not found'], 404),
-            };
+            $controllers = AutoRouter::discover(
+                __DIR__ . '/Controller',
+                __NAMESPACE__ . '\\Controller',
+                ['Controller'],
+                'handle',
+            );
+
+            if (!isset($controllers[$key])) {
+                return new JsonResponse(['error' => 'Not found'], 404);
+            }
+
+            return (new $controllers[$key]())->handle($request);
         }
     }
 
@@ -1060,7 +1003,10 @@ function minimalKernelTemplate(): string
  * stableHash()). Demo-specific bootstrapping (session-seeded lists,
  * multi-step form state, third-party auth error strings) belongs in a
  * developer's OWN screen, not this route — see any Native*Screen.php this
- * framework ships for the pattern.
+ * framework ships for the pattern. Screens are discovered straight from
+ * lib/pages/ (Engine\AutoRouter::discover()) — a new Page/Screen class is
+ * reachable at ?screen=<kebab-name> the moment the file exists, no match()
+ * arm to add.
  */
 function minimalLayoutDemoRoute(): string
 {
@@ -1076,9 +1022,14 @@ function minimalLayoutDemoRoute(): string
         $action = $_GET['action'] ?? null;
         $scrollY = (float) ($_GET['scroll_y'] ?? 0);
 
-        $tree = match ($screen) {
-            default => \Engine\App\NativeHomeScreen::build($screenWidth, $screenHeight),
-        };
+        $screens = \Engine\AutoRouter::discover(
+            dirname(__DIR__) . '/lib/pages',
+            'Engine\\App',
+            ['Page', 'Screen'],
+            'build',
+        );
+        $pageClass = $screens[$screen] ?? ($screens['home'] ?? \Engine\App\NativeHomeScreen::class);
+        $tree = $pageClass::build($screenWidth, $screenHeight);
 
         $contentSize = $tree->layout(new Constraints($screenWidth, $screenWidth, 0, Constraints::INFINITY));
 
@@ -1634,7 +1585,7 @@ $command = $argv[1] ?? null;
 
 switch ($command) {
     case 'make:page':
-        cmdMakePage($argv[2] ?? phpxFail('usage: phpx make:page <Name> [route]'), $argv[3] ?? null);
+        cmdMakePage($argv[2] ?? phpxFail('usage: phpx make:page <Name>'));
         break;
     case 'make:entity':
         cmdMakeEntity($argv[2] ?? phpxFail('usage: phpx make:entity <Name>'));

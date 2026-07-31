@@ -35,8 +35,13 @@ foreach ([__DIR__ . '/../.env', __DIR__ . '/../env'] as $envFile) {
 
 // Single place that pins the SQLite path — a single autoloader/vendor now
 // covers the whole app, so this runs once here instead of once per entry
-// point (no more separate lib/backend/bootstrap.php).
-Database::useSqlitePath(__DIR__ . '/../lib/backend/var/data.sqlite');
+// point (no more separate lib/backend/bootstrap.php). phpnitro/database is
+// an opt-in Composer dependency now (added via `composer require
+// phpnitro/database` the moment a project actually needs a Repository), not
+// bundled into every scaffold by default, so this is a no-op until then.
+if (class_exists(Database::class)) {
+    Database::useSqlitePath(__DIR__ . '/../lib/backend/var/data.sqlite');
+}
 
 $debug = ($_ENV['APP_DEBUG'] ?? 'true') === 'true';
 

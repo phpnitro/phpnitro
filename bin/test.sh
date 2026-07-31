@@ -24,6 +24,13 @@ test ! -d "$WORKDIR/demo-app/android/engine" || { echo "FAIL: android/engine/ sh
 test -f "$WORKDIR/demo-app/.env" || { echo "FAIL: .env missing from scaffold"; exit 1; }
 test -f "$WORKDIR/demo-app/composer.json" || { echo "FAIL: composer.json missing from scaffold"; exit 1; }
 grep -q '"phpnitro/ui"' "$WORKDIR/demo-app/composer.json" || { echo "FAIL: composer.json should declare phpnitro/ui as a dependency"; exit 1; }
+# A blank project has no database, no Firebase project, no country picker
+# yet — these are opt-in `composer require phpnitro/<name>` additions, not
+# bundled upfront (see newProjectComposerJson()'s own comment).
+for optional in database firebase countries preferences format; do
+  grep -q "\"phpnitro/${optional}\"" "$WORKDIR/demo-app/composer.json" && { echo "FAIL: composer.json should NOT declare phpnitro/${optional} by default"; exit 1; }
+done
+true
 grep -q 'com.github.phpnitro:android-engine' "$WORKDIR/demo-app/android/app/build.gradle.kts" || { echo "FAIL: android/app/build.gradle.kts should depend on com.github.phpnitro:android-engine"; exit 1; }
 # Exactly one real starter screen, not a blank folder — the same "you get
 # a running app on the first try" promise `flutter create`'s default
@@ -41,16 +48,19 @@ test -d "$WORKDIR/demo-app/vendor" || { echo "FAIL: no vendor/ created"; exit 1;
 echo "OK"
 
 echo "== phpx make:page (root) =="
-(cd "$WORKDIR/demo-app" && php "$ROOT/bin/phpx" make:page Home /)
+(cd "$WORKDIR/demo-app" && php "$ROOT/bin/phpx" make:page Home)
 test -f "$WORKDIR/demo-app/lib/pages/HomePage.php" || { echo "FAIL: HomePage.php not created"; exit 1; }
 echo "OK"
 
 echo "== phpx make:page =="
+# No file gets edited to "register" this — public/index.php and Kernel.php
+# discover pages/controllers straight from the filesystem at request time
+# (Engine\AutoRouter), so there's nothing to grep for here beyond the
+# created files themselves; the == phpx serve == section below proves the
+# discovery actually works end-to-end.
 (cd "$WORKDIR/demo-app" && php "$ROOT/bin/phpx" make:page About)
 test -f "$WORKDIR/demo-app/lib/pages/AboutPage.php" || { echo "FAIL: AboutPage.php not created"; exit 1; }
-grep -q "AboutPage" "$WORKDIR/demo-app/public/index.php" || { echo "FAIL: page route not registered"; exit 1; }
 test -f "$WORKDIR/demo-app/lib/backend/src/Controller/AboutController.php" || { echo "FAIL: paired AboutController.php not created"; exit 1; }
-grep -q "AboutController" "$WORKDIR/demo-app/lib/backend/src/Kernel.php" || { echo "FAIL: paired controller route not registered"; exit 1; }
 echo "OK"
 
 echo "== phpx make:entity =="
