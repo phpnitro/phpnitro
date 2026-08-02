@@ -25,6 +25,13 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1"
+        // Real on-device UI tests (src/androidTest) — see this module's
+        // own docblock on why UI Automator, not Espresso: every screen is
+        // one NativeCanvasView.onDraw() call, not a real Android View per
+        // widget, so Espresso's view-matcher model has nothing to match.
+        // UI Automator instead drives the same virtual accessibility node
+        // tree CanvasAccessibilityNodeProvider exposes to TalkBack.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -84,4 +91,10 @@ dependencies {
     // google-services.json, see FcmService.kt.example.
     // implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
     // implementation("com.google.firebase:firebase-messaging")
+
+    // E2E tests only (src/androidTest) — never shipped in a real APK.
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
 }
