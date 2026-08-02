@@ -1689,6 +1689,17 @@ class NativeCanvasView(context: Context) : View(context) {
             if (virtualViewId == AccessibilityNodeProvider.HOST_VIEW_ID) {
                 val info = AccessibilityNodeInfo.obtain(this@NativeCanvasView)
                 info.className = NativeCanvasView::class.java.name
+                // Without these three, this root node is missing fields the
+                // individual virtual children below all set — several
+                // accessibility services (confirmed via uiautomator dump on
+                // a real device) silently drop the WHOLE virtual subtree
+                // rather than tolerate an incomplete host node, so this
+                // isn't cosmetic: it's why no hitRegion ever reached
+                // TalkBack/uiautomator despite the children being built
+                // correctly.
+                info.packageName = context.packageName
+                info.isVisibleToUser = true
+                info.isEnabled = true
                 info.setBoundsInParent(Rect(0, 0, width, height))
                 val location = IntArray(2)
                 getLocationOnScreen(location)
