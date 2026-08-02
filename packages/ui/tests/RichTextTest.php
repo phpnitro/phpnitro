@@ -8,7 +8,7 @@ use Engine\Native\RichText;
 use Engine\Native\TextSpan;
 use PHPUnit\Framework\TestCase;
 
-final class NativeRichTextTest extends TestCase
+final class RichTextTest extends TestCase
 {
     /** @return array<int, array<string, mixed>> */
     private function paintToCommands(RichText $node, float $maxWidth = 1000.0): array

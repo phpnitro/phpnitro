@@ -7,7 +7,7 @@ use Engine\Native\Canvas;
 use Engine\Native\ImageCircle;
 use PHPUnit\Framework\TestCase;
 
-final class NativeImageCircleTest extends TestCase
+final class ImageCircleTest extends TestCase
 {
     public function testEmitsASquareImageCommandWithHalfRadius(): void
     {
