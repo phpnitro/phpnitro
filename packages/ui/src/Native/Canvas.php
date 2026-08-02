@@ -305,6 +305,37 @@ final class Canvas
     }
 
     /**
+     * A "carousel inside a list" — see HorizontalScroll's own docblock for
+     * why this needs its own command type instead of reusing clientPanel:
+     * the content here scrolls continuously along a local drag axis
+     * (clamped to [0, contentWidth - viewportWidth]) rather than switching
+     * between discrete panels on a tap. NativeCanvasView.kt keeps a local
+     * `key -> horizontal offset` map (seeded to 0), clips painting to
+     * ($x, $y, $viewportWidth, $viewportHeight), and disambiguates the
+     * drag against the outer vertical scroll the same way it already does
+     * for Dismissible's horizontal swipe.
+     *
+     * @param array<int, array<string, mixed>> $regionCommands
+     * @param array<int, array<string, mixed>> $regionHitRegions
+     */
+    public function horizontalScroll(string $key, float $x, float $y, float $viewportWidth, float $viewportHeight, float $contentWidth, array $regionCommands, array $regionHitRegions): self
+    {
+        $this->commands[] = $this->tagFixed([
+            'type' => 'hScroll',
+            'key' => $key,
+            'x' => $x,
+            'y' => $y,
+            'width' => $viewportWidth,
+            'height' => $viewportHeight,
+            'contentWidth' => $contentWidth,
+            'commands' => $regionCommands,
+            'hitRegions' => $regionHitRegions,
+        ]);
+
+        return $this;
+    }
+
+    /**
      * Raw command/hitRegion arrays, no envelope — clientTabPanel() embeds
      * a whole nested Canvas's output as one command, which needs the
      * bare arrays toJson() would otherwise wrap in {commands, hitRegions,

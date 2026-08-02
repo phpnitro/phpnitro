@@ -19,6 +19,7 @@ use Engine\Native\Container;
 use Engine\Native\CustomPaint;
 use Engine\Native\Flex;
 use Engine\Native\Hero;
+use Engine\Native\HorizontalScroll;
 use Engine\Native\Widget;
 use Engine\Native\Padding;
 use Engine\Native\Positioned;
@@ -129,6 +130,22 @@ final class NativeWidgetsLayoutScreen
                         ->circle(100, 50, 30, '#16a34a')
                         ->line(140, 10, 190, 90, '#dc2626', 3)
                         ->text(10, 95, 'Canvas', '#111827'),
+                    $caption('HorizontalScroll — carrousel horizontal DANS cette liste verticale (glisse latéralement)'),
+                    new HorizontalScroll(
+                        'layout-hscroll-demo',
+                        array_map(
+                            static fn (int $i): Widget => new Container(
+                                new Center(new Text((string) ($i + 1), Tokens::TEXT_TITLE, Color::white()->toHex(), bold: true)),
+                                width: 96,
+                                height: 96,
+                                background: Color::of('purple', 400 + $i * 100),
+                                radius: Tokens::RADIUS_MD,
+                            ),
+                            range(0, 5),
+                        ),
+                        gap: Tokens::SPACE_MD,
+                    ),
+
                     $caption('PageView — pagination réelle par tap (dots + chevrons)'),
                     new PageView([
                         new Container(new Center(new Text('Page A', Tokens::TEXT_BODY, Color::white()->toHex())), background: Color::blue(600), radius: Tokens::RADIUS_MD),

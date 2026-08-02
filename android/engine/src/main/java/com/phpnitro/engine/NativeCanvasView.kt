@@ -247,6 +247,20 @@ class NativeCanvasView(context: Context) : View(context) {
     // only fills in keys this map doesn't already have.
     private val clientTabState = mutableMapOf<String, Int>()
 
+    // HorizontalScroll (Canvas::horizontalScroll()) — a nested scroll
+    // region with its own local offset, independent of the outer page
+    // scroll (scrollY below). hScrollOffsets follows clientTabState's exact
+    // pattern applied to a continuous drag instead of a discrete tab
+    // index: seeded to 0 the first time a key is seen, never reset by a
+    // later unrelated render. Only ONE level of nesting is tracked — a
+    // HorizontalScroll containing another independently-scrollable region
+    // isn't supported.
+    private data class HScrollRegion(val key: String, val rect: RectF, val contentWidth: Float, val viewportWidth: Float)
+    private var hScrollRegions: List<HScrollRegion> = emptyList()
+    private val hScrollOffsets = mutableMapOf<String, Float>()
+    private var pendingHScroll: HScrollRegion? = null
+    private var activeHScroll: HScrollRegion? = null
+
     private fun seedClientTabState(list: JSONArray) {
         for (index in 0 until list.length()) {
             val command = list.getJSONObject(index)
@@ -278,6 +292,7 @@ class NativeCanvasView(context: Context) : View(context) {
     private var velocityTracker: VelocityTracker? = null
     private var touchDownX = 0f
     private var touchDownY = 0f
+    private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var isDragging = false
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
@@ -364,6 +379,7 @@ class NativeCanvasView(context: Context) : View(context) {
             reorderOrder.clear()
             reorderAnimatedY.clear()
             lottieRegions = parseLottieRegions(payload.optJSONArray("lottieRegions"))
+            hScrollRegions = parseHScrollRegions(commands)
             seedClientTabState(commands)
             rebuildAccessibilityNodes()
             lastCommandCount = commands.length()
@@ -482,6 +498,22 @@ class NativeCanvasView(context: Context) : View(context) {
             val top = item.getDouble("y").toFloat()
             val rect = RectF(left, top, left + item.getDouble("width").toFloat(), top + item.getDouble("height").toFloat())
             result.add(LottieRegion(item.getString("key"), rect, item.getString("url"), item.getBoolean("loop"), item.getBoolean("autoplay")))
+        }
+        return result
+    }
+
+    /** hScroll commands live inline in `commands` (see drawHScrollCommand()), not a dedicated top-level array like dismissRegions/reorderRegions. */
+    private fun parseHScrollRegions(list: JSONArray): List<HScrollRegion> {
+        val result = mutableListOf<HScrollRegion>()
+        for (index in 0 until list.length()) {
+            val command = list.getJSONObject(index)
+            if (command.optString("type") != "hScroll") continue
+            val left = command.getDouble("x").toFloat()
+            val top = command.getDouble("y").toFloat()
+            val width = command.getDouble("width").toFloat()
+            val height = command.getDouble("height").toFloat()
+            val rect = RectF(left, top, left + width, top + height)
+            result.add(HScrollRegion(command.getString("key"), rect, command.getDouble("contentWidth").toFloat(), width))
         }
         return result
     }
@@ -635,6 +667,7 @@ class NativeCanvasView(context: Context) : View(context) {
             "line" -> drawLineCommand(canvas, command, alpha)
             "arc" -> drawArcCommand(canvas, command, alpha)
             "clientPanel" -> drawClientPanelCommand(canvas, command, alpha)
+            "hScroll" -> drawHScrollCommand(canvas, command, alpha)
             "spinner" -> drawSpinnerCommand(canvas, command, alpha)
         }
     }
@@ -690,6 +723,33 @@ class NativeCanvasView(context: Context) : View(context) {
         canvas.restoreToCount(saved)
     }
 
+    // The outer scrollable pass has already translated by -scrollY before
+    // this runs (same as drawClientPanelCommand), so only this region's OWN
+    // local offset needs handling here — clip to the viewport rect so
+    // content dragged past its edge doesn't paint over neighboring rows,
+    // then shift by -offset along the local drag axis only.
+    private fun drawHScrollCommand(canvas: Canvas, command: JSONObject, alpha: Float) {
+        // Coordinates here are dp, same as every other draw command — the
+        // canvas passed in already has the density scale applied by the
+        // caller (see onDraw()'s canvas.scale(density, density)), so unlike
+        // hit-testing (raw pixels in, dp compared) nothing here multiplies
+        // by density itself — matches drawClientPanelCommand exactly.
+        val key = command.getString("key")
+        val x = command.getDouble("x").toFloat()
+        val y = command.getDouble("y").toFloat()
+        val w = command.getDouble("width").toFloat()
+        val h = command.getDouble("height").toFloat()
+        val offset = hScrollOffsets[key] ?: 0f
+        val saved = canvas.save()
+        canvas.clipRect(x, y, x + w, y + h)
+        canvas.translate(x - offset, y)
+        val nested = command.getJSONArray("commands")
+        for (index in 0 until nested.length()) {
+            drawSingleCommand(canvas, nested.getJSONObject(index), alpha)
+        }
+        canvas.restoreToCount(saved)
+    }
+
     private fun lerp(from: Float, to: Float, progress: Float): Float = from + (to - from) * progress
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -710,9 +770,11 @@ class NativeCanvasView(context: Context) : View(context) {
                 reorderSettleAnimator?.cancel()
                 touchDownX = event.x
                 touchDownY = event.y
+                lastTouchX = event.x
                 lastTouchY = event.y
                 isDragging = false
                 pendingDismiss = if (activeDismiss == null && activeReorder == null) hitTestDismiss(event) else null
+                pendingHScroll = if (activeHScroll == null && activeReorder == null) hitTestHScroll(event) else null
                 velocityTracker?.recycle()
                 velocityTracker = VelocityTracker.obtain().also { it.addMovement(event) }
             }
@@ -727,7 +789,19 @@ class NativeCanvasView(context: Context) : View(context) {
                     return true
                 }
 
-                if (activeDismiss == null && pendingDismiss != null && !isDragging &&
+                // hScroll takes priority over dismiss for the same first-
+                // decisive-horizontal-move disambiguation — a region can't
+                // sensibly be both, but checking this first means a
+                // HorizontalScroll nested inside a Dismissible row (not a
+                // supported combination, but not one worth crashing over
+                // either) resolves to scrolling rather than dismissing.
+                if (activeHScroll == null && pendingHScroll != null && !isDragging &&
+                    abs(totalDeltaX) > touchSlop && abs(totalDeltaX) > abs(totalDeltaY)
+                ) {
+                    activeHScroll = pendingHScroll
+                    pendingHScroll = null
+                    pendingDismiss = null
+                } else if (activeDismiss == null && pendingDismiss != null && !isDragging &&
                     abs(totalDeltaX) > touchSlop && abs(totalDeltaX) > abs(totalDeltaY)
                 ) {
                     // First decisive move was horizontal over a dismissible
@@ -735,14 +809,22 @@ class NativeCanvasView(context: Context) : View(context) {
                     // scroll for the rest of this gesture.
                     activeDismiss = pendingDismiss
                     pendingDismiss = null
-                } else if (!isDragging && pendingDismiss != null &&
+                } else if (!isDragging && (pendingDismiss != null || pendingHScroll != null) &&
                     abs(totalDeltaY) > touchSlop && abs(totalDeltaY) > abs(totalDeltaX)
                 ) {
-                    // Vertical instead — this was never a dismiss gesture.
+                    // Vertical instead — this was never a dismiss/hScroll gesture.
                     pendingDismiss = null
+                    pendingHScroll = null
                 }
 
-                if (activeDismiss != null) {
+                if (activeHScroll != null) {
+                    val region = activeHScroll!!
+                    val deltaXDp = (lastTouchX - event.x) / density
+                    val maxOffset = (region.contentWidth - region.viewportWidth).coerceAtLeast(0f)
+                    hScrollOffsets[region.key] = ((hScrollOffsets[region.key] ?: 0f) + deltaXDp).coerceIn(0f, maxOffset)
+                    lastTouchX = event.x
+                    invalidate()
+                } else if (activeDismiss != null) {
                     dismissOffsetX = totalDeltaX / density
                     invalidate()
                 } else {
@@ -764,6 +846,8 @@ class NativeCanvasView(context: Context) : View(context) {
                     settleReorder()
                 } else if (activeDismiss != null) {
                     settleDismiss()
+                } else if (activeHScroll != null) {
+                    activeHScroll = null
                 } else if (isDragging) {
                     velocityTracker?.let {
                         it.addMovement(event)
@@ -774,6 +858,7 @@ class NativeCanvasView(context: Context) : View(context) {
                     handleTap(event)
                 }
                 pendingDismiss = null
+                pendingHScroll = null
                 velocityTracker?.recycle()
                 velocityTracker = null
             }
@@ -782,6 +867,8 @@ class NativeCanvasView(context: Context) : View(context) {
                 if (activeReorder != null) {
                     cancelReorder()
                 }
+                activeHScroll = null
+                pendingHScroll = null
                 if (activeDismiss != null) {
                     springBackDismiss()
                 }
@@ -905,6 +992,15 @@ class NativeCanvasView(context: Context) : View(context) {
         val touchX = event.x / density
         val touchY = event.y / density + scrollY
         return dismissRegions.firstOrNull { region ->
+            touchX >= region.rect.left && touchX <= region.rect.right &&
+                touchY >= region.rect.top && touchY <= region.rect.bottom
+        }
+    }
+
+    private fun hitTestHScroll(event: MotionEvent): HScrollRegion? {
+        val touchX = event.x / density
+        val touchY = event.y / density + scrollY
+        return hScrollRegions.firstOrNull { region ->
             touchX >= region.rect.left && touchX <= region.rect.right &&
                 touchY >= region.rect.top && touchY <= region.rect.bottom
         }
@@ -1048,6 +1144,7 @@ class NativeCanvasView(context: Context) : View(context) {
         }
 
         handleClientPanelTap(touchX, rawTouchY)
+        handleHScrollTap(touchX, rawTouchY)
     }
 
     // ClientTabs panels carry their own hitRegions embedded inside
@@ -1079,6 +1176,49 @@ class NativeCanvasView(context: Context) : View(context) {
 
                 if (touchX >= left && touchX <= right && touchY >= top && touchY <= bottom) {
                     Log.i("NativeCanvasView", "tap hit region (client panel): ${region.getString("action")}")
+                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    onAction?.invoke(region.getString("action"), RectF(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat()), region.optJSONObject("meta"))
+                    return
+                }
+            }
+        }
+    }
+
+    // hScroll's nested hitRegions are authored relative to the ROW's own
+    // local content origin (see HorizontalScroll.php's $childOffsets), not
+    // the viewport — so unlike handleClientPanelTap (whose panel never
+    // scrolls), this also has to subtract the region's CURRENT drag offset
+    // to land back in the same local space a tap's screen position was
+    // taken from. A tap outside the viewport rect itself is skipped
+    // outright: nested content commonly extends far past what's visible.
+    private fun handleHScrollTap(touchX: Float, rawTouchY: Float) {
+        for (index in 0 until commands.length()) {
+            val command = commands.getJSONObject(index)
+            if (command.optString("type") != "hScroll") continue
+
+            val fixed = command.optBoolean("fixed", false)
+            val touchY = if (fixed) rawTouchY else rawTouchY + scrollY
+            val viewportX = command.getDouble("x")
+            val viewportY = command.getDouble("y")
+            val viewportWidth = command.getDouble("width")
+            val viewportHeight = command.getDouble("height")
+            if (touchX < viewportX || touchX > viewportX + viewportWidth ||
+                touchY < viewportY || touchY > viewportY + viewportHeight
+            ) continue
+
+            val offset = hScrollOffsets[command.getString("key")] ?: 0f
+            val offsetX = viewportX - offset
+            val nestedRegions = command.getJSONArray("hitRegions")
+
+            for (regionIndex in 0 until nestedRegions.length()) {
+                val region = nestedRegions.getJSONObject(regionIndex)
+                val left = offsetX + region.getDouble("x")
+                val top = viewportY + region.getDouble("y")
+                val right = left + region.getDouble("width")
+                val bottom = top + region.getDouble("height")
+
+                if (touchX >= left && touchX <= right && touchY >= top && touchY <= bottom) {
+                    Log.i("NativeCanvasView", "tap hit region (hScroll): ${region.getString("action")}")
                     performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                     onAction?.invoke(region.getString("action"), RectF(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat()), region.optJSONObject("meta"))
                     return

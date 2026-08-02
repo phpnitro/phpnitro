@@ -41,6 +41,7 @@ dispatchée par nom depuis `public/index.php`'s `match ($screen) { 'monecran' =>
 | `Table($rows, $headers = [])` | tableau ; `$rows`/cellules acceptent des `Widget` |
 | `PageView([$pages], $currentIndex, $fieldName)` | pagination par tap (chevrons + points), état porté par un champ `$_GET` |
 | `LazyList($itemCount, $itemBuilder, $itemHeight, $scrollY, $viewportHeight)` | liste virtualisée — voir [docs/architecture.md#listes-longues-fenêtre-pas-tout](architecture.md) |
+| `HorizontalScroll($key, [$children], gap:)` | carrousel horizontal DANS un écran qui défile déjà verticalement — le glisser latéral est capturé 100% côté client (comme `Dismissible`), aucune requête PHP pendant le geste. Non virtualisé (tous les enfants sont posés d'un coup) — pour un rail borné, pas une longue liste ; imbriquer un second scroll indépendant à l'intérieur n'est pas supporté. |
 
 `Flex::row/column` prennent `MainAxisAlignment::START\|CENTER\|END\|SPACE_BETWEEN\|SPACE_AROUND\|SPACE_EVENLY` et `CrossAxisAlignment::START\|CENTER\|END\|STRETCH`.
 
