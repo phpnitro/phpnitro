@@ -12,9 +12,9 @@
 namespace Engine\Native;
 
 /**
- * RenderAlign's positions — the native-tree equivalent of Engine\Alignment,
+ * Align's positions — the native-tree equivalent of Engine\Alignment,
  * which is a set of Tailwind flex classes and can't be reused here (there's
- * no DOM/flexbox under a Canvas, RenderAlign computes the offset itself).
+ * no DOM/flexbox under a Canvas, Align computes the offset itself).
  */
 enum Alignment
 {

@@ -16,11 +16,11 @@ namespace Engine\Native;
  * Canvas has no intrinsic-column-width algorithm to fall back on, so this
  * doesn't attempt one), an optional bold header row, and a divider between
  * every row. String cells only: a Widget-cell isn't meaningful here since
- * there's no shared RenderNode/Widget interface to accept one of either.
+ * there's no shared Widget/Widget interface to accept one of either.
  */
-final class NativeTable implements RenderNode
+final class Table implements Widget
 {
-    private readonly RenderNode $content;
+    private readonly Widget $content;
 
     /**
      * @param array<int, array<int, string>> $rows
@@ -32,29 +32,29 @@ final class NativeTable implements RenderNode
 
         if ($headers !== []) {
             $lines[] = $this->row($headers, bold: true);
-            $lines[] = new NativeDivider();
+            $lines[] = new Divider();
         }
 
         foreach ($rows as $index => $row) {
             if ($index > 0) {
-                $lines[] = new NativeDivider();
+                $lines[] = new Divider();
             }
             $lines[] = $this->row($row, bold: false);
         }
 
-        $this->content = RenderFlex::column($lines, crossAxisAlignment: CrossAxisAlignment::STRETCH);
+        $this->content = Flex::column($lines, crossAxisAlignment: CrossAxisAlignment::STRETCH);
     }
 
     /**
      * @param array<int, string> $cells
      */
-    private function row(array $cells, bool $bold): RenderNode
+    private function row(array $cells, bool $bold): Widget
     {
-        return new RenderPadding(
+        return new Padding(
             EdgeInsets::symmetric(vertical: Tokens::SPACE_SM),
-            RenderFlex::row(array_map(
-                static fn (string $cell): RenderNode => new Flexible(
-                    new RenderText($cell, Tokens::TEXT_BODY_SMALL, Tokens::ink()->toHex(), bold: $bold),
+            Flex::row(array_map(
+                static fn (string $cell): Widget => new Flexible(
+                    new Text($cell, Tokens::TEXT_BODY_SMALL, Tokens::ink()->toHex(), bold: $bold),
                 ),
                 $cells,
             )),
@@ -66,7 +66,7 @@ final class NativeTable implements RenderNode
         return $this->content->layout($constraints);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->content->paint($canvas, $x, $y);
     }

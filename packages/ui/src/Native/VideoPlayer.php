@@ -17,18 +17,18 @@ namespace Engine\Native;
  * NativeRenderPocActivity to overlay a real android.widget.VideoView
  * (with its built-in MediaController transport bar) at this exact rect,
  * the same "no DOM element to attach to, overlay a real Android View
- * instead" idiom NativeTextField's EditText already uses.
+ * instead" idiom TextField's EditText already uses.
  */
-final class NativeVideoPlayer implements RenderNode
+final class VideoPlayer implements Widget
 {
-    private readonly RenderNode $content;
+    private readonly Widget $content;
 
     public function __construct(string $url, float $width, float $height = 200.0)
     {
-        $box = new RenderContainer(
-            new RenderCenter(RenderFlex::row([
-                new RenderIcon('play_circle', 32.0, Tokens::ink()->toHex()),
-                new RenderPadding(EdgeInsets::only(left: Tokens::SPACE_SM), new RenderText('Lire la vidéo', Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true)),
+        $box = new Container(
+            new Center(Flex::row([
+                new Icon('play_circle', 32.0, Tokens::ink()->toHex()),
+                new Padding(EdgeInsets::only(left: Tokens::SPACE_SM), new Text('Lire la vidéo', Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true)),
             ], crossAxisAlignment: CrossAxisAlignment::CENTER)),
             width: $width,
             height: $height,
@@ -36,7 +36,7 @@ final class NativeVideoPlayer implements RenderNode
             radius: Tokens::RADIUS_LG,
         );
 
-        $this->content = new RenderTappable($box, "video:play:{$url}");
+        $this->content = new Tappable($box, "video:play:{$url}");
     }
 
     public function layout(Constraints $constraints): Size
@@ -44,7 +44,7 @@ final class NativeVideoPlayer implements RenderNode
         return $this->content->layout($constraints);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->content->paint($canvas, $x, $y);
     }

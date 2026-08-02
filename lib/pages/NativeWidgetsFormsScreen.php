@@ -4,28 +4,28 @@ namespace Engine\App;
 
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
-use Engine\Native\NativeAlertButton;
-use Engine\Native\NativeBanner;
-use Engine\Native\NativeCheckbox;
-use Engine\Native\NativeCircularProgress;
-use Engine\Native\NativeConfirmButton;
-use Engine\Native\NativeDatePicker;
-use Engine\Native\NativeDivider;
-use Engine\Native\NativeIconCircle;
-use Engine\Native\NativeProgressBar;
-use Engine\Native\NativeSelectBox;
-use Engine\Native\NativeSwitch;
-use Engine\Native\NativeTable;
-use Engine\Native\NativeTextField;
-use Engine\Native\NativeTimePicker;
-use Engine\Native\RenderContainer;
-use Engine\Native\RenderFlex;
-use Engine\Native\RenderIcon;
-use Engine\Native\RenderNode;
-use Engine\Native\RenderPadding;
-use Engine\Native\RenderRichText;
-use Engine\Native\RenderText;
-use Engine\Native\RenderWrap;
+use Engine\Native\AlertButton;
+use Engine\Native\Banner;
+use Engine\Native\Checkbox;
+use Engine\Native\CircularProgress;
+use Engine\Native\ConfirmButton;
+use Engine\Native\DatePicker;
+use Engine\Native\Divider;
+use Engine\Native\IconCircle;
+use Engine\Native\ProgressBar;
+use Engine\Native\SelectBox;
+use Engine\Native\Toggle;
+use Engine\Native\Table;
+use Engine\Native\TextField;
+use Engine\Native\TimePicker;
+use Engine\Native\Container;
+use Engine\Native\Flex;
+use Engine\Native\Icon;
+use Engine\Native\Widget;
+use Engine\Native\Padding;
+use Engine\Native\RichText;
+use Engine\Native\Text;
+use Engine\Native\Wrap;
 use Engine\Native\TextSpan;
 use Engine\Native\Tokens;
 
@@ -33,14 +33,14 @@ use Engine\Native\Tokens;
  * The native conversion of WidgetsFormsPage.php — full parity. SelectBox
  * and DatePicker/TimePicker both open a real Android dialog (AlertDialog /
  * DatePickerDialog/TimePickerDialog) rather than anything drawn on the
- * Canvas itself; the dialog buttons (NativeAlertButton/NativeConfirmButton)
+ * Canvas itself; the dialog buttons (AlertButton/ConfirmButton)
  * show the same native-dialog pattern for Engine\Dialogs\'s two widgets.
- * IconButton needs no separate demo here — NativeIconCircle already
+ * IconButton needs no separate demo here — IconCircle already
  * covers it throughout the app (every screen's back button is one).
  */
 final class NativeWidgetsFormsScreen
 {
-    public static function build(float $screenWidth): RenderNode
+    public static function build(float $screenWidth): Widget
     {
         $contentWidth = $screenWidth - 2 * Tokens::SPACE_XL;
         $selected = $_GET['country'] ?? '';
@@ -50,27 +50,27 @@ final class NativeWidgetsFormsScreen
         $notifications = ($_GET['notifications'] ?? '') === '1';
         $note = $_GET['note'] ?? '';
 
-        $caption = static fn (string $text): RenderNode => new RenderPadding(
+        $caption = static fn (string $text): Widget => new Padding(
             EdgeInsets::only(top: Tokens::SPACE_LG, bottom: Tokens::SPACE_SM),
-            new RenderText($text, Tokens::TEXT_CAPTION, Tokens::inkMuted()->toHex(), bold: true, letterSpacing: 0.04),
+            new Text($text, Tokens::TEXT_CAPTION, Tokens::inkMuted()->toHex(), bold: true, letterSpacing: 0.04),
         );
 
-        return new RenderContainer(
-            new RenderPadding(
+        return new Container(
+            new Padding(
                 EdgeInsets::all(Tokens::SPACE_XL),
-                RenderFlex::column([
-                    new NativeIconCircle('arrow_back', action: 'back'),
-                    new RenderPadding(
+                Flex::column([
+                    new IconCircle('arrow_back', action: 'back'),
+                    new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_LG),
-                        new RenderText('Formulaires', Tokens::TEXT_DISPLAY - 2, Tokens::ink()->toHex(), bold: true),
+                        new Text('Formulaires', Tokens::TEXT_DISPLAY - 2, Tokens::ink()->toHex(), bold: true),
                     ),
-                    new RenderPadding(
+                    new Padding(
                         EdgeInsets::only(top: 4),
-                        new RenderText('SelectBox et DatePicker ouvrent un vrai dialogue Android.', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
+                        new Text('SelectBox et DatePicker ouvrent un vrai dialogue Android.', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
                     ),
 
                     $caption('SelectBox — AlertDialog.setItems()'),
-                    new NativeSelectBox('country', [
+                    new SelectBox('country', [
                         'fr' => 'France',
                         'be' => 'Belgique',
                         'ci' => "Côte d'Ivoire",
@@ -78,45 +78,45 @@ final class NativeWidgetsFormsScreen
                     ], $selected),
 
                     $caption('DatePicker — DatePickerDialog'),
-                    new NativeDatePicker('appointment', $date),
+                    new DatePicker('appointment', $date),
 
                     $caption('TimePicker — TimePickerDialog'),
-                    new NativeTimePicker('meeting_time', $time),
+                    new TimePicker('meeting_time', $time),
 
                     $caption('Checkbox / Switch'),
-                    new NativeCheckbox('subscribe', "S'abonner à la newsletter", $subscribed),
-                    new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_MD), new NativeSwitch('notifications', 'Notifications', $notifications)),
+                    new Checkbox('subscribe', "S'abonner à la newsletter", $subscribed),
+                    new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), new Toggle('notifications', 'Notifications', $notifications)),
 
                     $caption('ProgressBar / CircularProgress'),
-                    new NativeProgressBar($contentWidth, 0.65),
-                    new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_MD), new NativeCircularProgress(0.42)),
+                    new ProgressBar($contentWidth, 0.65),
+                    new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), new CircularProgress(0.42)),
 
                     $caption('Banner (ErrorBanner)'),
-                    new NativeBanner('Ceci est un message de validation.'),
+                    new Banner('Ceci est un message de validation.'),
 
                     $caption('Dialogues (Engine\\Dialogs\\)'),
-                    RenderFlex::row([
-                        new NativeAlertButton('Ceci est une alerte native.', 'Alerte'),
-                        new RenderPadding(EdgeInsets::only(left: Tokens::SPACE_MD), new NativeConfirmButton('Vraiment supprimer ?', 'widgets_confirm_delete', 'Supprimer')),
+                    Flex::row([
+                        new AlertButton('Ceci est une alerte native.', 'Alerte'),
+                        new Padding(EdgeInsets::only(left: Tokens::SPACE_MD), new ConfirmButton('Vraiment supprimer ?', 'widgets_confirm_delete', 'Supprimer')),
                     ]),
 
                     $caption('Table'),
-                    new NativeTable(
+                    new Table(
                         rows: [['Casque sans fil', '89,90 €'], ['Montre connectée', '149,00 €']],
                         headers: ['Produit', 'Prix'],
                     ),
 
                     $caption('Textarea — EditText multiligne réel'),
-                    new NativeTextField('note', $note, 'Un commentaire...', multiline: true),
+                    new TextField('note', $note, 'Un commentaire...', multiline: true),
 
                     $caption('Icon — jeu étendu (2235 glyphes disponibles, voir MaterialIcons.php)'),
-                    new RenderWrap(array_map(
-                        static fn (string $name): RenderNode => new RenderIcon($name, 22.0, Tokens::inkSecondary()->toHex()),
+                    new Wrap(array_map(
+                        static fn (string $name): Widget => new Icon($name, 22.0, Tokens::inkSecondary()->toHex()),
                         ['check', 'close', 'search', 'favorite', 'star', 'delete', 'edit', 'download', 'upload', 'share', 'event', 'schedule', 'mail', 'phone', 'lock', 'notifications', 'info', 'visibility'],
                     ), spacing: Tokens::SPACE_MD, runSpacing: Tokens::SPACE_MD),
 
-                    $caption('RenderRichText — styles mixés dans un seul paragraphe'),
-                    new RenderRichText([
+                    $caption('RichText — styles mixés dans un seul paragraphe'),
+                    new RichText([
                         new TextSpan('PhpNitro rend en '),
                         new TextSpan('natif', bold: true, color: Tokens::success()->toHex()),
                         new TextSpan(', pas en WebView — voir les '),
@@ -124,7 +124,7 @@ final class NativeWidgetsFormsScreen
                         new TextSpan('.'),
                     ], fontSize: Tokens::TEXT_BODY, color: Tokens::ink()->toHex()),
 
-                    new NativeDivider(),
+                    new Divider(),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,

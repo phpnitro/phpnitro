@@ -19,13 +19,13 @@ namespace Engine\Native;
  * "don't call the server until confirmed" guarantee the HTML pipeline's
  * phpxDialogs.confirm() callback gives.
  */
-final class NativeConfirmButton implements RenderNode
+final class ConfirmButton implements Widget
 {
-    private readonly NativeButton $content;
+    private readonly Button $content;
 
     public function __construct(string $message, string $action, string $label = 'Confirmer', string $title = '')
     {
-        $this->content = new NativeButton(
+        $this->content = new Button(
             $label,
             'dialog:confirm',
             background: Tokens::danger(),
@@ -38,7 +38,7 @@ final class NativeConfirmButton implements RenderNode
         return $this->content->layout($constraints);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->content->paint($canvas, $x, $y);
     }

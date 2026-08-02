@@ -15,13 +15,13 @@ namespace Engine\Native;
  * A 1px-tall filled bar spanning whatever width its parent gives it — the
  * native-tree equivalent of Engine\Divider (an <hr>-like Tailwind rule).
  */
-final class NativeDivider implements RenderNode
+final class Divider implements Widget
 {
-    private readonly RenderContainer $content;
+    private readonly Container $content;
 
     public function __construct(float $thickness = 1.0)
     {
-        $this->content = new RenderContainer(height: $thickness, background: Tokens::border());
+        $this->content = new Container(height: $thickness, background: Tokens::border());
     }
 
     public function layout(Constraints $constraints): Size
@@ -29,7 +29,7 @@ final class NativeDivider implements RenderNode
         return $this->content->layout($constraints);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->content->paint($canvas, $x, $y);
     }

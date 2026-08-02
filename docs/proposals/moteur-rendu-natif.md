@@ -41,7 +41,7 @@ Tout le reste du framework (état des `Screen`, actions `onXxx()`, base de donn�
 
 Ni Flutter ni React Native n'ont de ligne d'arrivée fixe — les deux représentent des milliers d'années-ingénieur cumulées (moteur de rendu, catalogue de widgets, DevTools, écosystème de plugins). Viser une parité totale comme objectif est un objectif qui recule indéfiniment, pas un jalon. Ce dont ce projet a réellement besoin, c'est d'un seuil concret de "assez bon pour servir un vrai écran de l'app" :
 
-1. **Une bibliothèque de widgets réutilisables**, pas seulement des primitives de layout — un vrai `NativeButton`/`NativeCard`/`NativeListTile` qu'on compose, comme `Button.php`/`Container.php` côté HTML, plutôt que de reconstruire `RenderContainer` + `RenderCenter` + `RenderText` à la main à chaque écran.
+1. **Une bibliothèque de widgets réutilisables**, pas seulement des primitives de layout — un vrai `Button`/`Card`/`ListTile` qu'on compose, comme `Button.php`/`Container.php` côté HTML, plutôt que de reconstruire `Container` + `Center` + `Text` à la main à chaque écran.
 2. **Un écran réel de l'app** (pas une recréation de capture de référence) rendu entièrement via ce chemin, mesurable en usage normal.
 3. **Un chiffre de performance réel**, pas une intuition — temps de rendu (tap → trame affichée) mesuré sur device, comparé au chemin WebView existant sur un écran équivalent.
 4. **Aucune régression** sur le chemin WebView existant pendant toute la transition (déjà garanti par le flag et la séparation de code).

@@ -13,19 +13,19 @@ namespace Engine\Native;
 
 /**
  * The native-tree equivalent of Engine\Drawer — a full-screen scrim plus
- * a left-anchored panel, meant to be handed to NativeScaffold's $drawer
- * param (which paints it via RenderFixed, screen-relative, on top of
+ * a left-anchored panel, meant to be handed to Scaffold's $drawer
+ * param (which paints it via Fixed, screen-relative, on top of
  * everything else including the AppBar/BottomNavigation). There's no
  * client-side open/close animation state on this pipeline (see
- * RenderFixed's docblock — every paint is one-shot): the caller decides
+ * Fixed's docblock — every paint is one-shot): the caller decides
  * whether the drawer exists in the tree at all based on a server-known
  * "is it open" flag (see NativeHomeScreen's $_GET['drawer_open']),
  * same "$_GET drives what's on screen" idiom every other stateful native
  * widget already uses.
  */
-final class NativeDrawer implements RenderNode
+final class Drawer implements Widget
 {
-    private readonly RenderNode $content;
+    private readonly Widget $content;
 
     /**
      * @param array<int, array{label: string, icon: string, action: string}> $items
@@ -40,27 +40,27 @@ final class NativeDrawer implements RenderNode
 
         // A semi-transparent scrim needs an ARGB hex color
         // (Engine\Color has no alpha channel, being a Tailwind-class
-        // abstraction) — RenderCustomPaint takes a raw color string
-        // straight through to NativeCanvas::rect(), which Android's
+        // abstraction) — CustomPaint takes a raw color string
+        // straight through to Canvas::rect(), which Android's
         // Color.parseColor() accepts as #AARRGGBB.
-        $scrim = new RenderTappable(
-            RenderCustomPaint::make($screenWidth, $viewportHeight)->rect(0, 0, $screenWidth, $viewportHeight, '#66000000'),
+        $scrim = new Tappable(
+            CustomPaint::make($screenWidth, $viewportHeight)->rect(0, 0, $screenWidth, $viewportHeight, '#66000000'),
             'toggle:drawer_open',
             ['next' => ''],
         );
 
         $rows = array_map(
-            static fn (array $item): RenderNode => new NativeListTile($item['label'], null, $item['icon'], action: $item['action']),
+            static fn (array $item): Widget => new ListTile($item['label'], null, $item['icon'], action: $item['action']),
             $items,
         );
 
-        $panel = new RenderContainer(
-            new RenderPadding(
+        $panel = new Container(
+            new Padding(
                 EdgeInsets::all(Tokens::SPACE_LG),
-                RenderFlex::column([
-                    new RenderText($title, Tokens::TEXT_TITLE, Tokens::ink()->toHex(), bold: true),
-                    new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_LG), RenderFlex::column(array_map(
-                        static fn (RenderNode $row): RenderNode => new RenderPadding(EdgeInsets::only(bottom: Tokens::SPACE_SM), $row),
+                Flex::column([
+                    new Text($title, Tokens::TEXT_TITLE, Tokens::ink()->toHex(), bold: true),
+                    new Padding(EdgeInsets::only(top: Tokens::SPACE_LG), Flex::column(array_map(
+                        static fn (Widget $row): Widget => new Padding(EdgeInsets::only(bottom: Tokens::SPACE_SM), $row),
                         $rows,
                     ), crossAxisAlignment: CrossAxisAlignment::STRETCH)),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
@@ -71,7 +71,7 @@ final class NativeDrawer implements RenderNode
             elevation: 8.0,
         );
 
-        $this->content = new RenderStack([$scrim, $panel]);
+        $this->content = new Stack([$scrim, $panel]);
     }
 
     public function layout(Constraints $constraints): Size
@@ -79,7 +79,7 @@ final class NativeDrawer implements RenderNode
         return $this->content->layout($constraints);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->content->paint($canvas, $x, $y);
     }

@@ -5,22 +5,22 @@ namespace Engine\App;
 use Engine\Color;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
-use Engine\Native\NativeAppBar;
-use Engine\Native\NativeBottomNavigation;
-use Engine\Native\NativeButton;
-use Engine\Native\NativeCard;
-use Engine\Native\NativeDrawer;
-use Engine\Native\NativeFab;
-use Engine\Native\NativeGestureDetector;
-use Engine\Native\NativeIconCircle;
-use Engine\Native\NativeListTile;
-use Engine\Native\NativeScaffold;
-use Engine\Native\RenderContainer;
-use Engine\Native\RenderFlex;
-use Engine\Native\RenderNode;
-use Engine\Native\RenderPadding;
-use Engine\Native\RenderTappable;
-use Engine\Native\RenderText;
+use Engine\Native\AppBar;
+use Engine\Native\BottomNavigation;
+use Engine\Native\Button;
+use Engine\Native\Card;
+use Engine\Native\Drawer;
+use Engine\Native\Fab;
+use Engine\Native\GestureDetector;
+use Engine\Native\IconCircle;
+use Engine\Native\ListTile;
+use Engine\Native\Scaffold;
+use Engine\Native\Container;
+use Engine\Native\Flex;
+use Engine\Native\Widget;
+use Engine\Native\Padding;
+use Engine\Native\Tappable;
+use Engine\Native\Text;
 use Engine\Native\Tokens;
 use Engine\Preferences\Preferences;
 
@@ -29,7 +29,7 @@ use Engine\Preferences\Preferences;
  * screen, not another reference-image recreation) — same real session
  * auth check, same real persisted counter (via Engine\Preferences\,
  * same primitive NativeSettingsScreen already reads/writes), same
- * navigation targets. Now built on NativeScaffold — a real pinned AppBar
+ * navigation targets. Now built on Scaffold — a real pinned AppBar
  * and BottomNavigation (see their docblocks) instead of every screen
  * hand-rolling its own header row.
  *
@@ -38,14 +38,14 @@ use Engine\Preferences\Preferences;
  * android.view.GestureDetector — see NativeCanvasView.kt) are all real now,
  * not approximated. The AppBar's leading hamburger toggles
  * $_GET['drawer_open'] the same "server-known open/close flag" way every
- * other stateful native widget works (see NativeDrawer's docblock).
+ * other stateful native widget works (see Drawer's docblock).
  *
  * Root of the native screen stack — NativeRenderPocActivity starts here
  * by default; Documents/OTP/Settings are all one "back" away from it.
  */
 final class NativeHomeScreen
 {
-    public static function build(float $screenWidth, float $screenHeight): RenderNode
+    public static function build(float $screenWidth, float $screenHeight): Widget
     {
         $authUser = $_SESSION['auth_user'] ?? null;
         // A separate Preferences key from NativeDocumentsScreen's
@@ -56,53 +56,53 @@ final class NativeHomeScreen
         $count = (int) Preferences::get('native_home_counter', '0');
         $drawerOpen = ($_GET['drawer_open'] ?? '') === '1';
 
-        $body = new RenderContainer(
-            new RenderPadding(
+        $body = new Container(
+            new Padding(
                 EdgeInsets::all(Tokens::SPACE_XL),
-                RenderFlex::column([
+                Flex::column([
                     $authUser !== null
-                        ? new RenderTappable(
-                            new RenderText("Connecté : {$authUser} — se déconnecter", Tokens::TEXT_BODY_SMALL, Color::green(600)->toHex(), bold: true),
+                        ? new Tappable(
+                            new Text("Connecté : {$authUser} — se déconnecter", Tokens::TEXT_BODY_SMALL, Color::green(600)->toHex(), bold: true),
                             'logout',
                         )
-                        : new RenderTappable(
-                            new RenderText('Non connecté — se connecter', Tokens::TEXT_BODY_SMALL, Tokens::inkSecondary()->toHex(), bold: true),
+                        : new Tappable(
+                            new Text('Non connecté — se connecter', Tokens::TEXT_BODY_SMALL, Tokens::inkSecondary()->toHex(), bold: true),
                             'navigate:login',
                         ),
-                    new RenderPadding(
+                    new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_XL),
-                        new NativeCard(RenderFlex::column([
-                            new RenderText('Compteur', Tokens::TEXT_CAPTION, Tokens::inkMuted()->toHex(), bold: true, letterSpacing: 0.04),
-                            new RenderPadding(
+                        new Card(Flex::column([
+                            new Text('Compteur', Tokens::TEXT_CAPTION, Tokens::inkMuted()->toHex(), bold: true, letterSpacing: 0.04),
+                            new Padding(
                                 EdgeInsets::only(top: 4),
-                                new NativeGestureDetector(
-                                    new RenderText((string) $count, Tokens::TEXT_DISPLAY, Tokens::ink()->toHex(), bold: true),
+                                new GestureDetector(
+                                    new Text((string) $count, Tokens::TEXT_DISPLAY, Tokens::ink()->toHex(), bold: true),
                                     onDoubleClick: 'home_increment',
                                     onSwipeLeft: 'home_decrement',
                                     onSwipeRight: 'home_increment',
                                 ),
                             ),
-                            new RenderPadding(
+                            new Padding(
                                 EdgeInsets::only(top: Tokens::SPACE_LG),
-                                new NativeButton('Incrémenter', 'home_increment', icon: 'add', width: $screenWidth - 2 * (Tokens::SPACE_XL + Tokens::SPACE_LG)),
+                                new Button('Incrémenter', 'home_increment', icon: 'add', width: $screenWidth - 2 * (Tokens::SPACE_XL + Tokens::SPACE_LG)),
                             ),
                         ]), elevation: 3),
                     ),
-                    new RenderPadding(
+                    new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_XL),
-                        new NativeListTile('Réglages', 'Préférences réelles', 'settings', trailingIcon: 'chevron_right', action: 'navigate:settings'),
+                        new ListTile('Réglages', 'Préférences réelles', 'settings', trailingIcon: 'chevron_right', action: 'navigate:settings'),
                     ),
-                    new RenderPadding(
+                    new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),
-                        new NativeListTile('Documents', 'Étape 3/4 — checklist', 'description', trailingIcon: 'chevron_right', action: 'navigate:documents'),
+                        new ListTile('Documents', 'Étape 3/4 — checklist', 'description', trailingIcon: 'chevron_right', action: 'navigate:documents'),
                     ),
-                    new RenderPadding(
+                    new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),
-                        new NativeListTile('Vérification', 'Code OTP', 'shield', trailingIcon: 'chevron_right', action: 'navigate:otp'),
+                        new ListTile('Vérification', 'Code OTP', 'shield', trailingIcon: 'chevron_right', action: 'navigate:otp'),
                     ),
-                    new RenderPadding(
+                    new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),
-                        new NativeListTile('Produit #42', 'Route param réel', 'inventory_2', trailingIcon: 'chevron_right', action: 'navigate:product/42'),
+                        new ListTile('Produit #42', 'Route param réel', 'inventory_2', trailingIcon: 'chevron_right', action: 'navigate:product/42'),
                     ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
@@ -110,18 +110,18 @@ final class NativeHomeScreen
             background: Tokens::surfaceMuted(),
         );
 
-        return new NativeScaffold(
+        return new Scaffold(
             $body,
             $screenWidth,
             $screenHeight,
-            appBar: new NativeAppBar(
+            appBar: new AppBar(
                 $screenWidth,
                 'Mon application',
-                leading: new NativeIconCircle('menu', 36.0, action: 'toggle:drawer_open', meta: ['next' => '1']),
+                leading: new IconCircle('menu', 36.0, action: 'toggle:drawer_open', meta: ['next' => '1']),
             ),
             bottomNav: NativeAppShell::bottomNav($screenWidth, 'home'),
-            fab: new NativeFab('add', 'home_increment'),
-            drawer: $drawerOpen ? new NativeDrawer($screenWidth, $screenHeight, [
+            fab: new Fab('add', 'home_increment'),
+            drawer: $drawerOpen ? new Drawer($screenWidth, $screenHeight, [
                 ['label' => 'Accueil', 'icon' => 'home', 'action' => 'tab:home'],
                 ['label' => 'Réglages', 'icon' => 'settings', 'action' => 'navigate:settings'],
                 ['label' => 'Device', 'icon' => 'smartphone', 'action' => 'navigate:device'],

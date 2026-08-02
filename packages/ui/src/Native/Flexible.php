@@ -12,15 +12,15 @@
 namespace Engine\Native;
 
 /**
- * Wraps a child with a flex factor for use inside RenderFlex, mirroring
+ * Wraps a child with a flex factor for use inside Flex, mirroring
  * Flutter's Expanded/Flexible — a plain child (not wrapped in this) keeps
  * its intrinsic size and flex 0, exactly like an un-Expanded child in a
  * Flutter Row/Column.
  */
-final class Flexible implements RenderNode
+final class Flexible implements Widget
 {
     public function __construct(
-        public readonly RenderNode $child,
+        public readonly Widget $child,
         public readonly int $flex = 1,
     ) {
     }
@@ -30,7 +30,7 @@ final class Flexible implements RenderNode
         return $this->child->layout($constraints);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->child->paint($canvas, $x, $y);
     }

@@ -18,27 +18,27 @@ use Engine\Color;
  * decided server-side (the opposite of $checked) and travels in the hit
  * region's meta as "next", so a tap can flip it with no client-side
  * boolean state of its own; NativeRenderPocActivity's generic "toggle:"
- * handler (shared with NativeSwitch) just writes meta.next into
+ * handler (shared with Toggle) just writes meta.next into
  * fieldValues and refetches.
  */
-final class NativeCheckbox implements RenderNode
+final class Checkbox implements Widget
 {
-    private readonly RenderNode $content;
+    private readonly Widget $content;
 
     public function __construct(string $name, string $label, bool $checked = false, ?Color $accentColor = null, float $size = 22.0)
     {
         $accent = $accentColor ?? Tokens::ink();
 
         $box = $checked
-            ? new RenderContainer(new RenderCenter(new RenderIcon('check', $size * 0.7, Color::white()->toHex())), width: $size, height: $size, background: $accent, radius: 6.0)
-            : new RenderContainer(width: $size, height: $size, radius: 6.0, borderColor: Tokens::border(), borderWidth: 1.5);
+            ? new Container(new Center(new Icon('check', $size * 0.7, Color::white()->toHex())), width: $size, height: $size, background: $accent, radius: 6.0)
+            : new Container(width: $size, height: $size, radius: 6.0, borderColor: Tokens::border(), borderWidth: 1.5);
 
-        $row = RenderFlex::row([
+        $row = Flex::row([
             $box,
-            new RenderPadding(EdgeInsets::only(left: Tokens::SPACE_SM), new RenderText($label, Tokens::TEXT_BODY, Tokens::ink()->toHex())),
+            new Padding(EdgeInsets::only(left: Tokens::SPACE_SM), new Text($label, Tokens::TEXT_BODY, Tokens::ink()->toHex())),
         ], crossAxisAlignment: CrossAxisAlignment::CENTER);
 
-        $this->content = new RenderTappable($row, "toggle:{$name}", ['next' => $checked ? '' : '1']);
+        $this->content = new Tappable($row, "toggle:{$name}", ['next' => $checked ? '' : '1']);
     }
 
     public function layout(Constraints $constraints): Size
@@ -46,7 +46,7 @@ final class NativeCheckbox implements RenderNode
         return $this->content->layout($constraints);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->content->paint($canvas, $x, $y);
     }

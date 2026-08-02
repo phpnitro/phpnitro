@@ -19,8 +19,7 @@ import androidx.core.app.NotificationManagerCompat
  * notification directly since there's no running WebView/PHP server to
  * hand the "alarm fired" event to at this point — a background task that
  * needs to run this framework's actual PHP still requires PhpServer to be
- * started, which this receiver does NOT do (out of scope for a v1: see
- * ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md).
+ * started, which this receiver does NOT do (out of scope for a v1).
  */
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {

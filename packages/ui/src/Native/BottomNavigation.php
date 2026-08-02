@@ -15,18 +15,18 @@ use Engine\Color;
 
 /**
  * The native-tree equivalent of Engine\BottomNavigation — meant to be
- * handed to NativeScaffold, which pins it to the viewport bottom via
- * RenderFixed. Each tab fires "tab:screen" rather than plain
+ * handed to Scaffold, which pins it to the viewport bottom via
+ * Fixed. Each tab fires "tab:screen" rather than plain
  * "navigate:screen" — NativeRenderPocActivity resets the whole screen
  * stack to that single entry instead of pushing, so switching tabs
  * repeatedly doesn't grow an ever-longer back stack the way drilling into
  * a detail screen should.
  */
-final class NativeBottomNavigation implements RenderNode
+final class BottomNavigation implements Widget
 {
     public const HEIGHT = 64.0;
 
-    private readonly RenderNode $content;
+    private readonly Widget $content;
 
     /**
      * @param array<int, array{icon: string, label: string, screen: string}> $items
@@ -35,20 +35,20 @@ final class NativeBottomNavigation implements RenderNode
     {
         $active = $activeColor ?? Tokens::ink();
 
-        $tabs = array_map(function (array $item) use ($active, $currentScreen): RenderNode {
+        $tabs = array_map(function (array $item) use ($active, $currentScreen): Widget {
             $isActive = $item['screen'] === $currentScreen;
             $color = $isActive ? $active : Tokens::inkMuted();
 
-            $tab = new RenderCenter(RenderFlex::column([
-                new RenderIcon($item['icon'], 22.0, $color->toHex()),
-                new RenderPadding(EdgeInsets::only(top: 2.0), new RenderText($item['label'], Tokens::TEXT_CAPTION, $color->toHex(), bold: $isActive)),
+            $tab = new Center(Flex::column([
+                new Icon($item['icon'], 22.0, $color->toHex()),
+                new Padding(EdgeInsets::only(top: 2.0), new Text($item['label'], Tokens::TEXT_CAPTION, $color->toHex(), bold: $isActive)),
             ], mainAxisAlignment: MainAxisAlignment::CENTER, crossAxisAlignment: CrossAxisAlignment::CENTER));
 
-            return new Flexible(new RenderTappable($tab, "tab:{$item['screen']}"));
+            return new Flexible(new Tappable($tab, "tab:{$item['screen']}"));
         }, $items);
 
-        $this->content = new RenderContainer(
-            RenderFlex::row($tabs, crossAxisAlignment: CrossAxisAlignment::STRETCH),
+        $this->content = new Container(
+            Flex::row($tabs, crossAxisAlignment: CrossAxisAlignment::STRETCH),
             width: $width,
             height: self::HEIGHT,
             background: Tokens::surface(),
@@ -61,7 +61,7 @@ final class NativeBottomNavigation implements RenderNode
         return $this->content->layout($constraints);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->content->paint($canvas, $x, $y);
     }

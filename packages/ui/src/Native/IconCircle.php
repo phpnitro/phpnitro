@@ -18,15 +18,15 @@ use Engine\Color;
  * across every native screen so far (back buttons, avatar badges, list
  * row leading/trailing icons). Optionally tappable: pass $action and the
  * whole circle becomes a hit region, same as wrapping it in
- * RenderTappable by hand.
+ * Tappable by hand.
  */
-final class NativeIconCircle implements RenderNode
+final class IconCircle implements Widget
 {
-    private readonly RenderNode $content;
+    private readonly Widget $content;
 
     /**
      * @param ?array<string, mixed> $meta Extra data the client needs to handle this action —
-     *                                    see RenderTappable's docblock.
+     *                                    see Tappable's docblock.
      */
     public function __construct(
         string $icon,
@@ -36,15 +36,15 @@ final class NativeIconCircle implements RenderNode
         ?string $action = null,
         ?array $meta = null,
     ) {
-        $circle = new RenderContainer(
-            new RenderCenter(new RenderIcon($icon, $diameter * 0.5, ($iconColor ?? Tokens::ink())->toHex())),
+        $circle = new Container(
+            new Center(new Icon($icon, $diameter * 0.5, ($iconColor ?? Tokens::ink())->toHex())),
             width: $diameter,
             height: $diameter,
             radius: $diameter / 2,
             background: $background ?? Tokens::surfaceMuted(),
         );
 
-        $this->content = $action !== null ? new RenderTappable($circle, $action, $meta) : $circle;
+        $this->content = $action !== null ? new Tappable($circle, $action, $meta) : $circle;
     }
 
     public function layout(Constraints $constraints): Size
@@ -52,7 +52,7 @@ final class NativeIconCircle implements RenderNode
         return $this->content->layout($constraints);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->content->paint($canvas, $x, $y);
     }

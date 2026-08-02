@@ -14,7 +14,7 @@ namespace Engine\Native;
 /**
  * Flutter's Text.rich(TextSpan(...)) — mixed styles (bold, color, size,
  * even a tappable link) flowing as ONE wrapped paragraph, not one
- * RenderText per run stacked vertically. RenderText's word-wrap only ever
+ * Text per run stacked vertically. Text's word-wrap only ever
  * had a single style for the whole string; this tokenizes every span into
  * words tagged with their own style, then greedy-wraps across the WHOLE
  * token stream — a span boundary is where the style changes, not where a
@@ -27,7 +27,7 @@ namespace Engine\Native;
  * text-shaping engine would sub-position mixed baselines (out of scope:
  * this is real text layout, not full typography).
  */
-final class RenderRichText implements RenderNode
+final class RichText implements Widget
 {
     /**
      * @var array<int, array<int, array{word: string, span: TextSpan, x: float, size: float}>>
@@ -132,12 +132,12 @@ final class RenderRichText implements RenderNode
         return $constraints->constrain(new Size($maxLineWidth, $height));
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $cursorY = 0.0;
         foreach ($this->lines as $lineIndex => $line) {
             $lineHeight = $this->lineHeights[$lineIndex];
-            // Same "~80% of font size" baseline heuristic RenderText uses,
+            // Same "~80% of font size" baseline heuristic Text uses,
             // anchored to this line's own TALLEST span so a smaller word
             // sharing the line still sits on one common baseline instead
             // of its own smaller one.

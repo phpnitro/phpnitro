@@ -20,13 +20,13 @@ use Engine\Color;
  * same as Flutter's Container. Otherwise the box hugs its (padded) child,
  * clamped to whatever the parent allows.
  */
-final class RenderContainer implements RenderNode
+final class Container implements Widget
 {
-    private readonly ?RenderNode $content;
+    private readonly ?Widget $content;
     private Size $size;
 
     public function __construct(
-        ?RenderNode $child = null,
+        ?Widget $child = null,
         private readonly ?float $width = null,
         private readonly ?float $height = null,
         private readonly ?Color $background = null,
@@ -38,7 +38,7 @@ final class RenderContainer implements RenderNode
         private readonly ?Color $gradientTo = null,
         EdgeInsets $padding = new EdgeInsets(0.0, 0.0, 0.0, 0.0),
     ) {
-        $this->content = $child !== null ? new RenderPadding($padding, $child) : null;
+        $this->content = $child !== null ? new Padding($padding, $child) : null;
         $this->size = Size::zero();
     }
 
@@ -77,7 +77,7 @@ final class RenderContainer implements RenderNode
         return $this->size;
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         if ($this->background !== null || $this->borderColor !== null || $this->gradientFrom !== null) {
             $canvas->rect(

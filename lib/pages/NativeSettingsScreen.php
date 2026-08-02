@@ -5,15 +5,15 @@ namespace Engine\App;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\Flexible;
-use Engine\Native\NativeAppBar;
-use Engine\Native\NativeListTile;
-use Engine\Native\NativeScaffold;
-use Engine\Native\RenderContainer;
-use Engine\Native\RenderFlex;
-use Engine\Native\RenderImage;
-use Engine\Native\RenderNode;
-use Engine\Native\RenderPadding;
-use Engine\Native\RenderText;
+use Engine\Native\AppBar;
+use Engine\Native\ListTile;
+use Engine\Native\Scaffold;
+use Engine\Native\Container;
+use Engine\Native\Flex;
+use Engine\Native\Image;
+use Engine\Native\Widget;
+use Engine\Native\Padding;
+use Engine\Native\Text;
 use Engine\Native\Tokens;
 use Engine\Preferences\Preferences;
 
@@ -32,16 +32,16 @@ use Engine\Preferences\Preferences;
  * while this screen is open via a registered NetworkCallback (see
  * NativeRenderPocActivity's connectivityCallback), not JS polling.
  *
- * Built from the NativeIconCircle/NativeListTile widget layer instead of
- * hand-rolled RenderContainer/RenderCenter/RenderIcon composition —
+ * Built from the IconCircle/ListTile widget layer instead of
+ * hand-rolled Container/Center/Icon composition —
  * compare to git history before this refactor if you want to see what
  * that looked like duplicated across three screens. AppBar-only (no
- * NativeBottomNavigation) — this is a secondary screen reached by
+ * BottomNavigation) — this is a secondary screen reached by
  * drilling in, not one of the app's tab-bar destinations.
  */
 final class NativeSettingsScreen
 {
-    public static function build(float $screenWidth, float $screenHeight): RenderNode
+    public static function build(float $screenWidth, float $screenHeight): Widget
     {
         $accent = Preferences::get('accent_color', 'blue');
         $nativePreviewEnabled = Preferences::get('native_render_preview_enabled', '0') === '1';
@@ -49,28 +49,28 @@ final class NativeSettingsScreen
 
         $accentLabels = ['blue' => 'Bleu', 'purple' => 'Violet', 'emerald' => 'Émeraude'];
 
-        $body = new RenderContainer(
-            new RenderPadding(
+        $body = new Container(
+            new Padding(
                 EdgeInsets::all(Tokens::SPACE_XL),
-                RenderFlex::column([
-                    RenderFlex::row([
-                        new RenderImage(
+                Flex::column([
+                    Flex::row([
+                        new Image(
                             'https://picsum.photos/200',
                             64,
                             64,
                             radius: 32,
                         ),
-                        new Flexible(new RenderPadding(EdgeInsets::only(left: Tokens::SPACE_MD), RenderFlex::column([
-                            new RenderText('Réglages natifs', Tokens::TEXT_TITLE, Tokens::ink()->toHex(), bold: true),
-                            new RenderPadding(
+                        new Flexible(new Padding(EdgeInsets::only(left: Tokens::SPACE_MD), Flex::column([
+                            new Text('Réglages natifs', Tokens::TEXT_TITLE, Tokens::ink()->toHex(), bold: true),
+                            new Padding(
                                 EdgeInsets::only(top: 2),
-                                new RenderText('Données réelles — Engine\\Preferences\\', Tokens::TEXT_CAPTION, Tokens::inkMuted()->toHex()),
+                                new Text('Données réelles — Engine\\Preferences\\', Tokens::TEXT_CAPTION, Tokens::inkMuted()->toHex()),
                             ),
                         ]))),
                     ], crossAxisAlignment: CrossAxisAlignment::CENTER),
-                    new RenderPadding(
+                    new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_XL),
-                        new NativeListTile(
+                        new ListTile(
                             "Couleur d'accent",
                             null,
                             'palette',
@@ -80,9 +80,9 @@ final class NativeSettingsScreen
                             meta: ['options' => $accentLabels, 'selected' => $accent],
                         ),
                     ),
-                    new RenderPadding(
+                    new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),
-                        new NativeListTile(
+                        new ListTile(
                             'Rendu natif',
                             null,
                             'bolt',
@@ -91,9 +91,9 @@ final class NativeSettingsScreen
                             action: 'togglenativepreview',
                         ),
                     ),
-                    new RenderPadding(
+                    new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),
-                        new NativeListTile(
+                        new ListTile(
                             'Réseau',
                             null,
                             $online ? 'wifi' : 'wifi_off',
@@ -101,9 +101,9 @@ final class NativeSettingsScreen
                             trailingText: $online ? 'En ligne' : 'Hors ligne',
                         ),
                     ),
-                    new RenderPadding(
+                    new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),
-                        new NativeListTile('Moteur', null, 'memory', leadingColor: Tokens::inkSecondary(), trailingText: 'PHP -> Canvas'),
+                        new ListTile('Moteur', null, 'memory', leadingColor: Tokens::inkSecondary(), trailingText: 'PHP -> Canvas'),
                     ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
@@ -111,11 +111,11 @@ final class NativeSettingsScreen
             background: Tokens::surfaceMuted(),
         );
 
-        return new NativeScaffold(
+        return new Scaffold(
             $body,
             $screenWidth,
             $screenHeight,
-            appBar: new NativeAppBar($screenWidth, 'Réglages', backAction: 'back'),
+            appBar: new AppBar($screenWidth, 'Réglages', backAction: 'back'),
         );
     }
 }

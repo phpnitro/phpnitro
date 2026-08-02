@@ -16,19 +16,19 @@ use Engine\Color;
 /**
  * A pill-radius tappable button — NativeDocumentsScreen's "Continuer" and
  * NativeOtpScreen's "Vérifier" were both this shape hand-built from
- * RenderTappable+RenderContainer+RenderCenter+RenderText/RenderFlex. Pass
+ * Tappable+Container+Center+Text/Flex. Pass
  * $width explicitly for a full-width CTA (there's no "stretch to parent"
  * shortcut without a real width in this constraint system — same reason
  * Flutter's own ElevatedButton needs a SizedBox/Expanded wrapper to go
  * full-width).
  */
-final class NativeButton implements RenderNode
+final class Button implements Widget
 {
-    private readonly RenderTappable $content;
+    private readonly Tappable $content;
 
     /**
      * @param ?array<string, mixed> $meta Extra data the client needs to handle this action —
-     *                                    see RenderTappable's docblock.
+     *                                    see Tappable's docblock.
      */
     public function __construct(
         string $label,
@@ -41,16 +41,16 @@ final class NativeButton implements RenderNode
         ?array $meta = null,
     ) {
         $fg = $foreground ?? Color::white();
-        $labelNode = new RenderText($label, Tokens::TEXT_BODY, $fg->toHex(), bold: true);
+        $labelNode = new Text($label, Tokens::TEXT_BODY, $fg->toHex(), bold: true);
 
-        $inner = $icon === null ? $labelNode : RenderFlex::row([
-            new RenderIcon($icon, 18, $fg->toHex()),
-            new RenderPadding(EdgeInsets::only(left: Tokens::SPACE_SM), $labelNode),
+        $inner = $icon === null ? $labelNode : Flex::row([
+            new Icon($icon, 18, $fg->toHex()),
+            new Padding(EdgeInsets::only(left: Tokens::SPACE_SM), $labelNode),
         ], mainAxisAlignment: MainAxisAlignment::CENTER, crossAxisAlignment: CrossAxisAlignment::CENTER);
 
-        $this->content = new RenderTappable(
-            new RenderContainer(
-                new RenderCenter($inner),
+        $this->content = new Tappable(
+            new Container(
+                new Center($inner),
                 width: $width,
                 height: $height,
                 background: $background ?? Tokens::ink(),
@@ -66,7 +66,7 @@ final class NativeButton implements RenderNode
         return $this->content->layout($constraints);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->content->paint($canvas, $x, $y);
     }

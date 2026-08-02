@@ -15,35 +15,35 @@ use Engine\Color;
 
 /**
  * The native-tree equivalent of Engine\AppBar — meant to be handed to
- * NativeScaffold, not painted directly: NativeScaffold is what pins it to
- * the viewport top via RenderFixed while the body scrolls underneath (an
+ * Scaffold, not painted directly: Scaffold is what pins it to
+ * the viewport top via Fixed while the body scrolls underneath (an
  * AppBar painted on its own, mid-tree, would just scroll away like
  * everything else).
  */
-final class NativeAppBar implements RenderNode
+final class AppBar implements Widget
 {
     public const HEIGHT = 56.0;
 
-    private readonly RenderNode $content;
+    private readonly Widget $content;
 
     public function __construct(
         float $width,
         string $title,
         ?string $backAction = null,
-        ?RenderNode $leading = null,
+        ?Widget $leading = null,
         ?Color $background = null,
     ) {
-        $leadingNode = $leading ?? ($backAction !== null ? new NativeIconCircle('arrow_back', 36.0, action: $backAction) : null);
+        $leadingNode = $leading ?? ($backAction !== null ? new IconCircle('arrow_back', 36.0, action: $backAction) : null);
 
         $row = $leadingNode !== null
-            ? RenderFlex::row([
+            ? Flex::row([
                 $leadingNode,
-                new RenderPadding(EdgeInsets::only(left: Tokens::SPACE_MD), new RenderText($title, Tokens::TEXT_TITLE, Tokens::ink()->toHex(), bold: true)),
+                new Padding(EdgeInsets::only(left: Tokens::SPACE_MD), new Text($title, Tokens::TEXT_TITLE, Tokens::ink()->toHex(), bold: true)),
             ], crossAxisAlignment: CrossAxisAlignment::CENTER)
-            : new RenderText($title, Tokens::TEXT_TITLE, Tokens::ink()->toHex(), bold: true);
+            : new Text($title, Tokens::TEXT_TITLE, Tokens::ink()->toHex(), bold: true);
 
-        $this->content = new RenderContainer(
-            new RenderPadding(EdgeInsets::symmetric(horizontal: Tokens::SPACE_LG), new RenderAlign($row, Alignment::CENTER_LEFT)),
+        $this->content = new Container(
+            new Padding(EdgeInsets::symmetric(horizontal: Tokens::SPACE_LG), new Align($row, Alignment::CENTER_LEFT)),
             width: $width,
             height: self::HEIGHT,
             background: $background ?? Tokens::surface(),
@@ -56,7 +56,7 @@ final class NativeAppBar implements RenderNode
         return $this->content->layout($constraints);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->content->paint($canvas, $x, $y);
     }

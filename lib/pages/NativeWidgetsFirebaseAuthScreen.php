@@ -4,18 +4,18 @@ namespace Engine\App;
 
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
-use Engine\Native\NativeAppBar;
-use Engine\Native\NativeBanner;
-use Engine\Native\NativeButton;
-use Engine\Native\NativeConfirmButton;
-use Engine\Native\NativeScaffold;
-use Engine\Native\NativeTextField;
-use Engine\Native\RenderContainer;
-use Engine\Native\RenderFlex;
-use Engine\Native\RenderNode;
-use Engine\Native\RenderPadding;
-use Engine\Native\RenderTappable;
-use Engine\Native\RenderText;
+use Engine\Native\AppBar;
+use Engine\Native\Banner;
+use Engine\Native\Button;
+use Engine\Native\ConfirmButton;
+use Engine\Native\Scaffold;
+use Engine\Native\TextField;
+use Engine\Native\Container;
+use Engine\Native\Flex;
+use Engine\Native\Widget;
+use Engine\Native\Padding;
+use Engine\Native\Tappable;
+use Engine\Native\Text;
 use Engine\Native\Tokens;
 
 /**
@@ -30,32 +30,32 @@ use Engine\Native\Tokens;
  */
 final class NativeWidgetsFirebaseAuthScreen
 {
-    public static function build(float $screenWidth, float $screenHeight, ?string $error, string $mode): RenderNode
+    public static function build(float $screenWidth, float $screenHeight, ?string $error, string $mode): Widget
     {
         $uid = $_SESSION['firebase_uid'] ?? null;
         $contentWidth = $screenWidth - 2 * Tokens::SPACE_XL;
         $isSignUp = $mode === 'signup';
 
         $content = $uid !== null
-            ? RenderFlex::column([
-                new RenderText("Connecté — uid Firebase : {$uid}", Tokens::TEXT_BODY_SMALL, Tokens::inkSecondary()->toHex()),
-                new RenderPadding(
+            ? Flex::column([
+                new Text("Connecté — uid Firebase : {$uid}", Tokens::TEXT_BODY_SMALL, Tokens::inkSecondary()->toHex()),
+                new Padding(
                     EdgeInsets::only(top: Tokens::SPACE_LG),
-                    new NativeConfirmButton('Se déconnecter ?', 'firebase_signout', 'Se déconnecter'),
+                    new ConfirmButton('Se déconnecter ?', 'firebase_signout', 'Se déconnecter'),
                 ),
             ], crossAxisAlignment: CrossAxisAlignment::STRETCH)
-            : RenderFlex::column([
-                new NativeBanner($error),
-                new RenderPadding(EdgeInsets::only(top: $error !== null ? Tokens::SPACE_LG : 0), new NativeTextField('email', placeholder: 'Email')),
-                new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_MD), new NativeTextField('password', placeholder: 'Mot de passe', obscure: true)),
-                new RenderPadding(
+            : Flex::column([
+                new Banner($error),
+                new Padding(EdgeInsets::only(top: $error !== null ? Tokens::SPACE_LG : 0), new TextField('email', placeholder: 'Email')),
+                new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), new TextField('password', placeholder: 'Mot de passe', obscure: true)),
+                new Padding(
                     EdgeInsets::only(top: Tokens::SPACE_XL),
-                    new NativeButton($isSignUp ? 'Créer un compte' : 'Se connecter', $isSignUp ? 'submit:signup' : 'submit:signin', width: $contentWidth),
+                    new Button($isSignUp ? 'Créer un compte' : 'Se connecter', $isSignUp ? 'submit:signup' : 'submit:signin', width: $contentWidth),
                 ),
-                new RenderPadding(
+                new Padding(
                     EdgeInsets::only(top: Tokens::SPACE_LG),
-                    new RenderTappable(
-                        new RenderText(
+                    new Tappable(
+                        new Text(
                             $isSignUp ? 'Déjà un compte ? Se connecter' : "Pas de compte ? En créer un",
                             Tokens::TEXT_BODY_SMALL,
                             Tokens::inkSecondary()->toHex(),
@@ -67,17 +67,17 @@ final class NativeWidgetsFirebaseAuthScreen
                 ),
             ], crossAxisAlignment: CrossAxisAlignment::STRETCH);
 
-        $body = new RenderContainer(
-            new RenderPadding(EdgeInsets::all(Tokens::SPACE_XL), $content),
+        $body = new Container(
+            new Padding(EdgeInsets::all(Tokens::SPACE_XL), $content),
             width: $screenWidth,
             background: Tokens::surfaceMuted(),
         );
 
-        return new NativeScaffold(
+        return new Scaffold(
             $body,
             $screenWidth,
             $screenHeight,
-            appBar: new NativeAppBar($screenWidth, 'Firebase Authentication', backAction: 'back'),
+            appBar: new AppBar($screenWidth, 'Firebase Authentication', backAction: 'back'),
         );
     }
 }

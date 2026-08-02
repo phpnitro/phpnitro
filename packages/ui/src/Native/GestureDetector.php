@@ -25,12 +25,12 @@ namespace Engine\Native;
  * pointers, live scale/rotation delta), a meaningfully different and
  * bigger piece of work than single-pointer double-tap/fling detection.
  */
-final class NativeGestureDetector implements RenderNode
+final class GestureDetector implements Widget
 {
-    private readonly RenderNode $content;
+    private readonly Widget $content;
 
     public function __construct(
-        RenderNode $child,
+        Widget $child,
         ?string $onDoubleClick = null,
         ?string $onSwipeLeft = null,
         ?string $onSwipeRight = null,
@@ -41,7 +41,7 @@ final class NativeGestureDetector implements RenderNode
             'onSwipeRight' => $onSwipeRight,
         ], static fn (?string $value): bool => $value !== null);
 
-        $this->content = new RenderTappable($child, 'noop', $meta);
+        $this->content = new Tappable($child, 'noop', $meta);
     }
 
     public function layout(Constraints $constraints): Size
@@ -49,7 +49,7 @@ final class NativeGestureDetector implements RenderNode
         return $this->content->layout($constraints);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->content->paint($canvas, $x, $y);
     }

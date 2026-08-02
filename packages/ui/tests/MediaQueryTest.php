@@ -4,8 +4,8 @@ namespace Engine\Tests;
 
 use Engine\Native\Constraints;
 use Engine\Native\MediaQuery;
-use Engine\Native\NativeCanvas;
-use Engine\Native\NativeImageCircle;
+use Engine\Native\Canvas;
+use Engine\Native\ImageCircle;
 use PHPUnit\Framework\TestCase;
 
 final class MediaQueryTest extends TestCase
@@ -38,7 +38,7 @@ final class MediaQueryTest extends TestCase
         // the viewport size — exactly the case an explicit build($width,
         // $height) parameter can't cover once a reusable widget is nested
         // more than one level under a screen's own build().
-        $probe = new class implements \Engine\Native\RenderNode {
+        $probe = new class implements \Engine\Native\Widget {
             public float $observedWidth = 0.0;
 
             public function layout(Constraints $constraints): \Engine\Native\Size
@@ -48,7 +48,7 @@ final class MediaQueryTest extends TestCase
                 return $constraints->constrain(new \Engine\Native\Size(0, 0));
             }
 
-            public function paint(NativeCanvas $canvas, float $x, float $y): void
+            public function paint(Canvas $canvas, float $x, float $y): void
             {
             }
         };

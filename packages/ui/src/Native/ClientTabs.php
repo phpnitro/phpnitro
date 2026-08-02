@@ -22,26 +22,26 @@ namespace Engine\Native;
  * work offline, the same way Flutter's TabBarView holds its selected index
  * in local State rather than round-tripping to a backend.
  *
- * All panels are laid out (RenderClientTabs's own Size is the max of every
+ * All panels are laid out (ClientTabs's own Size is the max of every
  * panel's, so the container doesn't resize when the selection changes —
  * changing height locally, with no server involved to re-layout whatever
  * comes after it on the screen, isn't something this primitive can support)
- * and painted into their own nested NativeCanvas at paint() time.
+ * and painted into their own nested Canvas at paint() time.
  * NativeCanvasView.kt keeps a local `key -> selected index` map (seeded
  * once from $initialIndex, never overwritten by a later render of the same
  * key) and draws/hit-tests only the selected panel — tapping a header (a
- * normal RenderTappable with action "clientTab:{$key}:{$index}") flips
+ * normal Tappable with action "clientTab:{$key}:{$index}") flips
  * that local map with zero network call.
  */
-final class RenderClientTabs implements RenderNode
+final class ClientTabs implements Widget
 {
     private Size $size;
 
-    /** @var RenderNode[] */
+    /** @var Widget[] */
     private readonly array $panels;
 
     /**
-     * @param RenderNode[] $panels
+     * @param Widget[] $panels
      */
     public function __construct(
         private readonly string $key,
@@ -66,10 +66,10 @@ final class RenderClientTabs implements RenderNode
         return $this->size;
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         foreach ($this->panels as $index => $panel) {
-            $nested = new NativeCanvas();
+            $nested = new Canvas();
             $panel->paint($nested, 0.0, 0.0);
             $canvas->clientTabPanel($this->key, $index, $index === $this->initialIndex, $x, $y, $nested->rawCommands(), $nested->rawHitRegions());
         }

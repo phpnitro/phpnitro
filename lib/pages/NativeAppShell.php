@@ -2,7 +2,7 @@
 
 namespace Engine\App;
 
-use Engine\Native\NativeBottomNavigation;
+use Engine\Native\BottomNavigation;
 
 /**
  * The app's tab set is the same four destinations on every screen that
@@ -12,9 +12,9 @@ use Engine\Native\NativeBottomNavigation;
  */
 final class NativeAppShell
 {
-    public static function bottomNav(float $screenWidth, string $currentScreen): NativeBottomNavigation
+    public static function bottomNav(float $screenWidth, string $currentScreen): BottomNavigation
     {
-        return new NativeBottomNavigation($screenWidth, [
+        return new BottomNavigation($screenWidth, [
             ['icon' => 'home', 'label' => 'Accueil', 'screen' => 'home'],
             ['icon' => 'widgets', 'label' => 'Widgets', 'screen' => 'widgets'],
             ['icon' => 'smartphone', 'label' => 'Device', 'screen' => 'device'],

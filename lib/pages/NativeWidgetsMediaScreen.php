@@ -4,18 +4,18 @@ namespace Engine\App;
 
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
-use Engine\Native\NativeAppBar;
-use Engine\Native\NativeButton;
-use Engine\Native\NativeDivider;
-use Engine\Native\NativeScaffold;
-use Engine\Native\NativeSelectBox;
-use Engine\Native\NativeVideoPlayer;
-use Engine\Native\RenderContainer;
-use Engine\Native\RenderFlex;
-use Engine\Native\RenderNode;
-use Engine\Native\RenderPadding;
-use Engine\Native\RenderTappable;
-use Engine\Native\RenderText;
+use Engine\Native\AppBar;
+use Engine\Native\Button;
+use Engine\Native\Divider;
+use Engine\Native\Scaffold;
+use Engine\Native\SelectBox;
+use Engine\Native\VideoPlayer;
+use Engine\Native\Container;
+use Engine\Native\Flex;
+use Engine\Native\Widget;
+use Engine\Native\Padding;
+use Engine\Native\Tappable;
+use Engine\Native\Text;
 use Engine\Native\Tokens;
 
 /**
@@ -31,7 +31,7 @@ use Engine\Native\Tokens;
  * VideoPlayer is real too now — a genuine android.widget.VideoView
  * overlaid at the tapped rect (NativeRenderPocActivity's
  * showVideoOverlay()), same "no DOM element to attach to" idiom
- * NativeTextField's EditText already uses.
+ * TextField's EditText already uses.
  *
  * GoogleTranslate is real too — but not via Google's JS/iframe web
  * widget. ML Kit Translate (NativeDeviceBridge.kt's translateText())
@@ -42,12 +42,12 @@ use Engine\Native\Tokens;
  * FutureBuilder needs no native equivalent: its whole point is "load
  * once per mount, don't re-poll" — every native screen render already
  * IS a one-shot fetch, there's no separate concept to demonstrate.
- * LinkWrap needs no dedicated widget either — RenderTappable already
- * wraps any RenderNode in a hit region, which is all LinkWrap ever was.
+ * LinkWrap needs no dedicated widget either — Tappable already
+ * wraps any Widget in a hit region, which is all LinkWrap ever was.
  */
 final class NativeWidgetsMediaScreen
 {
-    public static function build(float $screenWidth, float $screenHeight): RenderNode
+    public static function build(float $screenWidth, float $screenHeight): Widget
     {
         $isPlaying = ($_GET['audio_state'] ?? 'paused') === 'playing';
         $host = $_SERVER['HTTP_HOST'] ?? '127.0.0.1';
@@ -59,43 +59,43 @@ final class NativeWidgetsMediaScreen
         $targetLanguage = $_GET['translate_lang'] ?? 'en';
         $translateOut = $_GET['translate_out'] ?? null;
 
-        $caption = static fn (string $text): RenderNode => new RenderPadding(
+        $caption = static fn (string $text): Widget => new Padding(
             EdgeInsets::only(top: Tokens::SPACE_LG, bottom: Tokens::SPACE_SM),
-            new RenderText($text, Tokens::TEXT_CAPTION, Tokens::inkMuted()->toHex(), bold: true, letterSpacing: 0.04),
+            new Text($text, Tokens::TEXT_CAPTION, Tokens::inkMuted()->toHex(), bold: true, letterSpacing: 0.04),
         );
 
-        $body = new RenderContainer(
-            new RenderPadding(
+        $body = new Container(
+            new Padding(
                 EdgeInsets::all(Tokens::SPACE_XL),
-                RenderFlex::column([
+                Flex::column([
                     $caption('AudioPlayer — android.media.MediaPlayer réel'),
                     $isPlaying
-                        ? new NativeButton('Pause', 'media:pause', icon: 'pause')
-                        : new NativeButton('Lire', "media:play:{$audioUrl}", icon: 'play_arrow'),
+                        ? new Button('Pause', 'media:pause', icon: 'pause')
+                        : new Button('Lire', "media:play:{$audioUrl}", icon: 'play_arrow'),
                     $caption('VideoPlayer — android.widget.VideoView réel'),
-                    new NativeVideoPlayer($videoUrl, $contentWidth),
+                    new VideoPlayer($videoUrl, $contentWidth),
 
                     $caption('GoogleTranslate — ML Kit Translate réel, sur l\'appareil'),
-                    new RenderText("« {$sourceText} »", Tokens::TEXT_BODY_SMALL, Tokens::inkSecondary()->toHex()),
-                    new RenderPadding(
+                    new Text("« {$sourceText} »", Tokens::TEXT_BODY_SMALL, Tokens::inkSecondary()->toHex()),
+                    new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),
-                        new NativeSelectBox('translate_lang', [
+                        new SelectBox('translate_lang', [
                             'en' => 'Anglais',
                             'es' => 'Espagnol',
                             'de' => 'Allemand',
                         ], $targetLanguage),
                     ),
-                    new RenderPadding(
+                    new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),
-                        new NativeButton('Traduire', "translate:{$targetLanguage}", meta: ['text' => $sourceText]),
+                        new Button('Traduire', "translate:{$targetLanguage}", meta: ['text' => $sourceText]),
                     ),
-                    ...($translateOut !== null ? [new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_MD), new RenderText($translateOut, Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true))] : []),
+                    ...($translateOut !== null ? [new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), new Text($translateOut, Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true))] : []),
 
-                    new NativeDivider(),
+                    new Divider(),
                     $caption('FutureBuilder — chaque écran natif est déjà un chargement unique, sans re-polling'),
-                    $caption('LinkWrap — RenderTappable enveloppe déjà n\'importe quel widget'),
-                    new RenderTappable(
-                        new RenderText('Toute cette zone est cliquable →', Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true),
+                    $caption('LinkWrap — Tappable enveloppe déjà n\'importe quel widget'),
+                    new Tappable(
+                        new Text('Toute cette zone est cliquable →', Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true),
                         'navigate:widgets',
                     ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
@@ -104,11 +104,11 @@ final class NativeWidgetsMediaScreen
             background: Tokens::surfaceMuted(),
         );
 
-        return new NativeScaffold(
+        return new Scaffold(
             $body,
             $screenWidth,
             $screenHeight,
-            appBar: new NativeAppBar($screenWidth, 'Média', backAction: 'back'),
+            appBar: new AppBar($screenWidth, 'Média', backAction: 'back'),
         );
     }
 }

@@ -13,12 +13,12 @@ mon-app/
   public/        front controller (index.php, router.php) — le point d'entrée HTTP,
                   y compris /native/layout-demo (le moteur de rendu natif)
   lib/
-    pages/     tes écrans natifs (packages/ui/src/Native/RenderNode) — vide au
+    pages/     tes écrans natifs (packages/ui/src/Native/Widget) — vide au
                départ, dispatchés par nom depuis public/index.php
     backend/   pure librairie "façon Symfony" (Controller / Entity / Repository / Service)
   packages/
-    ui/src/Native/   le moteur de rendu natif (RenderContainer, RenderFlex,
-                     NativeButton, NativeCanvas...) — packages/ui/src lui-même ne
+    ui/src/Native/   le moteur de rendu natif (Container, Flex,
+                     Button, Canvas...) — packages/ui/src lui-même ne
                      garde que Color et NativeDrawCommand, plus de widgets Tailwind/HTML
     database/src/   connexion base de données — phpnitro/database
     ... (firebase, countries, preferences, format)

@@ -11,11 +11,11 @@
 
 namespace Engine\Native;
 
-final class RenderPadding implements RenderNode
+final class Padding implements Widget
 {
     public function __construct(
         private readonly EdgeInsets $insets,
-        private readonly RenderNode $child,
+        private readonly Widget $child,
     ) {
     }
 
@@ -36,7 +36,7 @@ final class RenderPadding implements RenderNode
         ));
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->child->paint($canvas, $x + $this->insets->left, $y + $this->insets->top);
     }

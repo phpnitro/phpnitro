@@ -5,13 +5,13 @@ namespace Engine\App;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\Flexible;
-use Engine\Native\NativeCard;
-use Engine\Native\NativeIconCircle;
-use Engine\Native\RenderContainer;
-use Engine\Native\RenderFlex;
-use Engine\Native\RenderNode;
-use Engine\Native\RenderPadding;
-use Engine\Native\RenderText;
+use Engine\Native\Card;
+use Engine\Native\IconCircle;
+use Engine\Native\Container;
+use Engine\Native\Flex;
+use Engine\Native\Widget;
+use Engine\Native\Padding;
+use Engine\Native\Text;
 use Engine\Native\Tokens;
 
 /**
@@ -22,22 +22,22 @@ use Engine\Native\Tokens;
  */
 final class NativeProductScreen
 {
-    public static function build(float $screenWidth, string $id): RenderNode
+    public static function build(float $screenWidth, string $id): Widget
     {
-        return new RenderContainer(
-            new RenderPadding(
+        return new Container(
+            new Padding(
                 EdgeInsets::all(Tokens::SPACE_XL),
-                RenderFlex::column([
-                    new NativeIconCircle('arrow_back', action: 'back'),
-                    new RenderPadding(
+                Flex::column([
+                    new IconCircle('arrow_back', action: 'back'),
+                    new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_XL),
-                        new NativeCard(RenderFlex::row([
-                            new NativeIconCircle('inventory_2', 48, background: Tokens::surfaceMuted()),
-                            new Flexible(new RenderPadding(EdgeInsets::only(left: Tokens::SPACE_MD), RenderFlex::column([
-                                new RenderText("Produit #{$id}", Tokens::TEXT_TITLE, Tokens::ink()->toHex(), bold: true),
-                                new RenderPadding(
+                        new Card(Flex::row([
+                            new IconCircle('inventory_2', 48, background: Tokens::surfaceMuted()),
+                            new Flexible(new Padding(EdgeInsets::only(left: Tokens::SPACE_MD), Flex::column([
+                                new Text("Produit #{$id}", Tokens::TEXT_TITLE, Tokens::ink()->toHex(), bold: true),
+                                new Padding(
                                     EdgeInsets::only(top: 2),
-                                    new RenderText('Route param réel — /product/{id}', Tokens::TEXT_CAPTION, Tokens::inkMuted()->toHex()),
+                                    new Text('Route param réel — /product/{id}', Tokens::TEXT_CAPTION, Tokens::inkMuted()->toHex()),
                                 ),
                             ]))),
                         ], crossAxisAlignment: CrossAxisAlignment::CENTER)),

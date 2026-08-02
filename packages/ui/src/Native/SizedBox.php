@@ -15,12 +15,12 @@ namespace Engine\Native;
  * Forces a fixed size (used bare as fixed-size spacing, or wrapping a child
  * to override the size it would otherwise have picked).
  */
-final class RenderSizedBox implements RenderNode
+final class SizedBox implements Widget
 {
     public function __construct(
         private readonly float $width,
         private readonly float $height,
-        private readonly ?RenderNode $child = null,
+        private readonly ?Widget $child = null,
     ) {
     }
 
@@ -31,7 +31,7 @@ final class RenderSizedBox implements RenderNode
         return $constraints->constrain(new Size($this->width, $this->height));
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->child?->paint($canvas, $x, $y);
     }

@@ -17,7 +17,7 @@ namespace Engine\Native;
  * rect, not a hand-rolled frame-by-frame Canvas replay (Lottie's whole
  * point — a continuous animation loop — has no equivalent in a pipeline
  * where PHP computes one still frame per request). NativeCanvasView.kt
- * reconciles the overlay on every render (see NativeCanvas::lottieRegion()),
+ * reconciles the overlay on every render (see Canvas::lottieRegion()),
  * so it autoplays and keeps looping across taps/scrolls the same way it
  * would in any other native app, not just once per screen load.
  *
@@ -26,7 +26,7 @@ namespace Engine\Native;
  * (setAnimation("name.json")) — NativeRenderPocActivity tells the two apart
  * by whether $url starts with "http".
  */
-final class RenderLottie implements RenderNode
+final class Lottie implements Widget
 {
     private Size $size;
 
@@ -48,7 +48,7 @@ final class RenderLottie implements RenderNode
         return $this->size;
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $canvas->lottieRegion($this->key ?? $this->url, $x, $y, $this->size->width, $this->size->height, $this->url, $this->loop, $this->autoplay);
     }

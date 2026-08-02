@@ -18,7 +18,7 @@ namespace Engine\Native;
  * MaterialIcons::codepoint() for the name -> glyph lookup and
  * NativeCanvasView.kt for how the glyph actually gets painted.
  */
-final class RenderIcon implements RenderNode
+final class Icon implements Widget
 {
     private readonly int $codepoint;
 
@@ -35,7 +35,7 @@ final class RenderIcon implements RenderNode
         return $constraints->constrain(new Size($this->size, $this->size));
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $canvas->icon($x, $y, $this->size, $this->codepoint, $this->color);
     }

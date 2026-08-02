@@ -17,12 +17,12 @@ namespace Engine\Native;
  * NativeRenderPocActivity to show a real android.app.AlertDialog
  * single-choice list (the options travel in the hit region's meta, so no
  * second round-trip is needed to know what to offer). A pick is tracked
- * client-side exactly like NativeTextField's typed value — read by name
+ * client-side exactly like TextField's typed value — read by name
  * from $_GET on the next request, not pushed back synchronously.
  */
-final class NativeSelectBox implements RenderNode
+final class SelectBox implements Widget
 {
-    private readonly RenderNode $content;
+    private readonly Widget $content;
 
     /**
      * @param array<string, string> $options value => label
@@ -37,12 +37,12 @@ final class NativeSelectBox implements RenderNode
         $displayText = $options[$selected] ?? $placeholder;
         $displayColor = isset($options[$selected]) ? Tokens::ink() : Tokens::inkMuted();
 
-        $box = new RenderContainer(
-            new RenderPadding(
+        $box = new Container(
+            new Padding(
                 EdgeInsets::symmetric(horizontal: Tokens::SPACE_MD),
-                new RenderCenter(RenderFlex::row([
-                    new Flexible(new RenderText($displayText, Tokens::TEXT_BODY, $displayColor->toHex())),
-                    new RenderIcon('expand_more', 20, Tokens::inkMuted()->toHex()),
+                new Center(Flex::row([
+                    new Flexible(new Text($displayText, Tokens::TEXT_BODY, $displayColor->toHex())),
+                    new Icon('expand_more', 20, Tokens::inkMuted()->toHex()),
                 ], crossAxisAlignment: CrossAxisAlignment::CENTER)),
             ),
             height: $height,
@@ -52,7 +52,7 @@ final class NativeSelectBox implements RenderNode
             borderWidth: 1.0,
         );
 
-        $this->content = new RenderTappable($box, "select:{$name}", ['options' => $options, 'selected' => $selected]);
+        $this->content = new Tappable($box, "select:{$name}", ['options' => $options, 'selected' => $selected]);
     }
 
     public function layout(Constraints $constraints): Size
@@ -60,7 +60,7 @@ final class NativeSelectBox implements RenderNode
         return $this->content->layout($constraints);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->content->paint($canvas, $x, $y);
     }

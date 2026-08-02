@@ -28,22 +28,22 @@ namespace Engine\Native;
  * height version would need either a client-reported per-item height
  * cache or an estimate-then-correct scheme; out of scope here.
  *
- * $scrollY/$viewportHeight are NativeScaffold/NativeCanvas::setScrollFollow()'s
+ * $scrollY/$viewportHeight are Scaffold/Canvas::setScrollFollow()'s
  * responsibility to wire up — see NativeListScreen-style call sites: read
  * $_GET['scroll_y'] (NativeRenderPocActivity reports it on every fetch),
  * pass it here, and call $canvas->setScrollFollow() so the client
  * re-fetches as the user scrolls near the edge of the loaded window
  * instead of only building the first screenful once.
  */
-final class RenderLazyList implements RenderNode
+final class LazyList implements Widget
 {
     private Size $size;
 
-    /** @var array<int, RenderNode> */
+    /** @var array<int, Widget> */
     private array $builtItems = [];
 
     /**
-     * @param callable(int): RenderNode $itemBuilder
+     * @param callable(int): Widget $itemBuilder
      */
     public function __construct(
         private readonly int $itemCount,
@@ -74,7 +74,7 @@ final class RenderLazyList implements RenderNode
         return $this->size;
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         foreach ($this->builtItems as $index => $item) {
             $item->paint($canvas, $x, $y + $index * $this->itemHeight);

@@ -6,26 +6,26 @@ use Engine\Color;
 use Engine\Native\Alignment;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
-use Engine\Native\NativeAppBar;
-use Engine\Native\NativeButton;
-use Engine\Native\NativeDivider;
-use Engine\Native\NativePageView;
-use Engine\Native\NativeScaffold;
-use Engine\Native\NativeTable;
-use Engine\Native\RenderAlign;
-use Engine\Native\RenderAnimated;
-use Engine\Native\RenderCenter;
-use Engine\Native\RenderContainer;
-use Engine\Native\RenderCustomPaint;
-use Engine\Native\RenderFlex;
-use Engine\Native\RenderHero;
-use Engine\Native\RenderNode;
-use Engine\Native\RenderPadding;
-use Engine\Native\RenderPositioned;
-use Engine\Native\RenderStack;
-use Engine\Native\RenderTappable;
-use Engine\Native\RenderText;
-use Engine\Native\RenderWrap;
+use Engine\Native\AppBar;
+use Engine\Native\Button;
+use Engine\Native\Divider;
+use Engine\Native\PageView;
+use Engine\Native\Scaffold;
+use Engine\Native\Table;
+use Engine\Native\Align;
+use Engine\Native\Animated;
+use Engine\Native\Center;
+use Engine\Native\Container;
+use Engine\Native\CustomPaint;
+use Engine\Native\Flex;
+use Engine\Native\Hero;
+use Engine\Native\Widget;
+use Engine\Native\Padding;
+use Engine\Native\Positioned;
+use Engine\Native\Stack;
+use Engine\Native\Tappable;
+use Engine\Native\Text;
+use Engine\Native\Wrap;
 use Engine\Native\Tokens;
 
 /**
@@ -41,75 +41,75 @@ use Engine\Native\Tokens;
  * new or removed already eases in/out, the same effect FadeIn exists for,
  * just applied screen-wide instead of per-element.
  *
- * Hero (RenderHero) and AnimatedContainer (RenderAnimated) are the SAME
+ * Hero (Hero) and AnimatedContainer (Animated) are the SAME
  * primitive at the Kotlin level: both tag a subtree by key
- * (NativeCanvas::beginHero()/endHero(), heroRegions in the JSON payload)
+ * (Canvas::beginHero()/endHero(), heroRegions in the JSON payload)
  * and NativeCanvasView.kt's drawHeroTransition() flies that subtree from
  * its old rect to its new one via a Matrix, interpolating each command's
  * own geometry/color fields too (not just the outer rect) — so a
  * background color or radius change eases smoothly, not just position and
- * size. RenderHero is for a cross-screen navigation; RenderAnimated is
+ * size. Hero is for a cross-screen navigation; Animated is
  * the same mechanism used locally, for "this element looks different now,
  * ease into it" — Flutter's AnimatedContainer/AnimatedPositioned/
  * AnimatedOpacity unified into one implicit-animation primitive.
  */
 final class NativeWidgetsLayoutScreen
 {
-    public static function build(float $screenWidth, float $screenHeight): RenderNode
+    public static function build(float $screenWidth, float $screenHeight): Widget
     {
         $contentWidth = $screenWidth - 2 * Tokens::SPACE_XL;
         $layoutPage = (int) ($_GET['layout_page'] ?? '0');
         $heroOpen = ($_GET['hero_open'] ?? '') === '1';
         $animatedOpen = ($_GET['animated_open'] ?? '') === '1';
 
-        $caption = static fn (string $text): RenderNode => new RenderPadding(
+        $caption = static fn (string $text): Widget => new Padding(
             EdgeInsets::only(top: Tokens::SPACE_LG, bottom: Tokens::SPACE_SM),
-            new RenderText($text, Tokens::TEXT_CAPTION, Tokens::inkMuted()->toHex(), bold: true, letterSpacing: 0.04),
+            new Text($text, Tokens::TEXT_CAPTION, Tokens::inkMuted()->toHex(), bold: true, letterSpacing: 0.04),
         );
 
-        $tag = static fn (string $label, ?Color $background = null): RenderNode => new RenderContainer(
-            new RenderPadding(EdgeInsets::symmetric(horizontal: Tokens::SPACE_MD, vertical: Tokens::SPACE_SM), new RenderText($label, Tokens::TEXT_BODY_SMALL, Color::white()->toHex())),
+        $tag = static fn (string $label, ?Color $background = null): Widget => new Container(
+            new Padding(EdgeInsets::symmetric(horizontal: Tokens::SPACE_MD, vertical: Tokens::SPACE_SM), new Text($label, Tokens::TEXT_BODY_SMALL, Color::white()->toHex())),
             background: $background ?? Tokens::ink(),
             radius: Tokens::RADIUS_SM,
         );
 
-        $body = new RenderContainer(
-            new RenderPadding(
+        $body = new Container(
+            new Padding(
                 EdgeInsets::all(Tokens::SPACE_XL),
-                RenderFlex::column([
+                Flex::column([
                     $caption('Align — un enfant positionné dans une zone plus grande'),
-                    new RenderContainer(new RenderAlign(new RenderText('coin', Tokens::TEXT_BODY, Color::white()->toHex()), Alignment::BOTTOM_RIGHT), width: $contentWidth, height: 96, background: Color::blue(600), radius: Tokens::RADIUS_MD),
+                    new Container(new Align(new Text('coin', Tokens::TEXT_BODY, Color::white()->toHex()), Alignment::BOTTOM_RIGHT), width: $contentWidth, height: 96, background: Color::blue(600), radius: Tokens::RADIUS_MD),
 
                     $caption('Center — centre un seul enfant'),
-                    new RenderContainer(new RenderCenter(new RenderText('centré', Tokens::TEXT_BODY, Color::white()->toHex())), width: $contentWidth, height: 96, background: Color::blue(600), radius: Tokens::RADIUS_MD),
+                    new Container(new Center(new Text('centré', Tokens::TEXT_BODY, Color::white()->toHex())), width: $contentWidth, height: 96, background: Color::blue(600), radius: Tokens::RADIUS_MD),
 
                     $caption('Container — padding + fond + coins arrondis'),
-                    new RenderContainer(new RenderPadding(EdgeInsets::all(Tokens::SPACE_LG), new RenderText('Contenu', Tokens::TEXT_BODY, Tokens::ink()->toHex())), width: $contentWidth, background: Tokens::surfaceMuted(), radius: Tokens::RADIUS_LG),
+                    new Container(new Padding(EdgeInsets::all(Tokens::SPACE_LG), new Text('Contenu', Tokens::TEXT_BODY, Tokens::ink()->toHex())), width: $contentWidth, background: Tokens::surfaceMuted(), radius: Tokens::RADIUS_LG),
 
                     $caption('Row — enfants alignés horizontalement'),
-                    RenderFlex::row([$tag('1'), new RenderPadding(EdgeInsets::only(left: Tokens::SPACE_SM), $tag('2')), new RenderPadding(EdgeInsets::only(left: Tokens::SPACE_SM), $tag('3'))]),
+                    Flex::row([$tag('1'), new Padding(EdgeInsets::only(left: Tokens::SPACE_SM), $tag('2')), new Padding(EdgeInsets::only(left: Tokens::SPACE_SM), $tag('3'))]),
 
                     $caption('Margin / Padding — espacement autour ou dedans'),
-                    new RenderContainer(new RenderPadding(EdgeInsets::all(Tokens::SPACE_MD), $tag('espacé')), width: $contentWidth, background: Tokens::surfaceMuted(), radius: Tokens::RADIUS_LG),
+                    new Container(new Padding(EdgeInsets::all(Tokens::SPACE_MD), $tag('espacé')), width: $contentWidth, background: Tokens::surfaceMuted(), radius: Tokens::RADIUS_LG),
 
                     $caption('Table'),
-                    new NativeTable(
+                    new Table(
                         rows: [['Casque sans fil', '89,90 €'], ['Montre connectée', '149,00 €']],
                         headers: ['Produit', 'Prix'],
                     ),
 
                     $caption('Stack / Positioned — superposition libre (badge en incrustation)'),
-                    new RenderStack([
-                        new RenderContainer(width: $contentWidth, height: 96, background: Color::blue(600), radius: Tokens::RADIUS_MD),
-                        new RenderPositioned(
-                            new RenderContainer(new RenderPadding(EdgeInsets::symmetric(horizontal: 6, vertical: 2), new RenderText('3', Tokens::TEXT_CAPTION, Color::white()->toHex(), bold: true)), background: Color::red(600), radius: Tokens::RADIUS_PILL),
+                    new Stack([
+                        new Container(width: $contentWidth, height: 96, background: Color::blue(600), radius: Tokens::RADIUS_MD),
+                        new Positioned(
+                            new Container(new Padding(EdgeInsets::symmetric(horizontal: 6, vertical: 2), new Text('3', Tokens::TEXT_CAPTION, Color::white()->toHex(), bold: true)), background: Color::red(600), radius: Tokens::RADIUS_PILL),
                             top: 8.0,
                             right: 8.0,
                         ),
                     ]),
 
                     $caption('Wrap — enfants qui passent à la ligne au lieu de déborder'),
-                    new RenderWrap([
+                    new Wrap([
                         $tag('tag-un', Color::of('purple', 600)),
                         $tag('tag-deux', Color::of('purple', 600)),
                         $tag('tag-trois', Color::of('purple', 600)),
@@ -118,38 +118,38 @@ final class NativeWidgetsLayoutScreen
                     ]),
 
                     $caption('Button — background/foreground typés'),
-                    RenderFlex::row([
-                        new NativeButton('Emerald', 'noop', background: Color::of('emerald', 600)),
-                        new RenderPadding(EdgeInsets::only(left: Tokens::SPACE_MD), new NativeButton('Jaune', 'noop', background: Color::of('yellow', 300), foreground: Color::slate(900))),
+                    Flex::row([
+                        new Button('Emerald', 'noop', background: Color::of('emerald', 600)),
+                        new Padding(EdgeInsets::only(left: Tokens::SPACE_MD), new Button('Jaune', 'noop', background: Color::of('yellow', 300), foreground: Color::slate(900))),
                     ]),
 
                     $caption('Canvas — rect/circle/line/text, dessin unique au montage'),
-                    RenderCustomPaint::make(200, 100)
+                    CustomPaint::make(200, 100)
                         ->rect(0, 0, 60, 100, '#2563eb')
                         ->circle(100, 50, 30, '#16a34a')
                         ->line(140, 10, 190, 90, '#dc2626', 3)
                         ->text(10, 95, 'Canvas', '#111827'),
                     $caption('PageView — pagination réelle par tap (dots + chevrons)'),
-                    new NativePageView([
-                        new RenderContainer(new RenderCenter(new RenderText('Page A', Tokens::TEXT_BODY, Color::white()->toHex())), background: Color::blue(600), radius: Tokens::RADIUS_MD),
-                        new RenderContainer(new RenderCenter(new RenderText('Page B', Tokens::TEXT_BODY, Color::white()->toHex())), background: Color::green(600), radius: Tokens::RADIUS_MD),
-                        new RenderContainer(new RenderCenter(new RenderText('Page C', Tokens::TEXT_BODY, Color::white()->toHex())), background: Color::of('purple', 600), radius: Tokens::RADIUS_MD),
+                    new PageView([
+                        new Container(new Center(new Text('Page A', Tokens::TEXT_BODY, Color::white()->toHex())), background: Color::blue(600), radius: Tokens::RADIUS_MD),
+                        new Container(new Center(new Text('Page B', Tokens::TEXT_BODY, Color::white()->toHex())), background: Color::green(600), radius: Tokens::RADIUS_MD),
+                        new Container(new Center(new Text('Page C', Tokens::TEXT_BODY, Color::white()->toHex())), background: Color::of('purple', 600), radius: Tokens::RADIUS_MD),
                     ], $layoutPage, 'layout_page'),
 
-                    new NativeDivider(),
+                    new Divider(),
                     $caption('Hero — FLIP réel par élément (tape pour agrandir)'),
                     $heroOpen
-                        ? new RenderTappable(
-                            new RenderHero(
-                                new RenderContainer(new RenderCenter(new RenderText('hero', Tokens::TEXT_TITLE, Color::white()->toHex(), bold: true)), width: $contentWidth, height: 160, background: Color::of('purple', 600), radius: Tokens::RADIUS_LG),
+                        ? new Tappable(
+                            new Hero(
+                                new Container(new Center(new Text('hero', Tokens::TEXT_TITLE, Color::white()->toHex(), bold: true)), width: $contentWidth, height: 160, background: Color::of('purple', 600), radius: Tokens::RADIUS_LG),
                                 'layout-hero-demo',
                             ),
                             'toggle:hero_open',
                             ['next' => '0'],
                         )
-                        : new RenderTappable(
-                            new RenderHero(
-                                new RenderContainer(new RenderCenter(new RenderText('hero', Tokens::TEXT_BODY_SMALL, Color::white()->toHex(), bold: true)), width: 72, height: 40, background: Color::of('purple', 600), radius: Tokens::RADIUS_SM),
+                        : new Tappable(
+                            new Hero(
+                                new Container(new Center(new Text('hero', Tokens::TEXT_BODY_SMALL, Color::white()->toHex(), bold: true)), width: 72, height: 40, background: Color::of('purple', 600), radius: Tokens::RADIUS_SM),
                                 'layout-hero-demo',
                             ),
                             'toggle:hero_open',
@@ -158,17 +158,17 @@ final class NativeWidgetsLayoutScreen
 
                     $caption('AnimatedContainer — taille + couleur + rayon, tous animés (tape pour agrandir)'),
                     $animatedOpen
-                        ? new RenderTappable(
-                            new RenderAnimated(
-                                new RenderContainer(width: $contentWidth, height: 140, background: Color::of('emerald', 600), radius: Tokens::RADIUS_LG),
+                        ? new Tappable(
+                            new Animated(
+                                new Container(width: $contentWidth, height: 140, background: Color::of('emerald', 600), radius: Tokens::RADIUS_LG),
                                 'layout-animated-demo',
                             ),
                             'toggle:animated_open',
                             ['next' => '0'],
                         )
-                        : new RenderTappable(
-                            new RenderAnimated(
-                                new RenderContainer(width: 96, height: 48, background: Color::of('orange', 600), radius: Tokens::RADIUS_SM),
+                        : new Tappable(
+                            new Animated(
+                                new Container(width: 96, height: 48, background: Color::of('orange', 600), radius: Tokens::RADIUS_SM),
                                 'layout-animated-demo',
                             ),
                             'toggle:animated_open',
@@ -180,11 +180,11 @@ final class NativeWidgetsLayoutScreen
             background: Tokens::surfaceMuted(),
         );
 
-        return new NativeScaffold(
+        return new Scaffold(
             $body,
             $screenWidth,
             $screenHeight,
-            appBar: new NativeAppBar($screenWidth, 'Mise en page', backAction: 'back'),
+            appBar: new AppBar($screenWidth, 'Mise en page', backAction: 'back'),
         );
     }
 }

@@ -20,7 +20,7 @@ namespace Engine\Native;
  * the layout engine reserves the box immediately, the bitmap fills it
  * once the async load finishes.
  */
-final class RenderImage implements RenderNode
+final class Image implements Widget
 {
     public function __construct(
         private readonly string $url,
@@ -35,7 +35,7 @@ final class RenderImage implements RenderNode
         return $constraints->constrain(new Size($this->width, $this->height));
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $canvas->image($x, $y, $this->width, $this->height, $this->url, $this->radius);
     }

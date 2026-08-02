@@ -5,29 +5,29 @@ PhpNitro rend sur un vrai `android.graphics.Canvas` (Skia), pas sur une WebView 
 ## Le cycle : PHP calcule, Kotlin rejoue
 
 1. `NativeRenderPocActivity` (Kotlin) fait une requête `GET /native/layout-demo?screen=...&width=...&height=...` vers le serveur PHP embarqué (`php -S` en dev, un process PHP intégré sur device).
-2. `public/index.php` route vers `lib/pages/app/Native*Screen.php::build($screenWidth, $screenHeight)`, qui retourne un arbre de `RenderNode` (`packages/ui/src/Native/`).
+2. `public/index.php` route vers `lib/pages/app/Native*Screen.php::build($screenWidth, $screenHeight)`, qui retourne un arbre de `Widget` (`packages/ui/src/Native/`).
 3. Le moteur de layout fait UNE passe descendante : chaque nœud reçoit des `Constraints` (min/max largeur/hauteur, exactement `Flutter`'s `BoxConstraints`) et retourne la `Size` qu'il occupe.
-4. Une passe de peinture parcourt le même arbre et append des commandes de dessin plates (`{"type":"rect",...}`, `{"type":"text",...}`) dans un `NativeCanvas`, en coordonnées absolues.
-5. `NativeCanvas::toJson()` sérialise `{commands, hitRegions, heroRegions, dismissRegions, contentHeight, ...}` — une seule réponse JSON.
+4. Une passe de peinture parcourt le même arbre et append des commandes de dessin plates (`{"type":"rect",...}`, `{"type":"text",...}`) dans un `Canvas`, en coordonnées absolues.
+5. `Canvas::toJson()` sérialise `{commands, hitRegions, heroRegions, dismissRegions, contentHeight, ...}` — une seule réponse JSON.
 6. `NativeCanvasView.kt` parse cette réponse et rejoue les commandes sur un vrai `Canvas` dans `onDraw()`.
 
 **Chaque interaction refait ce cycle.** Un tap sur un bouton envoie une nouvelle requête HTTP avec `action=...`, PHP recalcule tout l'écran (souvent en quelques millisecondes — `renderTimeMs` est renvoyé dans chaque réponse), et le client rejoue le nouveau jeu de commandes. Pas de diffing d'arbre virtuel côté client, pas d'état PHP qui survit entre deux requêtes (chaque requête est un process PHP indépendant) — tout ce qui doit persister vit dans `$_SESSION`, `Engine\Preferences\Preferences`, ou une vraie base de données.
 
-## RenderNode : l'unique contrat
+## Widget : l'unique contrat
 
 ```php
-interface RenderNode
+interface Widget
 {
     public function layout(Constraints $constraints): Size;
-    public function paint(NativeCanvas $canvas, float $x, float $y): void;
+    public function paint(Canvas $canvas, float $x, float $y): void;
 }
 ```
 
-Tout widget est une classe qui implémente ça — un `RenderContainer`, un `RenderFlex::row([...])`, un `NativeButton`, un écran entier. `layout()` doit être appelé avant `paint()` (le nœud calcule et met en cache sa propre taille) ; c'est ce qui permet à `paint()` de connaître sa propre largeur/hauteur sans la recalculer. Voir [docs/widgets.md](widgets.md) pour le catalogue complet.
+Tout widget est une classe qui implémente ça — un `Container`, un `Flex::row([...])`, un `Button`, un écran entier. `layout()` doit être appelé avant `paint()` (le nœud calcule et met en cache sa propre taille) ; c'est ce qui permet à `paint()` de connaître sa propre largeur/hauteur sans la recalculer. Voir [docs/widgets.md](widgets.md) pour le catalogue complet.
 
 ## Actions : pas de callback, une chaîne
 
-Un widget interactif (`NativeButton`, `RenderTappable`, `NativeListTile`) prend une chaîne `$action`, enregistrée comme "hit region" (rect + action) via `NativeCanvas::hitRegion()`. Au tap, `NativeCanvasView.kt` fait le hit-test côté client (pas de round-trip juste pour savoir "qu'est-ce qui a été touché"), puis appelle `NativeRenderPocActivity.onTap(action, ...)`, qui reconnaît un préfixe connu :
+Un widget interactif (`Button`, `Tappable`, `ListTile`) prend une chaîne `$action`, enregistrée comme "hit region" (rect + action) via `Canvas::hitRegion()`. Au tap, `NativeCanvasView.kt` fait le hit-test côté client (pas de round-trip juste pour savoir "qu'est-ce qui a été touché"), puis appelle `NativeRenderPocActivity.onTap(action, ...)`, qui reconnaît un préfixe connu :
 
 | Préfixe | Effet |
 |---|---|
@@ -48,21 +48,21 @@ if ($action === 'home_increment') {
 }
 
 // Dans l'écran :
-new NativeButton('+1', 'home_increment')
+new Button('+1', 'home_increment')
 ```
 
 ## Gestes continus : Kotlin ne round-trip pas tout
 
-La plupart des interactions (tap, sélection) valent un aller-retour réseau — elles ne se produisent pas assez souvent pour que la latence se voie. Un glisser (`RenderDismissible`) est différent : PHP ne voit jamais le geste lui-même, seulement son résultat. `NativeCanvasView.kt` traque le doigt entièrement côté client (translation live des commandes, zéro requête par frame) et n'appelle `onAction` qu'une fois le geste validé au relâchement. Voir [docs/widgets.md#gestes](widgets.md#gestes).
+La plupart des interactions (tap, sélection) valent un aller-retour réseau — elles ne se produisent pas assez souvent pour que la latence se voie. Un glisser (`Dismissible`) est différent : PHP ne voit jamais le geste lui-même, seulement son résultat. `NativeCanvasView.kt` traque le doigt entièrement côté client (translation live des commandes, zéro requête par frame) et n'appelle `onAction` qu'une fois le geste validé au relâchement. Voir [docs/widgets.md#gestes](widgets.md#gestes).
 
 ## Animations : deux mécanismes, une seule primitive Kotlin
 
 - **Crossfade d'écran** : à chaque `setCommands()`, l'ancien jeu de commandes et le nouveau sont fondus l'un dans l'autre (`fadeProgress`) — automatique, aucun widget à écrire.
-- **FLIP par élément** (`RenderHero`/`RenderAnimated`) : un sous-arbre tagué par une clé stable enregistre son rectangle englobant (`NativeCanvas::beginHero()`) ; si la même clé apparaît à un rectangle différent au rendu suivant, `NativeCanvasView.kt` fait voler ce sous-arbre de l'ancien rectangle au nouveau via une `Matrix`, en interpolant aussi couleur/rayon/bordure de chaque commande individuelle — pas juste la position globale. `RenderHero` est pensé pour une navigation entre écrans, `RenderAnimated` pour un changement local (l'équivalent unifié de `AnimatedContainer`/`AnimatedPositioned`/`AnimatedOpacity` de Flutter).
+- **FLIP par élément** (`Hero`/`Animated`) : un sous-arbre tagué par une clé stable enregistre son rectangle englobant (`Canvas::beginHero()`) ; si la même clé apparaît à un rectangle différent au rendu suivant, `NativeCanvasView.kt` fait voler ce sous-arbre de l'ancien rectangle au nouveau via une `Matrix`, en interpolant aussi couleur/rayon/bordure de chaque commande individuelle — pas juste la position globale. `Hero` est pensé pour une navigation entre écrans, `Animated` pour un changement local (l'équivalent unifié de `AnimatedContainer`/`AnimatedPositioned`/`AnimatedOpacity` de Flutter).
 
 ## Listes longues : fenêtre, pas tout
 
-`RenderLazyList` ne construit/peint que les items dans une fenêtre autour du `scrollY` courant (buffer de 2 hauteurs d'écran de chaque côté), mais annonce la hauteur virtuelle COMPLÈTE (`itemCount * itemHeight`) comme sa propre `Size` — le scroll reste fluide côté client sur toute la plage, et `NativeCanvas::setScrollFollow()` dit au client de re-fetcher en approchant du bord de ce qui est réellement chargé.
+`LazyList` ne construit/peint que les items dans une fenêtre autour du `scrollY` courant (buffer de 2 hauteurs d'écran de chaque côté), mais annonce la hauteur virtuelle COMPLÈTE (`itemCount * itemHeight`) comme sa propre `Size` — le scroll reste fluide côté client sur toute la plage, et `Canvas::setScrollFollow()` dit au client de re-fetcher en approchant du bord de ce qui est réellement chargé.
 
 ## Ce qui reste WebView (legacy, en voie de disparition)
 

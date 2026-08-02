@@ -14,8 +14,8 @@ namespace Engine\Native;
 /**
  * Flutter's Curves class, the small subset with a direct built-in Android
  * Interpolator equivalent (see NativeCanvasView.kt's curveInterpolator()).
- * Threaded through RenderHero/RenderAnimated into
- * NativeCanvas::beginHero()'s $curve — every hero flight already runs on
+ * Threaded through Hero/Animated into
+ * Canvas::beginHero()'s $curve — every hero flight already runs on
  * one shared, linear-time ValueAnimator (NativeCanvasView.kt's
  * startHeroTransition()), so a per-tag curve is applied by reshaping that
  * same 0..1 progress value at draw time (drawHeroTransition()), not by

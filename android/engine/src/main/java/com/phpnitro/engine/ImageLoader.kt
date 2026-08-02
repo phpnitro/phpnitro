@@ -11,7 +11,7 @@ import java.net.URL
 import kotlin.concurrent.thread
 
 /**
- * Minimal network image loader for RenderImage.php's "image" draw
+ * Minimal network image loader for Image.php's "image" draw
  * command — no Glide/Coil dependency added just for this. An in-memory
  * LRU cache (~24 decoded bitmaps, not bytes — this view never shows more
  * than a handful of images at once) keyed by URL, one background thread

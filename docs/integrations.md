@@ -2,7 +2,7 @@
 
 ## Cartes
 
-`packages/maps/` (le widget HTML `Maps\MapView`/`OsmMap`/`MapboxMap`/`GoogleMap`) a été supprimé une fois remplacé par un vrai widget natif : `Engine\Native\NativeMapView`, une véritable `org.osmdroid.views.MapView` overlayée au tap (tuiles OpenStreetMap réelles, pan/zoom natif, aucune clé API). Voir [docs/widgets.md](widgets.md).
+`packages/maps/` (le widget HTML `Maps\MapView`/`OsmMap`/`MapboxMap`/`GoogleMap`) a été supprimé une fois remplacé par un vrai widget natif : `Engine\Native\MapView`, une véritable `org.osmdroid.views.MapView` overlayée au tap (tuiles OpenStreetMap réelles, pan/zoom natif, aucune clé API). Voir [docs/widgets.md](widgets.md).
 
 ## Firebase
 
@@ -38,7 +38,7 @@ Données dérivées de deux jeux de données ouverts, licences documentées dans
 
 ## Authentification sociale
 
-`packages/socialauth/` (7 fournisseurs OAuth2 — Google, Microsoft, GitHub, Slack, Facebook, X, Apple) a été supprimé : c'était un service attaché à `Button::make()`, le widget Tailwind supprimé avec la bascule vers le rendu natif, et il n'avait plus aucun appelant. Pas encore reconstruit en natif — un vrai chantier futur (flux OAuth2 déclenché depuis un `NativeButton`, callback géré côté PHP comme avant) plutôt qu'une résurrection de l'ancien code. Voir [ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md](../ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md).
+`packages/socialauth/` (7 fournisseurs OAuth2 — Google, Microsoft, GitHub, Slack, Facebook, X, Apple) a été supprimé : c'était un service attaché à `Button::make()`, le widget Tailwind supprimé avec la bascule vers le rendu natif, et il n'avait plus aucun appelant. Pas encore reconstruit en natif — un vrai chantier futur (flux OAuth2 déclenché depuis un `Button`, callback géré côté PHP comme avant) plutôt qu'une résurrection de l'ancien code.
 
 ## Formats (nombres, devises, dates)
 

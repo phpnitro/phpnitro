@@ -76,18 +76,18 @@ function pageTemplate(string $className): string
 
     namespace Engine\App;
 
-    use Engine\Native\NativeScaffold;
-    use Engine\Native\RenderCenter;
-    use Engine\Native\RenderNode;
-    use Engine\Native\RenderText;
+    use Engine\Native\Scaffold;
+    use Engine\Native\Center;
+    use Engine\Native\Widget;
+    use Engine\Native\Text;
     use Engine\Native\Tokens;
 
     final class {$className}
     {
-        public static function build(float \$screenWidth, float \$screenHeight): RenderNode
+        public static function build(float \$screenWidth, float \$screenHeight): Widget
         {
-            return new NativeScaffold(
-                new RenderCenter(new RenderText('{$className}', Tokens::TEXT_TITLE, Tokens::ink()->toHex(), bold: true)),
+            return new Scaffold(
+                new Center(new Text('{$className}', Tokens::TEXT_TITLE, Tokens::ink()->toHex(), bold: true)),
                 \$screenWidth,
                 \$screenHeight,
             );
@@ -1061,7 +1061,7 @@ function minimalKernelTemplate(): string
  * the developer hasn't written yet — actually needs: dp width/height (and
  * MediaQuery::init(), so a widget nested under the screen's own build()
  * can still read it), ?action=/?scroll_y= passthrough, and the
- * incremental-rendering "unchanged" short-circuit (NativeCanvas::
+ * incremental-rendering "unchanged" short-circuit (Canvas::
  * stableHash()). Demo-specific bootstrapping (session-seeded lists,
  * multi-step form state, third-party auth error strings) belongs in a
  * developer's OWN screen, not this route — see any Native*Screen.php this
@@ -1095,7 +1095,7 @@ function minimalLayoutDemoRoute(): string
 
         $contentSize = $tree->layout(new Constraints($screenWidth, $screenWidth, 0, Constraints::INFINITY));
 
-        $canvas = new NativeCanvas();
+        $canvas = new Canvas();
         $canvas->setContentHeight($contentSize->height);
         $tree->paint($canvas, 0, 0);
         $canvas->setRenderTimeMs((microtime(true) - $renderStart) * 1000);
@@ -1125,18 +1125,18 @@ function nativeHomeScreenTemplate(): string
 
     namespace Engine\App;
 
-    use Engine\Native\NativeScaffold;
-    use Engine\Native\RenderCenter;
-    use Engine\Native\RenderNode;
-    use Engine\Native\RenderText;
+    use Engine\Native\Scaffold;
+    use Engine\Native\Center;
+    use Engine\Native\Widget;
+    use Engine\Native\Text;
     use Engine\Native\Tokens;
 
     final class NativeHomeScreen
     {
-        public static function build(float $screenWidth, float $screenHeight): RenderNode
+        public static function build(float $screenWidth, float $screenHeight): Widget
         {
-            return new NativeScaffold(
-                new RenderCenter(new RenderText('Bienvenue sur PhpNitro', Tokens::TEXT_TITLE, Tokens::ink()->toHex(), bold: true)),
+            return new Scaffold(
+                new Center(new Text('Bienvenue sur PhpNitro', Tokens::TEXT_TITLE, Tokens::ink()->toHex(), bold: true)),
                 $screenWidth,
                 $screenHeight,
             );

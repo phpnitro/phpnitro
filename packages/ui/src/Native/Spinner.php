@@ -15,12 +15,12 @@ use Engine\Color;
 
 /**
  * Flutter's CircularProgressIndicator() with no `value` — an indeterminate
- * spinner that keeps rotating on its own, unlike NativeCircularProgress
+ * spinner that keeps rotating on its own, unlike CircularProgress
  * which needs a real percent recomputed every render. See
- * NativeCanvas::spinner()'s docblock for how a request/response pipeline
+ * Canvas::spinner()'s docblock for how a request/response pipeline
  * expresses "keep animating with nobody asking again."
  */
-final class RenderSpinner implements RenderNode
+final class Spinner implements Widget
 {
     private Size $size;
 
@@ -39,7 +39,7 @@ final class RenderSpinner implements RenderNode
         return $this->size;
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $strokeWidth = max(2.0, $this->diameter / 12);
         $canvas->spinner(

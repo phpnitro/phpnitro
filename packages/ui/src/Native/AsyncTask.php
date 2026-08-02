@@ -24,7 +24,7 @@ namespace Engine\Native;
  * uses), run by public/async-runner.php as its own process.
  *
  * poll() is called every render of whatever screen wants the result —
- * see RenderAsync, which is the actual widget-level API. Three states:
+ * see Async, which is the actual widget-level API. Three states:
  * no result file yet and nothing running -> spawn it, report pending;
  * a lock file but no result yet -> still pending, don't spawn twice;
  * a result file -> done (or error), read and return it.

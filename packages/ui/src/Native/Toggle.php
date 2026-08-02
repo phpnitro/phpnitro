@@ -15,36 +15,36 @@ use Engine\Color;
 
 /**
  * The native-tree equivalent of Engine\SwitchToggle — same "next" meta +
- * shared "toggle:" handler as NativeCheckbox, just a pill track with an
+ * shared "toggle:" handler as Checkbox, just a pill track with an
  * offset knob instead of a check mark. The knob's position is drawn
  * directly from the current $on value (no animation — a fresh render
  * always reflects the true state, same one-shot-paint contract every
  * other native widget has).
  */
-final class NativeSwitch implements RenderNode
+final class Toggle implements Widget
 {
-    private readonly RenderNode $content;
+    private readonly Widget $content;
 
     public function __construct(string $name, string $label, bool $on = false, ?Color $activeColor = null, float $trackWidth = 44.0, float $trackHeight = 26.0)
     {
         $knobSize = $trackHeight - 4.0;
-        $knob = new RenderPositioned(
-            new RenderContainer(width: $knobSize, height: $knobSize, radius: $knobSize / 2, background: Color::white()),
+        $knob = new Positioned(
+            new Container(width: $knobSize, height: $knobSize, radius: $knobSize / 2, background: Color::white()),
             top: 2.0,
             left: $on ? $trackWidth - $knobSize - 2.0 : 2.0,
         );
 
-        $track = new RenderStack([
-            new RenderContainer(width: $trackWidth, height: $trackHeight, radius: $trackHeight / 2, background: $on ? ($activeColor ?? Tokens::ink()) : Tokens::border()),
+        $track = new Stack([
+            new Container(width: $trackWidth, height: $trackHeight, radius: $trackHeight / 2, background: $on ? ($activeColor ?? Tokens::ink()) : Tokens::border()),
             $knob,
         ]);
 
-        $row = RenderFlex::row([
+        $row = Flex::row([
             $track,
-            new RenderPadding(EdgeInsets::only(left: Tokens::SPACE_MD), new RenderText($label, Tokens::TEXT_BODY, Tokens::ink()->toHex())),
+            new Padding(EdgeInsets::only(left: Tokens::SPACE_MD), new Text($label, Tokens::TEXT_BODY, Tokens::ink()->toHex())),
         ], crossAxisAlignment: CrossAxisAlignment::CENTER);
 
-        $this->content = new RenderTappable($row, "toggle:{$name}", ['next' => $on ? '' : '1']);
+        $this->content = new Tappable($row, "toggle:{$name}", ['next' => $on ? '' : '1']);
     }
 
     public function layout(Constraints $constraints): Size
@@ -52,7 +52,7 @@ final class NativeSwitch implements RenderNode
         return $this->content->layout($constraints);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->content->paint($canvas, $x, $y);
     }

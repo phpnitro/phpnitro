@@ -83,14 +83,14 @@ class NativeRenderPocActivity : AppCompatActivity() {
     private var activeEditText: EditText? = null
     private val deviceBridge by lazy { NativeDeviceBridge(this) }
     private var firstScreenRendered = false
-    // NativeCanvas::stableHash() of the last response actually applied —
+    // Canvas::stableHash() of the last response actually applied —
     // sent back as lastHash= on the next same-screen refetch so PHP can
     // reply {"unchanged":true} instead of the whole payload when nothing
     // visible would change. Reset to null whenever a real navigation
     // happens (see refetch()'s isNavigation branches) so a fresh screen
     // never risks matching a stale hash from wherever the user was before.
     var lastAppliedHash: String? = null
-    // RenderSplash's timed self-navigation — a single handler reused across
+    // Splash's timed self-navigation — a single handler reused across
     // screens so a fresh scheduleAutoNavigate() call can always cancel
     // whatever the previous screen queued via the same instance.
     private val autoNavigateHandler = Handler(Looper.getMainLooper())
@@ -142,7 +142,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
         // PHPSESSID — java.net.HttpURLConnection never sends/stores cookies
         // on its own, and nothing else in this app ever installed a
         // CookieHandler. $_SESSION (auth_user, the stepper's step/data,
-        // RenderDismissible/RenderReorderable's demo state, anything a
+        // Dismissible/Reorderable's demo state, anything a
         // screen persists server-side) silently never actually persisted
         // across taps — caught only by testing on a real device, since
         // every curl-based verification this project's history used its
@@ -176,7 +176,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
         canvasView = NativeCanvasView(this)
         canvasView.density = resources.displayMetrics.density
         canvasView.onAction = { action, regionDp, meta -> onTap(action, regionDp, meta) }
-        // RenderLazyList screens: scrolled near the edge of the currently
+        // LazyList screens: scrolled near the edge of the currently
         // loaded window, re-fetch with the new scrollY so PHP can build
         // the next one. No screen state changes (action stays null), same
         // idiom as a plain re-render with the field values already held.
@@ -269,11 +269,11 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 fieldValues[action.removePrefix("toggle:")] = meta?.optString("next", "") ?: ""
                 refetch(action = null, includeFields = true)
             }
-            // RenderClientTabs — the tab selection lives entirely in
+            // ClientTabs — the tab selection lives entirely in
             // NativeCanvasView's own clientTabState, never PHP/session
             // state, so switching tabs never touches the network at all
             // (every panel's content already arrived in this same
-            // response). See NativeCanvas::clientTabPanel().
+            // response). See Canvas::clientTabPanel().
             action.startsWith("clientTab:") -> {
                 val (key, index) = action.removePrefix("clientTab:").split(":", limit = 2)
                 canvasView.setClientTab(key, index.toInt())
@@ -285,7 +285,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 screenStack.add(action.removePrefix("navigate:"))
                 refetch(action = null, isNavigation = true)
             }
-            // A NativeBottomNavigation tab switch — resets the whole stack
+            // A BottomNavigation tab switch — resets the whole stack
             // to that one screen instead of pushing, so hopping between
             // tabs repeatedly doesn't grow an ever-longer back stack the
             // way drilling into a real detail screen should.
@@ -305,9 +305,9 @@ class NativeRenderPocActivity : AppCompatActivity() {
     }
 
     // The options/message/title a select box or dialog needs travel in the
-    // hit region's meta (see NativeCanvas::hitRegion()'s $meta param) — no
+    // hit region's meta (see Canvas::hitRegion()'s $meta param) — no
     // second round-trip to PHP is needed just to know what to show. A pick
-    // is tracked the same way NativeTextField's typed value is: written
+    // is tracked the same way TextField's typed value is: written
     // into fieldValues and only read by PHP on the next refetch.
     private fun showSelectDialog(name: String, meta: JSONObject?) {
         val options = meta?.optJSONObject("options") ?: return
@@ -369,7 +369,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
     }
 
     // A real system dialog instead of a WebView hosting phpxDialogs.alert()'s
-    // JS confirm() shim — what NativeAlertButton exists to get for a native
+    // JS confirm() shim — what AlertButton exists to get for a native
     // app. No server round-trip needed, the message/title already travelled
     // in meta.
     private fun showAlertDialog(meta: JSONObject?) {
@@ -415,7 +415,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
 
     /**
      * A rounded white card (Tokens::RADIUS_LG, Tokens::SPACE_XL padding)
-     * with pill-shaped buttons matching NativeButton's own shape/colors
+     * with pill-shaped buttons matching Button's own shape/colors
      * (Tokens::ink() for a plain confirmation, Tokens::danger() for a
      * destructive one) — the stock AlertDialog chrome this replaced was
      * the one place in the app that still looked like generic Android UI
@@ -526,7 +526,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
     // API access same as WebAppInterface.kt does for the WebView path.
     // Capabilities that need to show a result (battery/deviceid) stash it
     // in fieldValues under the given output-field name — same mechanism
-    // NativeTextField uses, reusing "a value PHP reads via $_GET on the
+    // TextField uses, reusing "a value PHP reads via $_GET on the
     // next request" rather than inventing a second channel — and refetch
     // so the current screen re-renders with it. Fire-and-forget ones
     // (vibrate/torch) have no visible state in the screen, so no
@@ -676,7 +676,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
 
     // Also tears down any active video overlay — every navigate:/back/
     // tab:/submit: call site already calls this before moving to a
-    // different screen, so a playing NativeVideoPlayer doesn't keep
+    // different screen, so a playing VideoPlayer doesn't keep
     // playing (or leak its overlay View) underneath whatever renders next.
     private fun clearTextInput() {
         activeEditText?.let { rootLayout.removeView(it) }
@@ -687,7 +687,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
         clearMapOverlay()
     }
 
-    // RenderLottie: unlike the video/map overlays below (shown only on
+    // Lottie: unlike the video/map overlays below (shown only on
     // tap), a Lottie animation autoplays — this is reconciled after
     // EVERY setCommands(), not from onTap()'s dispatch.
     private val activeLottieViews = mutableMapOf<String, com.airbnb.lottie.LottieAnimationView>()
@@ -805,7 +805,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
     // surfacing the numbers this session's work only ever exposed as
     // logcat lines (PERF roundTripMs/phpRenderTimeMs) plus the new
     // engine-internals no log line covered at all — whether a refetch's
-    // output was skipped entirely (NativeCanvas::stableHash()'s
+    // output was skipped entirely (Canvas::stableHash()'s
     // "unchanged") and whether the redraw that followed was a partial
     // dirty-rect invalidate or a full one (NativeCanvasView's
     // computeDirtyRects()). Only ever constructed when isDebuggable() —
@@ -882,8 +882,8 @@ class NativeRenderPocActivity : AppCompatActivity() {
     // refetch (a toggle, a counter increment, a field update). Without
     // this split, EVERY tap fades the entire screen out and back in even
     // when only one piece of text changed, which reads as "the screen
-    // just reloaded" rather than "the counter went up" — RenderHero/
-    // RenderAnimated's per-element transitions are unaffected either way,
+    // just reloaded" rather than "the counter went up" — Hero/
+    // Animated's per-element transitions are unaffected either way,
     // since those are opt-in and driven by their own tag matching, not
     // this blanket fade.
     private fun refetch(action: String?, includeFields: Boolean = false, isNavigation: Boolean = false, isPoll: Boolean = false) {
@@ -914,7 +914,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
         val idParam = if (screenParam != null) "&id=${URLEncoder.encode(screenParam, "UTF-8")}" else ""
         val actionParam = if (action != null) "&action=${URLEncoder.encode(action, "UTF-8")}" else ""
         val onlineParam = "&online=${if (deviceBridge.isOnline()) 1 else 0}"
-        // RenderLazyList's windowed prefetch needs to know where the user
+        // LazyList's windowed prefetch needs to know where the user
         // actually is in the virtual list to build the right window —
         // harmless for every other screen, which simply never reads it.
         val scrollYParam = "&scroll_y=${canvasView.currentScrollYDp}"
@@ -926,12 +926,12 @@ class NativeRenderPocActivity : AppCompatActivity() {
         // Only sent for a same-screen refetch — a real navigation always
         // wants the fresh screen's full content regardless of what hash
         // happened to be lying around from wherever the user was before.
-        // Never sent for a poll (RenderAsync/NativeCanvas::pollAgain()):
+        // Never sent for a poll (Async/Canvas::pollAgain()):
         // the entire point of a poll is noticing that AsyncTask moved
         // from pending to done, so short-circuiting it to "unchanged"
         // the one time it might actually differ would silently stop the
         // polling loop — see scheduleTimedRefetch()'s pollAgain branch.
-        // See NativeCanvas::stableHash().
+        // See Canvas::stableHash().
         val lastHashParam = if (!isNavigation && !isPoll && lastAppliedHash != null) "&lastHash=$lastAppliedHash" else ""
         // Point 3 of the "grow the framework" pass: a real performance
         // number, not an intuition. roundTripMs is tap-to-parsed-frame —
@@ -991,14 +991,14 @@ class NativeRenderPocActivity : AppCompatActivity() {
         if (devToolsPanel != null) updateDevToolsPanel(screenStack.lastOrNull() ?: "?", wasUnchanged = false)
     }
 
-    // RenderSplash emits an "autoNavigate":{"screen":"...","afterMs":N}
+    // Splash emits an "autoNavigate":{"screen":"...","afterMs":N}
     // field so a splash screen can push itself to its target screen once
     // its animation has had time to play, without the user tapping
     // anything. Any previously queued jump is cancelled first — if this
     // same screen re-renders without the field (a real navigation already
     // happened, or a splash re-render came from something else), the stale
     // jump must not fire on top of wherever the user is now. Same handler
-    // (and same cancel-first discipline) covers RenderAsync's
+    // (and same cancel-first discipline) covers Async's
     // "pollAgain":N field — a poll never mutates screenStack, it just
     // refetches the SAME screen so AsyncTask::poll() gets asked again.
     // Only one of the two fields can ever be present in a given response

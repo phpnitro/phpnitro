@@ -14,13 +14,13 @@ namespace Engine\Native;
 /**
  * Children overlaid in paint order (later = on top), box sized to the
  * largest non-positioned child. Plain children stay top-left aligned;
- * RenderPositioned children are offset from whichever edges they specify
+ * Positioned children are offset from whichever edges they specify
  * once the stack's own size is known (needed for e.g. a corner badge).
  */
-final class RenderStack implements RenderNode
+final class Stack implements Widget
 {
     /**
-     * @var array<int, RenderNode>
+     * @var array<int, Widget>
      */
     private readonly array $children;
 
@@ -46,7 +46,7 @@ final class RenderStack implements RenderNode
         foreach ($this->children as $child) {
             $size = $child->layout($constraints->loosen());
             $this->childSizes[] = $size;
-            if (!$child instanceof RenderPositioned) {
+            if (!$child instanceof Positioned) {
                 $width = max($width, $size->width);
                 $height = max($height, $size->height);
             }
@@ -58,10 +58,10 @@ final class RenderStack implements RenderNode
         return $constraints->constrain(new Size($width, $height));
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         foreach ($this->children as $index => $child) {
-            if ($child instanceof RenderPositioned) {
+            if ($child instanceof Positioned) {
                 $child->paintIn($canvas, $x, $y, $this->width, $this->height, $this->childSizes[$index]);
                 continue;
             }

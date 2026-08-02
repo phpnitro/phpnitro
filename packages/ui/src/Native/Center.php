@@ -11,13 +11,13 @@
 
 namespace Engine\Native;
 
-final class RenderCenter implements RenderNode
+final class Center implements Widget
 {
     private float $childX = 0.0;
     private float $childY = 0.0;
 
     public function __construct(
-        private readonly RenderNode $child,
+        private readonly Widget $child,
     ) {
     }
 
@@ -34,7 +34,7 @@ final class RenderCenter implements RenderNode
         return $constraints->constrain(new Size($width, $height));
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->child->paint($canvas, $x + $this->childX, $y + $this->childY);
     }

@@ -12,18 +12,18 @@
 namespace Engine\Native;
 
 /**
- * RenderCenter generalized to any Alignment — RenderCenter stays as its
+ * Center generalized to any Alignment — Center stays as its
  * own class (it's the overwhelmingly common case and reads clearer at call
- * sites) rather than becoming `RenderAlign(..., Alignment::CENTER)`
+ * sites) rather than becoming `Align(..., Alignment::CENTER)`
  * everywhere.
  */
-final class RenderAlign implements RenderNode
+final class Align implements Widget
 {
     private float $childX = 0.0;
     private float $childY = 0.0;
 
     public function __construct(
-        private readonly RenderNode $child,
+        private readonly Widget $child,
         private readonly Alignment $alignment,
     ) {
     }
@@ -49,7 +49,7 @@ final class RenderAlign implements RenderNode
         return $constraints->constrain(new Size($width, $height));
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->child->paint($canvas, $x + $this->childX, $y + $this->childY);
     }

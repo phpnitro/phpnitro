@@ -16,10 +16,10 @@ use Engine\Color;
 /**
  * The native-tree equivalent of Engine\CircularProgress — a full-sweep
  * track arc plus a partial-sweep filled arc on top, both via
- * NativeCanvas::arc(). Starting at -90° (12 o'clock) matches the HTML
+ * Canvas::arc(). Starting at -90° (12 o'clock) matches the HTML
  * widget's `-rotate-90` SVG trick without needing a canvas-level rotation.
  */
-final class NativeCircularProgress implements RenderNode
+final class CircularProgress implements Widget
 {
     private readonly float $strokeWidth;
 
@@ -37,7 +37,7 @@ final class NativeCircularProgress implements RenderNode
         return $constraints->constrain(new Size($this->size, $this->size));
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $clamped = max(0.0, min(1.0, $this->percent));
         $center = $this->size / 2;

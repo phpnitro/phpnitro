@@ -3,7 +3,7 @@
 namespace Engine\App;
 
 /**
- * RenderAsync's demo handler — a deliberately slow computation (a real
+ * Async's demo handler — a deliberately slow computation (a real
  * sleep(), not a mocked delay) run by public/async-runner.php as its own
  * OS process. Must stay a plain static method with JSON-safe args/return:
  * AsyncTask ships the args as a JSON string and the runner calls this

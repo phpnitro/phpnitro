@@ -1,10 +1,10 @@
 # Capacités device & natif
 
-Chaque capacité passe par `device:<token>` comme `$action` d'un widget natif (`NativeButton`, `RenderTappable`...) — `NativeRenderPocActivity.handleDeviceAction()` (Kotlin) reconnaît le token et appelle `NativeDeviceBridge.kt` **directement**, zéro requête HTTP tant que le résultat n'a pas besoin d'être affiché. Un résultat qui doit apparaître à l'écran est écrit dans `fieldValues[name]` côté client puis renvoyé à PHP au prochain re-fetch (`refetch(action = null, includeFields = true)`) — le même mécanisme qu'une valeur de champ de formulaire.
+Chaque capacité passe par `device:<token>` comme `$action` d'un widget natif (`Button`, `Tappable`...) — `NativeRenderPocActivity.handleDeviceAction()` (Kotlin) reconnaît le token et appelle `NativeDeviceBridge.kt` **directement**, zéro requête HTTP tant que le résultat n'a pas besoin d'être affiché. Un résultat qui doit apparaître à l'écran est écrit dans `fieldValues[name]` côté client puis renvoyé à PHP au prochain re-fetch (`refetch(action = null, includeFields = true)`) — le même mécanisme qu'une valeur de champ de formulaire.
 
 ```php
-new NativeButton('Vibrer', 'device:vibrate');
-new NativeButton('Batterie', 'device:battery:battery_out', width: ...);
+new Button('Vibrer', 'device:vibrate');
+new Button('Batterie', 'device:battery:battery_out', width: ...);
 // $_GET['battery_out'] au prochain rendu contient le résultat
 ```
 
@@ -76,4 +76,4 @@ $online = deviceBridge.isOnline()  // Kotlin, ConnectivityManager réel
 
 - **Rapport d'erreurs** (`Engine\Diagnostics\CrashReporter`) — supprimé faute de consommateur, à réintroduire comme un simple `set_exception_handler()` + POST vers un endpoint, indépendant du reste.
 - **Deep linking** — le schéma `phpnitro://` existe côté `AndroidManifest.xml` mais n'a plus de `Router` HTTP à résoudre vers ; router un deep link vers un `screen=` natif est à refaire.
-- **Boîtes de dialogue génériques** — `NativeAlertButton`/`NativeConfirmButton` (voir [docs/widgets.md](widgets.md)) couvrent alert/confirm ; pas encore de bottom sheet natif ni de dialogue à formulaire.
+- **Boîtes de dialogue génériques** — `AlertButton`/`ConfirmButton` (voir [docs/widgets.md](widgets.md)) couvrent alert/confirm ; pas encore de bottom sheet natif ni de dialogue à formulaire.

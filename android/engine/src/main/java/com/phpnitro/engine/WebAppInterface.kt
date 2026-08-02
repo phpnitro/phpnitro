@@ -602,7 +602,7 @@ class WebAppInterface(
     /**
      * Bonded (already-paired) devices only — a full BLE discovery scan
      * needs a foreground service + location context beyond this bridge's
-     * scope for now (see ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md).
+     * scope for now.
      */
     @JavascriptInterface
     fun getBondedBluetoothDevices(): String {
@@ -650,7 +650,7 @@ class WebAppInterface(
     // Never exercised against a real Play Console product — there's no
     // sandbox reachable outside a real Play Console account. Written to
     // compile and follow the documented Billing Library v7 flow, not
-    // verified end-to-end (see ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md).
+    // verified end-to-end.
     private val billingClient by lazy {
         com.android.billingclient.api.BillingClient.newBuilder(context)
             .setListener { _, _ -> }
@@ -875,9 +875,8 @@ class WebAppInterface(
      * platform floor, not a choice made here) that POSTs to $endpoint every
      * time it fires, even if the app isn't in the foreground. Not
      * geofencing (that needs Play Services' FusedLocationProvider
-     * geofencing APIs, a separate dependency not pulled in here — see
-     * ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md) — a periodic ping, the other
-     * common "background execution" need.
+     * geofencing APIs, a separate dependency not pulled in here) — a
+     * periodic ping, the other common "background execution" need.
      */
     @JavascriptInterface
     fun scheduleBackgroundTask(endpoint: String, intervalMinutes: Int) {

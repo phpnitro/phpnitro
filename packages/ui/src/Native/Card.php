@@ -21,12 +21,12 @@ use Engine\Color;
  * gradient/shadow style instead). Formalizes what used to be an inline
  * closure duplicated across NativeDocumentsScreen/NativeSettingsScreen.
  */
-final class NativeCard implements RenderNode
+final class Card implements Widget
 {
-    private readonly RenderContainer $content;
+    private readonly Container $content;
 
     public function __construct(
-        RenderNode $child,
+        Widget $child,
         ?EdgeInsets $padding = null,
         ?Color $background = null,
         ?Color $borderColor = null,
@@ -34,8 +34,8 @@ final class NativeCard implements RenderNode
         float $radius = Tokens::RADIUS_LG,
         float $elevation = 0.0,
     ) {
-        $this->content = new RenderContainer(
-            new RenderPadding($padding ?? EdgeInsets::all(Tokens::SPACE_LG), $child),
+        $this->content = new Container(
+            new Padding($padding ?? EdgeInsets::all(Tokens::SPACE_LG), $child),
             background: $background ?? Tokens::surface(),
             radius: $radius,
             borderColor: $elevation > 0.0 ? null : ($borderColor ?? Tokens::border()),
@@ -49,7 +49,7 @@ final class NativeCard implements RenderNode
         return $this->content->layout($constraints);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->content->paint($canvas, $x, $y);
     }

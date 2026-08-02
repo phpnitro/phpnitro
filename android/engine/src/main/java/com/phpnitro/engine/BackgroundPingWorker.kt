@@ -12,8 +12,7 @@ import java.net.URL
  * isn't in the foreground, POSTing to whatever endpoint
  * Engine\Device\BackgroundTask::schedule() configured. Deliberately dumb
  * (no PHP/WebView involved here): starting the embedded PHP server from a
- * background worker process is out of scope for this first version — see
- * ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md.
+ * background worker process is out of scope for this first version.
  */
 class BackgroundPingWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
     override fun doWork(): Result {

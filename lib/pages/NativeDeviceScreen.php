@@ -4,15 +4,15 @@ namespace Engine\App;
 
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
-use Engine\Native\NativeAppBar;
-use Engine\Native\NativeButton;
-use Engine\Native\NativeDivider;
-use Engine\Native\NativeScaffold;
-use Engine\Native\RenderContainer;
-use Engine\Native\RenderFlex;
-use Engine\Native\RenderNode;
-use Engine\Native\RenderPadding;
-use Engine\Native\RenderText;
+use Engine\Native\AppBar;
+use Engine\Native\Button;
+use Engine\Native\Divider;
+use Engine\Native\Scaffold;
+use Engine\Native\Container;
+use Engine\Native\Flex;
+use Engine\Native\Widget;
+use Engine\Native\Padding;
+use Engine\Native\Text;
 use Engine\Native\Tokens;
 
 /**
@@ -24,7 +24,7 @@ use Engine\Native\Tokens;
  * PHP, but only to receive a value that already came from a real
  * BatteryManager/Settings.Secure/BluetoothAdapter/Keystore call and
  * display it — same "$_GET['x_out'] carries a result" mechanism
- * NativeTextField uses for typed input, just in the other direction.
+ * TextField uses for typed input, just in the other direction.
  * Secure storage is genuinely shared with the WebView path (same
  * Keystore-backed file, see NativeDeviceBridge.kt) — a secret stored via
  * one rendering path is readable from the other.
@@ -42,7 +42,7 @@ use Engine\Native\Tokens;
  */
 final class NativeDeviceScreen
 {
-    public static function build(float $screenWidth, float $screenHeight): RenderNode
+    public static function build(float $screenWidth, float $screenHeight): Widget
     {
         $batteryOut = $_GET['battery_out'] ?? null;
         $deviceIdOut = $_GET['device_id_out'] ?? null;
@@ -59,19 +59,19 @@ final class NativeDeviceScreen
         $nfcOut = $_GET['nfc_out'] ?? null;
         $iapOut = $_GET['iap_out'] ?? null;
 
-        $row = static fn (string $label, string $action, ?string $result = null): RenderNode => new RenderPadding(
+        $row = static fn (string $label, string $action, ?string $result = null): Widget => new Padding(
             EdgeInsets::only(top: Tokens::SPACE_MD),
-            RenderFlex::row([
-                new NativeButton($label, $action, width: $result !== null ? null : $screenWidth - 2 * Tokens::SPACE_XL),
-                ...($result !== null ? [new RenderPadding(EdgeInsets::only(left: Tokens::SPACE_MD), new RenderText($result, Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true))] : []),
+            Flex::row([
+                new Button($label, $action, width: $result !== null ? null : $screenWidth - 2 * Tokens::SPACE_XL),
+                ...($result !== null ? [new Padding(EdgeInsets::only(left: Tokens::SPACE_MD), new Text($result, Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true))] : []),
             ]),
         );
 
-        $body = new RenderContainer(
-            new RenderPadding(
+        $body = new Container(
+            new Padding(
                 EdgeInsets::all(Tokens::SPACE_XL),
-                RenderFlex::column([
-                    new RenderText('Pont natif réel — NativeDeviceBridge.kt', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
+                Flex::column([
+                    new Text('Pont natif réel — NativeDeviceBridge.kt', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
                     $row('Vibrer', 'device:vibrate'),
                     $row('Torche', 'device:torch'),
                     $row('Batterie', 'device:battery:battery_out', $batteryOut),
@@ -101,7 +101,7 @@ final class NativeDeviceScreen
                     $row('Désactiver la zone', 'device:geofenceremove'),
                     $row('Planifier tâche de fond', 'device:bgschedule'),
                     $row('Annuler tâche de fond', 'device:bgcancel'),
-                    new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_LG), new NativeDivider()),
+                    new Padding(EdgeInsets::only(top: Tokens::SPACE_LG), new Divider()),
                     $row('Imprimer (PDF)', 'device:printpdf'),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
@@ -109,11 +109,11 @@ final class NativeDeviceScreen
             background: Tokens::surfaceMuted(),
         );
 
-        return new NativeScaffold(
+        return new Scaffold(
             $body,
             $screenWidth,
             $screenHeight,
-            appBar: new NativeAppBar($screenWidth, 'Capacités du device', backAction: 'back'),
+            appBar: new AppBar($screenWidth, 'Capacités du device', backAction: 'back'),
             bottomNav: NativeAppShell::bottomNav($screenWidth, 'device'),
         );
     }

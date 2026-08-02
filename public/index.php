@@ -4,7 +4,7 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use Engine\Database\Database;
 use Engine\Native\Constraints;
-use Engine\Native\NativeCanvas;
+use Engine\Native\Canvas;
 use Symfony\Component\Dotenv\Dotenv;
 
 /**
@@ -119,9 +119,9 @@ if ($path === '/native/layout-demo') {
     \Engine\Native\MediaQuery::init($screenWidth, $screenHeight);
     $screen = $_GET['screen'] ?? 'home';
     $action = $_GET['action'] ?? null;
-    // RenderLazyList's windowed prefetch — see NativeCanvasView.kt's
+    // LazyList's windowed prefetch — see NativeCanvasView.kt's
     // checkScrollFollow(). Every screen receives this; only ones that
-    // build a RenderLazyList actually read it.
+    // build a LazyList actually read it.
     $scrollY = (float) ($_GET['scroll_y'] ?? 0);
 
     // php -S spawns a fresh process per request — no in-memory global
@@ -147,7 +147,7 @@ if ($path === '/native/layout-demo') {
         \Engine\Preferences\Preferences::set('native_home_counter', (string) ((int) \Engine\Preferences\Preferences::get('native_home_counter', '0') + 1));
     }
     // Mirrors HomePage.php's onDecrement() — swiping left on
-    // NativeGestureDetector's counter area.
+    // GestureDetector's counter area.
     if ($action === 'home_decrement') {
         \Engine\Preferences\Preferences::set('native_home_counter', (string) ((int) \Engine\Preferences\Preferences::get('native_home_counter', '0') - 1));
     }
@@ -166,8 +166,8 @@ if ($path === '/native/layout-demo') {
         \Engine\Preferences\Preferences::set('native_render_preview_enabled', $currentlyEnabled ? '0' : '1');
     }
 
-    // Mirrors LoginPage.php's onLogin(): a "submit:login" NativeButton
-    // collects both NativeTextField values client-side and sends them
+    // Mirrors LoginPage.php's onLogin(): a "submit:login" Button
+    // collects both TextField values client-side and sends them
     // along with the request (see NativeRenderPocActivity's
     // refetchWithFields()). Correct credentials set the real session key
     // the rest of the app already reads ($_SESSION['auth_user'],
@@ -193,7 +193,7 @@ if ($path === '/native/layout-demo') {
         unset($_SESSION['auth_user']);
     }
 
-    // RenderDismissible's whole point: PHP never sees the swipe, only its
+    // Dismissible's whole point: PHP never sees the swipe, only its
     // outcome, once NativeCanvasView.kt's own animation has already
     // finished — see NativeWidgetsDismissibleScreen. $_SESSION stands in
     // for "a real list backed by a database row"; a production screen
@@ -208,7 +208,7 @@ if ($path === '/native/layout-demo') {
         unset($_SESSION['dismissible_items'][substr($action, strlen('dismiss:'))]);
     }
 
-    // RenderReorderable's whole point: PHP never sees the drag, only its
+    // Reorderable's whole point: PHP never sees the drag, only its
     // outcome — a comma-separated key order riding on the action string,
     // sent once the finger lifts and NativeCanvasView.kt's own settle
     // animation has already finished. See NativeWidgetsReorderScreen.
@@ -313,7 +313,7 @@ if ($path === '/native/layout-demo') {
 
     $contentSize = $tree->layout(new Constraints($screenWidth, $screenWidth, 0, Constraints::INFINITY));
 
-    $canvas = new NativeCanvas();
+    $canvas = new Canvas();
     $canvas->setContentHeight($contentSize->height);
     if ($screen === 'widgets-lazylist') {
         $canvas->setScrollFollow();
@@ -326,10 +326,10 @@ if ($path === '/native/layout-demo') {
 
     // NativeRenderPocActivity sends back the hash of the last response it
     // actually applied (only for a same-screen refetch — see
-    // NativeCanvas::stableHash()'s docblock). An identical hash means
+    // Canvas::stableHash()'s docblock). An identical hash means
     // nothing visible would change, so skip re-sending the whole payload
     // (and Kotlin skips re-parsing/redrawing it) — most valuable for
-    // RenderLazyList's scroll-follow prefetch ticks and any action whose
+    // LazyList's scroll-follow prefetch ticks and any action whose
     // outcome happens not to touch what's on screen.
     $hash = $canvas->stableHash();
     if (($_GET['lastHash'] ?? null) === $hash) {

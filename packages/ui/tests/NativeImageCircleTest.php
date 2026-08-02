@@ -3,18 +3,18 @@
 namespace Engine\Tests;
 
 use Engine\Native\Constraints;
-use Engine\Native\NativeCanvas;
-use Engine\Native\NativeImageCircle;
+use Engine\Native\Canvas;
+use Engine\Native\ImageCircle;
 use PHPUnit\Framework\TestCase;
 
 final class NativeImageCircleTest extends TestCase
 {
     public function testEmitsASquareImageCommandWithHalfRadius(): void
     {
-        $node = new NativeImageCircle('https://example.test/avatar.jpg', diameter: 48.0);
+        $node = new ImageCircle('https://example.test/avatar.jpg', diameter: 48.0);
         $node->layout(new Constraints(0, 1000, 0, Constraints::INFINITY));
 
-        $canvas = new NativeCanvas();
+        $canvas = new Canvas();
         $node->paint($canvas, 10.0, 20.0);
         $commands = json_decode($canvas->toJson(), true)['commands'];
 

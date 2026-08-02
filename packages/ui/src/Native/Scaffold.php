@@ -15,28 +15,28 @@ namespace Engine\Native;
  * The native-tree equivalent of Engine\Scaffold — reserves top/bottom
  * padding in the scrollable body so content doesn't render underneath the
  * AppBar/BottomNavigation, then paints those (plus an optional Fab) via
- * RenderFixed so they stay pinned to the viewport while the body scrolls.
+ * Fixed so they stay pinned to the viewport while the body scrolls.
  * $viewportHeight (not the body's own, possibly-taller, laid-out content
  * height) is what pins the bottom bar/Fab to the true screen bottom — the
  * same ?height= NativeRenderPocActivity already sends with every request.
  */
-final class NativeScaffold implements RenderNode
+final class Scaffold implements Widget
 {
-    private readonly RenderNode $paddedBody;
+    private readonly Widget $paddedBody;
 
     public function __construct(
-        RenderNode $body,
+        Widget $body,
         private readonly float $screenWidth,
         private readonly float $viewportHeight,
-        private readonly ?NativeAppBar $appBar = null,
-        private readonly ?NativeBottomNavigation $bottomNav = null,
-        private readonly ?NativeFab $fab = null,
-        private readonly ?NativeDrawer $drawer = null,
+        private readonly ?AppBar $appBar = null,
+        private readonly ?BottomNavigation $bottomNav = null,
+        private readonly ?Fab $fab = null,
+        private readonly ?Drawer $drawer = null,
     ) {
-        $topInset = $this->appBar !== null ? NativeAppBar::HEIGHT : 0.0;
-        $bottomInset = $this->bottomNav !== null ? NativeBottomNavigation::HEIGHT : 0.0;
+        $topInset = $this->appBar !== null ? AppBar::HEIGHT : 0.0;
+        $bottomInset = $this->bottomNav !== null ? BottomNavigation::HEIGHT : 0.0;
 
-        $this->paddedBody = new RenderPadding(EdgeInsets::only(top: $topInset, bottom: $bottomInset), $body);
+        $this->paddedBody = new Padding(EdgeInsets::only(top: $topInset, bottom: $bottomInset), $body);
     }
 
     public function layout(Constraints $constraints): Size
@@ -52,7 +52,7 @@ final class NativeScaffold implements RenderNode
         return $bodySize;
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->paddedBody->paint($canvas, $x, $y);
 
@@ -64,18 +64,18 @@ final class NativeScaffold implements RenderNode
 
         if ($this->bottomNav !== null) {
             $canvas->beginFixed();
-            $this->bottomNav->paint($canvas, $x, $this->viewportHeight - NativeBottomNavigation::HEIGHT);
+            $this->bottomNav->paint($canvas, $x, $this->viewportHeight - BottomNavigation::HEIGHT);
             $canvas->endFixed();
         }
 
         if ($this->fab !== null) {
             $margin = Tokens::SPACE_LG;
-            $bottomBarHeight = $this->bottomNav !== null ? NativeBottomNavigation::HEIGHT : 0.0;
+            $bottomBarHeight = $this->bottomNav !== null ? BottomNavigation::HEIGHT : 0.0;
             $canvas->beginFixed();
             $this->fab->paint(
                 $canvas,
-                $x + $this->screenWidth - NativeFab::SIZE - $margin,
-                $this->viewportHeight - $bottomBarHeight - NativeFab::SIZE - $margin,
+                $x + $this->screenWidth - Fab::SIZE - $margin,
+                $this->viewportHeight - $bottomBarHeight - Fab::SIZE - $margin,
             );
             $canvas->endFixed();
         }

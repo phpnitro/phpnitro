@@ -20,13 +20,13 @@ namespace Engine\Native;
  * server round-trip at all, so there's no PHP-side handling to match
  * ConfirmButton's action.
  */
-final class NativeAlertButton implements RenderNode
+final class AlertButton implements Widget
 {
-    private readonly NativeButton $content;
+    private readonly Button $content;
 
     public function __construct(string $message, string $label = 'Afficher un message', string $title = '')
     {
-        $this->content = new NativeButton(
+        $this->content = new Button(
             $label,
             'dialog:alert',
             width: null,
@@ -41,7 +41,7 @@ final class NativeAlertButton implements RenderNode
         return $this->content->layout($constraints);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->content->paint($canvas, $x, $y);
     }

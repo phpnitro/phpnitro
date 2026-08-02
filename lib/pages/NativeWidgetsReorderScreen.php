@@ -3,17 +3,17 @@
 namespace Engine\App;
 
 use Engine\Native\EdgeInsets;
-use Engine\Native\NativeAppBar;
-use Engine\Native\NativeListTile;
-use Engine\Native\NativeScaffold;
-use Engine\Native\RenderContainer;
-use Engine\Native\RenderNode;
-use Engine\Native\RenderPadding;
-use Engine\Native\RenderReorderable;
+use Engine\Native\AppBar;
+use Engine\Native\ListTile;
+use Engine\Native\Scaffold;
+use Engine\Native\Container;
+use Engine\Native\Widget;
+use Engine\Native\Padding;
+use Engine\Native\Reorderable;
 use Engine\Native\Tokens;
 
 /**
- * The second continuous gesture, same split as RenderDismissible: PHP
+ * The second continuous gesture, same split as Dismissible: PHP
  * never sees the drag, only its outcome. Long-press an item, drag it —
  * NativeCanvasView.kt tracks the whole thing (long-press detection, live
  * follow, slot-swapping, settle animation) client-side, and only calls
@@ -36,30 +36,30 @@ final class NativeWidgetsReorderScreen
     /**
      * @param array<string, string> $items id => label, in current order
      */
-    public static function build(float $screenWidth, float $screenHeight, array $items): RenderNode
+    public static function build(float $screenWidth, float $screenHeight, array $items): Widget
     {
         $rows = [];
         foreach ($items as $id => $label) {
-            $rows[$id] = new RenderPadding(
+            $rows[$id] = new Padding(
                 EdgeInsets::only(bottom: Tokens::SPACE_MD),
-                new NativeListTile($label, 'Appui long puis glisse pour réordonner', 'drag_indicator', leadingColor: Tokens::inkSecondary()),
+                new ListTile($label, 'Appui long puis glisse pour réordonner', 'drag_indicator', leadingColor: Tokens::inkSecondary()),
             );
         }
 
-        $body = new RenderContainer(
-            new RenderPadding(
+        $body = new Container(
+            new Padding(
                 EdgeInsets::all(Tokens::SPACE_XL),
-                new RenderReorderable('todo', $rows, 'reorder'),
+                new Reorderable('todo', $rows, 'reorder'),
             ),
             width: $screenWidth,
             background: Tokens::surfaceMuted(),
         );
 
-        return new NativeScaffold(
+        return new Scaffold(
             $body,
             $screenWidth,
             $screenHeight,
-            appBar: new NativeAppBar($screenWidth, 'Étapes (glisser pour réordonner)', backAction: 'back'),
+            appBar: new AppBar($screenWidth, 'Étapes (glisser pour réordonner)', backAction: 'back'),
         );
     }
 }

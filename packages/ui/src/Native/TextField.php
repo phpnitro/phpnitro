@@ -18,13 +18,13 @@ namespace Engine\Native;
  * EditText at this exact rect (see its showTextInput()), positioned via
  * the same dp coordinates every draw command already uses. The value
  * shown here (before focus) is whatever PHP was last told about — typed
- * input is tracked client-side and only reaches PHP when a NativeButton
+ * input is tracked client-side and only reaches PHP when a Button
  * with a "submit:" action collects every field's current value and sends
  * them along with that request.
  */
-final class NativeTextField implements RenderNode
+final class TextField implements Widget
 {
-    private readonly RenderNode $content;
+    private readonly Widget $content;
 
     /**
      * @param bool $multiline The native-tree equivalent of Engine\Textarea — same
@@ -45,12 +45,12 @@ final class NativeTextField implements RenderNode
         $displayText = $hasValue ? ($obscure ? str_repeat('•', mb_strlen($value)) : $value) : $placeholder;
         $displayColor = $hasValue ? Tokens::ink() : Tokens::inkMuted();
 
-        $box = new RenderContainer(
-            new RenderPadding(
+        $box = new Container(
+            new Padding(
                 $multiline
                     ? EdgeInsets::all(Tokens::SPACE_MD)
                     : EdgeInsets::only(left: Tokens::SPACE_MD, top: $resolvedHeight / 2 - Tokens::TEXT_BODY * 0.6),
-                new RenderText($displayText, Tokens::TEXT_BODY, $displayColor->toHex()),
+                new Text($displayText, Tokens::TEXT_BODY, $displayColor->toHex()),
             ),
             height: $resolvedHeight,
             background: Tokens::surface(),
@@ -60,7 +60,7 @@ final class NativeTextField implements RenderNode
         );
 
         $action = 'focus:' . ($multiline ? 'multiline:' : '') . ($obscure ? 'secure:' : '') . $name;
-        $this->content = new RenderTappable($box, $action);
+        $this->content = new Tappable($box, $action);
     }
 
     public function layout(Constraints $constraints): Size
@@ -68,7 +68,7 @@ final class NativeTextField implements RenderNode
         return $this->content->layout($constraints);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->content->paint($canvas, $x, $y);
     }

@@ -13,13 +13,13 @@ namespace Engine\Native;
 
 /**
  * The native-tree equivalent of Engine\TimePicker — same reasoning as
- * NativeDatePicker: tapping the field opens a real
+ * DatePicker: tapping the field opens a real
  * android.app.TimePickerDialog. The picked value comes back as "HH:mm",
  * same shape TimePicker.php's HTML input[type=time] already produced.
  */
-final class NativeTimePicker implements RenderNode
+final class TimePicker implements Widget
 {
-    private readonly RenderNode $content;
+    private readonly Widget $content;
 
     public function __construct(
         string $name,
@@ -30,12 +30,12 @@ final class NativeTimePicker implements RenderNode
         $displayText = $value !== '' ? $value : $placeholder;
         $displayColor = $value !== '' ? Tokens::ink() : Tokens::inkMuted();
 
-        $box = new RenderContainer(
-            new RenderPadding(
+        $box = new Container(
+            new Padding(
                 EdgeInsets::symmetric(horizontal: Tokens::SPACE_MD),
-                new RenderCenter(RenderFlex::row([
-                    new Flexible(new RenderText($displayText, Tokens::TEXT_BODY, $displayColor->toHex())),
-                    new RenderIcon('schedule', 18, Tokens::inkMuted()->toHex()),
+                new Center(Flex::row([
+                    new Flexible(new Text($displayText, Tokens::TEXT_BODY, $displayColor->toHex())),
+                    new Icon('schedule', 18, Tokens::inkMuted()->toHex()),
                 ], crossAxisAlignment: CrossAxisAlignment::CENTER)),
             ),
             height: $height,
@@ -45,7 +45,7 @@ final class NativeTimePicker implements RenderNode
             borderWidth: 1.0,
         );
 
-        $this->content = new RenderTappable($box, "timepicker:{$name}", ['value' => $value]);
+        $this->content = new Tappable($box, "timepicker:{$name}", ['value' => $value]);
     }
 
     public function layout(Constraints $constraints): Size
@@ -53,7 +53,7 @@ final class NativeTimePicker implements RenderNode
         return $this->content->layout($constraints);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->content->paint($canvas, $x, $y);
     }

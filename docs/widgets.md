@@ -1,6 +1,6 @@
 # Widgets
 
-Chaque widget implémente `RenderNode` (`packages/ui/src/Native/RenderNode.php`) — `layout(Constraints): Size` puis `paint(NativeCanvas, x, y): void`, exactement comme un `RenderObject` Flutter. Toutes les classes vivent sous `Engine\Native\` (`packages/ui/src/Native/`). Voir [docs/architecture.md](architecture.md) pour le cycle complet.
+Chaque widget implémente `Widget` (`packages/ui/src/Native/Widget.php`) — `layout(Constraints): Size` puis `paint(Canvas, x, y): void`, exactement comme un `RenderObject` Flutter. Toutes les classes vivent sous `Engine\Native\` (`packages/ui/src/Native/`). Voir [docs/architecture.md](architecture.md) pour le cycle complet.
 
 `packages/ui/src` lui-même (hors `Native/`) ne garde que `Color` (palette Tailwind typée, réutilisée pour son `toHex()`) et `NativeDrawCommand` (le protocole `/native/demo` figé, Phase 0) — tout le reste a été supprimé une fois converti.
 
@@ -9,13 +9,13 @@ Un écran est une classe statique :
 ```php
 final class MyScreen
 {
-    public static function build(float $screenWidth, float $screenHeight): RenderNode
+    public static function build(float $screenWidth, float $screenHeight): Widget
     {
-        return new NativeScaffold(
+        return new Scaffold(
             $body,
             $screenWidth,
             $screenHeight,
-            appBar: new NativeAppBar($screenWidth, 'Titre', backAction: 'back'),
+            appBar: new AppBar($screenWidth, 'Titre', backAction: 'back'),
         );
     }
 }
@@ -27,50 +27,50 @@ dispatchée par nom depuis `public/index.php`'s `match ($screen) { 'monecran' =>
 
 | PHP | Rôle |
 |---|---|
-| `RenderFlex::row([$children], mainAxisAlignment:, crossAxisAlignment:)` / `::column(...)` | Flutter's `Row`/`Column` — même algorithme deux passes (enfants inflexibles d'abord, `Flexible` se partagent le reste) |
-| `Flexible($child, flex: 1)` | enfant flexible dans un `RenderFlex`, comme `Flexible`/`Expanded` Flutter |
-| `RenderWrap([$children], spacing:, runSpacing:)` | comme une `Row`, mais passe à la ligne au lieu de déborder |
-| `RenderContainer($child, width:, height:, background:, radius:, borderColor:, borderWidth:, elevation:, gradientFrom:, gradientTo:, padding:)` | boîte à un seul enfant — fond, coins arrondis, bordure, ombre (élévation Material), dégradé |
-| `RenderStack([$children])` | superpose les enfants ; un enfant `RenderPositioned` reçoit un offset explicite, les autres remplissent la zone |
-| `RenderPositioned($child, top:, right:, bottom:, left:)` | positionnement absolu, seulement utile dans un `RenderStack` |
-| `RenderCenter($child)` | centre l'enfant |
-| `RenderAlign($child, Alignment::*)` | aligne l'enfant selon `Alignment::TOP_LEFT\|TOP_CENTER\|TOP_RIGHT\|CENTER_LEFT\|CENTER\|CENTER_RIGHT\|BOTTOM_LEFT\|BOTTOM_CENTER\|BOTTOM_RIGHT` |
-| `RenderPadding(EdgeInsets, $child)` | espacement interne — `EdgeInsets::all($v)` / `::symmetric(horizontal:, vertical:)` / `::only(left:, top:, right:, bottom:)` |
-| `RenderSizedBox($width, $height, $child = null)` | force une taille exacte, avec ou sans enfant |
-| `NativeDivider()` | ligne de séparation |
-| `NativeTable($rows, $headers = [])` | tableau ; `$rows`/cellules acceptent des `RenderNode` |
-| `NativePageView([$pages], $currentIndex, $fieldName)` | pagination par tap (chevrons + points), état porté par un champ `$_GET` |
-| `RenderLazyList($itemCount, $itemBuilder, $itemHeight, $scrollY, $viewportHeight)` | liste virtualisée — voir [docs/architecture.md#listes-longues-fenêtre-pas-tout](architecture.md) |
+| `Flex::row([$children], mainAxisAlignment:, crossAxisAlignment:)` / `::column(...)` | Flutter's `Row`/`Column` — même algorithme deux passes (enfants inflexibles d'abord, `Flexible` se partagent le reste) |
+| `Flexible($child, flex: 1)` | enfant flexible dans un `Flex`, comme `Flexible`/`Expanded` Flutter |
+| `Wrap([$children], spacing:, runSpacing:)` | comme une `Row`, mais passe à la ligne au lieu de déborder |
+| `Container($child, width:, height:, background:, radius:, borderColor:, borderWidth:, elevation:, gradientFrom:, gradientTo:, padding:)` | boîte à un seul enfant — fond, coins arrondis, bordure, ombre (élévation Material), dégradé |
+| `Stack([$children])` | superpose les enfants ; un enfant `Positioned` reçoit un offset explicite, les autres remplissent la zone |
+| `Positioned($child, top:, right:, bottom:, left:)` | positionnement absolu, seulement utile dans un `Stack` |
+| `Center($child)` | centre l'enfant |
+| `Align($child, Alignment::*)` | aligne l'enfant selon `Alignment::TOP_LEFT\|TOP_CENTER\|TOP_RIGHT\|CENTER_LEFT\|CENTER\|CENTER_RIGHT\|BOTTOM_LEFT\|BOTTOM_CENTER\|BOTTOM_RIGHT` |
+| `Padding(EdgeInsets, $child)` | espacement interne — `EdgeInsets::all($v)` / `::symmetric(horizontal:, vertical:)` / `::only(left:, top:, right:, bottom:)` |
+| `SizedBox($width, $height, $child = null)` | force une taille exacte, avec ou sans enfant |
+| `Divider()` | ligne de séparation |
+| `Table($rows, $headers = [])` | tableau ; `$rows`/cellules acceptent des `Widget` |
+| `PageView([$pages], $currentIndex, $fieldName)` | pagination par tap (chevrons + points), état porté par un champ `$_GET` |
+| `LazyList($itemCount, $itemBuilder, $itemHeight, $scrollY, $viewportHeight)` | liste virtualisée — voir [docs/architecture.md#listes-longues-fenêtre-pas-tout](architecture.md) |
 
-`RenderFlex::row/column` prennent `MainAxisAlignment::START\|CENTER\|END\|SPACE_BETWEEN\|SPACE_AROUND\|SPACE_EVENLY` et `CrossAxisAlignment::START\|CENTER\|END\|STRETCH`.
+`Flex::row/column` prennent `MainAxisAlignment::START\|CENTER\|END\|SPACE_BETWEEN\|SPACE_AROUND\|SPACE_EVENLY` et `CrossAxisAlignment::START\|CENTER\|END\|STRETCH`.
 
 ## Structure d'écran
 
 | PHP | Rôle |
 |---|---|
-| `NativeScaffold($body, $screenWidth, $viewportHeight, appBar:, bottomNav:, fab:, drawer:)` | structure standard : réserve l'espace pour l'AppBar/BottomNav dans le corps défilable, peint le reste en overlay fixe |
-| `NativeAppBar($screenWidth, $title, backAction:, leading:, background:)` | barre supérieure fixe |
-| `NativeBottomNavigation($screenWidth, $items, $currentScreen, activeColor:)` | barre d'onglets fixe |
-| `NativeFab($icon, $action, background:)` | bouton rond flottant |
-| `NativeDrawer($screenWidth, $viewportHeight, $items, $title)` | menu latéral coulissant |
-| `NativeCard($child, padding:, background:, borderColor:, borderWidth:, radius:, elevation:)` | conteneur avec padding par défaut + fond + coins arrondis |
-| `NativeListTile($title, $subtitle, $leadingIcon, leadingColor:, trailingIcon:, trailingText:, action:, meta:)` | ligne icône + titre/sous-titre + traînée, la brique de base de la plupart des menus |
+| `Scaffold($body, $screenWidth, $viewportHeight, appBar:, bottomNav:, fab:, drawer:)` | structure standard : réserve l'espace pour l'AppBar/BottomNav dans le corps défilable, peint le reste en overlay fixe |
+| `AppBar($screenWidth, $title, backAction:, leading:, background:)` | barre supérieure fixe |
+| `BottomNavigation($screenWidth, $items, $currentScreen, activeColor:)` | barre d'onglets fixe |
+| `Fab($icon, $action, background:)` | bouton rond flottant |
+| `Drawer($screenWidth, $viewportHeight, $items, $title)` | menu latéral coulissant |
+| `Card($child, padding:, background:, borderColor:, borderWidth:, radius:, elevation:)` | conteneur avec padding par défaut + fond + coins arrondis |
+| `ListTile($title, $subtitle, $leadingIcon, leadingColor:, trailingIcon:, trailingText:, action:, meta:)` | ligne icône + titre/sous-titre + traînée, la brique de base de la plupart des menus |
 
 ## Formulaires
 
 | PHP | Rôle |
 |---|---|
-| `NativeTextField($name, $value, $placeholder, obscure:, multiline:)` | ouvre un vrai `EditText` overlay au tap (pas de saisie dessinée sur le Canvas) |
-| `NativeSelectBox($name, $options, $selected)` | ouvre un vrai `AlertDialog.setItems()` |
-| `NativeCheckbox($name, $label, $checked, accentColor:)` | case à cocher |
-| `NativeSwitch($name, $label, $on, activeColor:)` | interrupteur on/off |
-| `NativeDatePicker($name, $value)` | ouvre un vrai `DatePickerDialog` |
-| `NativeTimePicker($name, $value)` | ouvre un vrai `TimePickerDialog` |
-| `NativeBanner($message, $icon = 'warning', background:, foreground:)` | bandeau d'alerte/erreur — ne peint rien si `$message` est `null` |
-| `NativeProgressBar($width, $percent, $height:, trackColor:, fillColor:)` | barre linéaire (0.0–1.0) |
-| `NativeCircularProgress($percent, $size:, trackColor:, color:)` | indicateur circulaire (arc réel, `NativeCanvas::arc()`) |
-| `NativeAlertButton($message, $title = 'Alerte')` | ouvre un vrai `AlertDialog` |
-| `NativeConfirmButton($message, $action, $label)` | `AlertDialog` de confirmation ; n'appelle `$action` que depuis le callback OK |
+| `TextField($name, $value, $placeholder, obscure:, multiline:)` | ouvre un vrai `EditText` overlay au tap (pas de saisie dessinée sur le Canvas) |
+| `SelectBox($name, $options, $selected)` | ouvre un vrai `AlertDialog.setItems()` |
+| `Checkbox($name, $label, $checked, accentColor:)` | case à cocher |
+| `Toggle($name, $label, $on, activeColor:)` | interrupteur on/off |
+| `DatePicker($name, $value)` | ouvre un vrai `DatePickerDialog` |
+| `TimePicker($name, $value)` | ouvre un vrai `TimePickerDialog` |
+| `Banner($message, $icon = 'warning', background:, foreground:)` | bandeau d'alerte/erreur — ne peint rien si `$message` est `null` |
+| `ProgressBar($width, $percent, $height:, trackColor:, fillColor:)` | barre linéaire (0.0–1.0) |
+| `CircularProgress($percent, $size:, trackColor:, color:)` | indicateur circulaire (arc réel, `Canvas::arc()`) |
+| `AlertButton($message, $title = 'Alerte')` | ouvre un vrai `AlertDialog` |
+| `ConfirmButton($message, $action, $label)` | `AlertDialog` de confirmation ; n'appelle `$action` que depuis le callback OK |
 
 Chaque champ lit/écrit sa valeur via `$_GET['nom-du-champ']` — pas de binding automatique, l'écran est responsable de relire ces valeurs au prochain rendu (voir n'importe quel `Native*Screen.php` pour le pattern).
 
@@ -78,13 +78,13 @@ Chaque champ lit/écrit sa valeur via `$_GET['nom-du-champ']` — pas de binding
 
 | PHP | Rôle |
 |---|---|
-| `RenderText($text, $fontSize, $color, bold:, letterSpacing:)` | un seul style, wrap automatique (mesure de caractère réelle, `TextMetrics`) |
-| `RenderRichText([TextSpan, ...], $fontSize, $color)` | plusieurs styles dans UN paragraphe qui wrap ensemble — `TextSpan($text, color:, bold:, size:, letterSpacing:, action:)`, un `action` rend ce run précis tappable (lien inline) |
-| `RenderIcon($name, $size, $color)` | glyphe Material Icons (2235 noms, `MaterialIcons::codepoint()`) |
-| `RenderImage($url, $width, $height, radius:)` | bitmap chargé en arrière-plan (cache mémoire LRU), coins arrondis via `BitmapShader` |
+| `Text($text, $fontSize, $color, bold:, letterSpacing:)` | un seul style, wrap automatique (mesure de caractère réelle, `TextMetrics`) |
+| `RichText([TextSpan, ...], $fontSize, $color)` | plusieurs styles dans UN paragraphe qui wrap ensemble — `TextSpan($text, color:, bold:, size:, letterSpacing:, action:)`, un `action` rend ce run précis tappable (lien inline) |
+| `Icon($name, $size, $color)` | glyphe Material Icons (2235 noms, `MaterialIcons::codepoint()`) |
+| `Image($url, $width, $height, radius:)` | bitmap chargé en arrière-plan (cache mémoire LRU), coins arrondis via `BitmapShader` |
 
 ```php
-new RenderRichText([
+new RichText([
     new TextSpan('PhpNitro rend en '),
     new TextSpan('natif', bold: true, color: Tokens::success()->toHex()),
     new TextSpan(', voir les '),
@@ -100,21 +100,21 @@ Deux mécanismes, décrits en détail dans [docs/architecture.md#animations](arc
 | PHP | Effet |
 |---|---|
 | *(rien à écrire)* | crossfade automatique entre deux rendus d'écran (`fadeProgress` côté Kotlin) |
-| `RenderHero($child, $tag)` | FLIP réel entre deux écrans — même `$tag` des deux côtés d'une navigation |
-| `RenderAnimated($child, $key)` | FLIP réel local — la même `$key` produisant un rectangle/couleur/rayon différent au rendu suivant anime au lieu de sauter, l'équivalent unifié de `AnimatedContainer`/`AnimatedPositioned`/`AnimatedOpacity` |
+| `Hero($child, $tag)` | FLIP réel entre deux écrans — même `$tag` des deux côtés d'une navigation |
+| `Animated($child, $key)` | FLIP réel local — la même `$key` produisant un rectangle/couleur/rayon différent au rendu suivant anime au lieu de sauter, l'équivalent unifié de `AnimatedContainer`/`AnimatedPositioned`/`AnimatedOpacity` |
 
 ## Gestes
 
 | PHP | Rôle |
 |---|---|
-| `RenderTappable($child, $action, $meta = null)` | enregistre une hit region — la brique derrière tous les widgets tappables |
-| `NativeGestureDetector($child, onDoubleClick:, onSwipeLeft:, onSwipeRight:)` | double-tap/swipe rapide, détectés via `android.view.GestureDetector` côté Kotlin |
-| `RenderDismissible($child, $key, $action)` | swipe-to-dismiss — le SEUL geste dont le suivi du doigt reste 100% côté client (`NativeCanvasView.checkScrollFollow`/drag), `$action` n'est appelé qu'au relâchement, une fois le seuil dépassé |
-| `RenderFixed($child)` | épingle un sous-arbre au viewport (ne défile pas avec le corps) — ce que `NativeScaffold` utilise pour l'AppBar/BottomNav |
+| `Tappable($child, $action, $meta = null)` | enregistre une hit region — la brique derrière tous les widgets tappables |
+| `GestureDetector($child, onDoubleClick:, onSwipeLeft:, onSwipeRight:)` | double-tap/swipe rapide, détectés via `android.view.GestureDetector` côté Kotlin |
+| `Dismissible($child, $key, $action)` | swipe-to-dismiss — le SEUL geste dont le suivi du doigt reste 100% côté client (`NativeCanvasView.checkScrollFollow`/drag), `$action` n'est appelé qu'au relâchement, une fois le seuil dépassé |
+| `Fixed($child)` | épingle un sous-arbre au viewport (ne défile pas avec le corps) — ce que `Scaffold` utilise pour l'AppBar/BottomNav |
 
 ```php
-new RenderDismissible(
-    new NativeListTile($label, 'Glisse pour supprimer', 'task_alt'),
+new Dismissible(
+    new ListTile($label, 'Glisse pour supprimer', 'task_alt'),
     "item-{$id}",
     "dismiss:{$id}",
 );
@@ -128,8 +128,8 @@ if ($action !== null && str_starts_with($action, 'dismiss:')) {
 
 | PHP | Rôle |
 |---|---|
-| `RenderCustomPaint::make($width, $height)->rect(...)->circle(...)->line(...)->text(...)` | primitives dessinées une fois au montage — ce qu'`Engine\Canvas` demandait côté HTML |
-| `NativeCanvas::rect/circle/line/arc/text/icon/image()` | l'API bas niveau que tous les widgets ci-dessus appellent en interne — rarement appelée directement |
+| `CustomPaint::make($width, $height)->rect(...)->circle(...)->line(...)->text(...)` | primitives dessinées une fois au montage — ce qu'`Engine\Canvas` demandait côté HTML |
+| `Canvas::rect/circle/line/arc/text/icon/image()` | l'API bas niveau que tous les widgets ci-dessus appellent en interne — rarement appelée directement |
 
 ## Tokens (design system)
 
@@ -146,4 +146,4 @@ Tokens::ink()|inkSecondary()|inkMuted()|surface()|surfaceMuted()|border()|succes
 
 ## Ce qui reste WebView-only
 
-Rien, actuellement — la dernière page WebView (`WidgetsLayoutPage.php`) a été supprimée une fois `RenderHero` construit. Un futur widget qui aurait vraiment besoin d'un moteur HTML (rendu Markdown riche, iframe...) redeviendrait candidat à une page WebView ponctuelle, ouverte via `NativeDeviceBridge.kt::openWebView()`.
+Rien, actuellement — la dernière page WebView (`WidgetsLayoutPage.php`) a été supprimée une fois `Hero` construit. Un futur widget qui aurait vraiment besoin d'un moteur HTML (rendu Markdown riche, iframe...) redeviendrait candidat à une page WebView ponctuelle, ouverte via `NativeDeviceBridge.kt::openWebView()`.

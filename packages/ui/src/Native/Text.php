@@ -11,7 +11,7 @@
 
 namespace Engine\Native;
 
-final class RenderText implements RenderNode
+final class Text implements Widget
 {
     /**
      * @var array<int, string>
@@ -42,7 +42,7 @@ final class RenderText implements RenderNode
         return $constraints->constrain(new Size($width, $height));
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $lineHeight = TextMetrics::lineHeight($this->fontSize);
         // Canvas.drawText's y is the text baseline, not the top of the glyph

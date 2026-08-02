@@ -14,11 +14,11 @@ namespace Engine\Native;
 /**
  * The native-tree equivalent of Engine\Canvas — a fixed-size box you paint
  * into with absolute (box-relative) coordinates, replayed as flat
- * NativeCanvas commands offset by wherever layout placed this box. Single
+ * Canvas commands offset by wherever layout placed this box. Single
  * draw at paint time, same "no diffing, one-shot" contract Engine\Canvas
  * has (it draws once at mount, not on every state change either).
  */
-final class RenderCustomPaint implements RenderNode
+final class CustomPaint implements Widget
 {
     /**
      * @var array<int, array{op: string, args: array<string, mixed>}>
@@ -69,7 +69,7 @@ final class RenderCustomPaint implements RenderNode
         return $constraints->constrain(new Size($this->width, $this->height));
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         foreach ($this->ops as $entry) {
             $args = $entry['args'];

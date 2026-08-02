@@ -16,8 +16,8 @@ namespace Engine\Native;
  * instead of a Dart Future. On every render this asks AsyncTask::poll()
  * for the current state:
  *
- * - pending: paints $loading (typically a RenderSpinner) and tells the
- *   client to refetch this same screen again shortly (NativeCanvas::
+ * - pending: paints $loading (typically a Spinner) and tells the
+ *   client to refetch this same screen again shortly (Canvas::
  *   pollAgain()) — no navigation, no user action, just "check again."
  * - done: paints $builder($data).
  * - error: paints a plain error message.
@@ -25,22 +25,22 @@ namespace Engine\Native;
  * $args must be JSON-safe (see AsyncTask) — no closures, no objects
  * without a __toString()/data shape that survives json_encode().
  */
-final class RenderAsync implements RenderNode
+final class Async implements Widget
 {
-    private RenderNode $active;
+    private Widget $active;
     private bool $pending;
     private Size $size;
 
     /**
      * @param array<int, mixed> $args
-     * @param callable(mixed): RenderNode $builder
+     * @param callable(mixed): Widget $builder
      */
     public function __construct(
         private readonly string $taskKey,
         string $handlerClass,
         string $handlerMethod,
         array $args,
-        RenderNode $loading,
+        Widget $loading,
         callable $builder,
         private readonly int $pollIntervalMs = 400,
     ) {
@@ -48,7 +48,7 @@ final class RenderAsync implements RenderNode
         $this->pending = $result['status'] === 'pending';
         $this->active = match ($result['status']) {
             'done' => $builder($result['data']),
-            'error' => new RenderText("Erreur : {$result['error']}", Tokens::TEXT_BODY_SMALL, Tokens::danger()->toHex()),
+            'error' => new Text("Erreur : {$result['error']}", Tokens::TEXT_BODY_SMALL, Tokens::danger()->toHex()),
             default => $loading,
         };
         $this->size = Size::zero();
@@ -61,7 +61,7 @@ final class RenderAsync implements RenderNode
         return $this->size;
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         if ($this->pending) {
             $canvas->pollAgain($this->pollIntervalMs);

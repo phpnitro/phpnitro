@@ -17,7 +17,7 @@ namespace Engine\Native;
  * one primitive, since they all reduce to the same question: "did the
  * subtree under this $key look different last render? if so, ease into
  * the new state instead of snapping." Same underlying mechanism as
- * RenderHero (NativeCanvas::beginHero()/endHero(), heroRegions, the
+ * Hero (Canvas::beginHero()/endHero(), heroRegions, the
  * Matrix-based flight in NativeCanvasView.kt's drawHeroTransition()) — a
  * Hero flight across a navigation and a color/size change on the same
  * screen are the same primitive at the Kotlin level, just used in
@@ -30,12 +30,12 @@ namespace Engine\Native;
  * elements — two different widgets sharing a key would be flown into one
  * another, same footgun Flutter's Hero has with duplicate tags.
  */
-final class RenderAnimated implements RenderNode
+final class Animated implements Widget
 {
     private Size $size;
 
     public function __construct(
-        private readonly RenderNode $child,
+        private readonly Widget $child,
         private readonly string $key,
         private readonly ?Curve $curve = null,
     ) {
@@ -49,7 +49,7 @@ final class RenderAnimated implements RenderNode
         return $this->size;
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $canvas->beginHero($this->key, $x, $y, $this->size->width, $this->size->height, $this->curve);
         $this->child->paint($canvas, $x, $y);

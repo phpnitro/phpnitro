@@ -12,26 +12,26 @@
 namespace Engine\Native;
 
 /**
- * The layout engine's paint target: RenderNode::paint() calls append flat
+ * The layout engine's paint target: Widget::paint() calls append flat
  * draw commands here in absolute pixel coordinates (layout has already
  * resolved every position by the time paint() runs), then toJson() hands
  * the array to NativeCanvasView.kt for replay against a real Canvas.
  *
  * Superset of the Phase 0 NativeDrawCommand protocol (rect/text) — adds
  * optional border fields on rect and lets text carry an explicit baseline
- * so RenderText's line-wrapping can emit one command per line. Kept as a
+ * so Text's line-wrapping can emit one command per line. Kept as a
  * separate class rather than extending NativeDrawCommand because Phase 0's
  * demo route is intentionally frozen (docs/proposals/moteur-rendu-natif.md)
  * and shouldn't shift under a change meant for the layout engine.
  *
  * toJson()'s shape changed from a flat array to {commands, hitRegions} in
- * phase 3 (hit-testing/actions) — RenderTappable needs somewhere to record
+ * phase 3 (hit-testing/actions) — Tappable needs somewhere to record
  * "this absolute rect fires this action string" alongside the draw
  * commands, so NativeCanvasView.kt has something to hit-test touches
  * against. Only /native/layout-demo consumes this; Phase 0's /native/demo
  * still uses the frozen flat-array NativeDrawCommand protocol.
  */
-final class NativeCanvas
+final class Canvas
 {
     /**
      * @var array<int, array<string, mixed>>
@@ -77,7 +77,7 @@ final class NativeCanvas
     private bool $scrollFollow = false;
 
     /**
-     * RenderLazyList only builds/paints the items within its current
+     * LazyList only builds/paints the items within its current
      * scroll window, but reports the FULL virtual list height as its
      * Size — this flag tells NativeCanvasView.kt "re-send scrollY and
      * re-fetch as the user scrolls near the edge of what's actually
@@ -98,7 +98,7 @@ final class NativeCanvas
      * "fixed": true — NativeCanvasView.kt draws those commands a second
      * time with no scroll translate applied, so they stay pinned to the
      * viewport (an AppBar/BottomNavigationBar) instead of scrolling with
-     * the body. See RenderFixed, which is what actually calls this rather
+     * the body. See Fixed, which is what actually calls this rather
      * than call sites reaching for it directly.
      */
     public function beginFixed(): self
@@ -123,7 +123,7 @@ final class NativeCanvas
      * NativeCanvasView.kt flies that tagged subtree from its old rect to
      * its new one (a real FLIP transition — translate+scale via a Matrix,
      * see drawHeroTransition()) instead of just crossfading in place like
-     * everything else. See RenderHero, which is what actually calls this.
+     * everything else. See Hero, which is what actually calls this.
      */
     public function beginHero(string $tag, float $x, float $y, float $width, float $height, ?Curve $curve = null): self
     {
@@ -155,7 +155,7 @@ final class NativeCanvas
      * client-side — translating the tagged commands live under the
      * finger, no round-trip per frame — and only calls back to PHP with
      * $action once the swipe commits past threshold on release (see
-     * RenderDismissible, drawDismissOverlay(), and
+     * Dismissible, drawDismissOverlay(), and
      * NativeRenderPocActivity's onTap() handling "dismiss:" actions the
      * same as any other). PHP never sees the gesture itself, only its
      * outcome — the "sync only on release" split this whole primitive
@@ -186,13 +186,13 @@ final class NativeCanvas
      * Drag-to-reorder — the same "PHP never sees the gesture, only its
      * outcome" split as dismissible(), applied to reordering a whole
      * group instead of removing one item. Each item in a
-     * RenderReorderable registers its own rect + stable $key under a
+     * Reorderable registers its own rect + stable $key under a
      * shared $group here (reorderRegions); NativeCanvasView.kt tracks a
      * long-press-then-drag entirely client-side — following the finger,
      * swapping slot assignments as the dragged item crosses a neighbor's
      * midpoint, animating the displaced items into their new slots — and
      * only calls back once the finger lifts, with the group's action and
-     * the final key order. See RenderReorderable.
+     * the final key order. See Reorderable.
      */
     public function reorderItem(string $group, string $key, float $x, float $y, float $width, float $height, string $action): self
     {
@@ -224,9 +224,9 @@ final class NativeCanvas
      * $key against this list on every render (added when new, repositioned
      * when it moves, removed when it disappears) — the same "overlay a
      * real Android View, there's no Canvas concept for this" idiom
-     * NativeVideoPlayer/NativeMapView already use, just synced on every
+     * VideoPlayer/MapView already use, just synced on every
      * render instead of only on tap, since a Lottie animation is expected
-     * to autoplay rather than wait for one. See RenderLottie.
+     * to autoplay rather than wait for one. See Lottie.
      */
     public function lottieRegion(string $key, float $x, float $y, float $width, float $height, string $url, bool $loop, bool $autoplay): self
     {
@@ -246,7 +246,7 @@ final class NativeCanvas
 
     /**
      * An indeterminate spinner — Flutter's CircularProgressIndicator()
-     * with no `value`. Unlike NativeCircularProgress (a determinate
+     * with no `value`. Unlike CircularProgress (a determinate
      * percent, fully described by one PHP-computed frame), a spinner has
      * to keep rotating between renders with nobody re-fetching anything,
      * which this request/response pipeline has no way to express as a
@@ -255,7 +255,7 @@ final class NativeCanvas
      * clock every frame, and keeps invalidating on its own (a small
      * continuously-repeating ValueAnimator, started/stopped based on
      * whether any "spinner" command is present) for as long as one is on
-     * screen. See RenderSpinner.
+     * screen. See Spinner.
      */
     public function spinner(float $x, float $y, float $size, string $color, string $trackColor, float $strokeWidth): self
     {
@@ -273,9 +273,9 @@ final class NativeCanvas
     }
 
     /**
-     * A pre-rendered RenderClientTabs panel — the actual client-side state
+     * A pre-rendered ClientTabs panel — the actual client-side state
      * primitive. $panel already ran layout()/paint() into its own nested
-     * NativeCanvas by the time this is called (see RenderClientTabs), so
+     * Canvas by the time this is called (see ClientTabs), so
      * this just embeds that panel's own commands/hitRegions as one
      * "clientPanel" command in $this->commands. NativeCanvasView.kt keeps a
      * local `key -> selected index` map (seeded once from whichever panel
@@ -306,7 +306,7 @@ final class NativeCanvas
 
     /**
      * Raw command/hitRegion arrays, no envelope — clientTabPanel() embeds
-     * a whole nested NativeCanvas's output as one command, which needs the
+     * a whole nested Canvas's output as one command, which needs the
      * bare arrays toJson() would otherwise wrap in {commands, hitRegions,
      * ...}.
      *
@@ -348,7 +348,7 @@ final class NativeCanvas
     /**
      * The full laid-out content height (which can exceed the viewport) —
      * NativeCanvasView needs this to know how far there is to scroll.
-     * Called once with the root RenderNode::layout()'s returned Size.
+     * Called once with the root Widget::layout()'s returned Size.
      */
     public function setContentHeight(float $height): self
     {
@@ -373,7 +373,7 @@ final class NativeCanvas
     }
 
     /**
-     * Server-driven navigation — a NativeButton's "submit:" action can
+     * Server-driven navigation — a Button's "submit:" action can
      * change what screen the client should be on (login succeeding, most
      * obviously) the same way LoginPage.php's onLogin() returning a path
      * redirects the HTML pipeline's router. There's no router to
@@ -482,7 +482,7 @@ final class NativeCanvas
     }
 
     /**
-     * A raw filled/stroked circle — the primitive RenderContainer's
+     * A raw filled/stroked circle — the primitive Container's
      * rect()+radius can't express (a rect radius rounds corners, it
      * doesn't produce a circle sized independently of a bounding box), and
      * what Engine\Canvas's ->circle() needs a native equivalent for.
@@ -519,7 +519,7 @@ final class NativeCanvas
     }
 
     /**
-     * A stroked arc — what NativeCircularProgress needs (a track ring plus
+     * A stroked arc — what CircularProgress needs (a track ring plus
      * a partial ring for the filled portion) since a plain circle() can't
      * express "only part of the ring". $startDegrees/$sweepDegrees follow
      * Android's Canvas.drawArc() convention (0° = 3 o'clock, clockwise).
@@ -562,8 +562,8 @@ final class NativeCanvas
     /**
      * Queues a client-side, timer-driven navigation — the same
      * navigate:/screenStack push NativeRenderPocActivity.kt already does
-     * for a tapped RenderTappable, just fired by a Handler.postDelayed()
-     * instead of a touch. Used by RenderSplash so a splash screen can send
+     * for a tapped Tappable, just fired by a Handler.postDelayed()
+     * instead of a touch. Used by Splash so a splash screen can send
      * itself to its real home screen once its animation has had time to
      * play, with no user interaction required. Only the last call in a
      * paint pass wins — a screen only ever wants to schedule one jump.
@@ -576,7 +576,7 @@ final class NativeCanvas
     }
 
     /**
-     * RenderAsync's polling primitive: "refetch this SAME screen again in
+     * Async's polling primitive: "refetch this SAME screen again in
      * $afterMs, nothing navigates." NativeRenderPocActivity.kt deliberately
      * never sends ?lastHash= on a poll-triggered refetch (see its own
      * isPoll flag) even though it would otherwise qualify for the

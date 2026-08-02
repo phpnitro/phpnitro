@@ -6,15 +6,15 @@ use Engine\Color;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\Flexible;
-use Engine\Native\NativeButton;
-use Engine\Native\NativeIconCircle;
-use Engine\Native\NativeListTile;
-use Engine\Native\RenderContainer;
-use Engine\Native\RenderFlex;
-use Engine\Native\RenderIcon;
-use Engine\Native\RenderNode;
-use Engine\Native\RenderPadding;
-use Engine\Native\RenderText;
+use Engine\Native\Button;
+use Engine\Native\IconCircle;
+use Engine\Native\ListTile;
+use Engine\Native\Container;
+use Engine\Native\Flex;
+use Engine\Native\Icon;
+use Engine\Native\Widget;
+use Engine\Native\Padding;
+use Engine\Native\Text;
 use Engine\Native\Tokens;
 
 /**
@@ -22,19 +22,19 @@ use Engine\Native\Tokens;
  * screen: near-black ink on white, thin gray borders instead of shadows,
  * a pill-radius black CTA at the bottom. See docs/proposals/moteur-rendu-natif.md.
  *
- * Built from the NativeIconCircle/NativeListTile/NativeButton widget
- * layer instead of hand-rolled RenderContainer/RenderCenter composition.
+ * Built from the IconCircle/ListTile/Button widget
+ * layer instead of hand-rolled Container/Center composition.
  */
 final class NativeDocumentsScreen
 {
-    public static function build(float $screenWidth, int $tapCount): RenderNode
+    public static function build(float $screenWidth, int $tapCount): Widget
     {
         // $tapCount stands in for "how many required documents are done"
         // so the tappable button still demonstrates a genuine server
         // round-trip instead of a hardcoded state.
         $requiredDone = min($tapCount, 2);
 
-        $documentRow = static fn (string $title, string $subtitle, bool $required, bool $done): NativeListTile => new NativeListTile(
+        $documentRow = static fn (string $title, string $subtitle, bool $required, bool $done): ListTile => new ListTile(
             $title,
             $subtitle,
             $done ? 'check_circle' : 'description',
@@ -49,50 +49,50 @@ final class NativeDocumentsScreen
             // document is required — same "one or the other" rule the
             // hand-rolled version had.
             subtitleNode: $required
-                ? new RenderText('OBLIGATOIRE', Tokens::TEXT_CAPTION, Tokens::danger()->toHex(), bold: true, letterSpacing: 0.04)
+                ? new Text('OBLIGATOIRE', Tokens::TEXT_CAPTION, Tokens::danger()->toHex(), bold: true, letterSpacing: 0.04)
                 : null,
         );
 
-        return new RenderContainer(
-            RenderFlex::column([
+        return new Container(
+            Flex::column([
                 // Top bar: back circle + thin progress line, then a step caption.
-                new RenderPadding(
+                new Padding(
                     EdgeInsets::all(Tokens::SPACE_XL),
-                    RenderFlex::column([
-                        RenderFlex::row([
-                            new NativeIconCircle('arrow_back', action: 'back'),
-                            new Flexible(new RenderPadding(
+                    Flex::column([
+                        Flex::row([
+                            new IconCircle('arrow_back', action: 'back'),
+                            new Flexible(new Padding(
                                 EdgeInsets::only(left: Tokens::SPACE_MD, top: 18),
-                                new RenderContainer(height: 3, radius: 2, background: Tokens::ink()),
+                                new Container(height: 3, radius: 2, background: Tokens::ink()),
                             )),
                         ], crossAxisAlignment: CrossAxisAlignment::CENTER),
-                        new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_SM), new RenderText('Étape 3/4', Tokens::TEXT_CAPTION, Tokens::inkMuted()->toHex())),
-                        new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_LG), new RenderText('Documents requis', Tokens::TEXT_DISPLAY, Tokens::ink()->toHex(), bold: true)),
-                        new RenderPadding(
+                        new Padding(EdgeInsets::only(top: Tokens::SPACE_SM), new Text('Étape 3/4', Tokens::TEXT_CAPTION, Tokens::inkMuted()->toHex())),
+                        new Padding(EdgeInsets::only(top: Tokens::SPACE_LG), new Text('Documents requis', Tokens::TEXT_DISPLAY, Tokens::ink()->toHex(), bold: true)),
+                        new Padding(
                             EdgeInsets::only(top: 6),
-                            new RenderText('Formats acceptés : PDF, JPG, PNG — 10 Mo max par fichier.', Tokens::TEXT_BODY_SMALL, Tokens::inkSecondary()->toHex()),
+                            new Text('Formats acceptés : PDF, JPG, PNG — 10 Mo max par fichier.', Tokens::TEXT_BODY_SMALL, Tokens::inkSecondary()->toHex()),
                         ),
                     ]),
                 ),
                 // Content area: light gray background, same as the capture.
-                new RenderContainer(
-                    new RenderPadding(
+                new Container(
+                    new Padding(
                         EdgeInsets::symmetric(Tokens::SPACE_XL, Tokens::SPACE_LG),
-                        RenderFlex::column([
+                        Flex::column([
                             $documentRow('Permis de conduire', '', true, $requiredDone >= 1),
-                            new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_MD), $documentRow('Permis moto', 'si compétence moto', false, false)),
-                            new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_MD), $documentRow('Assurance professionnelle', '', true, false)),
-                            new RenderPadding(EdgeInsets::only(top: Tokens::SPACE_MD), $documentRow('Pièce d\'identité', '', true, $requiredDone >= 2)),
-                            new RenderPadding(
+                            new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), $documentRow('Permis moto', 'si compétence moto', false, false)),
+                            new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), $documentRow('Assurance professionnelle', '', true, false)),
+                            new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), $documentRow('Pièce d\'identité', '', true, $requiredDone >= 2)),
+                            new Padding(
                                 EdgeInsets::only(top: Tokens::SPACE_LG),
-                                new RenderContainer(
-                                    new RenderPadding(
+                                new Container(
+                                    new Padding(
                                         EdgeInsets::all(Tokens::SPACE_MD),
-                                        RenderFlex::row([
-                                            new RenderIcon('warning', 18, Tokens::danger()->toHex()),
-                                            new Flexible(new RenderPadding(
+                                        Flex::row([
+                                            new Icon('warning', 18, Tokens::danger()->toHex()),
+                                            new Flexible(new Padding(
                                                 EdgeInsets::only(left: Tokens::SPACE_SM),
-                                                new RenderText('Veuillez ajouter les documents obligatoires pour continuer.', Tokens::TEXT_BODY_SMALL, Tokens::danger()->toHex()),
+                                                new Text('Veuillez ajouter les documents obligatoires pour continuer.', Tokens::TEXT_BODY_SMALL, Tokens::danger()->toHex()),
                                             )),
                                         ]),
                                     ),
@@ -108,9 +108,9 @@ final class NativeDocumentsScreen
                             // "navigate:" client-side and switches
                             // screens) instead of just incrementing
                             // forever.
-                            new RenderPadding(
+                            new Padding(
                                 EdgeInsets::only(top: Tokens::SPACE_XL),
-                                new NativeButton(
+                                new Button(
                                     $requiredDone >= 2 ? 'Continuer' : "Valider un document ({$requiredDone}/2)",
                                     $requiredDone >= 2 ? 'navigate:otp' : 'increment',
                                     width: $screenWidth - 2 * Tokens::SPACE_XL,

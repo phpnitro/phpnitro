@@ -12,8 +12,7 @@ Un vrai runtime PHP embarqué sur le device (pas un serveur distant, pas de tran
 
 [Démarrage rapide](#démarrage-rapide) ·
 [Documentation](#documentation) ·
-[Widgets](docs/widgets.md) ·
-[Roadmap honnête](ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md)
+[Widgets](docs/widgets.md)
 
 </div>
 
@@ -23,20 +22,20 @@ Un vrai runtime PHP embarqué sur le device (pas un serveur distant, pas de tran
 
 Flutter compile en code natif. React Native transpile en JS. **PhpNitro exécute du vrai PHP, en continu, sur le téléphone** — chaque interaction (tap, geste) est une vraie requête traitée par un vrai runtime PHP embarqué (Android : binaire cross-compilé via le NDK, déjà fourni dans le dépôt), qui recalcule l'écran et renvoie des commandes de dessin JSON rejouées sur un vrai Canvas. Pas de simulation, pas d'aller-retour vers un serveur distant.
 
-Résultat : si tu sais écrire du PHP, tu sais écrire une app mobile. Pas de Dart, pas de JSX, pas de nouveau langage — un arbre de `RenderNode` (`RenderContainer`, `RenderFlex`, `NativeButton`...), exactement l'idée d'un `RenderObject` Flutter.
+Résultat : si tu sais écrire du PHP, tu sais écrire une app mobile. Pas de Dart, pas de JSX, pas de nouveau langage — un arbre de `Widget` (`Container`, `Flex`, `Button`...), exactement l'idée d'un `RenderObject` Flutter.
 
 ```php
 final class HomeScreen
 {
-    public static function build(float $screenWidth, float $screenHeight): RenderNode
+    public static function build(float $screenWidth, float $screenHeight): Widget
     {
         $count = (int) Preferences::get('count', '0');
 
-        return new NativeScaffold(
-            new RenderContainer(
-                new RenderCenter(RenderFlex::column([
-                    new RenderText("Compteur : {$count}", Tokens::TEXT_TITLE, Tokens::ink()->toHex()),
-                    new NativeButton('Incrémenter', 'increment'),
+        return new Scaffold(
+            new Container(
+                new Center(Flex::column([
+                    new Text("Compteur : {$count}", Tokens::TEXT_TITLE, Tokens::ink()->toHex()),
+                    new Button('Incrémenter', 'increment'),
                 ])),
                 width: $screenWidth,
             ),
@@ -54,9 +53,9 @@ if ($action === 'increment') {
 
 ## Ce que ça donne concrètement
 
-- **~50 widgets natifs** — mise en page (`RenderFlex`, `RenderStack`, `RenderWrap`...), formulaires (dialogues Android réels), texte riche multi-styles, animations implicites (`RenderAnimated`/`RenderHero`, FLIP réel), listes virtualisées (`RenderLazyList`) — [référence complète](docs/widgets.md).
+- **~50 widgets natifs** — mise en page (`Flex`, `Stack`, `Wrap`...), formulaires (dialogues Android réels), texte riche multi-styles, animations implicites (`Animated`/`Hero`, FLIP réel), listes virtualisées (`LazyList`) — [référence complète](docs/widgets.md).
 - **~30 capacités device réellement natives** — caméra, biométrie, NFC, géofencing, achat intégré, impression PDF, traduction sur l'appareil (ML Kit) — pas de simulation WebView, du vrai code Kotlin appelé directement. [Détails](docs/device-and-native.md).
-- **Un geste vraiment continu** — `RenderDismissible` (glisser pour supprimer) suit le doigt à 100% côté client, zéro requête réseau par frame, PHP ne voit que le résultat final.
+- **Un geste vraiment continu** — `Dismissible` (glisser pour supprimer) suit le doigt à 100% côté client, zéro requête réseau par frame, PHP ne voit que le résultat final.
 - **Backend unifié** — Symfony HttpFoundation + Doctrine DBAL, dans le même processus, zéro configuration réseau supplémentaire.
 - **CLI complète** (`phpx`) — scaffold de projet, génération de pages/entités, bundle Android, packaging `.phar`. [Détails](docs/cli.md).
 
@@ -90,9 +89,7 @@ Ouvre `http://127.0.0.1:8090/`. C'est tout — pas de build step, pas de simulat
 
 ## État du projet
 
-Honnêtement : **le runtime Android fonctionne réellement, vérifié sur device physique** (biométrie, navigation complète, animations, geste de glisser, impression PDF) — ce n'est pas un prototype qui ne marche qu'en démo. iOS a un pont natif écrit pour l'ancienne architecture WebView mais jamais recompilé pour le moteur de rendu natif actuel (pas de Mac disponible). Aucune obfuscation du code, aucun écosystème de packages tiers, aucun arbre d'accessibilité pour le rendu Canvas. Le signing de release (keystore, R8/ProGuard) et le build one-command (`phpx build:android`) sont câblés mais pas encore vérifiés par un vrai build signé de bout en bout.
-
-Le détail complet, sans enjoliver, de ce qui est fait vs ce qu'il reste pour rivaliser avec Flutter/React Native, est dans **[ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md](ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md)**.
+Honnêtement : **le runtime Android fonctionne réellement, vérifié sur device physique** (biométrie, navigation complète, animations, geste de glisser, impression PDF, arbre d'accessibilité pour le rendu Canvas) — ce n'est pas un prototype qui ne marche qu'en démo. iOS a un pont natif écrit pour l'ancienne architecture WebView mais jamais recompilé pour le moteur de rendu natif actuel (pas de Mac disponible). Aucune obfuscation du code, aucun écosystème de packages tiers, aucun test E2E automatisé. Le signing de release (keystore, R8/ProGuard) et le build one-command (`phpx build:android`) sont câblés mais pas encore vérifiés par un vrai build signé de bout en bout.
 
 ## Licence
 

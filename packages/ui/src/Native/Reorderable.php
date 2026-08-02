@@ -14,7 +14,7 @@ namespace Engine\Native;
 /**
  * The native equivalent of Flutter's ReorderableListView — a vertical
  * stack of items the user can long-press and drag to reorder. Same split
- * as RenderDismissible: NativeCanvasView.kt tracks the whole drag
+ * as Dismissible: NativeCanvasView.kt tracks the whole drag
  * (long-press detection, live follow, slot-swapping as the dragged item
  * crosses a neighbor, settle animation) entirely client-side, and only
  * calls back with $action once the finger lifts — carrying the final key
@@ -28,7 +28,7 @@ namespace Engine\Native;
  * heights can vary — reordering a horizontally-arranged group isn't
  * supported.
  */
-final class RenderReorderable implements RenderNode
+final class Reorderable implements Widget
 {
     private Size $size;
 
@@ -36,7 +36,7 @@ final class RenderReorderable implements RenderNode
     private array $itemSizes = [];
 
     /**
-     * @param array<string, RenderNode> $items key => child, in initial order
+     * @param array<string, Widget> $items key => child, in initial order
      */
     public function __construct(
         private readonly string $group,
@@ -64,7 +64,7 @@ final class RenderReorderable implements RenderNode
         return $constraints->constrain($this->size);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $cursorY = $y;
         foreach ($this->items as $key => $item) {

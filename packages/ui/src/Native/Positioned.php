@@ -12,15 +12,15 @@
 namespace Engine\Native;
 
 /**
- * Only meaningful as a direct child of RenderStack — paintIn() is called
- * by RenderStack once the stack's own box size is known, offsetting this
+ * Only meaningful as a direct child of Stack — paintIn() is called
+ * by Stack once the stack's own box size is known, offsetting this
  * child from whichever edges were given (unset edges default to 0, same
  * as Engine\Positioned's HTML equivalent).
  */
-final class RenderPositioned implements RenderNode
+final class Positioned implements Widget
 {
     public function __construct(
-        private readonly RenderNode $child,
+        private readonly Widget $child,
         private readonly ?float $top = null,
         private readonly ?float $right = null,
         private readonly ?float $bottom = null,
@@ -33,12 +33,12 @@ final class RenderPositioned implements RenderNode
         return $this->child->layout($constraints->loosen());
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->child->paint($canvas, $x, $y);
     }
 
-    public function paintIn(NativeCanvas $canvas, float $stackX, float $stackY, float $stackWidth, float $stackHeight, Size $childSize): void
+    public function paintIn(Canvas $canvas, float $stackX, float $stackY, float $stackWidth, float $stackHeight, Size $childSize): void
     {
         $x = match (true) {
             $this->left !== null => $this->left,

@@ -21,9 +21,9 @@ use Engine\Color;
  * pass the current validation error straight through, render nothing when
  * it's null/empty.
  */
-final class NativeBanner implements RenderNode
+final class Banner implements Widget
 {
-    private readonly ?RenderNode $content;
+    private readonly ?Widget $content;
 
     public function __construct(?string $message, string $icon = 'warning', ?Color $background = null, ?Color $foreground = null)
     {
@@ -35,14 +35,14 @@ final class NativeBanner implements RenderNode
 
         $fg = $foreground ?? Tokens::danger();
 
-        $this->content = new RenderContainer(
-            new RenderPadding(
+        $this->content = new Container(
+            new Padding(
                 EdgeInsets::all(Tokens::SPACE_MD),
-                RenderFlex::row([
-                    new RenderIcon($icon, 20, $fg->toHex()),
-                    new Flexible(new RenderPadding(
+                Flex::row([
+                    new Icon($icon, 20, $fg->toHex()),
+                    new Flexible(new Padding(
                         EdgeInsets::only(left: Tokens::SPACE_SM),
-                        new RenderText($message, Tokens::TEXT_BODY_SMALL, $fg->toHex()),
+                        new Text($message, Tokens::TEXT_BODY_SMALL, $fg->toHex()),
                     )),
                 ]),
             ),
@@ -56,7 +56,7 @@ final class NativeBanner implements RenderNode
         return $this->content?->layout($constraints) ?? $constraints->constrain(new Size(0.0, 0.0));
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->content?->paint($canvas, $x, $y);
     }

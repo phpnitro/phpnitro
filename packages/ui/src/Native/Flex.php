@@ -22,10 +22,10 @@ namespace Engine\Native;
  * A plain (non-Flexible) child behaves like an un-Expanded child in a real
  * Flutter Row/Column: it keeps its intrinsic main-axis size.
  */
-final class RenderFlex implements RenderNode
+final class Flex implements Widget
 {
     /**
-     * @var array<int, RenderNode>
+     * @var array<int, Widget>
      */
     private readonly array $children;
 
@@ -40,7 +40,7 @@ final class RenderFlex implements RenderNode
     private array $childOffsets = [];
 
     /**
-     * @param array<int, RenderNode> $children Wrap a child in Flexible to let it grow into leftover main-axis space.
+     * @param array<int, Widget> $children Wrap a child in Flexible to let it grow into leftover main-axis space.
      */
     public function __construct(
         private readonly Axis $direction,
@@ -153,7 +153,7 @@ final class RenderFlex implements RenderNode
         }
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         foreach ($this->children as $index => $child) {
             [$dx, $dy] = $this->childOffsets[$index];

@@ -20,9 +20,9 @@ namespace Engine\Native;
  * The picked value comes back as an ISO "YYYY-MM-DD" string, same shape
  * DatePicker.php's HTML input already produced.
  */
-final class NativeDatePicker implements RenderNode
+final class DatePicker implements Widget
 {
-    private readonly RenderNode $content;
+    private readonly Widget $content;
 
     public function __construct(
         string $name,
@@ -33,12 +33,12 @@ final class NativeDatePicker implements RenderNode
         $displayText = $value !== '' ? $value : $placeholder;
         $displayColor = $value !== '' ? Tokens::ink() : Tokens::inkMuted();
 
-        $box = new RenderContainer(
-            new RenderPadding(
+        $box = new Container(
+            new Padding(
                 EdgeInsets::symmetric(horizontal: Tokens::SPACE_MD),
-                new RenderCenter(RenderFlex::row([
-                    new Flexible(new RenderText($displayText, Tokens::TEXT_BODY, $displayColor->toHex())),
-                    new RenderIcon('calendar_today', 18, Tokens::inkMuted()->toHex()),
+                new Center(Flex::row([
+                    new Flexible(new Text($displayText, Tokens::TEXT_BODY, $displayColor->toHex())),
+                    new Icon('calendar_today', 18, Tokens::inkMuted()->toHex()),
                 ], crossAxisAlignment: CrossAxisAlignment::CENTER)),
             ),
             height: $height,
@@ -48,7 +48,7 @@ final class NativeDatePicker implements RenderNode
             borderWidth: 1.0,
         );
 
-        $this->content = new RenderTappable($box, "datepicker:{$name}", ['value' => $value]);
+        $this->content = new Tappable($box, "datepicker:{$name}", ['value' => $value]);
     }
 
     public function layout(Constraints $constraints): Size
@@ -56,7 +56,7 @@ final class NativeDatePicker implements RenderNode
         return $this->content->layout($constraints);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $this->content->paint($canvas, $x, $y);
     }

@@ -19,9 +19,9 @@ namespace Engine\Native;
  * browser-style reflow loop), paint() is a second top-down pass that turns
  * whatever layout() decided into absolute-pixel draw commands.
  */
-interface RenderNode
+interface Widget
 {
     public function layout(Constraints $constraints): Size;
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void;
+    public function paint(Canvas $canvas, float $x, float $y): void;
 }

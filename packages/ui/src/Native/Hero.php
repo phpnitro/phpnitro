@@ -18,14 +18,14 @@ namespace Engine\Native;
  * recorded as a heroRegion under $tag; if the SAME tag appears in the next
  * render at a different rect, NativeCanvasView.kt flies the tagged
  * subtree there instead of just crossfading in place (see
- * NativeCanvas::beginHero()/endHero() and drawHeroTransition()).
+ * Canvas::beginHero()/endHero() and drawHeroTransition()).
  */
-final class RenderHero implements RenderNode
+final class Hero implements Widget
 {
     private Size $size;
 
     public function __construct(
-        private readonly RenderNode $child,
+        private readonly Widget $child,
         private readonly string $tag,
         private readonly ?Curve $curve = null,
     ) {
@@ -39,7 +39,7 @@ final class RenderHero implements RenderNode
         return $this->size;
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $canvas->beginHero($this->tag, $x, $y, $this->size->width, $this->size->height, $this->curve);
         $this->child->paint($canvas, $x, $y);

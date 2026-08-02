@@ -15,16 +15,16 @@ namespace Engine\Native;
  * Marks its subtree's draw commands/hit regions as screen-relative instead
  * of content-relative — NativeCanvasView.kt draws the scrollable stream
  * translated by -scrollY, then draws everything painted while
- * NativeCanvas::beginFixed()/endFixed() was active a second time with no
+ * Canvas::beginFixed()/endFixed() was active a second time with no
  * translate, so it stays pinned while the body scrolls underneath. What
  * Flutter's Scaffold gets from AppBar/BottomNavigationBar living outside
- * the scrollable body — this is the primitive NativeScaffold builds that
+ * the scrollable body — this is the primitive Scaffold builds that
  * on top of, not something call sites should normally reach for directly.
  */
-final class RenderFixed implements RenderNode
+final class Fixed implements Widget
 {
     public function __construct(
-        private readonly RenderNode $child,
+        private readonly Widget $child,
     ) {
     }
 
@@ -33,7 +33,7 @@ final class RenderFixed implements RenderNode
         return $this->child->layout($constraints);
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $canvas->beginFixed();
         $this->child->paint($canvas, $x, $y);

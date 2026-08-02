@@ -17,15 +17,15 @@ namespace Engine\Native;
  * Engine\Wrap (a flex-wrap Tailwind class), needed because a Canvas has no
  * flexbox to fall back on.
  */
-final class RenderWrap implements RenderNode
+final class Wrap implements Widget
 {
     /**
-     * @var array<int, RenderNode>
+     * @var array<int, Widget>
      */
     private readonly array $children;
 
     /**
-     * @var array<int, array{node: RenderNode, x: float, y: float}>
+     * @var array<int, array{node: Widget, x: float, y: float}>
      */
     private array $positioned = [];
 
@@ -71,7 +71,7 @@ final class RenderWrap implements RenderNode
         return $constraints->constrain(new Size($this->width, $this->height));
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         foreach ($this->positioned as $entry) {
             $entry['node']->paint($canvas, $x + $entry['x'], $y + $entry['y']);

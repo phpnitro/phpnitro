@@ -21,7 +21,7 @@ namespace Engine\Native;
  * phpxNav.submitAction() in the HTML pipeline, just without a DOM to
  * re-render into — the whole draw-command list comes back instead.
  */
-final class RenderTappable implements RenderNode
+final class Tappable implements Widget
 {
     private Size $size;
 
@@ -35,11 +35,11 @@ final class RenderTappable implements RenderNode
      *                                    TalkBack content description from nearby text
      *                                    commands automatically for most widgets, but an
      *                                    icon-only region with no visible text (a raw
-     *                                    RenderTappable around an icon, say) has nothing to
+     *                                    Tappable around an icon, say) has nothing to
      *                                    infer from without one.
      */
     public function __construct(
-        private readonly RenderNode $child,
+        private readonly Widget $child,
         private readonly string $action,
         private readonly ?array $meta = null,
     ) {
@@ -53,7 +53,7 @@ final class RenderTappable implements RenderNode
         return $this->size;
     }
 
-    public function paint(NativeCanvas $canvas, float $x, float $y): void
+    public function paint(Canvas $canvas, float $x, float $y): void
     {
         $canvas->hitRegion($x, $y, $this->size->width, $this->size->height, $this->action, $this->meta);
         $this->child->paint($canvas, $x, $y);
