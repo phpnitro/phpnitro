@@ -8,6 +8,7 @@ composer.lock
 /android/build/
 /android/app/build/
 /android/engine/build/
+/android/go/build/
 /lib/backend/var/*.sqlite
 /lib/backend/var/uploads/
 /.tools/
