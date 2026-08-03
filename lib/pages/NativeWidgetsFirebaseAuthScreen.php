@@ -7,6 +7,7 @@ use Engine\Native\EdgeInsets;
 use Engine\Native\AppBar;
 use Engine\Native\Banner;
 use Engine\Native\Button;
+use Engine\Native\Center;
 use Engine\Color;
 use Engine\Native\ConfirmButton;
 use Engine\Native\ImageCircle;
@@ -101,17 +102,25 @@ final class NativeWidgetsFirebaseAuthScreen
                 // needs — no engine change required, Icon/IconCircle's
                 // MaterialIcons-only glyphs were never actually the
                 // blocker.
+                //
+                // Container alone does NOT center a child narrower than
+                // its own declared width — layout() hands the child a
+                // LOOSENED constraint (see Container::layout()), so a Row
+                // that hugs its own content size just paints at the
+                // container's top-left corner. Button.php's own "icon +
+                // label" branch wraps in Center() for exactly this reason;
+                // this needed the same wrapper.
                 new Padding(
                     EdgeInsets::only(top: Tokens::SPACE_MD),
                     new Tappable(
                         new Container(
-                            Flex::row([
+                            new Center(Flex::row([
                                 new ImageCircle($googleLogoUrl, 24.0),
                                 new Padding(
                                     EdgeInsets::only(left: Tokens::SPACE_SM),
                                     new Text('Continuer avec Google', Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true),
                                 ),
-                            ], mainAxisAlignment: MainAxisAlignment::CENTER, crossAxisAlignment: CrossAxisAlignment::CENTER),
+                            ], mainAxisAlignment: MainAxisAlignment::CENTER, crossAxisAlignment: CrossAxisAlignment::CENTER)),
                             width: $contentWidth,
                             height: 54.0,
                             background: Color::white(),
