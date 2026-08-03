@@ -90,6 +90,14 @@ class NativeRenderPocActivity : AppCompatActivity() {
     private var activeEditText: EditText? = null
     private val deviceBridge by lazy { NativeDeviceBridge(this) }
     private var firstScreenRendered = false
+    // Built lazily the first time a fetch fails outright (server
+    // unreachable, wrong network, dev server not running) — before this,
+    // that failure just left the splash screen up forever with zero
+    // feedback (splash's keepOnScreenCondition never saw
+    // firstScreenRendered flip true), which is what an all-black screen
+    // actually was: not a rendering bug, an invisible failure.
+    private var connectionErrorView: android.view.View? = null
+    private var connectionErrorMessage: TextView? = null
     // Canvas::stableHash() of the last response actually applied —
     // sent back as lastHash= on the next same-screen refetch so PHP can
     // reply {"unchanged":true} instead of the whole payload when nothing
@@ -977,7 +985,64 @@ class NativeRenderPocActivity : AppCompatActivity() {
             Handler(Looper.getMainLooper()).post { applyResponse(json, screenWidthDp, isNavigation) }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch draw commands", e)
+            Handler(Looper.getMainLooper()).post { showConnectionError() }
         }
+    }
+
+    // Only ever reached after a fetch failure — see fetchDrawCommands()'s
+    // catch block. Reuses ConnectActivity's plain-Views style (this class
+    // has no XML layouts at all) rather than adding a layout file for one
+    // screen. Idempotent: repeated failures (e.g. an auto-retry poll)
+    // just update the existing view's text instead of stacking duplicates.
+    private fun showConnectionError() {
+        firstScreenRendered = true // dismiss the splash — see its keepOnScreenCondition above
+
+        val target = "$serverHost:$serverPort"
+        val errorText = "Impossible de joindre $target.\n\nVérifie que cet appareil est sur le même réseau Wi-Fi que la machine de dev, et que `phpx serve` tourne toujours."
+        val existing = connectionErrorView
+        if (existing != null) {
+            connectionErrorMessage?.text = errorText
+            existing.visibility = android.view.View.VISIBLE
+            return
+        }
+
+        val density = resources.displayMetrics.density
+        fun dp(value: Int) = (value * density).toInt()
+
+        val message = TextView(this).apply {
+            text = errorText
+            textSize = 15f
+            setTextColor(android.graphics.Color.parseColor("#E5E7EB"))
+            gravity = Gravity.CENTER
+        }
+        connectionErrorMessage = message
+        val retryButton = android.widget.Button(this).apply {
+            text = "Réessayer"
+            setOnClickListener {
+                connectionErrorView?.visibility = android.view.View.GONE
+                refetch(action = null, isNavigation = true)
+            }
+        }
+        val card = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(dp(28), dp(28), dp(28), dp(28))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(android.graphics.Color.parseColor("#EE111827"))
+                cornerRadius = dp(14).toFloat()
+            }
+            addView(message)
+            addView(retryButton, android.widget.LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                topMargin = dp(20)
+            })
+        }
+        val params = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            gravity = Gravity.CENTER
+            leftMargin = dp(32)
+            rightMargin = dp(32)
+        }
+        rootLayout.addView(card, params)
+        connectionErrorView = card
     }
 
     // A "redirect" field means PHP wants the client on a different screen
@@ -986,6 +1051,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
     // handling). Swap the stack's top entry and re-fetch instead of
     // drawing the stale response.
     private fun applyResponse(json: String, screenWidthDp: Float, isNavigation: Boolean) {
+        connectionErrorView?.visibility = android.view.View.GONE
         if (isNavigation) lastAppliedHash = null
 
         // {"unchanged":true} — PHP determined its output would be byte-
