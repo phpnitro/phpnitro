@@ -173,16 +173,48 @@ if ($path === '/native/layout-demo') {
     // the rest of the app already reads ($_SESSION['auth_user'],
     // HomePage.php/NativeHomeScreen both check it) and tell the client to
     // redirect; wrong ones just re-render this same screen with an error.
+    // Real password_hash()/password_verify() now, via UserRepository —
+    // not the hardcoded string comparison this used to be. "demo"/"demo"
+    // still works (UserRepository seeds that account on a fresh DB), it
+    // just goes through the real check like any other account now.
     $loginError = null;
     $redirectScreen = null;
     if ($screen === 'login' && $action === 'login') {
         $username = $_GET['username'] ?? '';
         $password = $_GET['password'] ?? '';
-        if ($username === 'demo' && $password === 'demo') {
-            $_SESSION['auth_user'] = $username;
+        $user = (new \Backend\Repository\UserRepository())->verifyCredentials($username, $password);
+        if ($user !== null) {
+            $_SESSION['auth_user'] = $user['username'];
+            $_SESSION['auth_user_id'] = $user['id'];
             $redirectScreen = 'home';
         } else {
-            $loginError = 'Identifiants invalides (essaie demo / demo).';
+            $loginError = 'Identifiants invalides.';
+        }
+    }
+
+    // NativeRegisterScreen's counterpart — validated server-side (client
+    // TextFields don't enforce anything), then auto-signs-in on success
+    // exactly like a fresh login would, so a new account lands straight
+    // on the home screen instead of having to log in a second time.
+    $registerError = null;
+    if ($screen === 'register' && $action === 'register') {
+        $username = trim($_GET['username'] ?? '');
+        $password = $_GET['password'] ?? '';
+        $passwordConfirm = $_GET['password_confirm'] ?? '';
+        $users = new \Backend\Repository\UserRepository();
+        if ($username === '' || $password === '') {
+            $registerError = 'Utilisateur et mot de passe requis.';
+        } elseif (strlen($password) < 6) {
+            $registerError = 'Le mot de passe doit faire au moins 6 caractères.';
+        } elseif ($password !== $passwordConfirm) {
+            $registerError = 'Les mots de passe ne correspondent pas.';
+        } elseif ($users->usernameTaken($username)) {
+            $registerError = 'Ce nom d\'utilisateur est déjà pris.';
+        } else {
+            $user = $users->create($username, $password);
+            $_SESSION['auth_user'] = $user['username'];
+            $_SESSION['auth_user_id'] = $user['id'];
+            $redirectScreen = 'home';
         }
     }
     // Logout stays on the home screen (matches HomePage.php's onLogout(),
@@ -290,6 +322,7 @@ if ($path === '/native/layout-demo') {
         'documents' => \Engine\App\NativeDocumentsScreen::build($screenWidth, $tapCount),
         'product' => \Engine\App\NativeProductScreen::build($screenWidth, $_GET['id'] ?? '?'),
         'login' => \Engine\App\NativeLoginScreen::build($screenWidth, $loginError),
+        'register' => \Engine\App\NativeRegisterScreen::build($screenWidth, $registerError),
         'device' => \Engine\App\NativeDeviceScreen::build($screenWidth, $screenHeight),
         'api' => \Engine\App\NativeApiScreen::build($screenWidth, $screenHeight),
         'widgets' => \Engine\App\NativeWidgetsIndexScreen::build($screenWidth, $screenHeight),
