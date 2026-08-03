@@ -618,6 +618,17 @@ class NativeRenderPocActivity : AppCompatActivity() {
             }
             "camera" -> takePicturePreview.launch(null)
             "pickimage" -> pickImage.launch("image/*")
+            "googlesignin" -> {
+                val webClientId = getString(R.string.google_web_client_id)
+                deviceBridge.signInWithGoogle(webClientId) { idToken, error ->
+                    if (idToken != null) {
+                        fieldValues["google_id_token"] = idToken
+                    } else {
+                        fieldValues["google_signin_error"] = error ?: "Échec de connexion Google."
+                    }
+                    refetch("google_signin", includeFields = true)
+                }
+            }
             "sensor" -> {
                 deviceBridge.readSensor(android.hardware.Sensor.TYPE_ACCELEROMETER) { result ->
                     fieldValues[parts.getOrElse(1) { "sensor_out" }] = result

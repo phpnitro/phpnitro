@@ -65,6 +65,23 @@ final class NativeWidgetsFirebaseAuthScreen
                         ['next' => $isSignUp ? 'signin' : 'signup'],
                     ),
                 ),
+                new Padding(
+                    EdgeInsets::only(top: Tokens::SPACE_LG),
+                    new Text('— ou —', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
+                ),
+                // Credential Manager's Google ID-token flow — see
+                // NativeDeviceBridge.kt's signInWithGoogle() and this
+                // action's handling in NativeRenderPocActivity's
+                // handleDeviceAction(). Needs a real Google Cloud OAuth
+                // Web Client ID configured (see that method's own
+                // docblock) to do anything beyond fail informatively; not
+                // wired up automatically since that credential is
+                // per-project, the same way FIREBASE_WEB_API_KEY above
+                // is.
+                new Padding(
+                    EdgeInsets::only(top: Tokens::SPACE_MD),
+                    new Button('Continuer avec Google', 'device:googlesignin', width: $contentWidth),
+                ),
             ], crossAxisAlignment: CrossAxisAlignment::STRETCH);
 
         $body = new Container(

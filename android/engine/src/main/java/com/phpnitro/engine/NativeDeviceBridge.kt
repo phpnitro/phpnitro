@@ -331,6 +331,74 @@ class NativeDeviceBridge(private val context: Context) {
     }
 
     /**
+     * Real Google Sign-In via Credential Manager (not the deprecated
+     * GoogleSignInClient) — returns a Google-issued ID token (a signed
+     * JWT), NOT a Firebase session by itself. See
+     * FirebaseAuth::signInWithGoogleIdToken() for what happens to that
+     * token server-side (public/index.php's "google_signin" action
+     * handler exchanges it for one).
+     *
+     * webClientId MUST be a Google Cloud OAuth 2.0 "Web application"
+     * client ID (Firebase Console -> Authentication -> Sign-in method ->
+     * Google -> Web SDK configuration -> Web client ID) — NOT an Android
+     * client ID, even though this runs on Android; that's how
+     * GetGoogleIdOption identifies which app/project is asking. This
+     * project has no such ID configured by default (it's per-Firebase-
+     * project, same as FIREBASE_WEB_API_KEY) — an empty string here
+     * always fails informatively rather than crashing, so the button
+     * exists and explains itself before a developer has wired up a real
+     * project.
+     *
+     * getCredentialAsync (callback-based), not the suspend getCredential
+     * — this class has no coroutine scope anywhere else, and every other
+     * async capability here (location, biometric, mic) already uses a
+     * plain callback, so this matches rather than introducing the only
+     * coroutine in the file for one method.
+     */
+    fun signInWithGoogle(webClientId: String, onResult: (String?, String?) -> Unit) {
+        val activity = context as? FragmentActivity ?: run {
+            onResult(null, "Contexte non compatible.")
+            return
+        }
+        if (webClientId.isBlank()) {
+            onResult(null, "Google Sign-In non configuré (Web Client ID manquant côté Android).")
+            return
+        }
+
+        val googleIdOption = com.google.android.libraries.identity.googleid.GetGoogleIdOption.Builder()
+            .setFilterByAuthorizedAccounts(false)
+            .setServerClientId(webClientId)
+            .build()
+        val request = androidx.credentials.GetCredentialRequest.Builder()
+            .addCredentialOption(googleIdOption)
+            .build()
+
+        androidx.credentials.CredentialManager.create(context).getCredentialAsync(
+            activity,
+            request,
+            android.os.CancellationSignal(),
+            ContextCompat.getMainExecutor(context),
+            object : androidx.credentials.CredentialManagerCallback<androidx.credentials.GetCredentialResponse, androidx.credentials.exceptions.GetCredentialException> {
+                override fun onResult(result: androidx.credentials.GetCredentialResponse) {
+                    val credential = result.credential
+                    if (credential is androidx.credentials.CustomCredential &&
+                        credential.type == com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                    ) {
+                        val idTokenCredential = com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.createFrom(credential.data)
+                        onResult(idTokenCredential.idToken, null)
+                    } else {
+                        onResult(null, "Type d'identifiant inattendu.")
+                    }
+                }
+
+                override fun onError(e: androidx.credentials.exceptions.GetCredentialException) {
+                    onResult(null, e.message ?: "Connexion Google annulée ou indisponible.")
+                }
+            },
+        )
+    }
+
+    /**
      * A real android.hardware.biometrics prompt (fingerprint/face unlock)
      * — needs a FragmentActivity, which NativeRenderPocActivity (an
      * AppCompatActivity) already is.

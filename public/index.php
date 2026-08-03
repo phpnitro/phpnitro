@@ -287,6 +287,32 @@ if ($path === '/native/layout-demo') {
         unset($_SESSION['firebase_uid']);
     }
 
+    // Google Sign-In — the ID token itself was already obtained on-device
+    // via Android's Credential Manager (see NativeDeviceBridge.kt's
+    // signInWithGoogle(), dispatched from handleDeviceAction("googlesignin")
+    // in NativeRenderPocActivity.kt) and arrives here as a plain field,
+    // the same "device capability reports its result, then a normal
+    // refetch" shape every other device: capability already uses. This
+    // just exchanges that token for a Firebase session — see
+    // FirebaseAuth::signInWithGoogleIdToken()'s own docblock for why that
+    // single call is Firebase's whole job here.
+    if ($action === 'google_signin') {
+        $webApiKey = $_ENV['FIREBASE_WEB_API_KEY'] ?? '';
+        $googleIdToken = $_GET['google_id_token'] ?? '';
+        if ($webApiKey === '') {
+            $firebaseError = "FIREBASE_WEB_API_KEY n'est pas configuré dans .env — voir phpnitro.yml.";
+        } elseif ($googleIdToken === '') {
+            $firebaseError = $_GET['google_signin_error'] ?? 'Connexion Google annulée ou indisponible.';
+        } else {
+            $result = \Engine\Firebase\FirebaseAuth::signInWithGoogleIdToken($webApiKey, $googleIdToken);
+            if ($result['error'] !== null) {
+                $firebaseError = "Échec Google Sign-In : {$result['error']}";
+            } else {
+                $_SESSION['firebase_uid'] = $result['localId'];
+            }
+        }
+    }
+
     // Mirrors WidgetsStepperPage.php's Screen::$state (itself session-backed)
     // — the native pipeline has no per-request server object to hold step
     // state in, so it lives in $_SESSION directly, keyed the same "merge

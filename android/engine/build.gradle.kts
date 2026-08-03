@@ -71,4 +71,12 @@ dependencies {
     // idiom NativeVideoPlayer/NativeMapView already use), not a hand-rolled
     // frame-by-frame Canvas replay.
     api("com.airbnb.android:lottie:6.5.2")
+    // Google Sign-In, the current (non-deprecated) way: Credential
+    // Manager for the on-device credential picker UI, the Play Services
+    // backend it delegates to for a Google account specifically, and
+    // Google's own ID-token parsing helper — see
+    // NativeDeviceBridge.kt's signInWithGoogle().
+    api("androidx.credentials:credentials:1.3.0")
+    api("androidx.credentials:credentials-play-services-auth:1.3.0")
+    api("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 }
