@@ -3,6 +3,7 @@
 /node_modules/
 /.phpunit.result.cache
 /public/assets/
+/public/__qr.png
 composer.lock
 /android/.gradle/
 /android/build/

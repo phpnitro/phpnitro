@@ -37,6 +37,11 @@
 define('PHPX_TOOL_ROOT', dirname(__DIR__));
 define('PHPX_ROOT', getcwd());
 
+// Not project-relative — phpx itself ships this, independent of whatever
+// a project's own composer.json/vendor happens to declare (see cmdServe()'s
+// QR code for PhpNitro Go).
+require_once __DIR__ . '/QrCode.php';
+
 // The github.com/phpnitro/android-engine tag a scaffolded project's
 // android/app/build.gradle.kts pins via JitPack — bump alongside a real
 // android/engine/ release (see this monorepo's own android/engine/ for
@@ -674,7 +679,18 @@ function cmdServe(int $port): void
     // network, not something to run on a public one.
     $lanIp = detectLanIp();
     if ($lanIp !== null) {
-        echo "Depuis PhpNitro Go (même réseau) : http://{$lanIp}:{$port}\n";
+        $url = "http://{$lanIp}:{$port}";
+        echo "Depuis PhpNitro Go (même réseau) : {$url}\n";
+        echo QrCode::toTerminal($url) . "\n";
+
+        // The terminal render above only scans reliably in terminals with
+        // perfectly square, gap-free glyph metrics — not a safe assumption.
+        // A PNG opened in a browser has no such font-rendering variable, so
+        // it's offered as the reliable fallback (same http://LANIP:PORT
+        // built-in server serves it directly, no route needed — the PHP
+        // dev server serves any file that exists under the docroot as-is).
+        QrCode::toPngFile($url, $publicDir . '/__qr.png');
+        echo "QR code plus net (si le scan ci-dessus échoue) : {$url}/__qr.png\n";
     }
 
     passthruOrFail(
