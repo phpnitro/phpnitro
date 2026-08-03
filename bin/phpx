@@ -624,6 +624,37 @@ function cmdIcon(): void
     syncManifestIcon(PHPX_ROOT . '/android/app/src/main/res');
 }
 
+/**
+ * Best-effort LAN IP for the "connect from PhpNitro Go" message below — no
+ * data actually leaves the machine, connecting a UDP socket just makes the
+ * OS pick which local interface/address would be used to reach that
+ * address, which is the standard cross-platform trick for this (no
+ * dependency on `hostname -I`/`ip addr`, which aren't available/consistent
+ * everywhere). Returns null (silently) rather than failing `phpx serve`
+ * over a purely informational message.
+ */
+function detectLanIp(): ?string
+{
+    // ext-sockets isn't guaranteed to be compiled into every PHP build —
+    // this is a purely informational nicety, not something `phpx serve`
+    // should ever fail over.
+    if (!function_exists('socket_create')) {
+        return null;
+    }
+    $socket = @socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
+    if ($socket === false) {
+        return null;
+    }
+    if (!@socket_connect($socket, '8.8.8.8', 53)) {
+        socket_close($socket);
+        return null;
+    }
+    socket_getsockname($socket, $address);
+    socket_close($socket);
+
+    return $address ?: null;
+}
+
 function cmdServe(int $port): void
 {
     syncAssets();
@@ -634,8 +665,20 @@ function cmdServe(int $port): void
         phpxFail("no public/ directory found at {$publicDir}");
     }
 
+    // 0.0.0.0, not 127.0.0.1: this is what lets PhpNitro Go (a companion
+    // app with no bundled project code, see android/go/) reach this dev
+    // server from another device on the same network — the same trade-off
+    // `expo start` makes. Real implication, not just theoretical: while
+    // `phpx serve` runs, ANYONE on the same Wi-Fi/LAN can reach this
+    // server, not just this machine. Fine on a trusted home/office
+    // network, not something to run on a public one.
+    $lanIp = detectLanIp();
+    if ($lanIp !== null) {
+        echo "Depuis PhpNitro Go (même réseau) : http://{$lanIp}:{$port}\n";
+    }
+
     passthruOrFail(
-        "php -S 127.0.0.1:{$port} -t " . escapeshellarg($publicDir) . ' ' . escapeshellarg($publicDir . '/router.php'),
+        "php -S 0.0.0.0:{$port} -t " . escapeshellarg($publicDir) . ' ' . escapeshellarg($publicDir . '/router.php'),
     );
 }
 
