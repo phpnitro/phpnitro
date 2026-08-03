@@ -998,26 +998,61 @@ class NativeRenderPocActivity : AppCompatActivity() {
         firstScreenRendered = true // dismiss the splash — see its keepOnScreenCondition above
 
         val target = "$serverHost:$serverPort"
-        val errorText = "Impossible de joindre $target.\n\nVérifie que cet appareil est sur le même réseau Wi-Fi que la machine de dev, et que `phpx serve` tourne toujours."
         val existing = connectionErrorView
         if (existing != null) {
-            connectionErrorMessage?.text = errorText
+            connectionErrorMessage?.text = target
             existing.visibility = android.view.View.VISIBLE
             return
         }
 
         val density = resources.displayMetrics.density
         fun dp(value: Int) = (value * density).toInt()
+        val accent = android.graphics.Color.parseColor("#F97316") // same accent NativeCanvasView's own dev-tools badge/panel already use
 
-        val message = TextView(this).apply {
-            text = errorText
-            textSize = 15f
-            setTextColor(android.graphics.Color.parseColor("#E5E7EB"))
+        val icon = TextView(this).apply {
+            text = "📡"
+            textSize = 30f
+            gravity = Gravity.CENTER
+            background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setColor(android.graphics.Color.parseColor("#332D3748"))
+            }
+        }
+        val title = TextView(this).apply {
+            text = "Connexion impossible"
+            textSize = 18f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(android.graphics.Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(0, dp(18), 0, dp(6))
+        }
+        val targetLabel = TextView(this).apply {
+            text = target
+            typeface = Typeface.MONOSPACE
+            textSize = 13f
+            setTextColor(accent)
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, dp(14))
+        }
+        connectionErrorMessage = targetLabel
+        val hint = TextView(this).apply {
+            text = "Vérifie que cet appareil est sur le même réseau Wi-Fi que la machine de dev, et que `phpx serve` tourne toujours."
+            textSize = 14f
+            setTextColor(android.graphics.Color.parseColor("#9CA3AF"))
             gravity = Gravity.CENTER
         }
-        connectionErrorMessage = message
-        val retryButton = android.widget.Button(this).apply {
+        val retryButton = TextView(this).apply {
             text = "Réessayer"
+            textSize = 15f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(android.graphics.Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(dp(24), dp(12), dp(24), dp(12))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(accent)
+                cornerRadius = dp(24).toFloat()
+            }
+            isClickable = true
             setOnClickListener {
                 connectionErrorView?.visibility = android.view.View.GONE
                 refetch(action = null, isNavigation = true)
@@ -1025,15 +1060,18 @@ class NativeRenderPocActivity : AppCompatActivity() {
         }
         val card = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
             setPadding(dp(28), dp(28), dp(28), dp(28))
             background = android.graphics.drawable.GradientDrawable().apply {
                 setColor(android.graphics.Color.parseColor("#EE111827"))
-                cornerRadius = dp(14).toFloat()
+                cornerRadius = dp(18).toFloat()
             }
-            addView(message)
+            addView(icon, android.widget.LinearLayout.LayoutParams(dp(56), dp(56)))
+            addView(title)
+            addView(targetLabel)
+            addView(hint)
             addView(retryButton, android.widget.LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                gravity = Gravity.CENTER_HORIZONTAL
-                topMargin = dp(20)
+                topMargin = dp(22)
             })
         }
         val params = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
