@@ -1,6 +1,20 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+}
+
+// android/go/keystore.properties (gitignored — see keystore.properties.example
+// for the shape) holds this module's OWN release signing credentials —
+// a dedicated keystore, separate from :app's, since com.phpnitro.go and
+// com.mobile.engine are different Play Store listings with different
+// identities. Its absence isn't an error: it only means
+// `gradle :go:assembleRelease` will fail signing validation,
+// `:go:assembleDebug` is unaffected either way.
+val keystoreProperties = Properties().apply {
+    val file = file("keystore.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
 }
 
 android {
@@ -13,6 +27,28 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1"
+    }
+
+    signingConfigs {
+        create("release") {
+            if (keystoreProperties.isNotEmpty()) {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (keystoreProperties.isNotEmpty()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
     }
 
     packaging {

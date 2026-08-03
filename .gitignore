@@ -16,6 +16,8 @@ composer.lock
 /android/local.properties
 /android/app/*.keystore
 /android/keystore.properties
+/android/go/*.keystore
+/android/go/keystore.properties
 /android/.kotlin/
 /android/app/src/main/assets/www/
 /dist/
