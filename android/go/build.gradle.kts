@@ -43,4 +43,16 @@ dependencies {
     // "serverPort" intent extras ConnectActivity fills in from user input.
     // See NativeRenderPocActivity.kt's remote-mode branch in onCreate().
     implementation(project(":engine"))
+
+    // QR scan (ScanActivity) — CameraX for the live preview + frame feed,
+    // ML Kit for decoding. :engine already depends on ML Kit's translate
+    // module for a different feature (Engine\Device\Translator); this is
+    // ML Kit's separate barcode-scanning module, on-device, no network
+    // call, no Google account needed.
+    val cameraxVersion = "1.4.1"
+    implementation("androidx.camera:camera-core:$cameraxVersion")
+    implementation("androidx.camera:camera-camera2:$cameraxVersion")
+    implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
+    implementation("androidx.camera:camera-view:$cameraxVersion")
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
 }
