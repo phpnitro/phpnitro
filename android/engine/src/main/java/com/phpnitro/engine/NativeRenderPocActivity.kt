@@ -687,10 +687,33 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 multiline -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 else -> InputType.TYPE_CLASS_TEXT
             }
-            if (multiline) {
-                gravity = android.view.Gravity.TOP or android.view.Gravity.START
+            gravity = if (multiline) {
+                android.view.Gravity.TOP or android.view.Gravity.START
+            } else {
+                android.view.Gravity.CENTER_VERTICAL or android.view.Gravity.START
             }
             textSize = 15f
+            setTextColor(android.graphics.Color.parseColor("#111827")) // Tokens::ink()
+            // The default EditText style is just an underline over a
+            // transparent background (Material's own colorAccent, which
+            // is why a stock green line appeared on focus on this
+            // device) — with no opaque fill of its own, this EditText
+            // sat on top of the Canvas box TextField.php already
+            // painted underneath (background + placeholder text baked
+            // into that one static draw command), so the stale
+            // placeholder kept showing through around/behind whatever
+            // was actually typed. A solid white rounded rect matching
+            // that same Container's own styling (Tokens::surface() +
+            // RADIUS_MD + border(), values duplicated here the same way
+            // this file already hardcodes brand colors elsewhere) fully
+            // covers it instead of just hiding the underline.
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(android.graphics.Color.WHITE)
+                cornerRadius = 14f * density
+                setStroke((1 * density).toInt(), android.graphics.Color.parseColor("#E5E7EB"))
+            }
+            val paddingH = (12 * density).toInt()
+            setPadding(paddingH, paddingTop, paddingH, paddingBottom)
             addTextChangedListener(object : TextWatcher {
                 override fun afterTextChanged(s: Editable?) {
                     fieldValues[fieldName] = s?.toString() ?: ""
