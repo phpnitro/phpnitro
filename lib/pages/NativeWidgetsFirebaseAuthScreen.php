@@ -7,7 +7,10 @@ use Engine\Native\EdgeInsets;
 use Engine\Native\AppBar;
 use Engine\Native\Banner;
 use Engine\Native\Button;
+use Engine\Color;
 use Engine\Native\ConfirmButton;
+use Engine\Native\ImageCircle;
+use Engine\Native\MainAxisAlignment;
 use Engine\Native\Scaffold;
 use Engine\Native\TextField;
 use Engine\Native\Container;
@@ -35,6 +38,15 @@ final class NativeWidgetsFirebaseAuthScreen
         $uid = $_SESSION['firebase_uid'] ?? null;
         $contentWidth = $screenWidth - 2 * Tokens::SPACE_XL;
         $isSignUp = $mode === 'signup';
+        // Same convention NativeWidgetsMediaScreen.php's beep.wav uses —
+        // HTTP_HOST reflects whatever the client actually connected to
+        // (127.0.0.1:port embedded, or a LAN IP:port for PhpNitro Go's
+        // remote mode), so this resolves correctly either way. The PNG
+        // itself is Google's own officially-documented Sign-In icon
+        // asset (assets/images/google_logo.png), not a redrawn
+        // approximation — Google's brand guidelines require their actual
+        // logo for this exact "Sign in with Google" button use case.
+        $googleLogoUrl = 'http://' . ($_SERVER['HTTP_HOST'] ?? '127.0.0.1') . '/assets/images/google_logo.png';
 
         $content = $uid !== null
             ? Flex::column([
@@ -78,9 +90,37 @@ final class NativeWidgetsFirebaseAuthScreen
                 // wired up automatically since that credential is
                 // per-project, the same way FIREBASE_WEB_API_KEY above
                 // is.
+                //
+                // White pill + real logo + grey border, not a solid Button
+                // — this is Google's own documented button style for
+                // "Sign in with Google" (a plain dark Button with generic
+                // text is explicitly what their brand guidelines say NOT
+                // to do). ImageCircle already renders arbitrary images in
+                // a circle (see NativeSettingsScreen.php's avatar); wrapping
+                // the whole row in Tappable is all a "branded icon button"
+                // needs — no engine change required, Icon/IconCircle's
+                // MaterialIcons-only glyphs were never actually the
+                // blocker.
                 new Padding(
                     EdgeInsets::only(top: Tokens::SPACE_MD),
-                    new Button('Continuer avec Google', 'device:googlesignin', width: $contentWidth),
+                    new Tappable(
+                        new Container(
+                            Flex::row([
+                                new ImageCircle($googleLogoUrl, 24.0),
+                                new Padding(
+                                    EdgeInsets::only(left: Tokens::SPACE_SM),
+                                    new Text('Continuer avec Google', Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true),
+                                ),
+                            ], mainAxisAlignment: MainAxisAlignment::CENTER, crossAxisAlignment: CrossAxisAlignment::CENTER),
+                            width: $contentWidth,
+                            height: 54.0,
+                            background: Color::white(),
+                            radius: 27.0,
+                            borderColor: Tokens::border(),
+                            borderWidth: 1.5,
+                        ),
+                        'device:googlesignin',
+                    ),
                 ),
             ], crossAxisAlignment: CrossAxisAlignment::STRETCH);
 
