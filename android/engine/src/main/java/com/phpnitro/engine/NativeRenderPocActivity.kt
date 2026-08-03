@@ -78,6 +78,13 @@ class NativeRenderPocActivity : AppCompatActivity() {
     private lateinit var canvasView: NativeCanvasView
     private lateinit var rootLayout: FrameLayout
     private var serverPort: Int = 0
+    // "127.0.0.1" (embedded PhpServer, the default) unless a "serverHost"
+    // intent extra says otherwise — see onCreate()'s remote-mode branch.
+    // PhpNitro Go (android/go/) is the only caller that ever sets this: a
+    // companion app with no bundled project code at all, that talks to a
+    // `phpx serve` dev server over the LAN instead of an embedded php-cli
+    // process, reusing this exact same rendering pipeline unmodified.
+    private var serverHost: String = "127.0.0.1"
     private val screenStack = mutableListOf<String>()
     private val fieldValues = mutableMapOf<String, String>()
     private var activeEditText: EditText? = null
@@ -203,12 +210,26 @@ class NativeRenderPocActivity : AppCompatActivity() {
 
         nfcAdapter = android.nfc.NfcAdapter.getDefaultAdapter(this)
 
-        phpServer = PhpServer(this)
-        thread {
-            val port = phpServer.start()
-            serverPort = port
-            Log.i(TAG, "PhpServer started on port $port")
+        val remoteHost = intent.getStringExtra("serverHost")
+        if (remoteHost != null) {
+            // Remote mode (PhpNitro Go): the dev server already exists
+            // somewhere else on the LAN — no local php-cli process to
+            // start at all. serverPort is set directly (normally
+            // PhpServer.start()'s return value does this once the
+            // embedded server is actually listening) so the splash
+            // screen's `serverPort == 0` gate still resolves correctly.
+            serverHost = remoteHost
+            serverPort = intent.getIntExtra("serverPort", 0)
+            Log.i(TAG, "Remote mode: $serverHost:$serverPort")
             refetch(action = null, isNavigation = true)
+        } else {
+            phpServer = PhpServer(this)
+            thread {
+                val port = phpServer.start()
+                serverPort = port
+                Log.i(TAG, "PhpServer started on port $port")
+                refetch(action = null, isNavigation = true)
+            }
         }
     }
 
@@ -564,7 +585,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 fieldValues[parts.getOrElse(1) { "calendar_out" }] = if (count < 0) "Permission requise" else "$count événements"
                 refetch(action = null, includeFields = true)
             }
-            "sound" -> deviceBridge.playSound("http://127.0.0.1:$serverPort/assets/audio/beep.wav")
+            "sound" -> deviceBridge.playSound("http://$serverHost:$serverPort/assets/audio/beep.wav")
             "notify" -> deviceBridge.showNotification("PhpNitro", "Ceci est une notification native.")
             "share" -> deviceBridge.share("Regarde cette app faite avec PhpNitro !", "PhpNitro Demo")
             "appicon" -> deviceBridge.setAppIcon(parts.getOrElse(1) { "default" })
@@ -942,7 +963,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
         // "network/parse overhead" instead of one opaque total.
         val startNanos = System.nanoTime()
         try {
-            val connection = URL("http://127.0.0.1:$port/native/layout-demo?width=$screenWidthDp&height=$screenHeightDp&screen=$screen$idParam$actionParam$onlineParam$scrollYParam$fieldsParam$lastHashParam").openConnection() as HttpURLConnection
+            val connection = URL("http://$serverHost:$port/native/layout-demo?width=$screenWidthDp&height=$screenHeightDp&screen=$screen$idParam$actionParam$onlineParam$scrollYParam$fieldsParam$lastHashParam").openConnection() as HttpURLConnection
             connection.connectTimeout = 5000
             Log.i(TAG, "Fetching /native/layout-demo (screen=$screen, action=$action), response code ${connection.responseCode}")
             val json = connection.inputStream.bufferedReader().use { it.readText() }
@@ -1143,7 +1164,9 @@ class NativeRenderPocActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         autoNavigateHandler.removeCallbacksAndMessages(null)
-        phpServer.stop()
+        // Remote mode never constructs phpServer at all (see onCreate()) —
+        // ::phpServer.isInitialized guards against UninitializedPropertyAccessException.
+        if (::phpServer.isInitialized) phpServer.stop()
         super.onDestroy()
     }
 }
