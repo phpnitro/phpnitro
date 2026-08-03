@@ -313,6 +313,46 @@ if ($path === '/native/layout-demo') {
         }
     }
 
+    // Feexpay mobile-money checkout — see NativeWidgetsPaymentsScreen's
+    // own docblock and docs/payments.md's security note. $_SESSION only
+    // ever holds the CURRENT reference (a pointer), never the payment's
+    // actual status — that lives in OrderRepository's real DB row, which
+    // is the only thing check_status is allowed to trust.
+    $paymentError = null;
+    $orders = new \Backend\Repository\OrderRepository();
+    $currentReference = $_SESSION['payment_reference'] ?? null;
+    if ($screen === 'widgets-payments' && $action === 'pay') {
+        $shopId = $_ENV['FEEXPAY_SHOP_ID'] ?? '';
+        $apiKey = $_ENV['FEEXPAY_API_KEY'] ?? '';
+        $phone = trim($_GET['pay_phone'] ?? '');
+        $network = $_GET['pay_network'] ?? '';
+        if ($shopId === '' || $apiKey === '') {
+            $paymentError = "FEEXPAY_SHOP_ID / FEEXPAY_API_KEY ne sont pas configurés dans .env — voir phpnitro.yml.";
+        } elseif ($phone === '' || $network === '') {
+            $paymentError = 'Numéro et réseau requis.';
+        } else {
+            $reference = uniqid('order_', true);
+            $amount = \Engine\App\NativeWidgetsPaymentsScreen::AMOUNT_XOF;
+            $result = \Engine\Payments\Feexpay::payLocal($shopId, $apiKey, (float) $amount, $phone, $network, 'PhpNitro Demo', '', $reference);
+            if ($result === false) {
+                $paymentError = 'Échec du déclenchement du paiement (réseau ou identifiants invalides).';
+            } else {
+                $orders->create($reference, $amount, $phone, $network);
+                $_SESSION['payment_reference'] = $reference;
+                $currentReference = $reference;
+            }
+        }
+    }
+    if ($action === 'check_status' && $currentReference !== null) {
+        $shopId = $_ENV['FEEXPAY_SHOP_ID'] ?? '';
+        $apiKey = $_ENV['FEEXPAY_API_KEY'] ?? '';
+        $status = \Engine\Payments\Feexpay::status($shopId, $apiKey, $currentReference);
+        if ($status !== false && $status['status'] !== null) {
+            $orders->updateStatus($currentReference, $status['status']);
+        }
+    }
+    $currentOrder = $currentReference !== null ? $orders->find($currentReference) : null;
+
     // Mirrors WidgetsStepperPage.php's Screen::$state (itself session-backed)
     // — the native pipeline has no per-request server object to hold step
     // state in, so it lives in $_SESSION directly, keyed the same "merge
@@ -363,6 +403,7 @@ if ($path === '/native/layout-demo') {
         'widgets-media' => \Engine\App\NativeWidgetsMediaScreen::build($screenWidth, $screenHeight),
         'widgets-maps' => \Engine\App\NativeWidgetsMapsScreen::build($screenWidth, $screenHeight),
         'widgets-firebase-auth' => \Engine\App\NativeWidgetsFirebaseAuthScreen::build($screenWidth, $screenHeight, $firebaseError, $_GET['fb_mode'] ?? 'signin'),
+        'widgets-payments' => \Engine\App\NativeWidgetsPaymentsScreen::build($screenWidth, $screenHeight, $paymentError, $currentOrder),
         'widgets-lottie' => \Engine\App\NativeWidgetsLottieScreen::build($screenWidth, $screenHeight),
         'widgets-splash' => \Engine\App\NativeWidgetsSplashScreen::build($screenWidth, $screenHeight),
         'widgets-clienttabs' => \Engine\App\NativeWidgetsClientTabsScreen::build($screenWidth, $screenHeight),

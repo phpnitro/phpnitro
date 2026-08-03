@@ -67,6 +67,10 @@ final class NativeWidgetsIndexScreen
                     ),
                     new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new ListTile('Paiements', 'Feexpay mobile money — appel REST réel', 'payments', trailingIcon: 'chevron_right', action: 'navigate:widgets-payments'),
+                    ),
+                    new Padding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
                         new ListTile('Backend PHP', 'Appel API en-process', 'api', trailingIcon: 'chevron_right', action: 'navigate:api'),
                     ),
                     new Padding(
