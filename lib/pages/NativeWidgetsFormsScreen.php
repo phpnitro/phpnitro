@@ -13,7 +13,9 @@ use Engine\Native\DatePicker;
 use Engine\Native\Divider;
 use Engine\Native\IconCircle;
 use Engine\Native\ProgressBar;
+use Engine\Native\RadioGroup;
 use Engine\Native\SelectBox;
+use Engine\Native\Slider;
 use Engine\Native\Toggle;
 use Engine\Native\Table;
 use Engine\Native\TextField;
@@ -49,6 +51,8 @@ final class NativeWidgetsFormsScreen
         $subscribed = ($_GET['subscribe'] ?? '') === '1';
         $notifications = ($_GET['notifications'] ?? '') === '1';
         $note = $_GET['note'] ?? '';
+        $volume = (float) ($_GET['volume'] ?? '0.5');
+        $plan = $_GET['plan'] ?? 'free';
 
         $caption = static fn (string $text): Widget => new Padding(
             EdgeInsets::only(top: Tokens::SPACE_LG, bottom: Tokens::SPACE_SM),
@@ -86,6 +90,13 @@ final class NativeWidgetsFormsScreen
                     $caption('Checkbox / Switch'),
                     new Checkbox('subscribe', "S'abonner à la newsletter", $subscribed),
                     new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), new Toggle('notifications', 'Notifications', $notifications)),
+
+                    $caption('Slider — valeur continue, glisser le pouce'),
+                    new Slider('volume', $volume, $contentWidth),
+                    new Padding(EdgeInsets::only(top: 4), new Text(sprintf('Valeur : %.2f', $volume), Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex())),
+
+                    $caption('RadioGroup — choix exclusif'),
+                    new RadioGroup('plan', ['free' => 'Gratuit', 'pro' => 'Pro', 'team' => 'Équipe'], $plan),
 
                     $caption('ProgressBar / CircularProgress'),
                     new ProgressBar($contentWidth, 0.65),

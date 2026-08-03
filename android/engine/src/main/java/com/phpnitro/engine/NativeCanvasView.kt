@@ -261,6 +261,21 @@ class NativeCanvasView(context: Context) : View(context) {
     private var pendingHScroll: HScrollRegion? = null
     private var activeHScroll: HScrollRegion? = null
 
+    // Slider (Canvas::slider()) — same "own the drag entirely client-side,
+    // commit once on release" split as the three regions above, but there's
+    // no discrete "which slot/panel" outcome to compute: the live value
+    // itself (0f-1f) IS the state, so sliderValues follows hScrollOffsets'
+    // exact seed-once-then-never-reset pattern, just seeded from the
+    // server's authored $value instead of always starting at 0. The
+    // release commit reuses Checkbox/Toggle's existing "toggle:" action
+    // (see NativeRenderPocActivity's onTap "toggle:" branch) with the
+    // dragged value standing in for "next" — no new action dispatch
+    // needed on that side at all.
+    private data class SliderRegion(val key: String, val rect: RectF, val thumbSize: Float, val action: String, val serverValue: Float)
+    private var sliderRegions: List<SliderRegion> = emptyList()
+    private val sliderValues = mutableMapOf<String, Float>()
+    private var activeSlider: SliderRegion? = null
+
     private fun seedClientTabState(list: JSONArray) {
         for (index in 0 until list.length()) {
             val command = list.getJSONObject(index)
@@ -380,6 +395,10 @@ class NativeCanvasView(context: Context) : View(context) {
             reorderAnimatedY.clear()
             lottieRegions = parseLottieRegions(payload.optJSONArray("lottieRegions"))
             hScrollRegions = parseHScrollRegions(commands)
+            sliderRegions = parseSliderRegions(payload.optJSONArray("sliderRegions"))
+            for (region in sliderRegions) {
+                if (!sliderValues.containsKey(region.key)) sliderValues[region.key] = region.serverValue
+            }
             seedClientTabState(commands)
             rebuildAccessibilityNodes()
             lastCommandCount = commands.length()
@@ -498,6 +517,19 @@ class NativeCanvasView(context: Context) : View(context) {
             val top = item.getDouble("y").toFloat()
             val rect = RectF(left, top, left + item.getDouble("width").toFloat(), top + item.getDouble("height").toFloat())
             result.add(LottieRegion(item.getString("key"), rect, item.getString("url"), item.getBoolean("loop"), item.getBoolean("autoplay")))
+        }
+        return result
+    }
+
+    private fun parseSliderRegions(array: JSONArray?): List<SliderRegion> {
+        if (array == null) return emptyList()
+        val result = mutableListOf<SliderRegion>()
+        for (index in 0 until array.length()) {
+            val region = array.getJSONObject(index)
+            val left = region.getDouble("x").toFloat()
+            val top = region.getDouble("y").toFloat()
+            val rect = RectF(left, top, left + region.getDouble("width").toFloat(), top + region.getDouble("height").toFloat())
+            result.add(SliderRegion(region.getString("key"), rect, region.getDouble("thumbSize").toFloat(), region.getString("action"), region.getDouble("value").toFloat()))
         }
         return result
     }
@@ -669,7 +701,55 @@ class NativeCanvasView(context: Context) : View(context) {
             "clientPanel" -> drawClientPanelCommand(canvas, command, alpha)
             "hScroll" -> drawHScrollCommand(canvas, command, alpha)
             "spinner" -> drawSpinnerCommand(canvas, command, alpha)
+            "slider" -> drawSliderCommand(canvas, command, alpha)
         }
+    }
+
+    // Thumb travel is [x + thumbSize/2, x + width - thumbSize/2] — the
+    // thumb's CENTER, not its edge, tracks $value linearly, so it never
+    // overhangs the track at either extreme (same convention every native
+    // slider — Material's included — uses). hitTestSlider()/the drag
+    // handler in onTouchEvent invert this exact formula, so a value
+    // computed from where the finger lands always redraws the thumb
+    // exactly under that finger.
+    private fun drawSliderCommand(canvas: Canvas, command: JSONObject, alpha: Float) {
+        val key = command.getString("key")
+        val x = command.getDouble("x").toFloat()
+        val y = command.getDouble("y").toFloat()
+        val width = command.getDouble("width").toFloat()
+        val height = command.getDouble("height").toFloat()
+        val trackHeight = command.getDouble("trackHeight").toFloat()
+        val thumbSize = command.getDouble("thumbSize").toFloat()
+        val value = (sliderValues[key] ?: command.getDouble("value").toFloat()).coerceIn(0f, 1f)
+
+        val trackY = y + (height - trackHeight) / 2
+        val thumbCx = x + thumbSize / 2 + (width - thumbSize) * value
+        val thumbCy = y + height / 2
+
+        val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(command.getString("trackColor"))
+            this.alpha = (this.alpha * alpha).toInt()
+        }
+        canvas.drawRoundRect(RectF(x, trackY, x + width, trackY + trackHeight), trackHeight / 2, trackHeight / 2, trackPaint)
+
+        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(command.getString("activeColor"))
+            this.alpha = (this.alpha * alpha).toInt()
+        }
+        canvas.drawRoundRect(RectF(x, trackY, thumbCx, trackY + trackHeight), trackHeight / 2, trackHeight / 2, fillPaint)
+
+        val thumbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(command.getString("thumbColor"))
+            this.alpha = (this.alpha * alpha).toInt()
+        }
+        canvas.drawCircle(thumbCx, thumbCy, thumbSize / 2, thumbPaint)
+        val thumbBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 1.5f
+            color = Color.parseColor(command.getString("activeColor"))
+            this.alpha = (this.alpha * alpha).toInt()
+        }
+        canvas.drawCircle(thumbCx, thumbCy, thumbSize / 2, thumbBorderPaint)
     }
 
     // No rotation angle travels with this command at all (see
@@ -775,6 +855,20 @@ class NativeCanvasView(context: Context) : View(context) {
                 isDragging = false
                 pendingDismiss = if (activeDismiss == null && activeReorder == null) hitTestDismiss(event) else null
                 pendingHScroll = if (activeHScroll == null && activeReorder == null) hitTestHScroll(event) else null
+                // Slider commits immediately on DOWN, not after a
+                // decisive-move threshold like dismiss/hScroll — a
+                // slider's whole surface (its 44dp touch box) IS the
+                // gesture, there's no "was this actually meant as a page
+                // scroll" ambiguity to resolve the way a full-width
+                // dismissible row has, and requiring a slop-distance move
+                // first would make "tap anywhere on the track to jump the
+                // thumb there" impossible.
+                val hitSlider = if (activeSlider == null && activeReorder == null) hitTestSlider(event) else null
+                if (hitSlider != null) {
+                    activeSlider = hitSlider
+                    sliderValues[hitSlider.key] = sliderValueForTouch(hitSlider, event.x)
+                    invalidate()
+                }
                 velocityTracker?.recycle()
                 velocityTracker = VelocityTracker.obtain().also { it.addMovement(event) }
             }
@@ -786,6 +880,12 @@ class NativeCanvasView(context: Context) : View(context) {
 
                 if (activeReorder != null) {
                     updateReorderDrag(totalDeltaY)
+                    return true
+                }
+
+                if (activeSlider != null) {
+                    sliderValues[activeSlider!!.key] = sliderValueForTouch(activeSlider!!, event.x)
+                    invalidate()
                     return true
                 }
 
@@ -848,6 +948,21 @@ class NativeCanvasView(context: Context) : View(context) {
                     settleDismiss()
                 } else if (activeHScroll != null) {
                     activeHScroll = null
+                } else if (activeSlider != null) {
+                    val region = activeSlider!!
+                    val finalValue = sliderValueForTouch(region, event.x)
+                    sliderValues[region.key] = finalValue
+                    activeSlider = null
+                    // Locale.US, not the device default — "%.3f".format()
+                    // uses the default locale's decimal separator, which on
+                    // a French/Belgian/etc. device is a COMMA ("0,819").
+                    // That gets sent as a literal query-string value PHP
+                    // then reads with (float) — which stops parsing at the
+                    // first non-digit character, silently truncating every
+                    // dragged value to its integer part. Found by dragging
+                    // this exact slider on a fr-FR device and watching the
+                    // server echo back 0.00 for a real ~0.82 drag.
+                    onAction?.invoke(region.action, region.rect, JSONObject().put("next", String.format(java.util.Locale.US, "%.3f", finalValue)))
                 } else if (isDragging) {
                     velocityTracker?.let {
                         it.addMovement(event)
@@ -869,6 +984,7 @@ class NativeCanvasView(context: Context) : View(context) {
                 }
                 activeHScroll = null
                 pendingHScroll = null
+                activeSlider = null
                 if (activeDismiss != null) {
                     springBackDismiss()
                 }
@@ -1004,6 +1120,21 @@ class NativeCanvasView(context: Context) : View(context) {
             touchX >= region.rect.left && touchX <= region.rect.right &&
                 touchY >= region.rect.top && touchY <= region.rect.bottom
         }
+    }
+
+    private fun hitTestSlider(event: MotionEvent): SliderRegion? {
+        val touchX = event.x / density
+        val touchY = event.y / density + scrollY
+        return sliderRegions.firstOrNull { region ->
+            touchX >= region.rect.left && touchX <= region.rect.right &&
+                touchY >= region.rect.top && touchY <= region.rect.bottom
+        }
+    }
+
+    /** Inverse of drawSliderCommand()'s thumbCx formula — see that function's docblock. */
+    private fun sliderValueForTouch(region: SliderRegion, touchX: Float): Float {
+        val trackWidth = (region.rect.width() - region.thumbSize).coerceAtLeast(1f)
+        return (((touchX / density) - region.rect.left - region.thumbSize / 2) / trackWidth).coerceIn(0f, 1f)
     }
 
     // Past threshold: finish the swipe off-screen, hide the item locally

@@ -63,6 +63,11 @@ final class Canvas
      */
     private array $lottieRegions = [];
 
+    /**
+     * @var array<int, array<string, mixed>>
+     */
+    private array $sliderRegions = [];
+
     private float $contentHeight = 0.0;
     private ?float $renderTimeMs = null;
     private ?string $redirect = null;
@@ -331,6 +336,50 @@ final class Canvas
             'commands' => $regionCommands,
             'hitRegions' => $regionHitRegions,
         ]);
+
+        return $this;
+    }
+
+    /**
+     * A draggable 0.0-1.0 value picker — self-contained draw (track, fill,
+     * thumb, all computed from $value) plus one entry in $sliderRegions so
+     * NativeCanvasView.kt can hit-test and drag-track it, the same
+     * "register a rect once, own the whole gesture client-side" split as
+     * dismissible()/reorderItem()/horizontalScroll(). Unlike those three,
+     * a slider has no arbitrary child content to wrap (beginX()/endX()) —
+     * it's always exactly a track + a thumb — so this is one call, not a
+     * begin/end pair. See Slider for the widget that calls this.
+     */
+    public function slider(string $name, float $x, float $y, float $width, float $height, float $trackHeight, float $thumbSize, float $value, string $trackColor, string $activeColor, string $thumbColor): self
+    {
+        $this->commands[] = $this->tagFixed([
+            'type' => 'slider',
+            'key' => $name,
+            'x' => $x,
+            'y' => $y,
+            'width' => $width,
+            'height' => $height,
+            'trackHeight' => $trackHeight,
+            'thumbSize' => $thumbSize,
+            'value' => $value,
+            'trackColor' => $trackColor,
+            'activeColor' => $activeColor,
+            'thumbColor' => $thumbColor,
+        ]);
+
+        $this->sliderRegions[] = [
+            'key' => $name,
+            'x' => $x,
+            'y' => $y,
+            'width' => $width,
+            'height' => $height,
+            'trackHeight' => $trackHeight,
+            'thumbSize' => $thumbSize,
+            'value' => $value,
+            // Reuses Checkbox/Toggle's existing generic handler — see
+            // this method's own docblock.
+            'action' => "toggle:{$name}",
+        ];
 
         return $this;
     }
@@ -645,6 +694,7 @@ final class Canvas
             'dismissRegions' => $this->dismissRegions !== [] ? $this->dismissRegions : null,
             'reorderRegions' => $this->reorderRegions !== [] ? $this->reorderRegions : null,
             'lottieRegions' => $this->lottieRegions !== [] ? $this->lottieRegions : null,
+            'sliderRegions' => $this->sliderRegions !== [] ? $this->sliderRegions : null,
             'autoNavigate' => $this->autoNavigate,
             'pollAgain' => $this->pollAgainMs,
             'contentHeight' => $this->contentHeight,
@@ -662,6 +712,7 @@ final class Canvas
             'dismissRegions' => $this->dismissRegions !== [] ? $this->dismissRegions : null,
             'reorderRegions' => $this->reorderRegions !== [] ? $this->reorderRegions : null,
             'lottieRegions' => $this->lottieRegions !== [] ? $this->lottieRegions : null,
+            'sliderRegions' => $this->sliderRegions !== [] ? $this->sliderRegions : null,
             'autoNavigate' => $this->autoNavigate,
             'pollAgain' => $this->pollAgainMs,
             'contentHeight' => $this->contentHeight,
