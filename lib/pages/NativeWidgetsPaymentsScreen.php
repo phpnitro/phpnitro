@@ -5,6 +5,7 @@ namespace Engine\App;
 use Engine\Native\AppBar;
 use Engine\Native\Banner;
 use Engine\Native\Button;
+use Engine\Native\Confetti;
 use Engine\Native\Container;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
@@ -121,6 +122,16 @@ final class NativeWidgetsPaymentsScreen
                 EdgeInsets::only(top: Tokens::SPACE_XL),
                 new Button('Vérifier le statut', 'submit:check_status', width: $contentWidth),
             );
+        }
+
+        // Renders as nothing itself — see Confetti's own docblock. Fires
+        // once per fresh "SUCCESSFUL" render (a real status change, or a
+        // navigation back to this screen); a same-screen poll that comes
+        // back "unchanged" (Canvas::stableHash() now includes the
+        // confetti flag) is short-circuited before this ever repaints,
+        // so it doesn't replay on every single status-check poll.
+        if ($order['status'] === 'SUCCESSFUL') {
+            $rows[] = new Confetti();
         }
 
         return Flex::column($rows, crossAxisAlignment: CrossAxisAlignment::STRETCH);

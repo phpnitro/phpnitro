@@ -102,6 +102,11 @@ class NativeRenderPocActivity : AppCompatActivity() {
     // sibling startOAuthFlow()) currently has a Custom Tab open — read by
     // handleOAuthCallback() once the redirect lands back in onNewIntent().
     private var pendingOAuthProvider: String? = null
+    // ConfettiView overlay — see showConfettiOverlay(). Tracked so a
+    // second burst (another render with confetti:true, or a manual
+    // replay tap) before the first one finishes tears down the old view
+    // instead of stacking a second one on top of it.
+    private var activeConfettiView: ConfettiView? = null
     // Canvas::stableHash() of the last response actually applied —
     // sent back as lastHash= on the next same-screen refetch so PHP can
     // reply {"unchanged":true} instead of the whole payload when nothing
@@ -628,6 +633,12 @@ class NativeRenderPocActivity : AppCompatActivity() {
             "notify" -> deviceBridge.showNotification("PhpNitro", "Ceci est une notification native.")
             "share" -> deviceBridge.share("Regarde cette app faite avec PhpNitro !", "PhpNitro Demo")
             "appicon" -> deviceBridge.setAppIcon(parts.getOrElse(1) { "default" })
+            // Manual "🎉 encore" replay button — Confetti::triggerAction().
+            // The automatic case (Canvas::triggerConfetti(), a widget
+            // dropped in the tree) is handled in setCommands() instead,
+            // since that one has to fire on every matching render, not
+            // just a tap.
+            "confetti" -> showConfettiOverlay()
             "brightness" -> deviceBridge.setBrightness(0.5f)
             "locate" -> {
                 deviceBridge.getLocation { result ->
@@ -854,6 +865,30 @@ class NativeRenderPocActivity : AppCompatActivity() {
             rootLayout.removeView(it)
         }
         activeVideoView = null
+    }
+
+    // See ConfettiView's own docblock for the actual particle simulation
+    // — this is just the overlay lifecycle (add, start, remove itself
+    // after its own duration), the same shape every other full-screen/
+    // full-rect overlay here (video, map) already follows, just with a
+    // timed self-removal instead of clearVideoOverlay()/clearMapOverlay()
+    // needing an explicit caller.
+    private fun showConfettiOverlay() {
+        activeConfettiView?.let { rootLayout.removeView(it) }
+
+        val durationMs = 3000L
+        val confettiView = ConfettiView(this)
+        rootLayout.addView(confettiView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        confettiView.start(durationMs = durationMs)
+        activeConfettiView = confettiView
+
+        Handler(Looper.getMainLooper()).postDelayed({
+            confettiView.stop()
+            if (activeConfettiView === confettiView) {
+                rootLayout.removeView(confettiView)
+                activeConfettiView = null
+            }
+        }, durationMs)
     }
 
     // A real, pannable/zoomable org.osmdroid.views.MapView (pinch-zoom is
@@ -1177,6 +1212,15 @@ class NativeRenderPocActivity : AppCompatActivity() {
         syncLottieOverlays(canvasView.lottieRegions)
         firstScreenRendered = true
         scheduleTimedRefetch(json)
+        // Canvas::triggerConfetti() (Confetti, dropped anywhere in the
+        // tree) — fires automatically on whatever render included it, no
+        // tap needed. Same raw-string regex check scheduleTimedRefetch()
+        // just did above for autoNavigate/pollAgain, not a JSONObject
+        // parse — this method already has the raw response string, no
+        // need to parse it twice.
+        if (json.contains("\"confetti\":true")) {
+            showConfettiOverlay()
+        }
         lastAppliedHash = Regex("\"hash\":\"([0-9a-f]+)\"").find(json)?.groupValues?.get(1)
         if (devToolsPanel != null) updateDevToolsPanel(screenStack.lastOrNull() ?: "?", wasUnchanged = false)
     }

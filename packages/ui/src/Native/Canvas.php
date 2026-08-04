@@ -80,6 +80,7 @@ final class Canvas
     private ?string $dismissKey = null;
     private ?string $reorderKey = null;
     private bool $scrollFollow = false;
+    private bool $confetti = false;
 
     /**
      * LazyList only builds/paints the items within its current
@@ -673,6 +674,26 @@ final class Canvas
     }
 
     /**
+     * A one-shot celebratory particle burst, fired automatically the
+     * moment this screen renders — same "server-decided, client just
+     * plays it out" idiom as autoNavigate() above, just a full-screen
+     * overlay instead of a navigation. See Confetti (the widget that
+     * calls this from its own paint()) and NativeCanvasView.kt's
+     * ConfettiView/showConfettiOverlay() for the actual particle
+     * simulation, which owns its own animation clock entirely
+     * client-side — there's no per-frame server round-trip, matching
+     * spinner()'s exact reasoning for the same "continuous animation
+     * this request/response pipeline can't express as one static frame"
+     * problem.
+     */
+    public function triggerConfetti(): self
+    {
+        $this->confetti = true;
+
+        return $this;
+    }
+
+    /**
      * A hash of everything that decides what's actually on screen —
      * deliberately excluding renderTimeMs (differs on literally every
      * request, real content or not) and the hash itself. index.php
@@ -700,6 +721,7 @@ final class Canvas
             'contentHeight' => $this->contentHeight,
             'redirect' => $this->redirect,
             'scrollFollow' => $this->scrollFollow ? true : null,
+            'confetti' => $this->confetti ? true : null,
         ], static fn (mixed $value): bool => $value !== null), JSON_THROW_ON_ERROR));
     }
 
@@ -719,6 +741,7 @@ final class Canvas
             'renderTimeMs' => $this->renderTimeMs,
             'redirect' => $this->redirect,
             'scrollFollow' => $this->scrollFollow ? true : null,
+            'confetti' => $this->confetti ? true : null,
             'hash' => $this->stableHash(),
         ], static fn (mixed $value): bool => $value !== null), JSON_THROW_ON_ERROR);
     }
