@@ -1377,6 +1377,18 @@ function cmdBundleAndroid(): void
     copyDirectory(PHPX_ROOT . '/public', "{$staging}/public", minifyPhp: true);
     copyDirectory(PHPX_ROOT . '/lib/pages', "{$staging}/lib/pages", minifyPhp: true);
     copyDirectory(PHPX_ROOT . '/lib/backend/src', "{$staging}/lib/backend/src", minifyPhp: true);
+    // Engine\I18n\Translator::init() reads this directory directly (see
+    // public/index.php) — missing it doesn't throw, Translator just finds
+    // no locale file and every t() call silently falls back to the raw
+    // key (its own documented behavior for a MISSING TRANSLATION, not
+    // for "the whole locale file never shipped"), so this was invisible
+    // in dev (php -S serves straight from the real lib/lang/) and only
+    // showed up as "home.app_title" instead of real French text once
+    // actually installed from a bundled APK. No minifyPhp: these return
+    // a plain array literal, not executable logic worth minifying.
+    if (is_dir(PHPX_ROOT . '/lib/lang')) {
+        copyDirectory(PHPX_ROOT . '/lib/lang', "{$staging}/lib/lang", minifyPhp: false);
+    }
     // Was a hardcoded per-package list — every package added after it was
     // last updated (this session: countries, preferences, connectivity,
     // launcher, diagnostics, format, socialauth) silently shipped a
@@ -1449,6 +1461,11 @@ function stageForDevPush(): string
     copyDirectory(PHPX_ROOT . '/public', "{$staging}/public", minifyPhp: true);
     copyDirectory(PHPX_ROOT . '/lib/pages', "{$staging}/lib/pages", minifyPhp: true);
     copyDirectory(PHPX_ROOT . '/lib/backend/src', "{$staging}/lib/backend/src", minifyPhp: true);
+    // See cmdBundleAndroid()'s identical copy — this staging function's
+    // whole point is never drifting from what a real bundle ships.
+    if (is_dir(PHPX_ROOT . '/lib/lang')) {
+        copyDirectory(PHPX_ROOT . '/lib/lang', "{$staging}/lib/lang", minifyPhp: false);
+    }
 
     foreach (glob(PHPX_ROOT . '/packages/*/src', GLOB_ONLYDIR) ?: [] as $packageSrcDir) {
         $packageName = basename(dirname($packageSrcDir));
