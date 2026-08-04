@@ -22,5 +22,17 @@
         <testsuite name="format">
             <directory>packages/format/tests</directory>
         </testsuite>
+        <testsuite name="math">
+            <directory>packages/math/tests</directory>
+        </testsuite>
+        <testsuite name="date">
+            <directory>packages/date/tests</directory>
+        </testsuite>
+        <testsuite name="i18n">
+            <directory>packages/i18n/tests</directory>
+        </testsuite>
+        <testsuite name="cloudinary">
+            <directory>packages/cloudinary/tests</directory>
+        </testsuite>
     </testsuites>
 </phpunit>
