@@ -615,6 +615,20 @@ if ($path === '/native/layout-demo') {
         $canvas->setRedirect($redirectScreen);
     }
 
+    // Default transition by action shape — a push reads as "going
+    // deeper" (slideLeft), a pop as "coming back" (slideRight); a tab
+    // switch keeps the plain fade (it's a lateral move, not a stack
+    // push/pop). Kotlin only actually applies this during a real
+    // navigation crossfade (see setCommands()'s isNavigation branch);
+    // a same-screen refetch never crossfades at all, so this is a
+    // no-op there regardless of what it's set to. Any screen can
+    // still override with its own setTransition() call after this.
+    if ($action !== null && str_starts_with($action, 'navigate:')) {
+        $canvas->setTransition('slideLeft');
+    } elseif ($action === 'back') {
+        $canvas->setTransition('slideRight');
+    }
+
     // NativeRenderPocActivity sends back the hash of the last response it
     // actually applied (only for a same-screen refetch — see
     // Canvas::stableHash()'s docblock). An identical hash means

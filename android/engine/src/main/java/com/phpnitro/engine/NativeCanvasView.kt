@@ -99,6 +99,14 @@ class NativeCanvasView(context: Context) : View(context) {
     private var fadeAnimator: ValueAnimator? = null
     private var fadeProgress: Float = 1f
 
+    // Canvas::setTransition() — which motion the crossfade above rides
+    // on top of. "fade" (default) is the plain opacity blend this
+    // pipeline always did; slideLeft/slideRight/slideUp add a matching
+    // horizontal/vertical translate, computed in onDraw() from
+    // fadeProgress so it's driven by the exact same animator, no
+    // separate clock.
+    private var transitionType: String = "fade"
+
     // Hero FLIP transition (Canvas::beginHero()/heroRegions in the
     // JSON payload): heroRegions is this render's {tag: rect} map;
     // previousHeroRegions is the prior render's. A tag present in both at
@@ -378,6 +386,7 @@ class NativeCanvasView(context: Context) : View(context) {
             contentHeight = payload.optDouble("contentHeight", 0.0).toFloat()
             lastScreenWidthDp = screenWidthDp
             scrollFollow = payload.optBoolean("scrollFollow", false)
+            transitionType = payload.optString("transition", "fade")
             scrollY = scrollY.coerceIn(0f, maxScrollY())
             lastFetchedScrollY = scrollY
 
@@ -1365,6 +1374,31 @@ class NativeCanvasView(context: Context) : View(context) {
 
         val flyingTags = activeHeroFlights.keys
 
+        // Transition offsets (Canvas::setTransition()): additional to the
+        // existing opacity blend, riding the SAME fadeProgress animator
+        // so there's no separate clock. Only non-zero mid-crossfade
+        // (previous != null && fadeProgress < 1f); "fade" (the default)
+        // leaves every offset at 0, i.e. today's plain crossfade.
+        val viewportWidthDp = if (density > 0) width / density else 0f
+        val viewportHeightDp = if (density > 0) height / density else 0f
+        var incomingOffsetX = 0f
+        var outgoingOffsetX = 0f
+        var incomingOffsetY = 0f
+        var outgoingOffsetY = 0f
+        when (transitionType) {
+            "slideLeft" -> {
+                incomingOffsetX = viewportWidthDp * (1f - fadeProgress)
+                outgoingOffsetX = -viewportWidthDp * fadeProgress
+            }
+            "slideRight" -> {
+                incomingOffsetX = -viewportWidthDp * (1f - fadeProgress)
+                outgoingOffsetX = viewportWidthDp * fadeProgress
+            }
+            "slideUp" -> {
+                incomingOffsetY = viewportHeightDp * (1f - fadeProgress)
+            }
+        }
+
         // Scrollable pass: translated by -scrollY, fixed commands excluded.
         // Commands belonging to a tag currently in flight are skipped here
         // (in both the outgoing and incoming lists) — drawHeroTransition()
@@ -1373,20 +1407,34 @@ class NativeCanvasView(context: Context) : View(context) {
         canvas.scale(density, density)
         canvas.translate(0f, -scrollY)
         if (previous != null && fadeProgress < 1f) {
+            canvas.save()
+            canvas.translate(outgoingOffsetX, outgoingOffsetY)
             drawCommands(canvas, previous, 1f - fadeProgress, fixed = false, excludeHeroTags = flyingTags)
+            canvas.restore()
         }
+        canvas.save()
+        canvas.translate(incomingOffsetX, incomingOffsetY)
         drawCommands(canvas, commands, fadeProgress, fixed = false, excludeHeroTags = flyingTags)
+        canvas.restore()
         canvas.restoreToCount(savedState)
 
         // Fixed pass: same density scale, no scroll translate — an
         // AppBar/BottomNavigation/Fab painted via Fixed stays pinned
         // to the viewport while the pass above scrolls underneath it.
+        // Slides with the rest of the screen too (a Fixed AppBar rides
+        // along with slideLeft/slideRight, same as any real nav stack).
         savedState = canvas.save()
         canvas.scale(density, density)
         if (previous != null && fadeProgress < 1f) {
+            canvas.save()
+            canvas.translate(outgoingOffsetX, outgoingOffsetY)
             drawCommands(canvas, previous, 1f - fadeProgress, fixed = true, excludeHeroTags = flyingTags)
+            canvas.restore()
         }
+        canvas.save()
+        canvas.translate(incomingOffsetX, incomingOffsetY)
         drawCommands(canvas, commands, fadeProgress, fixed = true, excludeHeroTags = flyingTags)
+        canvas.restore()
         canvas.restoreToCount(savedState)
 
         drawHeroTransition(canvas)

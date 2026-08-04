@@ -71,6 +71,7 @@ final class Canvas
     private float $contentHeight = 0.0;
     private ?float $renderTimeMs = null;
     private ?string $redirect = null;
+    private ?string $transition = null;
 
     /** @var array{screen: string, afterMs: int}|null */
     private ?array $autoNavigate = null;
@@ -472,6 +473,26 @@ final class Canvas
         return $this;
     }
 
+    /**
+     * Which animation NativeCanvasView.kt's crossfade uses for THIS
+     * screen's entrance — only meaningful on a real navigation (a
+     * same-screen refetch never crossfades at all, see setCommands()'s
+     * own isNavigation branch). 'fade' (the default if never called) is
+     * the plain opacity blend this pipeline always did; 'slideLeft'/
+     * 'slideRight' add a horizontal translate on top of it (a
+     * push/pop feel — call slideLeft when navigating deeper,
+     * slideRight when navigating back, though nothing enforces that
+     * convention, it's just what reads correctly to a user), 'slideUp'
+     * for a modal-style entrance. An unrecognized value falls back to
+     * 'fade' client-side rather than drawing nothing.
+     */
+    public function setTransition(string $type): self
+    {
+        $this->transition = $type;
+
+        return $this;
+    }
+
     public function rect(
         float $x,
         float $y,
@@ -765,6 +786,7 @@ final class Canvas
             'scrollFollow' => $this->scrollFollow ? true : null,
             'confetti' => $this->confetti ? true : null,
             'snackbar' => $this->snackbar,
+            'transition' => $this->transition,
             'hash' => $this->stableHash(),
         ], static fn (mixed $value): bool => $value !== null), JSON_THROW_ON_ERROR);
     }
