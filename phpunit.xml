@@ -34,5 +34,8 @@
         <testsuite name="cloudinary">
             <directory>packages/cloudinary/tests</directory>
         </testsuite>
+        <testsuite name="screens">
+            <directory>lib/pages/tests</directory>
+        </testsuite>
     </testsuites>
 </phpunit>
