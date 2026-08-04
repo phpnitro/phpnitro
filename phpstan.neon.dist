@@ -13,6 +13,7 @@ parameters:
         - packages/date/src
         - packages/cloudinary/src
         - packages/i18n/src
+        - packages/state/src
         - lib/pages
         - lib/backend/src
         - public/index.php

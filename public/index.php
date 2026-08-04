@@ -574,17 +574,23 @@ if ($path === '/native/layout-demo') {
         }
     }
 
+    // Engine\Native\Router — a cleaner registration point for a NEW
+    // screen than growing the match() below one more arm at a time (see
+    // Router's own docblock for why this coexists with match() instead
+    // of migrating it wholesale). 'product' is the real, wired example —
+    // its own match() arm below is intentionally gone, not duplicated.
+    \Engine\Native\Router::register('product', static fn (): \Engine\Native\Widget => \Engine\App\NativeProductScreen::build($screenWidth, $_GET['id'] ?? '?', $_GET['tab'] ?? null));
+
     // Screen builders live in lib/pages/Native*.php — captures/ has
     // multiple reference screens, and this route just dispatches to
     // whichever one ?screen= asks for instead of growing one giant
     // function per screen added. 'home' — the real HomePage.php
     // conversion, not a reference-image recreation — is both the default
     // and the root NativeRenderPocActivity's screen stack starts from.
-    $tree = match ($screen) {
+    $tree = \Engine\Native\Router::has($screen) ? \Engine\Native\Router::build($screen) : match ($screen) {
         'otp' => \Engine\App\NativeOtpScreen::build($screenWidth, $screenHeight),
         'settings' => \Engine\App\NativeSettingsScreen::build($screenWidth, $screenHeight),
         'documents' => \Engine\App\NativeDocumentsScreen::build($screenWidth, $tapCount),
-        'product' => \Engine\App\NativeProductScreen::build($screenWidth, $_GET['id'] ?? '?', $_GET['tab'] ?? null),
         'login' => \Engine\App\NativeLoginScreen::build($screenWidth, $loginError),
         'register' => \Engine\App\NativeRegisterScreen::build($screenWidth, $registerError),
         'forgot-password' => \Engine\App\NativeForgotPasswordScreen::build($screenWidth, $forgotPasswordError, $devResetLink),

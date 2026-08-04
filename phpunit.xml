@@ -37,5 +37,8 @@
         <testsuite name="screens">
             <directory>lib/pages/tests</directory>
         </testsuite>
+        <testsuite name="state">
+            <directory>packages/state/tests</directory>
+        </testsuite>
     </testsuites>
 </phpunit>
