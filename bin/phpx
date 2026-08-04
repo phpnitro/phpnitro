@@ -260,6 +260,79 @@ function cmdMakeEntity(string $name): void
 }
 
 /**
+ * Login/Register/ForgotPassword/ResetPassword + their two repositories —
+ * copied straight from THIS framework's own lib/ (PHPX_TOOL_ROOT), not
+ * re-templated here, so there's exactly one implementation to maintain:
+ * the real, working, curl-verified one this monorepo's own demo already
+ * uses (see public/index.php's "google_signin"/"oauth_callback:"/
+ * "register"/"forgot_password"/"reset_password" action handling for the
+ * exact reference). Same "create files, print where they're reachable,
+ * let the developer wire the one match($screen) line themselves" scope
+ * as cmdMakePage() — deliberately NOT attempting to auto-edit an unknown
+ * project's own public/index.php; a single bad anchor match there would
+ * silently corrupt a file this command has no business rewriting
+ * unattended.
+ */
+function cmdMakeAuth(): void
+{
+    require_once PHPX_ROOT . '/vendor/autoload.php';
+
+    $pages = ['NativeLoginScreen', 'NativeRegisterScreen', 'NativeForgotPasswordScreen', 'NativeResetPasswordScreen'];
+    $repositories = ['UserRepository', 'PasswordResetRepository'];
+    $created = [];
+
+    foreach ($pages as $name) {
+        $created[] = copyTemplateFile("lib/pages/{$name}.php");
+    }
+    foreach ($repositories as $name) {
+        $created[] = copyTemplateFile("lib/backend/src/Repository/{$name}.php");
+    }
+
+    echo "\n";
+    echo "Ajoute ces routes à public/index.php (dans le \$tree = match (\$screen) { ... }) :\n";
+    echo "    'login' => \\Engine\\App\\NativeLoginScreen::build(\$screenWidth, \$loginError),\n";
+    echo "    'register' => \\Engine\\App\\NativeRegisterScreen::build(\$screenWidth, \$registerError),\n";
+    echo "    'forgot-password' => \\Engine\\App\\NativeForgotPasswordScreen::build(\$screenWidth, \$forgotPasswordError, \$devResetLink),\n";
+    echo "    'reset-password' => \\Engine\\App\\NativeResetPasswordScreen::build(\$screenWidth, \$resetPasswordError, \$resetPasswordSuccess),\n";
+    echo "\n";
+    echo "Et la logique de traitement des actions (login/register/forgot_password/reset_password,\n";
+    echo "vérification password_hash(), génération/validation des tokens de réinitialisation) —\n";
+    echo "copie-la depuis public/index.php de ce framework (chercher \"NativeRegisterScreen's counterpart\"\n";
+    echo "et les blocs qui suivent) : " . PHPX_TOOL_ROOT . "/public/index.php\n";
+    echo "\n";
+    echo "Pour Google/GitHub/Facebook/Microsoft/Apple (connexion sociale) :\n";
+    echo "  composer require phpnitro/socialauth\n";
+    echo "  Voir docs/tutorials/authentification-sociale.md et NativeWidgetsFirebaseAuthScreen.php\n";
+    echo "  (même framework) pour l'exemple complet — Google a besoin d'un Web Client ID\n";
+    echo "  (res/values/strings.xml -> google_web_client_id), les autres d'un client_id/secret\n";
+    echo "  OAuth dans .env (GITHUB_CLIENT_ID, FACEBOOK_CLIENT_ID, etc.).\n";
+}
+
+/**
+ * @return string the destination path (for cmdMakeAuth()'s own summary — currently unused but kept for future callers)
+ */
+function copyTemplateFile(string $relativePath): string
+{
+    $source = PHPX_TOOL_ROOT . '/' . $relativePath;
+    $destination = PHPX_ROOT . '/' . $relativePath;
+
+    if (!is_file($source)) {
+        phpxFail("template missing: {$source} — this phpx installation looks incomplete or out of date");
+    }
+    if (is_file($destination)) {
+        echo "Skipped {$destination} (already exists)\n";
+
+        return $destination;
+    }
+
+    @mkdir(dirname($destination), 0777, true);
+    copy($source, $destination);
+    echo "Created {$destination}\n";
+
+    return $destination;
+}
+
+/**
  * Copies assets/ (images, fonts, the framework's own JS under assets/js/)
  * into public/assets/ so both the dev server and the Android bundle serve it
  * the exact same way (a plain static file next to tailwind.css — no
@@ -1710,6 +1783,9 @@ switch ($command) {
         break;
     case 'make:entity':
         cmdMakeEntity($argv[2] ?? phpxFail('usage: phpx make:entity <Name>'));
+        break;
+    case 'make:auth':
+        cmdMakeAuth();
         break;
     case 'serve':
         cmdServe((int) ($argv[2] ?? 8090));
