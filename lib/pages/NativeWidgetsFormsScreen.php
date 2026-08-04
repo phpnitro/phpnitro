@@ -7,7 +7,9 @@ use Engine\Native\EdgeInsets;
 use Engine\Native\AlertButton;
 use Engine\Native\Banner;
 use Engine\Native\Checkbox;
+use Engine\Native\Button;
 use Engine\Native\CircularProgress;
+use Engine\Native\Confetti;
 use Engine\Native\ConfirmButton;
 use Engine\Native\DatePicker;
 use Engine\Native\Divider;
@@ -110,6 +112,9 @@ final class NativeWidgetsFormsScreen
                         new AlertButton('Ceci est une alerte native.', 'Alerte'),
                         new Padding(EdgeInsets::only(left: Tokens::SPACE_MD), new ConfirmButton('Vraiment supprimer ?', 'widgets_confirm_delete', 'Supprimer')),
                     ]),
+
+                    $caption('Confetti — burst manuel (voir aussi Paiements, déclenché auto sur succès)'),
+                    new Button('🎉 Lancer les confettis', Confetti::triggerAction(), width: $contentWidth),
 
                     $caption('Table'),
                     new Table(
