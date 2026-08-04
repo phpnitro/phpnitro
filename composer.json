@@ -21,6 +21,7 @@
             "Engine\\Payments\\": "packages/payments/src/",
             "Engine\\SocialAuth\\": "packages/socialauth/src/",
             "Engine\\Math\\": "packages/math/src/",
+            "Engine\\Date\\": "packages/date/src/",
             "Engine\\App\\": "lib/pages/",
             "Backend\\": "lib/backend/src/",
             "Engine\\Format\\": "packages/format/src/"
