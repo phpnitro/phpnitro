@@ -67,6 +67,22 @@ final class BottomSheet implements Widget
         $screenHeight = MediaQuery::height();
         $screenSize = Constraints::tight($screenWidth, $screenHeight);
 
+        // Flex::column (like Flutter's Column) fills its ENTIRE main-axis
+        // constraint whenever that constraint is bounded — its default
+        // mainAxisSize.max behavior, correct for every screen's own root
+        // layout (built against Constraints::INFINITY so content hugs
+        // naturally) but wrong here: laying $paddedContent out directly
+        // against the Stack's bounded $screenHeight would make it claim
+        // the FULL screen height instead of hugging its own text/button,
+        // turning the "card" into a second full-bleed white screen with
+        // no visible scrim above it — caught on a real device, not
+        // something php -l or a unit test would have surfaced. Measuring
+        // it first against Constraints::INFINITY (mirroring how a root
+        // screen measures itself) gets its true intrinsic height, then an
+        // explicit height: below pins the real Container to exactly that.
+        $paddedContent = new Padding(EdgeInsets::all(Tokens::SPACE_XL), $this->content);
+        $cardHeight = $paddedContent->layout(new Constraints(0, $screenWidth, 0, Constraints::INFINITY))->height;
+
         $sheet = new Stack([
             new Tappable(
                 new Container(width: $screenWidth, height: $screenHeight, background: Color::black()),
@@ -74,8 +90,9 @@ final class BottomSheet implements Widget
             ),
             new Positioned(
                 new Container(
-                    new Padding(EdgeInsets::all(Tokens::SPACE_XL), $this->content),
+                    $paddedContent,
                     width: $screenWidth,
+                    height: $cardHeight,
                     background: Tokens::surface(),
                     radius: Tokens::RADIUS_LG,
                 ),

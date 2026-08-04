@@ -28,7 +28,13 @@ final class Skeleton implements Widget
 
     public function __construct(float $width, float $height, float $radius = Tokens::RADIUS_SM)
     {
-        $this->content = new Container(width: $width, height: $height, background: Tokens::surfaceMuted(), radius: $radius);
+        // Tokens::border(), not surfaceMuted() — a screen's own
+        // background is very often surfaceMuted() itself (see
+        // NativeWidgetsFormsScreen.php), which made the skeleton
+        // invisible (same color as what's behind it) until this was
+        // caught on a real device. border() stays muted but is a
+        // distinct shade in both light and dark mode.
+        $this->content = new Container(width: $width, height: $height, background: Tokens::border(), radius: $radius);
     }
 
     /** A circular skeleton (avatar placeholder) — same shape ImageCircle's real content would eventually take. */
