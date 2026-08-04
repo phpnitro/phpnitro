@@ -25,6 +25,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -260,6 +261,22 @@ class NativeRenderPocActivity : AppCompatActivity() {
     // screen is current, whether the keyboard is showing), not a
     // server-side state change in their own right.
     private fun onTap(action: String, regionDp: RectF, meta: JSONObject?) {
+        if (inspectMode) {
+            inspectMode = false
+            inspectBadgeView?.alpha = 0.5f
+            android.app.AlertDialog.Builder(this)
+                .setTitle("🔍 Widget inspecté")
+                .setMessage(
+                    "action: $action\n" +
+                        "bounds (dp): x=${"%.1f".format(regionDp.left)} y=${"%.1f".format(regionDp.top)} " +
+                        "w=${"%.1f".format(regionDp.width())} h=${"%.1f".format(regionDp.height())}\n" +
+                        "meta: ${meta?.toString() ?: "—"}",
+                )
+                .setPositiveButton("OK", null)
+                .show()
+            return
+        }
+
         when {
             action.startsWith("focus:") -> {
                 var rest = action.removePrefix("focus:")
@@ -991,6 +1008,17 @@ class NativeRenderPocActivity : AppCompatActivity() {
     private var lastRoundTripMs = 0.0
     private var lastPhpRenderTimeMs: Double? = null
 
+    // Widget inspector — Flutter DevTools' "Select Widget Mode" but
+    // scoped to what's actually available here: no widget tree survives
+    // past paint() server-side to inspect, only the flat hit region list
+    // NativeCanvasView already hit-tests against. Toggling this ON makes
+    // onTap() (below) intercept the NEXT tap and show that region's
+    // action string + dp bounds in a dialog instead of dispatching it —
+    // enough to answer "why isn't this tappable"/"what action does this
+    // actually send" without adding server round-trip protocol.
+    private var inspectMode = false
+    private var inspectBadgeView: TextView? = null
+
     private fun isDebuggable(): Boolean =
         (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
 
@@ -1019,6 +1047,35 @@ class NativeRenderPocActivity : AppCompatActivity() {
             bottomMargin = dp(24f)
         }
         rootLayout.addView(badge, badgeParams)
+
+        val inspectBadge = TextView(this).apply {
+            text = "🔍"
+            textSize = 18f
+            setPadding(dp(10f), dp(6f), dp(10f), dp(6f))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(android.graphics.Color.parseColor("#CC111827"))
+                cornerRadius = dp(20f).toFloat()
+            }
+            setTextColor(android.graphics.Color.WHITE)
+            isClickable = true
+            setOnClickListener {
+                inspectMode = !inspectMode
+                alpha = if (inspectMode) 1f else 0.5f
+                Toast.makeText(
+                    this@NativeRenderPocActivity,
+                    if (inspectMode) "Inspecteur : ON — tapez un élément" else "Inspecteur : OFF",
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+            alpha = 0.5f
+        }
+        val inspectBadgeParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            gravity = Gravity.BOTTOM or Gravity.END
+            marginEnd = dp(68f)
+            bottomMargin = dp(24f)
+        }
+        rootLayout.addView(inspectBadge, inspectBadgeParams)
+        inspectBadgeView = inspectBadge
 
         val panel = TextView(this).apply {
             typeface = Typeface.MONOSPACE
