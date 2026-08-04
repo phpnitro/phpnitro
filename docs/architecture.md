@@ -74,6 +74,14 @@ Le mécanisme générique derrière ça (introduit par `ClientTabs`, réutilisé
 - **Crossfade d'écran** : à chaque `setCommands()`, l'ancien jeu de commandes et le nouveau sont fondus l'un dans l'autre (`fadeProgress`) — automatique, aucun widget à écrire.
 - **FLIP par élément** (`Hero`/`Animated`) : un sous-arbre tagué par une clé stable enregistre son rectangle englobant (`Canvas::beginHero()`) ; si la même clé apparaît à un rectangle différent au rendu suivant, `NativeCanvasView.kt` fait voler ce sous-arbre de l'ancien rectangle au nouveau via une `Matrix`, en interpolant aussi couleur/rayon/bordure de chaque commande individuelle — pas juste la position globale. `Hero` est pensé pour une navigation entre écrans, `Animated` pour un changement local (l'équivalent unifié de `AnimatedContainer`/`AnimatedPositioned`/`AnimatedOpacity` de Flutter).
 
+## Deep links
+
+`phpnitro://product/42` (n'importe quel host + path, sauf `oauth-callback` réservé au retour OAuth) arrive dans `NativeRenderPocActivity` via le même mécanisme que le callback OAuth (`android:launchMode="singleTask"`, `AndroidManifest.xml`, `onNewIntent()`) : `deepLinkScreenToken()` en extrait un token `"product/42"` — exactement la forme `"écran/paramètre"` que `screenStack` connaît déjà pour une route à un seul paramètre (`navigate:product/42`), donc rien à réapprendre côté PHP, un deep link est juste une autre façon d'arriver sur un écran ordinaire. À froid (l'app n'était pas lancée), c'est `onCreate()` qui le lit ; à chaud, `onNewIntent()`. `MainActivity` (WebView, legacy) a le même mécanisme indépendamment via `deepLinkPath()` — les deux Activities gèrent le même schéma `phpnitro://` chacune à sa façon, pas de code partagé entre elles.
+
+## Transitions de navigation
+
+`NativeCanvasView`'s crossfade (ci-dessus) est un simple fondu d'opacité par défaut. `Canvas::setTransition(string $type)` (`'fade'` | `'slideLeft'` | `'slideRight'` | `'slideUp'`) ajoute un décalage horizontal/vertical calculé sur exactement le même `fadeProgress` — pas de nouvelle horloge côté client. `public/index.php` en pose un par défaut selon la forme de l'action (`navigate:` → `slideLeft`, `back` → `slideRight`, un `tab:` garde le fondu simple, c'est un déplacement latéral pas un push/pop de pile) ; n'importe quel écran peut appeler `setTransition()` lui-même après pour l'écraser. Comme `renderTimeMs`, ce champ est exclu de `stableHash()` — purement présentationnel, et une vraie navigation ne passe de toute façon jamais par le raccourci "hash inchangé".
+
 ## Listes longues : fenêtre, pas tout
 
 `LazyList` ne construit/peint que les items dans une fenêtre autour du `scrollY` courant (buffer de 2 hauteurs d'écran de chaque côté), mais annonce la hauteur virtuelle COMPLÈTE (`itemCount * itemHeight`) comme sa propre `Size` — le scroll reste fluide côté client sur toute la plage, et `Canvas::setScrollFollow()` dit au client de re-fetcher en approchant du bord de ce qui est réellement chargé.

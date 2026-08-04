@@ -195,7 +195,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
         // nothing to restore.
         savedInstanceState?.getStringArrayList(STATE_SCREEN_STACK)?.let { screenStack.addAll(it) }
         if (screenStack.isEmpty()) {
-            screenStack.add(intent.getStringExtra("screen") ?: "home")
+            screenStack.add(deepLinkScreenToken(intent) ?: intent.getStringExtra("screen") ?: "home")
         }
 
         canvasView = NativeCanvasView(this)
@@ -1540,10 +1540,31 @@ class NativeRenderPocActivity : AppCompatActivity() {
             return
         }
 
-        val screen = intent.getStringExtra("screen") ?: return
+        val screen = deepLinkScreenToken(intent) ?: intent.getStringExtra("screen") ?: return
         clearTextInput()
         screenStack.add(screen)
         refetch(action = null, isNavigation = true)
+    }
+
+    // phpnitro://product/42 -> "product/42", the exact screenStack token
+    // shape fetchDrawCommands() already knows how to split ("name/param"
+    // — see its own comment above screenToken). A deep link is just
+    // another way to arrive at an ordinary screen, not a separate code
+    // path on the PHP side, same principle as MainActivity's own
+    // deepLinkPath() for the legacy WebView shell. host, not path, holds
+    // the first segment (standard scheme://authority/path parsing —
+    // confirmed against MainActivity's identical case), so screen and
+    // param are read from uri.host / uri.path respectively, not from
+    // uri.path alone. Returns null for a non-phpnitro URI, a bare
+    // "phpnitro://" with nothing after it, and deliberately for
+    // host="oauth-callback" (handleOAuthCallback() owns that one).
+    private fun deepLinkScreenToken(intent: Intent?): String? {
+        val uri = intent?.data ?: return null
+        if (uri.scheme != "phpnitro") return null
+        if (uri.host == "oauth-callback") return null
+
+        val token = "${uri.host.orEmpty()}${uri.path.orEmpty()}".trim('/')
+        return token.ifEmpty { null }
     }
 
     // phpnitro://oauth-callback?code=...&state=... (or &error=...) — see

@@ -61,6 +61,23 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="phpnitro" android:host="oauth-callback" />
             </intent-filter>
+            <!-- General deep link: phpnitro://product/42 -> screenStack
+                 token "product/42" (see deepLinkScreenToken() in
+                 NativeRenderPocActivity.kt) -> the exact same "name/param"
+                 shape fetchDrawCommands() already splits for an in-app
+                 navigate:product/42. A separate filter (not the
+                 oauth-callback one above) since that one is pinned to a
+                 single host; deepLinkScreenToken() itself excludes
+                 host="oauth-callback" so the two never race on the same
+                 URI. Scheme-only, no android:host, matches any host —
+                 same "no verified domain available in this environment"
+                 tradeoff MainActivity's own deep link takes. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="phpnitro" />
+            </intent-filter>
         </activity>
 
         <receiver android:name=".AlarmReceiver" android:exported="false" />
