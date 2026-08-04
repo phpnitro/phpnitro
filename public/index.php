@@ -101,6 +101,36 @@ if ($path === '/native/demo') {
 // docs/proposals/moteur-rendu-natif.md for the phased plan this belongs to.
 if ($path === '/native/layout-demo') {
     header('Content-Type: application/json');
+    // The top-level handler installed above always emits an HTML page —
+    // fine for a browser hitting this by accident, useless for
+    // NativeRenderPocActivity, which only ever speaks JSON. Without this,
+    // an uncaught exception ANYWHERE below (a screen's build(), a
+    // Repository call, MediaQuery::init()...) would still get caught by
+    // that HTML handler, but the Content-Type header set one line above
+    // is already locked in — the client would receive an HTML body
+    // labeled "application/json", fail to parse it (a plain
+    // JSONException, silently logged — see NativeCanvasView.kt's
+    // setCommands()), and just show whatever was already on screen with
+    // zero indication anything went wrong. This handler REPLACES the
+    // HTML one for the rest of this request (this route always exit;s at
+    // its end, so there's no "restore the old handler" concern) and
+    // gives NativeRenderPocActivity's fetchDrawCommands() a real
+    // `{"error": {...}}` shape to detect and show its own error card
+    // for — see that method's own handling and showScreenErrorOverlay().
+    // Full file/line/trace only in debug mode, same gating the HTML
+    // handler above already uses — a production build shouldn't leak
+    // filesystem paths or internal call structure to whoever's
+    // network-adjacent.
+    set_exception_handler(static function (\Throwable $e) use ($debug): void {
+        http_response_code(500);
+        $error = ['class' => $e::class, 'message' => $e->getMessage()];
+        if ($debug) {
+            $error['file'] = $e->getFile();
+            $error['line'] = $e->getLine();
+            $error['trace'] = $e->getTraceAsString();
+        }
+        echo json_encode(['error' => $error], JSON_THROW_ON_ERROR);
+    });
     // Point 3 of the "grow the framework" pass: a real performance number
     // instead of an intuition. renderTimeMs covers layout()+paint() only
     // (the PHP-side compute this architecture is actually gambling on

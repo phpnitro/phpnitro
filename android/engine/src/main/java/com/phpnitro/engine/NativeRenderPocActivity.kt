@@ -1073,9 +1073,27 @@ class NativeRenderPocActivity : AppCompatActivity() {
         try {
             val connection = URL("http://$serverHost:$port/native/layout-demo?width=$screenWidthDp&height=$screenHeightDp&screen=$screen$idParam$actionParam$onlineParam$scrollYParam$fieldsParam$lastHashParam").openConnection() as HttpURLConnection
             connection.connectTimeout = 5000
-            Log.i(TAG, "Fetching /native/layout-demo (screen=$screen, action=$action), response code ${connection.responseCode}")
-            val json = connection.inputStream.bufferedReader().use { it.readText() }
+            val responseCode = connection.responseCode
+            Log.i(TAG, "Fetching /native/layout-demo (screen=$screen, action=$action), response code $responseCode")
+            // HttpURLConnection throws FileNotFoundException from
+            // .inputStream on any non-2xx response — the body (here,
+            // public/index.php's {"error": {...}} payload, see its own
+            // set_exception_handler() for this route) only comes back
+            // through .errorStream. Reading the wrong one for a 500 isn't
+            // a network failure at all, but was landing in this method's
+            // own catch block below regardless, which shows
+            // showConnectionError()'s "can't reach the server" card for
+            // what's actually "reached the server fine, it threw" — the
+            // two need different messages, see showScreenErrorOverlay().
+            val stream = if (responseCode >= 400) connection.errorStream else connection.inputStream
+            val json = stream.bufferedReader().use { it.readText() }
             connection.disconnect()
+
+            if (responseCode >= 400) {
+                Handler(Looper.getMainLooper()).post { showScreenErrorOverlay(json) }
+                return
+            }
+
             val roundTripMs = (System.nanoTime() - startNanos) / 1_000_000.0
             val renderTimeMs = Regex("\"renderTimeMs\":([0-9.]+)").find(json)?.groupValues?.get(1)?.toDoubleOrNull()
             Log.i(TAG, "PERF screen=$screen roundTripMs=${"%.1f".format(roundTripMs)} phpRenderTimeMs=${renderTimeMs?.let { "%.2f".format(it) } ?: "?"}")
@@ -1183,6 +1201,144 @@ class NativeRenderPocActivity : AppCompatActivity() {
         connectionErrorView = card
     }
 
+    private var screenErrorView: android.view.View? = null
+
+    /**
+     * public/index.php's /native/layout-demo route replaces its usual
+     * HTML exception handler with a JSON one for exactly this case — see
+     * that route's own set_exception_handler() call for why (an HTML
+     * body under a "application/json" Content-Type header used to fail
+     * to parse silently, leaving whatever was already on screen with no
+     * indication anything broke). Full-screen and scrollable, not a
+     * small centered card like showConnectionError() — a real PHP stack
+     * trace needs room a card can't give it. file/line/trace are only
+     * present when the server's APP_DEBUG is on (same gating the old
+     * HTML error page used) — each row only renders if its field is
+     * actually non-empty, so a production build's generic
+     * class+message-only payload doesn't leave blank rows behind.
+     */
+    private fun showScreenErrorOverlay(json: String) {
+        firstScreenRendered = true // dismiss the splash — see its keepOnScreenCondition above
+
+        val error = try {
+            JSONObject(json).optJSONObject("error")
+        } catch (e: org.json.JSONException) {
+            null
+        }
+        if (error == null) {
+            // Not our own {"error": {...}} shape (a raw 500 from
+            // something outside this route's own control, or a
+            // genuinely malformed response) — nothing structured to
+            // show, fall back to the connection-error card rather than
+            // a blank overlay.
+            showConnectionError()
+            return
+        }
+
+        screenErrorView?.let { rootLayout.removeView(it) }
+
+        val density = resources.displayMetrics.density
+        fun dp(value: Int) = (value * density).toInt()
+        val danger = android.graphics.Color.parseColor("#DC2626")
+
+        val content = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(dp(24), dp(48), dp(24), dp(48))
+        }
+
+        content.addView(
+            TextView(this).apply {
+                text = "⚠️ Erreur PHP"
+                textSize = 20f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(android.graphics.Color.WHITE)
+            },
+        )
+        content.addView(
+            TextView(this).apply {
+                text = error.optString("class", "Exception")
+                textSize = 15f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(danger)
+                setPadding(0, dp(16), 0, dp(4))
+            },
+        )
+        content.addView(
+            TextView(this).apply {
+                text = error.optString("message", "")
+                textSize = 14f
+                setTextColor(android.graphics.Color.WHITE)
+            },
+        )
+
+        val file = error.optString("file", "")
+        if (file.isNotEmpty()) {
+            val line = error.optInt("line", -1)
+            content.addView(
+                TextView(this).apply {
+                    text = if (line >= 0) "$file:$line" else file
+                    typeface = Typeface.MONOSPACE
+                    textSize = 12f
+                    setTextColor(android.graphics.Color.parseColor("#9CA3AF"))
+                    setPadding(0, dp(12), 0, 0)
+                },
+            )
+        }
+
+        val trace = error.optString("trace", "")
+        if (trace.isNotEmpty()) {
+            content.addView(
+                TextView(this).apply {
+                    text = trace
+                    typeface = Typeface.MONOSPACE
+                    textSize = 11f
+                    setTextColor(android.graphics.Color.parseColor("#D1D5DB"))
+                    setPadding(dp(12), dp(12), dp(12), dp(12))
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        setColor(android.graphics.Color.parseColor("#1F2937"))
+                        cornerRadius = dp(8).toFloat()
+                    }
+                },
+                android.widget.LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    topMargin = dp(16)
+                },
+            )
+        }
+
+        val retryButton = TextView(this).apply {
+            text = "Réessayer"
+            textSize = 15f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(android.graphics.Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(0, dp(14), 0, dp(14))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(danger)
+                cornerRadius = dp(24).toFloat()
+            }
+            isClickable = true
+            setOnClickListener {
+                screenErrorView?.let { rootLayout.removeView(it) }
+                screenErrorView = null
+                refetch(action = null, isNavigation = true)
+            }
+        }
+        content.addView(
+            retryButton,
+            android.widget.LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = dp(24)
+            },
+        )
+
+        val scrollView = android.widget.ScrollView(this).apply {
+            setBackgroundColor(android.graphics.Color.parseColor("#111827"))
+            addView(content)
+        }
+
+        rootLayout.addView(scrollView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        screenErrorView = scrollView
+    }
+
     // A "redirect" field means PHP wants the client on a different screen
     // than the one it just rendered (LoginPage.php's onLogin() returning
     // a path, translated to this architecture — see public/index.php's
@@ -1190,6 +1346,8 @@ class NativeRenderPocActivity : AppCompatActivity() {
     // drawing the stale response.
     private fun applyResponse(json: String, screenWidthDp: Float, isNavigation: Boolean) {
         connectionErrorView?.visibility = android.view.View.GONE
+        screenErrorView?.let { rootLayout.removeView(it) }
+        screenErrorView = null
         if (isNavigation) lastAppliedHash = null
 
         // {"unchanged":true} — PHP determined its output would be byte-
