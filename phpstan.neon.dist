@@ -4,17 +4,15 @@ parameters:
         - packages/ui/src
         - packages/database/src
         - packages/payments/src
-        - packages/maps/src
-        - packages/dialogs/src
         - packages/firebase/src
-        - packages/device/src
         - packages/countries/src
         - packages/preferences/src
-        - packages/connectivity/src
-        - packages/launcher/src
-        - packages/diagnostics/src
         - packages/format/src
         - packages/socialauth/src
+        - packages/math/src
+        - packages/date/src
+        - packages/cloudinary/src
+        - packages/i18n/src
         - lib/pages
         - lib/backend/src
         - public/index.php

@@ -844,7 +844,6 @@ final class MaterialIcons
         'flip_to_front' => 0xE883,
         'flood' => 0xEBE6,
         'flourescent' => 0xEC31,
-        'flourescent' => 0xF00D,
         'fluorescent' => 0xEC31,
         'flutter_dash' => 0xE00B,
         'fmd_bad' => 0xF00E,
