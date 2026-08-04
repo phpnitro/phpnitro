@@ -209,6 +209,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
         // the next one. No screen state changes (action stays null), same
         // idiom as a plain re-render with the field values already held.
         canvasView.onScrollFollow = { refetch(action = null, includeFields = true) }
+        registerCustomCommandHandlers()
 
         rootLayout = FrameLayout(this)
         rootLayout.addView(canvasView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -1023,6 +1024,47 @@ class NativeRenderPocActivity : AppCompatActivity() {
 
     private fun isDebuggable(): Boolean =
         (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+
+    // The real, wired proof that Canvas::custom()/registerCustomCommandHandler()
+    // works end to end: NativeCanvasView.kt has no built-in idea what a
+    // "sparkline" is, only this app-layer registration does. A real
+    // third-party package would call canvasView.registerCustomCommandHandler()
+    // the exact same way, from wherever it hooks into a consuming app —
+    // this method is that hook, not a special engine-internal case.
+    private fun registerCustomCommandHandlers() {
+        canvasView.registerCustomCommandHandler("sparkline") { canvas, command, alpha ->
+            val x = command.getDouble("x").toFloat()
+            val y = command.getDouble("y").toFloat()
+            val w = command.getDouble("width").toFloat()
+            val h = command.getDouble("height").toFloat()
+            val values = command.getJSONArray("values")
+            if (values.length() >= 2) {
+                var min = Double.MAX_VALUE
+                var max = -Double.MAX_VALUE
+                for (i in 0 until values.length()) {
+                    val v = values.getDouble(i)
+                    if (v < min) min = v
+                    if (v > max) max = v
+                }
+                val range = (max - min).let { if (it > 0.0) it else 1.0 }
+                val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    style = android.graphics.Paint.Style.STROKE
+                    strokeWidth = 2.5f
+                    strokeCap = android.graphics.Paint.Cap.ROUND
+                    strokeJoin = android.graphics.Paint.Join.ROUND
+                    color = Color.parseColor(command.getString("color"))
+                    this.alpha = (this.alpha * alpha).toInt()
+                }
+                val path = android.graphics.Path()
+                for (i in 0 until values.length()) {
+                    val px = x + w * i / (values.length() - 1)
+                    val py = y + h - h * ((values.getDouble(i) - min) / range).toFloat()
+                    if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
+                }
+                canvas.drawPath(path, paint)
+            }
+        }
+    }
 
     private fun setupDevTools() {
         val density = resources.displayMetrics.density

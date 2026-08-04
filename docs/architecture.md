@@ -100,6 +100,14 @@ Seule règle : un nom de paramètre de route ne doit pas entrer en collision ave
 
 `LazyList` ne construit/peint que les items dans une fenêtre autour du `scrollY` courant (buffer de 2 hauteurs d'écran de chaque côté), mais annonce la hauteur virtuelle COMPLÈTE (`itemCount * itemHeight`) comme sa propre `Size` — le scroll reste fluide côté client sur toute la plage, et `Canvas::setScrollFollow()` dit au client de re-fetcher en approchant du bord de ce qui est réellement chargé.
 
+## Scroll imbriqué : un seul niveau, pas de bubbling
+
+`NestedScroll` (`Canvas::verticalScroll()`) — une région avec sa PROPRE hauteur de viewport bornée, scrollable indépendamment du scroll de page qui la contient (un panneau "activité récente" plafonné à 120dp dans un écran par ailleurs plus long). Contrairement à `HorizontalScroll` (dont le scroll imbriqué se désambiguïse naturellement de celui de la page par l'AXE — horizontal contre vertical), ici les deux sont verticaux : `NativeCanvasView.kt` tranche par l'ESPACE plutôt — un drag qui démarre dans le rect de la région lui appartient pour tout le geste, sans jamais remonter vers le scroll de page même une fois le contenu imbriqué arrivé à son propre bord. Une vraie limite assumée (pas de bubbling façon Flutter/RN), pas un bug — voir le docblock de `verticalScroll()`. Un seul niveau de nesting est suivi, même contrainte que `HorizontalScroll`.
+
+## Extensibilité : Canvas::custom() pour ce que le moteur ne connaît pas
+
+Chaque primitive du framework (`rect()`, `skeleton()`, `slider()`...) a son propre type de commande construit DANS `NativeCanvasView.kt`. `Canvas::custom(string $type, array $data)` est le point d'extension pour tout le reste — un widget tiers, ou spécifique à une appli, que ce module moteur n'a aucune raison de connaître. Il émet `{"type": "custom:$type", ...$data}` ; qui possède l'Activity consommatrice appelle `canvasView.registerCustomCommandHandler($type, handler)` une fois pour lui donner un vrai rendu Kotlin. `Sparkline` est l'exemple réel et câblé (voir `NativeRenderPocActivity.registerCustomCommandHandlers()`) — un mini graphique en ligne que le moteur lui-même ne sait absolument pas dessiner.
+
 ## Ce qui reste WebView (legacy, en voie de disparition)
 
 `MainActivity.kt`/`WebAppInterface.kt` existent encore pour héberger d'éventuelles pages HTML — mais `public/index.php` n'a plus AUCUNE route de contenu WebView (`Router`, `Screen`, `PageRenderer`, tous les widgets Tailwind ont été supprimés une fois leur conversion native complète). `NativeRenderPocActivity` est le seul point d'entrée de l'app.

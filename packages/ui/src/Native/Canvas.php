@@ -404,6 +404,41 @@ final class Canvas
     }
 
     /**
+     * A scrollable region nested inside the screen's own vertical scroll —
+     * the vertical counterpart to horizontalScroll() (a capped-height
+     * "recent activity" panel, a scrollable comment list embedded inside
+     * a longer page, anything that needs its OWN scroll bounded to less
+     * than the full screen). Same tradeoffs as horizontalScroll(): no
+     * virtualization (every child laid out/painted up front — for a
+     * bounded amount of content, not a long list; LazyList still owns
+     * that case), the drag itself 100% client-side. Unlike
+     * horizontalScroll()'s axis-based disambiguation against the outer
+     * page scroll (same touch, different axis — an easy split),
+     * NativeCanvasView.kt claims this region for the WHOLE gesture the
+     * moment a drag starts inside its rect (both this and the outer
+     * scroll are vertical, so there's no axis to arbitrate on) — see its
+     * own comment for why that's an intentional, real scope boundary,
+     * not full nested-scroll bubble semantics. See NestedScroll, the
+     * only real caller.
+     */
+    public function verticalScroll(string $key, float $x, float $y, float $viewportWidth, float $viewportHeight, float $contentHeight, array $regionCommands, array $regionHitRegions): self
+    {
+        $this->commands[] = $this->tagFixed([
+            'type' => 'vScroll',
+            'key' => $key,
+            'x' => $x,
+            'y' => $y,
+            'width' => $viewportWidth,
+            'height' => $viewportHeight,
+            'contentHeight' => $contentHeight,
+            'commands' => $regionCommands,
+            'hitRegions' => $regionHitRegions,
+        ]);
+
+        return $this;
+    }
+
+    /**
      * A draggable 0.0-1.0 value picker — self-contained draw (track, fill,
      * thumb, all computed from $value) plus one entry in $sliderRegions so
      * NativeCanvasView.kt can hit-test and drag-track it, the same
@@ -578,6 +613,34 @@ final class Canvas
             'gradientFrom' => $gradientFrom,
             'gradientTo' => $gradientTo,
         ], static fn (mixed $value): bool => $value !== null));
+
+        return $this;
+    }
+
+    /**
+     * The extension point for a genuinely new native drawing this engine
+     * module has zero built-in knowledge of — a third-party package (or
+     * an app-specific widget not worth upstreaming) emits
+     * {"type": "custom:$type", ...$data}, and whoever owns the consuming
+     * Kotlin Activity registers a handler for that exact $type via
+     * NativeCanvasView.registerCustomCommandHandler() — see Sparkline,
+     * the real wired example (a tiny inline line chart NativeCanvasView.kt
+     * itself has no drawSparklineCommand() for; NativeRenderPocActivity
+     * registers the handler that actually draws it). Every OTHER
+     * Canvas method (rect(), text(), skeleton()...) is a FRAMEWORK
+     * primitive with a handler built into the engine directly; this is
+     * only for what isn't — the same "PHP decides the data, Kotlin owns
+     * the pixels" split as everything else here, just with the pixels
+     * living outside this engine module instead of inside it.
+     *
+     * @param array<string, mixed> $data Whatever the registered Kotlin
+     *   handler expects to find on the JSONObject it receives — this
+     *   class has no way to validate that shape, same as any other
+     *   loosely-typed wire format.
+     */
+    public function custom(string $type, array $data): self
+    {
+        $this->commands[] = $this->tagFixed(array_merge(['type' => "custom:{$type}"], $data));
 
         return $this;
     }

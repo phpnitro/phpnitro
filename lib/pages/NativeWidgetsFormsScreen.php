@@ -19,10 +19,12 @@ use Engine\Native\ConfirmButton;
 use Engine\Native\DatePicker;
 use Engine\Native\Divider;
 use Engine\Native\IconCircle;
+use Engine\Native\NestedScroll;
 use Engine\Native\Positioned;
 use Engine\Native\ProgressBar;
 use Engine\Native\Skeleton;
 use Engine\Native\Snackbar;
+use Engine\Native\Sparkline;
 use Engine\Native\Stack;
 use Engine\Native\RadioGroup;
 use Engine\Native\SelectBox;
@@ -182,6 +184,22 @@ final class NativeWidgetsFormsScreen
                             Skeleton::lines(2, $contentWidth - 48.0 - Tokens::SPACE_MD),
                         ),
                     ]),
+
+                    $caption('Sparkline — Canvas::custom(), dessiné par NativeRenderPocActivity, pas par le moteur'),
+                    new Sparkline([3, 5, 4, 8, 6, 9, 7, 12, 10, 15], $contentWidth, 48.0),
+
+                    $caption('NestedScroll — scroll indépendant dans le scroll de la page'),
+                    new NestedScroll(
+                        'demo-nested-scroll',
+                        Flex::column(array_map(
+                            static fn (int $i): Widget => new Padding(
+                                EdgeInsets::only(bottom: Tokens::SPACE_SM),
+                                new Text("Élément imbriqué #{$i}", Tokens::TEXT_BODY_SMALL, Tokens::inkSecondary()->toHex()),
+                            ),
+                            range(1, 12),
+                        )),
+                        120.0,
+                    ),
 
                     $caption('Table'),
                     new Table(

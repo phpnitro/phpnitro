@@ -318,6 +318,21 @@ class NativeCanvasView(context: Context) : View(context) {
     private var pendingHScroll: HScrollRegion? = null
     private var activeHScroll: HScrollRegion? = null
 
+    // NestedScroll (Canvas::verticalScroll()) — the vertical counterpart
+    // to HScrollRegion right above, with one real difference: both this
+    // and the outer page scroll move on the SAME axis, so there's no
+    // horizontal-vs-vertical split to arbitrate a drag with. Instead, a
+    // drag starting inside a registered region's rect claims the WHOLE
+    // gesture for that region (never bubbles to the outer scroll even
+    // once the nested content hits its own top/bottom) — a real,
+    // intentional scope boundary short of full nested-scroll semantics,
+    // see Canvas::verticalScroll()'s own docblock.
+    private data class VScrollRegion(val key: String, val rect: RectF, val contentHeight: Float, val viewportHeight: Float)
+    private var vScrollRegions: List<VScrollRegion> = emptyList()
+    private val vScrollOffsets = mutableMapOf<String, Float>()
+    private var pendingVScroll: VScrollRegion? = null
+    private var activeVScroll: VScrollRegion? = null
+
     // Slider (Canvas::slider()) — same "own the drag entirely client-side,
     // commit once on release" split as the three regions above, but there's
     // no discrete "which slot/panel" outcome to compute: the live value
@@ -531,6 +546,7 @@ class NativeCanvasView(context: Context) : View(context) {
             reorderAnimatedY.clear()
             lottieRegions = parseLottieRegions(payload.optJSONArray("lottieRegions"))
             hScrollRegions = parseHScrollRegions(commands)
+            vScrollRegions = parseVScrollRegions(commands)
             sliderRegions = parseSliderRegions(payload.optJSONArray("sliderRegions"))
             for (region in sliderRegions) {
                 if (!sliderValues.containsKey(region.key)) sliderValues[region.key] = region.serverValue
@@ -700,6 +716,21 @@ class NativeCanvasView(context: Context) : View(context) {
         return result
     }
 
+    private fun parseVScrollRegions(list: JSONArray): List<VScrollRegion> {
+        val result = mutableListOf<VScrollRegion>()
+        for (index in 0 until list.length()) {
+            val command = list.getJSONObject(index)
+            if (command.optString("type") != "vScroll") continue
+            val left = command.getDouble("x").toFloat()
+            val top = command.getDouble("y").toFloat()
+            val width = command.getDouble("width").toFloat()
+            val height = command.getDouble("height").toFloat()
+            val rect = RectF(left, top, left + width, top + height)
+            result.add(VScrollRegion(command.getString("key"), rect, command.getDouble("contentHeight").toFloat(), height))
+        }
+        return result
+    }
+
     private fun startHeroTransition() {
         val previous = previousHeroRegions
         heroAnimator?.cancel()
@@ -839,8 +870,27 @@ class NativeCanvasView(context: Context) : View(context) {
         drawSingleCommand(canvas, blended, 1f)
     }
 
+    // The extension point a third-party PHP package (or app-specific
+    // widget) uses to add a genuinely new native drawing without
+    // patching this engine module at all: Canvas::custom($type, $data)
+    // emits {"type": "custom:$type", ...$data}, and whoever owns the
+    // consuming Activity (NativeRenderPocActivity, or literally anyone
+    // with a reference to this View) calls
+    // registerCustomCommandHandler($type, handler) once — see
+    // NativeRenderPocActivity's own "sparkline" registration for the
+    // real, wired example, a widget this engine module's own code has
+    // zero knowledge of. Every OTHER draw command type above is still
+    // built into the engine directly (they're the framework's own
+    // primitives, not third-party); this is only for what isn't.
+    private val customCommandHandlers = mutableMapOf<String, (Canvas, JSONObject, Float) -> Unit>()
+
+    fun registerCustomCommandHandler(type: String, handler: (canvas: Canvas, command: JSONObject, alpha: Float) -> Unit) {
+        customCommandHandlers[type] = handler
+    }
+
     private fun drawSingleCommand(canvas: Canvas, command: JSONObject, alpha: Float) {
-        when (command.getString("type")) {
+        val type = command.getString("type")
+        when (type) {
             "rect" -> drawRectCommand(canvas, command, alpha)
             "text" -> drawTextCommand(canvas, command, alpha)
             "icon" -> drawIconCommand(canvas, command, alpha)
@@ -850,9 +900,13 @@ class NativeCanvasView(context: Context) : View(context) {
             "arc" -> drawArcCommand(canvas, command, alpha)
             "clientPanel" -> drawClientPanelCommand(canvas, command, alpha)
             "hScroll" -> drawHScrollCommand(canvas, command, alpha)
+            "vScroll" -> drawVScrollCommand(canvas, command, alpha)
             "spinner" -> drawSpinnerCommand(canvas, command, alpha)
             "slider" -> drawSliderCommand(canvas, command, alpha)
             "skeleton" -> drawSkeletonCommand(canvas, command, alpha)
+            else -> if (type.startsWith("custom:")) {
+                customCommandHandlers[type.removePrefix("custom:")]?.invoke(canvas, command, alpha)
+            }
         }
     }
 
@@ -1034,6 +1088,25 @@ class NativeCanvasView(context: Context) : View(context) {
         canvas.restoreToCount(saved)
     }
 
+    // Vertical counterpart to drawHScrollCommand() right above — same
+    // clip-then-translate shape, just along the other axis.
+    private fun drawVScrollCommand(canvas: Canvas, command: JSONObject, alpha: Float) {
+        val key = command.getString("key")
+        val x = command.getDouble("x").toFloat()
+        val y = command.getDouble("y").toFloat()
+        val w = command.getDouble("width").toFloat()
+        val h = command.getDouble("height").toFloat()
+        val offset = vScrollOffsets[key] ?: 0f
+        val saved = canvas.save()
+        canvas.clipRect(x, y, x + w, y + h)
+        canvas.translate(x, y - offset)
+        val nested = command.getJSONArray("commands")
+        for (index in 0 until nested.length()) {
+            drawSingleCommand(canvas, nested.getJSONObject(index), alpha)
+        }
+        canvas.restoreToCount(saved)
+    }
+
     private fun lerp(from: Float, to: Float, progress: Float): Float = from + (to - from) * progress
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -1062,6 +1135,7 @@ class NativeCanvasView(context: Context) : View(context) {
                 pendingDismiss = if (activeDismiss == null && activeReorder == null) hitTestDismiss(event) else null
                 pendingHScroll = if (activeHScroll == null && activeReorder == null) hitTestHScroll(event) else null
                 pendingSheetDrag = if (activeSheetDrag == null && activeReorder == null) hitTestSheetHandle(event) else null
+                pendingVScroll = if (activeVScroll == null && activeReorder == null) hitTestVScroll(event) else null
                 // Slider commits immediately on DOWN, not after a
                 // decisive-move threshold like dismiss/hScroll — a
                 // slider's whole surface (its 44dp touch box) IS the
@@ -1130,6 +1204,23 @@ class NativeCanvasView(context: Context) : View(context) {
                     pendingSheetDrag = null
                     pendingDismiss = null
                     pendingHScroll = null
+                } else if (activeVScroll == null && pendingVScroll != null && !isDragging &&
+                    abs(totalDeltaY) > touchSlop
+                ) {
+                    // A drag starting inside a NestedScroll's own rect
+                    // claims the whole gesture for it — see
+                    // Canvas::verticalScroll()'s docblock for why this
+                    // doesn't try to bubble to the outer page scroll once
+                    // the nested content hits its own edge. No axis
+                    // comparison against totalDeltaX needed here (unlike
+                    // dismiss/hScroll's horizontal claim): being spatially
+                    // inside the region already disambiguates it from
+                    // anything else this touch could have meant.
+                    activeVScroll = pendingVScroll
+                    pendingVScroll = null
+                    pendingDismiss = null
+                    pendingHScroll = null
+                    pendingSheetDrag = null
                 } else if (!isDragging && (pendingDismiss != null || pendingHScroll != null) &&
                     abs(totalDeltaY) > touchSlop && abs(totalDeltaY) > abs(totalDeltaX)
                 ) {
@@ -1156,6 +1247,13 @@ class NativeCanvasView(context: Context) : View(context) {
                     // floor/ceiling of its own (a dismiss can go either
                     // direction, a sheet only closes downward).
                     sheetDragOffsetY = (totalDeltaY / density).coerceIn(0f, activeSheetDrag!!.sheetHeight)
+                    invalidate()
+                } else if (activeVScroll != null) {
+                    val region = activeVScroll!!
+                    val deltaDp = (lastTouchY - event.y) / density
+                    val maxOffset = (region.contentHeight - region.viewportHeight).coerceAtLeast(0f)
+                    vScrollOffsets[region.key] = ((vScrollOffsets[region.key] ?: 0f) + deltaDp).coerceIn(0f, maxOffset)
+                    lastTouchY = event.y
                     invalidate()
                 } else {
                     // Pull-to-refresh's own "should this gesture even start
@@ -1204,6 +1302,8 @@ class NativeCanvasView(context: Context) : View(context) {
                     settleSheetDrag()
                 } else if (activeHScroll != null) {
                     activeHScroll = null
+                } else if (activeVScroll != null) {
+                    activeVScroll = null
                 } else if (activeSlider != null) {
                     val region = activeSlider!!
                     val finalValue = sliderValueForTouch(region, event.x)
@@ -1233,6 +1333,7 @@ class NativeCanvasView(context: Context) : View(context) {
                 pendingDismiss = null
                 pendingHScroll = null
                 pendingSheetDrag = null
+                pendingVScroll = null
                 velocityTracker?.recycle()
                 velocityTracker = null
             }
@@ -1243,6 +1344,8 @@ class NativeCanvasView(context: Context) : View(context) {
                 }
                 activeHScroll = null
                 pendingHScroll = null
+                activeVScroll = null
+                pendingVScroll = null
                 activeSlider = null
                 if (activeDismiss != null) {
                     springBackDismiss()
@@ -1398,6 +1501,15 @@ class NativeCanvasView(context: Context) : View(context) {
         val touchX = event.x / density
         val touchY = event.y / density + scrollY
         return hScrollRegions.firstOrNull { region ->
+            touchX >= region.rect.left && touchX <= region.rect.right &&
+                touchY >= region.rect.top && touchY <= region.rect.bottom
+        }
+    }
+
+    private fun hitTestVScroll(event: MotionEvent): VScrollRegion? {
+        val touchX = event.x / density
+        val touchY = event.y / density + scrollY
+        return vScrollRegions.firstOrNull { region ->
             touchX >= region.rect.left && touchX <= region.rect.right &&
                 touchY >= region.rect.top && touchY <= region.rect.bottom
         }
@@ -1674,6 +1786,7 @@ class NativeCanvasView(context: Context) : View(context) {
 
         handleClientPanelTap(touchX, rawTouchY)
         handleHScrollTap(touchX, rawTouchY)
+        handleVScrollTap(touchX, rawTouchY)
     }
 
     // ClientTabs panels carry their own hitRegions embedded inside
@@ -1754,6 +1867,44 @@ class NativeCanvasView(context: Context) : View(context) {
 
                 if (touchX >= left && touchX <= right && touchY >= top && touchY <= bottom) {
                     Log.i("NativeCanvasView", "tap hit region (hScroll): ${region.getString("action")}")
+                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    onAction?.invoke(region.getString("action"), RectF(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat()), region.optJSONObject("meta"))
+                    return
+                }
+            }
+        }
+    }
+
+    // Vertical counterpart to handleHScrollTap() right above — subtracts
+    // the region's own scroll offset along the Y axis instead of X.
+    private fun handleVScrollTap(touchX: Float, rawTouchY: Float) {
+        for (index in 0 until commands.length()) {
+            val command = commands.getJSONObject(index)
+            if (command.optString("type") != "vScroll") continue
+
+            val fixed = command.optBoolean("fixed", false)
+            val touchY = if (fixed) rawTouchY else rawTouchY + scrollY
+            val viewportX = command.getDouble("x")
+            val viewportY = command.getDouble("y")
+            val viewportWidth = command.getDouble("width")
+            val viewportHeight = command.getDouble("height")
+            if (touchX < viewportX || touchX > viewportX + viewportWidth ||
+                touchY < viewportY || touchY > viewportY + viewportHeight
+            ) continue
+
+            val offset = vScrollOffsets[command.getString("key")] ?: 0f
+            val offsetY = viewportY - offset
+            val nestedRegions = command.getJSONArray("hitRegions")
+
+            for (regionIndex in 0 until nestedRegions.length()) {
+                val region = nestedRegions.getJSONObject(regionIndex)
+                val left = viewportX + region.getDouble("x")
+                val top = offsetY + region.getDouble("y")
+                val right = left + region.getDouble("width")
+                val bottom = top + region.getDouble("height")
+
+                if (touchX >= left && touchX <= right && touchY >= top && touchY <= bottom) {
+                    Log.i("NativeCanvasView", "tap hit region (vScroll): ${region.getString("action")}")
                     performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                     onAction?.invoke(region.getString("action"), RectF(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat()), region.optJSONObject("meta"))
                     return
