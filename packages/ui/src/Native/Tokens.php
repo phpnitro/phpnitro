@@ -49,53 +49,78 @@ final class Tokens
     public const TEXT_BODY_SMALL = 13.0;
     public const TEXT_CAPTION = 12.0;
 
+    // Same "one static, overwritten unconditionally at the top of every
+    // request before any layout()/paint() call runs" pattern as
+    // MediaQuery — see that class's own docblock for why this is safe
+    // despite PHP's built-in dev server reusing one process across
+    // requests. init() is called from public/index.php right after
+    // MediaQuery::init(), reading a "?dark=1" query param
+    // NativeRenderPocActivity sends based on the device's real system
+    // dark-mode setting (Configuration.uiMode) — the same "system, not a
+    // manually-chosen app setting" default Flutter/RN apps start from.
+    private static bool $isDark = false;
+
+    public static function init(bool $isDark): void
+    {
+        self::$isDark = $isDark;
+    }
+
+    public static function isDark(): bool
+    {
+        return self::$isDark;
+    }
+
     public static function ink(): Color
     {
-        return Color::gray(900);
+        return self::$isDark ? Color::gray(50) : Color::gray(900);
     }
 
     public static function inkSecondary(): Color
     {
-        return Color::gray(500);
+        return self::$isDark ? Color::gray(400) : Color::gray(500);
     }
 
     public static function inkMuted(): Color
     {
-        return Color::gray(400);
+        return self::$isDark ? Color::gray(500) : Color::gray(400);
     }
 
     public static function surface(): Color
     {
-        return Color::white();
+        return self::$isDark ? Color::gray(900) : Color::white();
     }
 
     public static function surfaceMuted(): Color
     {
-        return Color::gray(50);
+        return self::$isDark ? Color::gray(800) : Color::gray(50);
     }
 
     public static function border(): Color
     {
-        return Color::gray(200);
+        return self::$isDark ? Color::gray(700) : Color::gray(200);
     }
 
     public static function success(): Color
     {
-        return Color::green(600);
+        // A step lighter in dark mode (400 vs 600) — the same shade that
+        // reads as a confident, saturated green on white reads as muddy
+        // and low-contrast on a near-black surface; every accent color
+        // below follows the same one-step-lighter-in-dark adjustment.
+        return Color::green(self::$isDark ? 400 : 600);
     }
 
     public static function successMuted(): Color
     {
-        return Color::green(50);
+        return self::$isDark ? Color::green(900) : Color::green(50);
     }
 
     public static function danger(): Color
     {
-        return Color::red(600);
+        return Color::red(self::$isDark ? 400 : 600);
     }
 
     public static function dangerMuted(): Color
     {
-        return Color::red(50);
+        return self::$isDark ? Color::red(900) : Color::red(50);
     }
 }

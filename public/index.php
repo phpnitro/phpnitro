@@ -147,6 +147,17 @@ if ($path === '/native/layout-demo') {
     // $screenHeight as an explicit parameter — see MediaQuery::init()'s
     // docblock for why this is safe as a static here.
     \Engine\Native\MediaQuery::init($screenWidth, $screenHeight);
+    // Follows the device's real system dark-mode setting by default (see
+    // NativeRenderPocActivity.kt's own dark param, read from
+    // Configuration.uiMode) — same "system, not a separate in-app toggle
+    // you have to remember to set" default Flutter/RN apps ship with.
+    \Engine\Native\Tokens::init(($_GET['dark'] ?? '0') === '1');
+    // Follows the device's real system language by default (see
+    // NativeRenderPocActivity.kt's own locale param) — falls back to
+    // 'fr' (this framework's own baseline locale, see lib/lang/fr.php's
+    // docblock) for anything unrecognized rather than a locale with no
+    // translation file at all.
+    \Engine\I18n\Translator::init($_GET['locale'] ?? 'fr', __DIR__ . '/../lib/lang');
     $screen = $_GET['screen'] ?? 'home';
     $action = $_GET['action'] ?? null;
     // LazyList's windowed prefetch — see NativeCanvasView.kt's

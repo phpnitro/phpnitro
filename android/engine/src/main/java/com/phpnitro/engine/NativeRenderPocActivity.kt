@@ -1043,6 +1043,26 @@ class NativeRenderPocActivity : AppCompatActivity() {
         val idParam = if (screenParam != null) "&id=${URLEncoder.encode(screenParam, "UTF-8")}" else ""
         val actionParam = if (action != null) "&action=${URLEncoder.encode(action, "UTF-8")}" else ""
         val onlineParam = "&online=${if (deviceBridge.isOnline()) 1 else 0}"
+        // Tokens::init()'s own param — Configuration.UI_MODE_NIGHT_YES is
+        // the system's real current setting (dark-mode toggle in Android
+        // Settings, or the phone's day/night schedule), not anything
+        // this app tracks or lets the user override itself yet. Read
+        // fresh on every fetch rather than cached at onCreate() so
+        // toggling system dark mode while the app is already open (a
+        // real, common thing to do — the OS supports it live) takes
+        // effect on the very next tap/refetch instead of needing a
+        // restart.
+        val nightModeFlags = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+        val darkParam = "&dark=${if (nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES) 1 else 0}"
+        // Translator::init()'s own param — the device's real system
+        // language (Settings -> System -> Languages), same "system
+        // default, no separate in-app setting to remember to change"
+        // story as darkParam above. Only the bare language subtag
+        // ("fr", "en") travels, not a full BCP 47 tag (fr-FR, en-US) —
+        // lib/lang/*.php is keyed by language only; a project that
+        // genuinely needs region-specific variants would need its own
+        // richer locale files, not something this v1 tries to solve.
+        val localeParam = "&locale=${URLEncoder.encode(resources.configuration.locales[0].language, "UTF-8")}"
         // LazyList's windowed prefetch needs to know where the user
         // actually is in the virtual list to build the right window —
         // harmless for every other screen, which simply never reads it.
@@ -1071,7 +1091,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
         // "network/parse overhead" instead of one opaque total.
         val startNanos = System.nanoTime()
         try {
-            val connection = URL("http://$serverHost:$port/native/layout-demo?width=$screenWidthDp&height=$screenHeightDp&screen=$screen$idParam$actionParam$onlineParam$scrollYParam$fieldsParam$lastHashParam").openConnection() as HttpURLConnection
+            val connection = URL("http://$serverHost:$port/native/layout-demo?width=$screenWidthDp&height=$screenHeightDp&screen=$screen$idParam$actionParam$onlineParam$darkParam$localeParam$scrollYParam$fieldsParam$lastHashParam").openConnection() as HttpURLConnection
             connection.connectTimeout = 5000
             val responseCode = connection.responseCode
             Log.i(TAG, "Fetching /native/layout-demo (screen=$screen, action=$action), response code $responseCode")

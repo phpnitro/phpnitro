@@ -23,6 +23,7 @@
             "Engine\\Math\\": "packages/math/src/",
             "Engine\\Date\\": "packages/date/src/",
             "Engine\\Cloudinary\\": "packages/cloudinary/src/",
+            "Engine\\I18n\\": "packages/i18n/src/",
             "Engine\\App\\": "lib/pages/",
             "Backend\\": "lib/backend/src/",
             "Engine\\Format\\": "packages/format/src/"
