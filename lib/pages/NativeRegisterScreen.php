@@ -7,6 +7,7 @@ use Engine\Native\EdgeInsets;
 use Engine\Native\Banner;
 use Engine\Native\Button;
 use Engine\Native\IconCircle;
+use Engine\Native\PasswordField;
 use Engine\Native\TextField;
 use Engine\Native\Container;
 use Engine\Native\Flex;
@@ -40,8 +41,8 @@ final class NativeRegisterScreen
                     ),
                     new Padding(EdgeInsets::only(top: Tokens::SPACE_LG), new Banner($error)),
                     new Padding(EdgeInsets::only(top: Tokens::SPACE_XL), new TextField('username', placeholder: 'Utilisateur')),
-                    new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), new TextField('password', placeholder: 'Mot de passe (6 caractères min.)', obscure: true)),
-                    new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), new TextField('password_confirm', placeholder: 'Confirmer le mot de passe', obscure: true)),
+                    new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), new PasswordField('password', placeholder: 'Mot de passe (6 caractères min.)')),
+                    new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), new PasswordField('password_confirm', placeholder: 'Confirmer le mot de passe')),
                     new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_XL),
                         new Button('Créer le compte', 'submit:register', width: $contentWidth),

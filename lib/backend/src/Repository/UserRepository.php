@@ -57,6 +57,24 @@ final class UserRepository
         return Database::connection()->fetchOne('SELECT 1 FROM users WHERE username = ?', [$username]) !== false;
     }
 
+    /** @return array{id: int, username: string}|null */
+    public function findByUsername(string $username): ?array
+    {
+        $row = Database::connection()->fetchAssociative('SELECT id, username FROM users WHERE username = ?', [$username]);
+
+        return $row === false ? null : ['id' => (int) $row['id'], 'username' => $row['username']];
+    }
+
+    /** Used by PasswordResetRepository's flow once a token has been verified — see NativeResetPasswordScreen. */
+    public function updatePassword(int $userId, string $newPassword): void
+    {
+        Database::connection()->update(
+            'users',
+            ['password_hash' => password_hash($newPassword, PASSWORD_DEFAULT)],
+            ['id' => $userId],
+        );
+    }
+
     /** @return array{id: int, username: string} */
     public function create(string $username, string $password): array
     {

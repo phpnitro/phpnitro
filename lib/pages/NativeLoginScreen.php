@@ -8,6 +8,7 @@ use Engine\Native\Banner;
 use Engine\Native\Button;
 use Engine\Native\Checkbox;
 use Engine\Native\IconCircle;
+use Engine\Native\PasswordField;
 use Engine\Native\TextField;
 use Engine\Native\Container;
 use Engine\Native\Flex;
@@ -48,7 +49,14 @@ final class NativeLoginScreen
                     ),
                     new Padding(EdgeInsets::only(top: Tokens::SPACE_LG), new Banner($error)),
                     new Padding(EdgeInsets::only(top: Tokens::SPACE_XL), new TextField('username', placeholder: 'Utilisateur')),
-                    new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), new TextField('password', placeholder: 'Mot de passe', obscure: true)),
+                    new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), new PasswordField('password', placeholder: 'Mot de passe')),
+                    new Padding(
+                        EdgeInsets::only(top: Tokens::SPACE_SM),
+                        new RichText([
+                            new TextSpan('Mot de passe oublié ? ', color: Tokens::inkMuted()->toHex()),
+                            new TextSpan('Réinitialiser', bold: true, color: Tokens::ink()->toHex(), action: 'navigate:forgot-password'),
+                        ], fontSize: Tokens::TEXT_BODY_SMALL, color: Tokens::inkMuted()->toHex()),
+                    ),
                     new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_LG),
                         new Checkbox('remember', 'Se souvenir de moi', $rememberMe === '1'),

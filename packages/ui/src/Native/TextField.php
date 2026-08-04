@@ -32,6 +32,17 @@ final class TextField implements Widget
      *                        box, top-aligned text, and InputType.TYPE_TEXT_FLAG_MULTI_LINE
      *                        (see NativeRenderPocActivity.kt's showTextInput()).
      */
+    /**
+     * @param ?float $width Explicit width, bypassing the usual reliance on
+     *                      a STRETCH-aligned Flex ancestor — needed by
+     *                      PasswordField, which wraps this in a Stack
+     *                      (Stack always loosens the constraint it hands
+     *                      non-Positioned children, so an ordinary
+     *                      unconstrained TextField would shrink to its
+     *                      own content width instead of filling the row).
+     *                      Every existing call site omits this and keeps
+     *                      relying on STRETCH exactly as before.
+     */
     public function __construct(
         string $name,
         string $value = '',
@@ -39,6 +50,7 @@ final class TextField implements Widget
         bool $obscure = false,
         bool $multiline = false,
         float $height = 52.0,
+        ?float $width = null,
     ) {
         $resolvedHeight = $multiline ? max($height, 120.0) : $height;
         $hasValue = $value !== '';
@@ -52,6 +64,7 @@ final class TextField implements Widget
                     : EdgeInsets::only(left: Tokens::SPACE_MD, top: $resolvedHeight / 2 - Tokens::TEXT_BODY * 0.6),
                 new Text($displayText, Tokens::TEXT_BODY, $displayColor->toHex()),
             ),
+            width: $width,
             height: $resolvedHeight,
             background: Tokens::surface(),
             radius: Tokens::RADIUS_MD,

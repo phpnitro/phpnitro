@@ -217,6 +217,57 @@ if ($path === '/native/layout-demo') {
             $redirectScreen = 'home';
         }
     }
+    // Forgot/reset password — see PasswordResetRepository's own docblock
+    // for why the "sent" link is just shown on screen (no mailer
+    // configured anywhere in this framework by default). The success
+    // message is identical whether or not $username matched a real
+    // account — only $devResetLink differs — so this handler can't be
+    // used to enumerate valid usernames by watching for a different
+    // response.
+    $forgotPasswordError = null;
+    $devResetLink = null;
+    if ($screen === 'forgot-password' && $action === 'forgot_password') {
+        $username = trim($_GET['username'] ?? '');
+        if ($username === '') {
+            $forgotPasswordError = "Nom d'utilisateur requis.";
+        } else {
+            $user = (new \Backend\Repository\UserRepository())->findByUsername($username);
+            if ($user !== null) {
+                $rawToken = (new \Backend\Repository\PasswordResetRepository())->createToken($user['id']);
+                $devResetLink = $rawToken;
+            }
+            // $user === null falls through with $devResetLink still null
+            // — the screen shows nothing extra, same as a real "check your
+            // inbox" message would for an unknown address, deliberately
+            // indistinguishable from the success case above.
+        }
+    }
+
+    $resetPasswordError = null;
+    $resetPasswordSuccess = null;
+    if ($screen === 'reset-password' && $action === 'reset_password') {
+        $token = trim($_GET['reset_token'] ?? '');
+        $newPassword = $_GET['new_password'] ?? '';
+        $newPasswordConfirm = $_GET['new_password_confirm'] ?? '';
+        $resets = new \Backend\Repository\PasswordResetRepository();
+        if ($token === '' || $newPassword === '') {
+            $resetPasswordError = 'Code et nouveau mot de passe requis.';
+        } elseif (strlen($newPassword) < 6) {
+            $resetPasswordError = 'Le mot de passe doit faire au moins 6 caractères.';
+        } elseif ($newPassword !== $newPasswordConfirm) {
+            $resetPasswordError = 'Les mots de passe ne correspondent pas.';
+        } else {
+            $userId = $resets->findValidUserId($token);
+            if ($userId === null) {
+                $resetPasswordError = 'Code invalide ou expiré.';
+            } else {
+                (new \Backend\Repository\UserRepository())->updatePassword($userId, $newPassword);
+                $resets->markUsed($token);
+                $resetPasswordSuccess = 'Mot de passe mis à jour — tu peux te connecter.';
+            }
+        }
+    }
+
     // Logout stays on the home screen (matches HomePage.php's onLogout(),
     // which doesn't redirect either) — no client-side redirect needed,
     // the next line's rebuild of NativeHomeScreen just reflects the
@@ -486,6 +537,8 @@ if ($path === '/native/layout-demo') {
         'product' => \Engine\App\NativeProductScreen::build($screenWidth, $_GET['id'] ?? '?'),
         'login' => \Engine\App\NativeLoginScreen::build($screenWidth, $loginError),
         'register' => \Engine\App\NativeRegisterScreen::build($screenWidth, $registerError),
+        'forgot-password' => \Engine\App\NativeForgotPasswordScreen::build($screenWidth, $forgotPasswordError, $devResetLink),
+        'reset-password' => \Engine\App\NativeResetPasswordScreen::build($screenWidth, $resetPasswordError, $resetPasswordSuccess),
         'device' => \Engine\App\NativeDeviceScreen::build($screenWidth, $screenHeight),
         'api' => \Engine\App\NativeApiScreen::build($screenWidth, $screenHeight),
         'widgets' => \Engine\App\NativeWidgetsIndexScreen::build($screenWidth, $screenHeight),
