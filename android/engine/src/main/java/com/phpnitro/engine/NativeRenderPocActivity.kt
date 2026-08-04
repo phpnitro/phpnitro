@@ -107,6 +107,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
     // replay tap) before the first one finishes tears down the old view
     // instead of stacking a second one on top of it.
     private var activeConfettiView: ConfettiView? = null
+    private var activeSnackbarView: android.view.View? = null
     // Canvas::stableHash() of the last response actually applied —
     // sent back as lastHash= on the next same-screen refetch so PHP can
     // reply {"unchanged":true} instead of the whole payload when nothing
@@ -891,6 +892,52 @@ class NativeRenderPocActivity : AppCompatActivity() {
         }, durationMs)
     }
 
+    // See Canvas::showSnackbar()/Snackbar's own docblocks. Fade in, hold,
+    // fade out, self-remove — the identity check (activeSnackbarView ===
+    // thisView) before every removal/fade-out guards against a SECOND
+    // snackbar firing while the first one's still holding: the first
+    // one's own delayed callback would otherwise fire later and rip out
+    // the second one's view instead of its own.
+    private fun showSnackbarOverlay(message: String, durationMs: Long) {
+        activeSnackbarView?.let { rootLayout.removeView(it) }
+
+        val density = resources.displayMetrics.density
+        fun dp(value: Int) = (value * density).toInt()
+
+        val snackbarView = TextView(this).apply {
+            text = message
+            setTextColor(android.graphics.Color.WHITE)
+            textSize = 14f
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(android.graphics.Color.parseColor("#EE111827"))
+                cornerRadius = dp(10).toFloat()
+            }
+            alpha = 0f
+        }
+        val params = FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            bottomMargin = dp(32)
+            leftMargin = dp(24)
+            rightMargin = dp(24)
+        }
+        rootLayout.addView(snackbarView, params)
+        activeSnackbarView = snackbarView
+
+        snackbarView.animate().alpha(1f).setDuration(200).start()
+
+        val holdMs = (durationMs - 400L).coerceAtLeast(0L)
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (activeSnackbarView !== snackbarView) return@postDelayed
+            snackbarView.animate().alpha(0f).setDuration(200).withEndAction {
+                if (activeSnackbarView === snackbarView) {
+                    rootLayout.removeView(snackbarView)
+                    activeSnackbarView = null
+                }
+            }.start()
+        }, holdMs)
+    }
+
     // A real, pannable/zoomable org.osmdroid.views.MapView (pinch-zoom is
     // built into MapView itself once setMultiTouchControls(true) is set,
     // no extra gesture wiring here) — same overlay-at-tapped-rect idiom as
@@ -1398,6 +1445,19 @@ class NativeRenderPocActivity : AppCompatActivity() {
         // need to parse it twice.
         if (json.contains("\"confetti\":true")) {
             showConfettiOverlay()
+        }
+        // Canvas::showSnackbar() — unlike confetti's plain boolean flag,
+        // the message is arbitrary text (could contain quotes, emoji,
+        // anything), which a regex has no business trying to parse
+        // correctly — a real JSONObject parse is the only reliable way
+        // to pull it back out.
+        val snackbar = try {
+            JSONObject(json).optJSONObject("snackbar")
+        } catch (e: org.json.JSONException) {
+            null
+        }
+        if (snackbar != null) {
+            showSnackbarOverlay(snackbar.optString("message"), snackbar.optLong("durationMs", 3000L))
         }
         lastAppliedHash = Regex("\"hash\":\"([0-9a-f]+)\"").find(json)?.groupValues?.get(1)
         if (devToolsPanel != null) updateDevToolsPanel(screenStack.lastOrNull() ?: "?", wasUnchanged = false)

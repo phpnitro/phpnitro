@@ -82,6 +82,9 @@ final class Canvas
     private bool $scrollFollow = false;
     private bool $confetti = false;
 
+    /** @var array{message: string, durationMs: int}|null */
+    private ?array $snackbar = null;
+
     /**
      * LazyList only builds/paints the items within its current
      * scroll window, but reports the FULL virtual list height as its
@@ -694,6 +697,24 @@ final class Canvas
     }
 
     /**
+     * A transient bottom-anchored message, auto-dismissing after
+     * $durationMs — same "server decides it should show, client owns
+     * the actual fade-in/wait/fade-out animation with no per-frame
+     * round-trip" idiom as triggerConfetti() just above. See Snackbar
+     * (the widget that calls this from its own paint()) and
+     * NativeRenderPocActivity.kt's showSnackbarOverlay(). Only the
+     * LAST call in a paint pass wins — same "a screen only ever wants
+     * to schedule one of these" reasoning autoNavigate()'s own docblock
+     * already gives, there is no queue of multiple snackbars.
+     */
+    public function showSnackbar(string $message, int $durationMs = 3000): self
+    {
+        $this->snackbar = ['message' => $message, 'durationMs' => $durationMs];
+
+        return $this;
+    }
+
+    /**
      * A hash of everything that decides what's actually on screen —
      * deliberately excluding renderTimeMs (differs on literally every
      * request, real content or not) and the hash itself. index.php
@@ -722,6 +743,7 @@ final class Canvas
             'redirect' => $this->redirect,
             'scrollFollow' => $this->scrollFollow ? true : null,
             'confetti' => $this->confetti ? true : null,
+            'snackbar' => $this->snackbar,
         ], static fn (mixed $value): bool => $value !== null), JSON_THROW_ON_ERROR));
     }
 
@@ -742,6 +764,7 @@ final class Canvas
             'redirect' => $this->redirect,
             'scrollFollow' => $this->scrollFollow ? true : null,
             'confetti' => $this->confetti ? true : null,
+            'snackbar' => $this->snackbar,
             'hash' => $this->stableHash(),
         ], static fn (mixed $value): bool => $value !== null), JSON_THROW_ON_ERROR);
     }
