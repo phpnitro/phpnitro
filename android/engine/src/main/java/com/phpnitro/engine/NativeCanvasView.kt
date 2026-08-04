@@ -13,6 +13,7 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Rect
 import android.graphics.Typeface
+import androidx.core.graphics.ColorUtils
 import android.os.Bundle
 import android.util.Log
 import android.view.GestureDetector
@@ -132,6 +133,11 @@ class NativeCanvasView(context: Context) : View(context) {
     // loop.
     private var spinnerAnimator: ValueAnimator? = null
 
+    // Drives drawSkeletonCommand()'s continuous shimmer sweep — same
+    // "started the first time the relevant command type appears, stopped
+    // the moment none remain" lifecycle as spinnerAnimator right above.
+    private var skeletonAnimator: ValueAnimator? = null
+
     private fun updateSpinnerAnimator() {
         val hasSpinner = (0 until commands.length()).any { commands.getJSONObject(it).optString("type") == "spinner" }
         if (hasSpinner) {
@@ -149,10 +155,35 @@ class NativeCanvasView(context: Context) : View(context) {
         }
     }
 
+    // Same started/stopped-on-demand idea as updateSpinnerAnimator()
+    // right above, for Skeleton's shimmer sweep instead of Spinner's
+    // rotation — a screen with no Skeleton on it never pays for a
+    // perpetual redraw loop.
+    private fun updateSkeletonAnimator() {
+        val hasSkeleton = (0 until commands.length()).any { commands.getJSONObject(it).optString("type") == "skeleton" }
+        if (hasSkeleton) {
+            if (skeletonAnimator == null) {
+                skeletonAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+                    duration = 16
+                    repeatCount = ValueAnimator.INFINITE
+                    addUpdateListener { invalidate() }
+                    start()
+                }
+            }
+        } else {
+            skeletonAnimator?.cancel()
+            skeletonAnimator = null
+        }
+    }
+
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         spinnerAnimator?.cancel()
         spinnerAnimator = null
+        skeletonAnimator?.cancel()
+        skeletonAnimator = null
+        pullSpinAnimator?.cancel()
+        pullSpinAnimator = null
     }
     private var heroProgress: Float = 1f
     private var activeHeroFlights: Map<String, Pair<RectF, RectF>> = emptyMap()
@@ -186,6 +217,24 @@ class NativeCanvasView(context: Context) : View(context) {
 
     /** Current scroll position in dp — NativeRenderPocActivity reports this on every fetch. */
     val currentScrollYDp: Float get() = scrollY
+
+    // Pull-to-refresh (Canvas::setPullToRefresh()) — an overscroll-at-top
+    // drag, tracked entirely client-side same as Dismissible/BottomSheet's
+    // handle: pullOffsetY (dp) grows under the finger with resistance
+    // while scrollY is already 0, a small indicator overlay (see
+    // drawPullToRefreshIndicator()) grows with it, and only past
+    // PULL_TRIGGER_DISTANCE on release does $action actually fire — PHP
+    // never sees the drag itself. null (the default) means this screen
+    // never opted in, so every check below is a cheap null-comparison
+    // no-op for the vast majority of screens that don't use this.
+    private var pullToRefreshAction: String? = null
+    private var pullOffsetY = 0f
+    private var isRefreshing = false
+    private var pullSettleAnimator: ValueAnimator? = null
+    private var pullSpinAnimator: ValueAnimator? = null
+    private val pullTriggerDistance = 64f
+    private val pullMaxDistance = 100f
+    private val pullRestDistance = 56f
 
     private fun checkScrollFollow() {
         if (!scrollFollow) return
@@ -455,12 +504,22 @@ class NativeCanvasView(context: Context) : View(context) {
             lastScreenWidthDp = screenWidthDp
             scrollFollow = payload.optBoolean("scrollFollow", false)
             transitionType = payload.optString("transition", "fade")
+            pullToRefreshAction = payload.optString("pullToRefresh", "").ifEmpty { null }
+            // The refetch this pull triggered just landed — let the
+            // indicator finish its spin-down instead of freezing mid-spin
+            // or vanishing the instant the response arrives, whichever of
+            // those happened to line up with this exact frame.
+            if (isRefreshing) {
+                isRefreshing = false
+                animatePullTo(0f)
+            }
             scrollY = scrollY.coerceIn(0f, maxScrollY())
             lastFetchedScrollY = scrollY
 
             previousCommands = if (commands.length() > 0) commands else null
             commands = newCommands
             updateSpinnerAnimator()
+            updateSkeletonAnimator()
 
             previousHeroRegions = if (heroRegions.isNotEmpty()) heroRegions else null
             heroRegions = parseHeroRegions(payload.optJSONArray("heroRegions"))
@@ -793,6 +852,7 @@ class NativeCanvasView(context: Context) : View(context) {
             "hScroll" -> drawHScrollCommand(canvas, command, alpha)
             "spinner" -> drawSpinnerCommand(canvas, command, alpha)
             "slider" -> drawSliderCommand(canvas, command, alpha)
+            "skeleton" -> drawSkeletonCommand(canvas, command, alpha)
         }
     }
 
@@ -878,6 +938,50 @@ class NativeCanvasView(context: Context) : View(context) {
         canvas.drawArc(rect, rotation, 110f, false, sweepPaint)
     }
 
+    // Base fill + a translucent band sweeping left-to-right on a loop —
+    // the highlight is the base color blended toward white rather than a
+    // flat white, so it reads right in dark mode too (a hard white
+    // highlight would blow out against an already-light border() base
+    // there). Driven by SystemClock.uptimeMillis() exactly like
+    // drawSpinnerCommand()'s rotation, no state travels with the command
+    // itself — see updateSkeletonAnimator() for the started/stopped-on-
+    // demand invalidate() loop this needs to actually animate.
+    private fun drawSkeletonCommand(canvas: Canvas, command: JSONObject, alpha: Float) {
+        val x = command.getDouble("x").toFloat()
+        val y = command.getDouble("y").toFloat()
+        val w = command.getDouble("width").toFloat()
+        val h = command.getDouble("height").toFloat()
+        val radius = command.getDouble("radius").toFloat()
+        val baseColor = Color.parseColor(command.getString("color"))
+        val rect = RectF(x, y, x + w, y + h)
+
+        val basePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = baseColor
+            this.alpha = (this.alpha * alpha).toInt()
+        }
+        canvas.drawRoundRect(rect, radius, radius, basePaint)
+
+        val highlight = ColorUtils.blendARGB(baseColor, Color.WHITE, 0.5f)
+        val sweepWidth = (w * 0.6f).coerceAtLeast(1f)
+        val periodMs = 1300f
+        val phase = (android.os.SystemClock.uptimeMillis() % periodMs.toLong()) / periodMs
+        val sweepX = x - sweepWidth + (w + sweepWidth) * phase
+
+        val shimmerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                sweepX, y, sweepX + sweepWidth, y,
+                intArrayOf(Color.TRANSPARENT, highlight, Color.TRANSPARENT),
+                floatArrayOf(0f, 0.5f, 1f),
+                Shader.TileMode.CLAMP,
+            )
+            this.alpha = (this.alpha * alpha * 0.8f).toInt()
+        }
+        val saved = canvas.save()
+        canvas.clipRect(rect)
+        canvas.drawRoundRect(rect, radius, radius, shimmerPaint)
+        canvas.restoreToCount(saved)
+    }
+
     // Only the panel whose index matches this group's current local
     // selection draws — every other panel this same command list carries
     // (there's one clientPanel command per ClientTabs panel, all
@@ -949,6 +1053,7 @@ class NativeCanvasView(context: Context) : View(context) {
                 dismissSettleAnimator?.cancel()
                 reorderSettleAnimator?.cancel()
                 sheetDragSettleAnimator?.cancel()
+                pullSettleAnimator?.cancel()
                 touchDownX = event.x
                 touchDownY = event.y
                 lastTouchX = event.x
@@ -1053,15 +1158,39 @@ class NativeCanvasView(context: Context) : View(context) {
                     sheetDragOffsetY = (totalDeltaY / density).coerceIn(0f, activeSheetDrag!!.sheetHeight)
                     invalidate()
                 } else {
-                    if (!isDragging && maxScroll > 0f && abs(totalDeltaY) > touchSlop && abs(totalDeltaY) > abs(totalDeltaX)) {
+                    // Pull-to-refresh's own "should this gesture even start
+                    // dragging" case: a short/empty screen has maxScroll==0
+                    // and would otherwise never enter isDragging at all,
+                    // but a pull still has to work there (nothing to
+                    // scroll isn't the same as nothing to refresh).
+                    if (!isDragging && (maxScroll > 0f || (pullToRefreshAction != null && scrollY <= 0f)) &&
+                        abs(totalDeltaY) > touchSlop && abs(totalDeltaY) > abs(totalDeltaX)
+                    ) {
                         isDragging = true
                     }
                     if (isDragging) {
                         val deltaDp = (lastTouchY - event.y) / density
-                        scrollY = (scrollY + deltaDp).coerceIn(0f, maxScroll)
-                        lastTouchY = event.y
-                        checkScrollFollow()
-                        invalidate()
+                        // Once a pull has actually started (pullOffsetY >
+                        // 0), EVERY further sample keeps adjusting it —
+                        // including a partial reversal back toward 0 — so
+                        // pushing back up doesn't instantly snap into a
+                        // page scroll mid-gesture. A fresh pull only
+                        // starts at the top (scrollY <= 0) dragging further
+                        // down (deltaDp < 0, this file's own sign
+                        // convention — see scrollY's identical formula
+                        // right below).
+                        if (pullToRefreshAction != null && !isRefreshing &&
+                            (pullOffsetY > 0f || (scrollY <= 0f && deltaDp < 0f))
+                        ) {
+                            pullOffsetY = (pullOffsetY - deltaDp * 0.5f).coerceIn(0f, pullMaxDistance)
+                            lastTouchY = event.y
+                            invalidate()
+                        } else {
+                            scrollY = (scrollY + deltaDp).coerceIn(0f, maxScroll)
+                            lastTouchY = event.y
+                            checkScrollFollow()
+                            invalidate()
+                        }
                     }
                 }
             }
@@ -1090,6 +1219,8 @@ class NativeCanvasView(context: Context) : View(context) {
                     // this exact slider on a fr-FR device and watching the
                     // server echo back 0.00 for a real ~0.82 drag.
                     onAction?.invoke(region.action, region.rect, JSONObject().put("next", String.format(java.util.Locale.US, "%.3f", finalValue)))
+                } else if (pullOffsetY > 0f) {
+                    settlePull()
                 } else if (isDragging) {
                     velocityTracker?.let {
                         it.addMovement(event)
@@ -1118,6 +1249,9 @@ class NativeCanvasView(context: Context) : View(context) {
                 }
                 if (activeSheetDrag != null) {
                     springBackSheetDrag()
+                }
+                if (pullOffsetY > 0f && !isRefreshing) {
+                    animatePullTo(0f)
                 }
                 pendingDismiss = null
                 pendingSheetDrag = null
@@ -1396,6 +1530,67 @@ class NativeCanvasView(context: Context) : View(context) {
         }
     }
 
+    // Past threshold: hold the indicator at pullRestDistance (not 0 — it
+    // needs to stay visible and spinning while $action's refetch is in
+    // flight) and fire $action. setCommands() above is what actually
+    // clears isRefreshing and animates back to 0 once that refetch's
+    // response lands — no onAction call here decides success/failure,
+    // same "PHP never sees the gesture, only its outcome" split as every
+    // other drag in this file, just with the "outcome" being an ordinary
+    // action string instead of a settle/spring choice.
+    private fun settlePull() {
+        if (pullOffsetY >= pullTriggerDistance && pullToRefreshAction != null) {
+            isRefreshing = true
+            performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            animatePullTo(pullRestDistance)
+            startPullSpin()
+            onAction?.invoke(pullToRefreshAction!!, RectF(0f, 0f, 0f, 0f), null)
+        } else {
+            animatePullTo(0f)
+        }
+    }
+
+    private fun animatePullTo(target: Float) {
+        pullSettleAnimator?.cancel()
+        pullSettleAnimator = ValueAnimator.ofFloat(pullOffsetY, target).apply {
+            duration = 200
+            interpolator = DecelerateInterpolator()
+            addUpdateListener {
+                pullOffsetY = it.animatedValue as Float
+                invalidate()
+            }
+            if (target == 0f) {
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        stopPullSpin()
+                    }
+                })
+            }
+            start()
+        }
+    }
+
+    // Same "own continuous invalidate() loop, started/stopped on demand"
+    // idea as updateSpinnerAnimator() for the "spinner" draw command —
+    // this one drives drawPullToRefreshIndicator()'s rotation instead,
+    // active only while isRefreshing (never for the pull-distance part of
+    // the gesture, which redraws on its own via the drag's own
+    // invalidate() calls).
+    private fun startPullSpin() {
+        if (pullSpinAnimator != null) return
+        pullSpinAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 16
+            repeatCount = ValueAnimator.INFINITE
+            addUpdateListener { invalidate() }
+            start()
+        }
+    }
+
+    private fun stopPullSpin() {
+        pullSpinAnimator?.cancel()
+        pullSpinAnimator = null
+    }
+
     // Momentum scrolling: a decelerating ValueAnimator from the release
     // velocity down to 0, same shape as Flutter's default ScrollPhysics
     // (a real fling, not a hard stop the instant the finger lifts).
@@ -1640,6 +1835,59 @@ class NativeCanvasView(context: Context) : View(context) {
         drawHeroTransition(canvas)
         drawDismissOverlay(canvas)
         drawReorderOverlay(canvas)
+        drawPullToRefreshIndicator(canvas)
+    }
+
+    // A small circular indicator pinned near the top of the viewport —
+    // grows in as pullOffsetY grows (a partial ring, the same visual
+    // language CircularProgress's own determinate arc already uses on
+    // the PHP side, just drawn client-only here since there's nothing
+    // server-rendered to show progress against yet), then spins
+    // continuously once isRefreshing (driven by pullSpinAnimator,
+    // System.currentTimeMillis()-based exactly like drawSpinnerCommand()).
+    // Screen-relative like a Fixed AppBar (no scroll translate) — never
+    // touches the main content's own draw pass at all, so a screen with
+    // no pull-to-refresh registered pays literally zero extra draw cost
+    // (pullOffsetY stays 0, this returns immediately).
+    private fun drawPullToRefreshIndicator(canvas: Canvas) {
+        if (pullOffsetY <= 0f) return
+        val saved = canvas.save()
+        canvas.scale(density, density)
+        val viewportWidthDp = if (density > 0) width / density else 0f
+        val cx = viewportWidthDp / 2f
+        val cy = 12f + pullOffsetY * 0.4f
+        val outerRadius = 14f
+
+        val discPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            setShadowLayer(6f, 0f, 2f, Color.parseColor("#33000000"))
+        }
+        canvas.drawCircle(cx, cy, outerRadius, discPaint)
+
+        val arcRect = RectF(cx - 9f, cy - 9f, cx + 9f, cy + 9f)
+        val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 2.5f
+            strokeCap = Paint.Cap.ROUND
+            color = Color.parseColor("#E5E7EB")
+        }
+        canvas.drawArc(arcRect, 0f, 360f, false, trackPaint)
+
+        val sweepPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 2.5f
+            strokeCap = Paint.Cap.ROUND
+            color = Color.parseColor("#F97316")
+        }
+        if (isRefreshing) {
+            val periodMs = 900f
+            val rotation = (android.os.SystemClock.uptimeMillis() % periodMs.toLong()) / periodMs * 360f
+            canvas.drawArc(arcRect, rotation, 110f, false, sweepPaint)
+        } else {
+            val progress = (pullOffsetY / pullTriggerDistance).coerceIn(0f, 1f)
+            canvas.drawArc(arcRect, -90f, 360f * progress, false, sweepPaint)
+        }
+        canvas.restoreToCount(saved)
     }
 
     /**
@@ -1761,7 +2009,7 @@ class NativeCanvasView(context: Context) : View(context) {
      * treat as "can't be sure, don't skip/don't shrink the invalidate".
      */
     private fun commandBoundsDp(command: JSONObject): RectF? = when (command.optString("type")) {
-        "rect", "image" -> RectF(
+        "rect", "image", "skeleton" -> RectF(
             command.getDouble("x").toFloat(),
             command.getDouble("y").toFloat(),
             (command.getDouble("x") + command.getDouble("width")).toFloat(),

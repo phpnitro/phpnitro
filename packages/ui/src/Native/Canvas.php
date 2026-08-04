@@ -87,9 +87,30 @@ final class Canvas
     private ?string $reorderKey = null;
     private bool $scrollFollow = false;
     private bool $confetti = false;
+    private ?string $pullToRefreshAction = null;
 
     /** @var array{message: string, durationMs: int}|null */
     private ?array $snackbar = null;
+
+    /**
+     * Opts this screen into pull-to-refresh — NativeCanvasView.kt tracks
+     * the overscroll-at-top drag entirely client-side (a circular
+     * indicator grows under the finger, no server round-trip per frame,
+     * same "PHP never sees the gesture, only its outcome" split as
+     * Dismissible/BottomSheet's own drag handle), and only fires $action
+     * once released past threshold — indistinguishable from any other
+     * action string on the PHP side, this screen just gets rebuilt with
+     * whatever fresh data $action's handling put in $_SESSION/the
+     * database. The indicator itself keeps spinning until the refetch
+     * that follows actually lands (setCommands()), so a slow refresh
+     * still reads as "in progress", not "stuck".
+     */
+    public function setPullToRefresh(string $action): self
+    {
+        $this->pullToRefreshAction = $action;
+
+        return $this;
+    }
 
     /**
      * LazyList only builds/paints the items within its current
@@ -561,6 +582,29 @@ final class Canvas
         return $this;
     }
 
+    /**
+     * A loading placeholder that SWEEPS — same reasoning as spinner()'s
+     * own docblock: a continuously-repainting gradient has no honest way
+     * to travel as one static JSON response, so this is its own command
+     * type NativeCanvasView.kt drives with a dedicated ValueAnimator
+     * (started/stopped on demand, same idea as updateSpinnerAnimator()),
+     * not a plain "rect". See Skeleton, which is the only real caller.
+     */
+    public function skeleton(float $x, float $y, float $width, float $height, string $color, float $radius = 0.0): self
+    {
+        $this->commands[] = $this->tagFixed([
+            'type' => 'skeleton',
+            'x' => $x,
+            'y' => $y,
+            'width' => $width,
+            'height' => $height,
+            'color' => $color,
+            'radius' => $radius,
+        ]);
+
+        return $this;
+    }
+
     public function text(float $x, float $y, string $text, string $color = '#000000', float $size = 16.0, bool $bold = false, float $letterSpacing = 0.0): self
     {
         $this->commands[] = $this->tagFixed(array_filter([
@@ -801,6 +845,7 @@ final class Canvas
             'contentHeight' => $this->contentHeight,
             'redirect' => $this->redirect,
             'scrollFollow' => $this->scrollFollow ? true : null,
+            'pullToRefresh' => $this->pullToRefreshAction,
             'confetti' => $this->confetti ? true : null,
             'snackbar' => $this->snackbar,
         ], static fn (mixed $value): bool => $value !== null), JSON_THROW_ON_ERROR));
@@ -823,6 +868,7 @@ final class Canvas
             'renderTimeMs' => $this->renderTimeMs,
             'redirect' => $this->redirect,
             'scrollFollow' => $this->scrollFollow ? true : null,
+            'pullToRefresh' => $this->pullToRefreshAction,
             'confetti' => $this->confetti ? true : null,
             'snackbar' => $this->snackbar,
             'transition' => $this->transition,

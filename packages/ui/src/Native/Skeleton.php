@@ -12,29 +12,25 @@
 namespace Engine\Native;
 
 /**
- * A loading placeholder — a flat rounded rect in place of content that
- * hasn't arrived yet (a real Flutter/RN skeleton screen, minus the
- * shimmer sweep animation those add: that needs a continuously-repainting
- * gradient, the same category of "continuous animation with no per-frame
- * server round-trip" primitive Spinner/Confetti needed real
- * NativeCanvasView.kt support for — a real future addition, not
- * attempted here). Static is still a real, honest loading affordance on
- * its own — every mainstream framework shipped exactly this before
- * adding the shimmer.
+ * A loading placeholder with a real shimmer sweep — Canvas::skeleton()
+ * emits its own "skeleton" command type (not a plain "rect") precisely
+ * because the sweep is a continuous repaint with no honest single-frame
+ * JSON representation, the same "needs real NativeCanvasView.kt support"
+ * category Spinner/Confetti were in before they got it — see that
+ * method's own docblock for the exact mechanism (a dedicated
+ * ValueAnimator, started/stopped on demand, driving a moving gradient
+ * shader client-side).
  */
 final class Skeleton implements Widget
 {
-    private readonly Widget $content;
+    private Size $size;
 
-    public function __construct(float $width, float $height, float $radius = Tokens::RADIUS_SM)
-    {
-        // Tokens::border(), not surfaceMuted() — a screen's own
-        // background is very often surfaceMuted() itself (see
-        // NativeWidgetsFormsScreen.php), which made the skeleton
-        // invisible (same color as what's behind it) until this was
-        // caught on a real device. border() stays muted but is a
-        // distinct shade in both light and dark mode.
-        $this->content = new Container(width: $width, height: $height, background: Tokens::border(), radius: $radius);
+    public function __construct(
+        private readonly float $width,
+        private readonly float $height,
+        private readonly float $radius = Tokens::RADIUS_SM,
+    ) {
+        $this->size = Size::zero();
     }
 
     /** A circular skeleton (avatar placeholder) — same shape ImageCircle's real content would eventually take. */
@@ -61,11 +57,20 @@ final class Skeleton implements Widget
 
     public function layout(Constraints $constraints): Size
     {
-        return $this->content->layout($constraints);
+        $this->size = $constraints->constrain(new Size($this->width, $this->height));
+
+        return $this->size;
     }
 
     public function paint(Canvas $canvas, float $x, float $y): void
     {
-        $this->content->paint($canvas, $x, $y);
+        // Tokens::border(), not surfaceMuted() — a screen's own
+        // background is very often surfaceMuted() itself (see
+        // NativeWidgetsFormsScreen.php), which made a plain-fill skeleton
+        // invisible (same color as what's behind it) until that was
+        // caught on a real device. border() stays muted but is a
+        // distinct shade in both light and dark mode, and gives the
+        // sweep something to actually stand out against.
+        $canvas->skeleton($x, $y, $this->size->width, $this->size->height, Tokens::border()->toHex(), $this->radius);
     }
 }

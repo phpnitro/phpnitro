@@ -193,6 +193,15 @@ if ($path === '/native/layout-demo') {
         \Engine\Preferences\Preferences::set('native_home_counter', (string) ((int) \Engine\Preferences\Preferences::get('native_home_counter', '0') - 1));
     }
 
+    // Pull-to-refresh demo (NativeWidgetsFormsScreen, see
+    // Canvas::setPullToRefresh() below) — a real timestamp so the
+    // "Dernière actualisation" line actually changes on every pull,
+    // proving the round-trip happened rather than just re-showing the
+    // same static screen.
+    if ($action === 'widgets_pull_refresh') {
+        $_SESSION['widgets_last_refresh'] = time();
+    }
+
     // Mirrors SettingsPage::onSetAccent() — the accent SelectBox's pick
     // travels back as a plain field (see NativeSettingsScreen's
     // "select:accent_choice" action), and since Preferences is the same
@@ -583,7 +592,7 @@ if ($path === '/native/layout-demo') {
         'device' => \Engine\App\NativeDeviceScreen::build($screenWidth, $screenHeight),
         'api' => \Engine\App\NativeApiScreen::build($screenWidth, $screenHeight),
         'widgets' => \Engine\App\NativeWidgetsIndexScreen::build($screenWidth, $screenHeight),
-        'widgets-forms' => \Engine\App\NativeWidgetsFormsScreen::build($screenWidth),
+        'widgets-forms' => \Engine\App\NativeWidgetsFormsScreen::build($screenWidth, $_SESSION['widgets_last_refresh'] ?? null),
         'widgets-layout' => \Engine\App\NativeWidgetsLayoutScreen::build($screenWidth, $screenHeight),
         'widgets-lazylist' => \Engine\App\NativeWidgetsLazyListScreen::build($screenWidth, $screenHeight, $scrollY),
         'widgets-dismissible' => \Engine\App\NativeWidgetsDismissibleScreen::build($screenWidth, $screenHeight, $_SESSION['dismissible_items']),
@@ -608,6 +617,9 @@ if ($path === '/native/layout-demo') {
     $canvas->setContentHeight($contentSize->height);
     if ($screen === 'widgets-lazylist') {
         $canvas->setScrollFollow();
+    }
+    if ($screen === 'widgets-forms') {
+        $canvas->setPullToRefresh('widgets_pull_refresh');
     }
     $tree->paint($canvas, 0, 0);
     $canvas->setRenderTimeMs((microtime(true) - $renderStart) * 1000);

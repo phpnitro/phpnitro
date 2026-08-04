@@ -2,6 +2,7 @@
 
 namespace Engine\App;
 
+use Engine\Date\DateHelper;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\AlertButton;
@@ -52,7 +53,7 @@ use Engine\Native\Tokens;
  */
 final class NativeWidgetsFormsScreen
 {
-    public static function build(float $screenWidth): Widget
+    public static function build(float $screenWidth, ?int $lastRefresh = null): Widget
     {
         $contentWidth = $screenWidth - 2 * Tokens::SPACE_XL;
         $selected = $_GET['country'] ?? '';
@@ -81,6 +82,15 @@ final class NativeWidgetsFormsScreen
                     new Padding(
                         EdgeInsets::only(top: 4),
                         new Text('SelectBox et DatePicker ouvrent un vrai dialogue Android.', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
+                    ),
+
+                    $caption('Pull-to-refresh — tirer depuis le haut de l\'écran'),
+                    new Text(
+                        $lastRefresh !== null
+                            ? 'Dernière actualisation : ' . DateHelper::humanize(DateHelper::parse('@' . $lastRefresh))
+                            : 'Jamais actualisé — tirez vers le bas pour essayer.',
+                        Tokens::TEXT_BODY_SMALL,
+                        Tokens::inkMuted()->toHex(),
                     ),
 
                     $caption('SelectBox — AlertDialog.setItems()'),
