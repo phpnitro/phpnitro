@@ -55,6 +55,20 @@ new Button('+1', 'home_increment')
 
 La plupart des interactions (tap, sélection) valent un aller-retour réseau — elles ne se produisent pas assez souvent pour que la latence se voie. Un glisser (`Dismissible`) est différent : PHP ne voit jamais le geste lui-même, seulement son résultat. `NativeCanvasView.kt` traque le doigt entièrement côté client (translation live des commandes, zéro requête par frame) et n'appelle `onAction` qu'une fois le geste validé au relâchement. Voir [docs/widgets.md#gestes](widgets.md#gestes).
 
+## État client : quand ne PAS aller chercher PHP
+
+Par défaut, toute interaction déclenche un aller-retour réseau — c'est le modèle par défaut de ce framework, et il est délibérément simple (PHP décide de tout, Kotlin rejoue). Mais certaines interactions n'ont **aucune raison** de toucher le serveur : quel onglet est sélectionné, si un panneau est ouvert ou fermé, où en est un scroll imbriqué. Le contenu des deux états a déjà été envoyé dans la même réponse — rien de nouveau à demander à PHP.
+
+Le mécanisme générique derrière ça (introduit par `ClientTabs`, réutilisé tel quel par `BottomSheet` et `HorizontalScroll`) :
+
+1. **`Canvas::clientTabPanel($key, $index, $initiallyActive, ...)`** — chaque état possible (chaque onglet, ou "ouvert"/"fermé" pour un panneau) est peint dans son propre `Canvas` imbriqué et envoyé comme une entrée `{type: "clientPanel", key, index, commands, hitRegions}`. `$initiallyActive` marque laquelle est l'état de départ.
+2. Côté Kotlin, `NativeCanvasView.kt` garde une map locale `clé -> index sélectionné`, **amorcée une seule fois** depuis `initiallyActive` — un re-rendu ultérieur du même écran ne l'écrase jamais (sinon un onglet déjà changé par l'utilisateur reviendrait à sa valeur de départ à chaque refetch).
+3. Basculer d'un état à l'autre est une simple action `"clientTab:{clé}:{index}"` — `NativeRenderPocActivity`'s la reconnaît déjà génériquement, aucun nouveau dispatch à écrire.
+
+**Pour construire un nouveau widget sur ce modèle** (un accordéon, un carrousel de pages, n'importe quoi avec un état "lequel est actif" purement visuel) : peindre chaque état possible dans son propre `Canvas` imbriqué, appeler `clientTabPanel()` une fois par état avec la même clé, et déclencher les transitions via des `Tappable` dont l'action est `"clientTab:{clé}:{index}"`. Voir `BottomSheet.php` (`packages/ui/src/Native/BottomSheet.php`) pour un exemple concret différent de "plusieurs panneaux côte à côte" — un seul panneau, ouvert (`index=1`) ou fermé (`index=0`).
+
+**Limite connue** : ce mécanisme ne fait QUE basculer instantanément entre des rendus déjà envoyés — pas d'interpolation/animation de transition entre les deux (`BottomSheet` s'ouvre/se ferme sans glissement), et aucune des deux versions ne peut dépendre d'un calcul PHP qui n'a pas encore eu lieu. Pour une vraie transition animée, voir `Hero`/`Animated` (section suivante) ; pour un état qui doit vraiment redemander PHP, c'est le modèle par défaut (round-trip) qui s'applique, pas celui-ci.
+
 ## Animations : deux mécanismes, une seule primitive Kotlin
 
 - **Crossfade d'écran** : à chaque `setCommands()`, l'ancien jeu de commandes et le nouveau sont fondus l'un dans l'autre (`fadeProgress`) — automatique, aucun widget à écrire.
