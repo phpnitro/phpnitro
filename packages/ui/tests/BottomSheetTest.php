@@ -52,10 +52,17 @@ final class BottomSheetTest extends TestCase
         }
         $this->assertNotNull($openPanel, 'the open (index 1) clientPanel entry should exist');
 
+        // Widest rect (the card) and the full-viewport rect (the scrim) —
+        // the small grab-handle bar is also a "rect" command now, but at
+        // 36dp wide it never competes with either.
         $rects = array_values(array_filter($openPanel['commands'], static fn (array $c): bool => ($c['type'] ?? null) === 'rect'));
-        $this->assertCount(2, $rects, 'expected exactly a scrim rect and a card rect');
+        $this->assertGreaterThanOrEqual(3, count($rects), 'expected at least a scrim rect, the card rect, and the grab handle');
 
-        [$scrim, $card] = $rects;
+        $scrim = current(array_filter($rects, static fn (array $c): bool => $c['height'] > 700.0));
+        $card = current(array_filter($rects, static fn (array $c): bool => $c['width'] > 300.0 && $c['height'] < 700.0));
+        $this->assertNotFalse($scrim, 'expected a full-viewport scrim rect');
+        $this->assertNotFalse($card, 'expected a wide card rect distinct from the scrim');
+
         $this->assertEqualsWithDelta(780.0, $scrim['height'], 0.01, 'the scrim covers the full viewport height');
         $this->assertLessThan(200.0, $card['height'], 'the card must hug its own short content, not fill the screen');
         $this->assertGreaterThan(500.0, $card['y'], 'the card must be anchored near the bottom of the screen');

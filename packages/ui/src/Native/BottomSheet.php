@@ -28,14 +28,20 @@ use Engine\Color;
  * just "clientTab:{$key}:1" under the hood, the exact same action string
  * a ClientTabs header tap already produces.
  *
- * Known limitation: no slide-up animation (opens/closes instantly) and no
- * swipe-to-dismiss gesture — both are real future additions once there's
- * appetite for the client-side animation/gesture work they'd need
- * (WOULD need actual NativeCanvasView.kt changes, unlike everything else
- * here). Tap-outside and a real close button both work today.
+ * Open/close both animate (slide up/down, riding NativeCanvasView.kt's
+ * setClientTab() — a sheet key gets a tween instead of an instant
+ * snap, keyed off its presence in sheetHandleRegions) and the small grab
+ * bar at the top of the card is a REAL continuous drag: dragging it down
+ * tracks the finger live (Canvas::sheetHandle(), the same "PHP never
+ * sees the gesture, only its outcome" split as Dismissible), springing
+ * back to open if released short of the close threshold, finishing the
+ * slide-down and flipping to closed otherwise. Tap-outside and a real
+ * close button both still work exactly as before, now animated too.
  */
 final class BottomSheet implements Widget
 {
+    private const HANDLE_HIT_HEIGHT = 32.0;
+
     public function __construct(
         private readonly string $key,
         private readonly Widget $content,
@@ -80,8 +86,23 @@ final class BottomSheet implements Widget
         // it first against Constraints::INFINITY (mirroring how a root
         // screen measures itself) gets its true intrinsic height, then an
         // explicit height: below pins the real Container to exactly that.
-        $paddedContent = new Padding(EdgeInsets::all(Tokens::SPACE_XL), $this->content);
-        $cardHeight = $paddedContent->layout(new Constraints(0, $screenWidth, 0, Constraints::INFINITY))->height;
+        // A small grab bar, like Material's own modal bottom sheet — purely
+        // decorative on its own (the draggable AREA is the wider
+        // self::HANDLE_HIT_HEIGHT strip registered via sheetHandle()
+        // below, not just these 4dp of visible bar), but it's what tells a
+        // user "you can drag this" at a glance.
+        $handle = new Padding(
+            EdgeInsets::only(top: Tokens::SPACE_SM, bottom: Tokens::SPACE_SM),
+            new Center(new Container(width: 36.0, height: 4.0, background: Tokens::border(), radius: 2.0)),
+        );
+        $cardBody = Flex::column([
+            $handle,
+            new Padding(EdgeInsets::only(left: Tokens::SPACE_XL, right: Tokens::SPACE_XL, bottom: Tokens::SPACE_XL), $this->content),
+        ]);
+        // See setTransition()'s neighbor docblock note above for why this
+        // must be measured against Constraints::INFINITY first rather than
+        // laid out directly against the Stack's bounded $screenHeight.
+        $cardHeight = $cardBody->layout(new Constraints(0, $screenWidth, 0, Constraints::INFINITY))->height;
 
         $sheet = new Stack([
             new Tappable(
@@ -90,7 +111,7 @@ final class BottomSheet implements Widget
             ),
             new Positioned(
                 new Container(
-                    $paddedContent,
+                    $cardBody,
                     width: $screenWidth,
                     height: $cardHeight,
                     background: Tokens::surface(),
@@ -105,6 +126,15 @@ final class BottomSheet implements Widget
         $sheet->paint($openCanvas, 0.0, 0.0);
 
         $canvas->beginFixed();
+        $canvas->sheetHandle(
+            $this->key,
+            0.0,
+            $screenHeight - $cardHeight,
+            $screenWidth,
+            self::HANDLE_HIT_HEIGHT,
+            $cardHeight,
+            self::closeAction($this->key),
+        );
         // Closed state first (initiallyActive) — an empty panel, nothing
         // drawn, no hit regions, so a freshly-loaded screen shows no
         // sheet and no scrim intercepting taps meant for the real

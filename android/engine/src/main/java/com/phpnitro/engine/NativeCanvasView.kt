@@ -284,6 +284,25 @@ class NativeCanvasView(context: Context) : View(context) {
     private val sliderValues = mutableMapOf<String, Float>()
     private var activeSlider: SliderRegion? = null
 
+    // BottomSheet's grab handle (Canvas::sheetHandle()) — same continuous-
+    // drag split as Dismissible, applied to a vertical drag-to-close
+    // instead of a horizontal swipe. sheetDragOffsetY is dp dragged DOWN
+    // so far (0 = fully open, clamped at the sheet's own height = fully
+    // closed); only ever non-zero while a drag on THIS key's handle is
+    // active. sheetAnimatedOffsetY is the separate tween setClientTab()
+    // below drives for a TAP-triggered open/close (the button, the scrim,
+    // a real "Fermer") — the two never run at once for the same key (a
+    // drag can't start until the sheet has finished animating open, since
+    // hitTestSheetHandle() only matches a key already fully at index 1).
+    private data class SheetHandleRegion(val key: String, val rect: RectF, val sheetHeight: Float, val closeAction: String)
+    private var sheetHandleRegions: List<SheetHandleRegion> = emptyList()
+    private var pendingSheetDrag: SheetHandleRegion? = null
+    private var activeSheetDrag: SheetHandleRegion? = null
+    private var sheetDragOffsetY = 0f
+    private var sheetDragSettleAnimator: ValueAnimator? = null
+    private val sheetAnimatedOffsetY = mutableMapOf<String, Float>()
+    private val sheetOpenCloseAnimators = mutableMapOf<String, ValueAnimator>()
+
     private fun seedClientTabState(list: JSONArray) {
         for (index in 0 until list.length()) {
             val command = list.getJSONObject(index)
@@ -296,10 +315,59 @@ class NativeCanvasView(context: Context) : View(context) {
         }
     }
 
-    /** Called by NativeRenderPocActivity for a "clientTab:key:index" tap — no refetch, ever. */
+    /**
+     * Called by NativeRenderPocActivity for a "clientTab:key:index" tap —
+     * no refetch, ever. A key with a registered sheetHandle (a
+     * BottomSheet) slides instead of snapping: opening (0 -> 1) starts
+     * fully below the screen and tweens up to its rest position; closing
+     * (1 -> 0) tweens down from wherever it currently sits (its rest
+     * position, or partway through an interrupted drag) and only flips
+     * clientTabState once that animation finishes — so drawClientPanelCommand()
+     * keeps drawing the "open" panel throughout the close animation
+     * instead of it vanishing instantly while still visually mid-slide.
+     * Every other clientTab key (ClientTabs, HorizontalScroll's discrete
+     * states) is untouched: instant, exactly as before.
+     */
     fun setClientTab(key: String, index: Int) {
-        clientTabState[key] = index
-        invalidate()
+        val sheet = sheetHandleRegions.firstOrNull { it.key == key }
+        if (sheet == null || index == clientTabState[key]) {
+            clientTabState[key] = index
+            invalidate()
+            return
+        }
+
+        sheetOpenCloseAnimators[key]?.cancel()
+        if (index == 1) {
+            clientTabState[key] = 1
+            sheetAnimatedOffsetY[key] = sheet.sheetHeight
+            sheetOpenCloseAnimators[key] = ValueAnimator.ofFloat(sheet.sheetHeight, 0f).apply {
+                duration = 220
+                interpolator = DecelerateInterpolator()
+                addUpdateListener {
+                    sheetAnimatedOffsetY[key] = it.animatedValue as Float
+                    invalidate()
+                }
+                start()
+            }
+        } else {
+            val from = sheetAnimatedOffsetY[key] ?: 0f
+            sheetOpenCloseAnimators[key] = ValueAnimator.ofFloat(from, sheet.sheetHeight).apply {
+                duration = 220
+                interpolator = DecelerateInterpolator()
+                addUpdateListener {
+                    sheetAnimatedOffsetY[key] = it.animatedValue as Float
+                    invalidate()
+                }
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        clientTabState[key] = 0
+                        sheetAnimatedOffsetY[key] = 0f
+                        invalidate()
+                    }
+                })
+                start()
+            }
+        }
     }
 
     // DevTools overlay readouts — set at the end of setCommands(), read
@@ -408,6 +476,7 @@ class NativeCanvasView(context: Context) : View(context) {
             for (region in sliderRegions) {
                 if (!sliderValues.containsKey(region.key)) sliderValues[region.key] = region.serverValue
             }
+            sheetHandleRegions = parseSheetHandleRegions(payload.optJSONArray("sheetRegions"))
             seedClientTabState(commands)
             rebuildAccessibilityNodes()
             lastCommandCount = commands.length()
@@ -539,6 +608,19 @@ class NativeCanvasView(context: Context) : View(context) {
             val top = region.getDouble("y").toFloat()
             val rect = RectF(left, top, left + region.getDouble("width").toFloat(), top + region.getDouble("height").toFloat())
             result.add(SliderRegion(region.getString("key"), rect, region.getDouble("thumbSize").toFloat(), region.getString("action"), region.getDouble("value").toFloat()))
+        }
+        return result
+    }
+
+    private fun parseSheetHandleRegions(array: JSONArray?): List<SheetHandleRegion> {
+        if (array == null) return emptyList()
+        val result = mutableListOf<SheetHandleRegion>()
+        for (index in 0 until array.length()) {
+            val region = array.getJSONObject(index)
+            val left = region.getDouble("x").toFloat()
+            val top = region.getDouble("y").toFloat()
+            val rect = RectF(left, top, left + region.getDouble("width").toFloat(), top + region.getDouble("height").toFloat())
+            result.add(SheetHandleRegion(region.getString("key"), rect, region.getDouble("sheetHeight").toFloat(), region.getString("closeAction")))
         }
         return result
     }
@@ -802,9 +884,18 @@ class NativeCanvasView(context: Context) : View(context) {
     // sharing the same rect) is skipped outright, same idea as the
     // dismiss/reorder key checks in drawCommands() just above.
     private fun drawClientPanelCommand(canvas: Canvas, command: JSONObject, alpha: Float) {
-        if (clientTabState[command.getString("key")] != command.getInt("index")) return
+        val key = command.getString("key")
+        if (clientTabState[key] != command.getInt("index")) return
         val saved = canvas.save()
         canvas.translate(command.getDouble("x").toFloat(), command.getDouble("y").toFloat())
+        // BottomSheet's own slide: setClientTab()'s open/close tween
+        // (sheetAnimatedOffsetY) plus, if the user is CURRENTLY dragging
+        // this exact sheet's handle, the live drag distance on top of it —
+        // both are 0 outside those two cases, so every other clientPanel
+        // (ClientTabs, HorizontalScroll's tab-like states) draws exactly
+        // as before.
+        val sheetOffset = (sheetAnimatedOffsetY[key] ?: 0f) + if (activeSheetDrag?.key == key) sheetDragOffsetY else 0f
+        if (sheetOffset != 0f) canvas.translate(0f, sheetOffset)
         val nested = command.getJSONArray("commands")
         for (index in 0 until nested.length()) {
             drawSingleCommand(canvas, nested.getJSONObject(index), alpha)
@@ -857,6 +948,7 @@ class NativeCanvasView(context: Context) : View(context) {
                 scrollAnimator?.cancel()
                 dismissSettleAnimator?.cancel()
                 reorderSettleAnimator?.cancel()
+                sheetDragSettleAnimator?.cancel()
                 touchDownX = event.x
                 touchDownY = event.y
                 lastTouchX = event.x
@@ -864,6 +956,7 @@ class NativeCanvasView(context: Context) : View(context) {
                 isDragging = false
                 pendingDismiss = if (activeDismiss == null && activeReorder == null) hitTestDismiss(event) else null
                 pendingHScroll = if (activeHScroll == null && activeReorder == null) hitTestHScroll(event) else null
+                pendingSheetDrag = if (activeSheetDrag == null && activeReorder == null) hitTestSheetHandle(event) else null
                 // Slider commits immediately on DOWN, not after a
                 // decisive-move threshold like dismiss/hScroll — a
                 // slider's whole surface (its 44dp touch box) IS the
@@ -918,6 +1011,20 @@ class NativeCanvasView(context: Context) : View(context) {
                     // scroll for the rest of this gesture.
                     activeDismiss = pendingDismiss
                     pendingDismiss = null
+                    pendingSheetDrag = null
+                } else if (activeSheetDrag == null && pendingSheetDrag != null && !isDragging &&
+                    abs(totalDeltaY) > touchSlop && abs(totalDeltaY) > abs(totalDeltaX)
+                ) {
+                    // First decisive move was vertical, starting on the
+                    // sheet's own grab handle — commit to a sheet drag
+                    // instead of the generic page scroll below. The
+                    // opposite of dismiss/hScroll's own disambiguation
+                    // (those want HORIZONTAL to confirm, vertical to bail);
+                    // this one wants vertical to confirm.
+                    activeSheetDrag = pendingSheetDrag
+                    pendingSheetDrag = null
+                    pendingDismiss = null
+                    pendingHScroll = null
                 } else if (!isDragging && (pendingDismiss != null || pendingHScroll != null) &&
                     abs(totalDeltaY) > touchSlop && abs(totalDeltaY) > abs(totalDeltaX)
                 ) {
@@ -935,6 +1042,15 @@ class NativeCanvasView(context: Context) : View(context) {
                     invalidate()
                 } else if (activeDismiss != null) {
                     dismissOffsetX = totalDeltaX / density
+                    invalidate()
+                } else if (activeSheetDrag != null) {
+                    // Downward-only — dragging UP past the sheet's rest
+                    // position isn't a gesture this modal shape supports
+                    // (no "overscroll" to peek past full-open), so this
+                    // clamps at 0 the same way dismissOffsetX above has no
+                    // floor/ceiling of its own (a dismiss can go either
+                    // direction, a sheet only closes downward).
+                    sheetDragOffsetY = (totalDeltaY / density).coerceIn(0f, activeSheetDrag!!.sheetHeight)
                     invalidate()
                 } else {
                     if (!isDragging && maxScroll > 0f && abs(totalDeltaY) > touchSlop && abs(totalDeltaY) > abs(totalDeltaX)) {
@@ -955,6 +1071,8 @@ class NativeCanvasView(context: Context) : View(context) {
                     settleReorder()
                 } else if (activeDismiss != null) {
                     settleDismiss()
+                } else if (activeSheetDrag != null) {
+                    settleSheetDrag()
                 } else if (activeHScroll != null) {
                     activeHScroll = null
                 } else if (activeSlider != null) {
@@ -983,6 +1101,7 @@ class NativeCanvasView(context: Context) : View(context) {
                 }
                 pendingDismiss = null
                 pendingHScroll = null
+                pendingSheetDrag = null
                 velocityTracker?.recycle()
                 velocityTracker = null
             }
@@ -997,7 +1116,11 @@ class NativeCanvasView(context: Context) : View(context) {
                 if (activeDismiss != null) {
                     springBackDismiss()
                 }
+                if (activeSheetDrag != null) {
+                    springBackSheetDrag()
+                }
                 pendingDismiss = null
+                pendingSheetDrag = null
                 velocityTracker?.recycle()
                 velocityTracker = null
             }
@@ -1122,6 +1245,21 @@ class NativeCanvasView(context: Context) : View(context) {
         }
     }
 
+    // Screen-relative (fixed: true, see Canvas::sheetHandle()'s docblock)
+    // — raw touchY, no scrollY added, same treatment as any other Fixed
+    // region (handleTap()'s own comment explains why). Only matches a
+    // sheet that's actually fully open: a closed or still-mid-animation-
+    // open sheet has nothing worth grabbing yet.
+    private fun hitTestSheetHandle(event: MotionEvent): SheetHandleRegion? {
+        val touchX = event.x / density
+        val touchY = event.y / density
+        return sheetHandleRegions.firstOrNull { region ->
+            clientTabState[region.key] == 1 &&
+                touchX >= region.rect.left && touchX <= region.rect.right &&
+                touchY >= region.rect.top && touchY <= region.rect.bottom
+        }
+    }
+
     private fun hitTestHScroll(event: MotionEvent): HScrollRegion? {
         val touchX = event.x / density
         val touchY = event.y / density + scrollY
@@ -1195,6 +1333,62 @@ class NativeCanvasView(context: Context) : View(context) {
                 override fun onAnimationEnd(animation: android.animation.Animator) {
                     activeDismiss = null
                     dismissOffsetX = 0f
+                    invalidate()
+                }
+            })
+            start()
+        }
+    }
+
+    // Past threshold: finish the slide down to fully closed, THEN flip
+    // clientTabState — same "animate first, commit state after" order as
+    // settleDismiss(), so the sheet visually finishes leaving before it's
+    // gone. No onAction call: closing was always local-only (setClientTab()
+    // handles the "clientTab:key:0" a tap-driven close sends the exact
+    // same way), a drag-commit just reaches that same end state a
+    // different way.
+    private fun settleSheetDrag() {
+        val region = activeSheetDrag ?: return
+        val threshold = region.sheetHeight * 0.3f
+        if (sheetDragOffsetY <= threshold) {
+            springBackSheetDrag()
+            return
+        }
+        sheetDragSettleAnimator?.cancel()
+        sheetDragSettleAnimator = ValueAnimator.ofFloat(sheetDragOffsetY, region.sheetHeight).apply {
+            duration = 180
+            interpolator = DecelerateInterpolator()
+            addUpdateListener {
+                sheetDragOffsetY = it.animatedValue as Float
+                invalidate()
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    clientTabState[region.key] = 0
+                    activeSheetDrag = null
+                    sheetDragOffsetY = 0f
+                    invalidate()
+                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                }
+            })
+            start()
+        }
+    }
+
+    private fun springBackSheetDrag() {
+        activeSheetDrag ?: return
+        sheetDragSettleAnimator?.cancel()
+        sheetDragSettleAnimator = ValueAnimator.ofFloat(sheetDragOffsetY, 0f).apply {
+            duration = 180
+            interpolator = DecelerateInterpolator()
+            addUpdateListener {
+                sheetDragOffsetY = it.animatedValue as Float
+                invalidate()
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    activeSheetDrag = null
+                    sheetDragOffsetY = 0f
                     invalidate()
                 }
             })
@@ -1299,12 +1493,18 @@ class NativeCanvasView(context: Context) : View(context) {
         for (index in 0 until commands.length()) {
             val command = commands.getJSONObject(index)
             if (command.optString("type") != "clientPanel") continue
-            if (clientTabState[command.getString("key")] != command.getInt("index")) continue
+            val key = command.getString("key")
+            if (clientTabState[key] != command.getInt("index")) continue
 
             val fixed = command.optBoolean("fixed", false)
             val touchY = if (fixed) rawTouchY else rawTouchY + scrollY
             val offsetX = command.getDouble("x")
-            val offsetY = command.getDouble("y")
+            // Mid-slide (BottomSheet opening/closing, or its handle being
+            // dragged), the panel is drawn shifted from its authored (x, y)
+            // — see drawClientPanelCommand()'s identical offset — so a tap
+            // must land against that same shifted position, not where the
+            // sheet will eventually rest.
+            val offsetY = command.getDouble("y") + (sheetAnimatedOffsetY[key] ?: 0f) + if (activeSheetDrag?.key == key) sheetDragOffsetY else 0f
             val nestedRegions = command.getJSONArray("hitRegions")
 
             for (regionIndex in 0 until nestedRegions.length()) {

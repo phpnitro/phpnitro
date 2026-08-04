@@ -68,6 +68,11 @@ final class Canvas
      */
     private array $sliderRegions = [];
 
+    /**
+     * @var array<int, array<string, mixed>>
+     */
+    private array $sheetRegions = [];
+
     private float $contentHeight = 0.0;
     private ?float $renderTimeMs = null;
     private ?string $redirect = null;
@@ -221,6 +226,38 @@ final class Canvas
     public function endReorder(): self
     {
         $this->reorderKey = null;
+
+        return $this;
+    }
+
+    /**
+     * The grab strip at the top of a BottomSheet's card — same "PHP
+     * never sees the gesture, only its outcome" split as dismissible()/
+     * reorderItem(), applied to a vertical drag-to-close instead of a
+     * horizontal swipe or a reorder. Registered separately from the
+     * card's own tappable content (a Fermer button, form fields...) so
+     * NativeCanvasView.kt can tell "drag the handle" apart from "tap
+     * something inside the sheet" by rect alone. $sheetHeight is the
+     * card's own full height — how far there is to drag before it counts
+     * as fully closed. $closeAction is always exactly
+     * BottomSheet::closeAction($key)'s "clientTab:{key}:0" string,
+     * carried explicitly rather than reconstructed client-side so this
+     * primitive doesn't have to know that convention itself. Fixed-tagged
+     * automatically when called inside beginFixed()/endFixed() (see
+     * tagFixed()) — BottomSheet always is, since the sheet is
+     * screen-relative like an AppBar, not scroll-relative.
+     */
+    public function sheetHandle(string $key, float $x, float $y, float $width, float $height, float $sheetHeight, string $closeAction): self
+    {
+        $this->sheetRegions[] = $this->tagFixed([
+            'key' => $key,
+            'x' => $x,
+            'y' => $y,
+            'width' => $width,
+            'height' => $height,
+            'sheetHeight' => $sheetHeight,
+            'closeAction' => $closeAction,
+        ]);
 
         return $this;
     }
@@ -758,6 +795,7 @@ final class Canvas
             'reorderRegions' => $this->reorderRegions !== [] ? $this->reorderRegions : null,
             'lottieRegions' => $this->lottieRegions !== [] ? $this->lottieRegions : null,
             'sliderRegions' => $this->sliderRegions !== [] ? $this->sliderRegions : null,
+            'sheetRegions' => $this->sheetRegions !== [] ? $this->sheetRegions : null,
             'autoNavigate' => $this->autoNavigate,
             'pollAgain' => $this->pollAgainMs,
             'contentHeight' => $this->contentHeight,
@@ -778,6 +816,7 @@ final class Canvas
             'reorderRegions' => $this->reorderRegions !== [] ? $this->reorderRegions : null,
             'lottieRegions' => $this->lottieRegions !== [] ? $this->lottieRegions : null,
             'sliderRegions' => $this->sliderRegions !== [] ? $this->sliderRegions : null,
+            'sheetRegions' => $this->sheetRegions !== [] ? $this->sheetRegions : null,
             'autoNavigate' => $this->autoNavigate,
             'pollAgain' => $this->pollAgainMs,
             'contentHeight' => $this->contentHeight,
