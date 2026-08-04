@@ -2,6 +2,7 @@
 
 namespace Engine\App;
 
+use Engine\I18n\Translator;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\Banner;
@@ -36,7 +37,7 @@ final class NativeResetPasswordScreen
             new IconCircle('arrow_back', action: 'back'),
             new Padding(
                 EdgeInsets::only(top: Tokens::SPACE_LG),
-                new Text('Nouveau mot de passe', Tokens::TEXT_DISPLAY - 2, Tokens::ink()->toHex(), bold: true),
+                new Text(Translator::t('reset_password.title'), Tokens::TEXT_DISPLAY - 2, Tokens::ink()->toHex(), bold: true),
             ),
             new Padding(EdgeInsets::only(top: Tokens::SPACE_LG), new Banner($error)),
         ];
@@ -48,15 +49,15 @@ final class NativeResetPasswordScreen
             );
             $rows[] = new Padding(
                 EdgeInsets::only(top: Tokens::SPACE_LG),
-                new Button('Se connecter', 'navigate:login', width: $contentWidth),
+                new Button(Translator::t('reset_password.login'), 'navigate:login', width: $contentWidth),
             );
         } else {
-            $rows[] = new Padding(EdgeInsets::only(top: Tokens::SPACE_XL), new TextField('reset_token', placeholder: 'Code reçu'));
-            $rows[] = new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), new PasswordField('new_password', placeholder: 'Nouveau mot de passe (6 caractères min.)'));
-            $rows[] = new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), new PasswordField('new_password_confirm', placeholder: 'Confirmer le mot de passe'));
+            $rows[] = new Padding(EdgeInsets::only(top: Tokens::SPACE_XL), new TextField('reset_token', placeholder: Translator::t('reset_password.token_placeholder')));
+            $rows[] = new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), new PasswordField('new_password', placeholder: Translator::t('reset_password.new_password_placeholder')));
+            $rows[] = new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), new PasswordField('new_password_confirm', placeholder: Translator::t('reset_password.confirm_password_placeholder')));
             $rows[] = new Padding(
                 EdgeInsets::only(top: Tokens::SPACE_XL),
-                new Button('Réinitialiser', 'submit:reset_password', width: $contentWidth),
+                new Button(Translator::t('reset_password.submit'), 'submit:reset_password', width: $contentWidth),
             );
         }
 

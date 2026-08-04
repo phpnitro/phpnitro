@@ -3,6 +3,7 @@
 namespace Engine\App;
 
 use Engine\Color;
+use Engine\I18n\Translator;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\AppBar;
@@ -62,17 +63,17 @@ final class NativeHomeScreen
                 Flex::column([
                     $authUser !== null
                         ? new Tappable(
-                            new Text("Connecté : {$authUser} — se déconnecter", Tokens::TEXT_BODY_SMALL, Color::green(600)->toHex(), bold: true),
+                            new Text(Translator::t('home.connected_as', ['user' => $authUser]), Tokens::TEXT_BODY_SMALL, Color::green(600)->toHex(), bold: true),
                             'logout',
                         )
                         : new Tappable(
-                            new Text('Non connecté — se connecter', Tokens::TEXT_BODY_SMALL, Tokens::inkSecondary()->toHex(), bold: true),
+                            new Text(Translator::t('home.not_connected'), Tokens::TEXT_BODY_SMALL, Tokens::inkSecondary()->toHex(), bold: true),
                             'navigate:login',
                         ),
                     new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_XL),
                         new Card(Flex::column([
-                            new Text('Compteur', Tokens::TEXT_CAPTION, Tokens::inkMuted()->toHex(), bold: true, letterSpacing: 0.04),
+                            new Text(Translator::t('home.counter_label'), Tokens::TEXT_CAPTION, Tokens::inkMuted()->toHex(), bold: true, letterSpacing: 0.04),
                             new Padding(
                                 EdgeInsets::only(top: 4),
                                 new GestureDetector(
@@ -84,25 +85,25 @@ final class NativeHomeScreen
                             ),
                             new Padding(
                                 EdgeInsets::only(top: Tokens::SPACE_LG),
-                                new Button('Incrémenter', 'home_increment', icon: 'add', width: $screenWidth - 2 * (Tokens::SPACE_XL + Tokens::SPACE_LG)),
+                                new Button(Translator::t('home.increment'), 'home_increment', icon: 'add', width: $screenWidth - 2 * (Tokens::SPACE_XL + Tokens::SPACE_LG)),
                             ),
                         ]), elevation: 3),
                     ),
                     new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_XL),
-                        new ListTile('Réglages', 'Préférences réelles', 'settings', trailingIcon: 'chevron_right', action: 'navigate:settings'),
+                        new ListTile(Translator::t('home.settings_title'), Translator::t('home.settings_subtitle'), 'settings', trailingIcon: 'chevron_right', action: 'navigate:settings'),
                     ),
                     new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),
-                        new ListTile('Documents', 'Étape 3/4 — checklist', 'description', trailingIcon: 'chevron_right', action: 'navigate:documents'),
+                        new ListTile(Translator::t('home.documents_title'), Translator::t('home.documents_subtitle'), 'description', trailingIcon: 'chevron_right', action: 'navigate:documents'),
                     ),
                     new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),
-                        new ListTile('Vérification', 'Code OTP', 'shield', trailingIcon: 'chevron_right', action: 'navigate:otp'),
+                        new ListTile(Translator::t('home.verification_title'), Translator::t('home.verification_subtitle'), 'shield', trailingIcon: 'chevron_right', action: 'navigate:otp'),
                     ),
                     new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),
-                        new ListTile('Produit #42', 'Route multi-paramètres réelle', 'inventory_2', trailingIcon: 'chevron_right', action: 'navigate:product?id=42&tab=reviews'),
+                        new ListTile(Translator::t('home.product_title'), Translator::t('home.product_subtitle'), 'inventory_2', trailingIcon: 'chevron_right', action: 'navigate:product?id=42&tab=reviews'),
                     ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
@@ -116,18 +117,18 @@ final class NativeHomeScreen
             $screenHeight,
             appBar: new AppBar(
                 $screenWidth,
-                'Mon application',
+                Translator::t('home.app_title'),
                 leading: new IconCircle('menu', 36.0, action: 'toggle:drawer_open', meta: ['next' => '1']),
             ),
             bottomNav: NativeAppShell::bottomNav($screenWidth, 'home'),
             fab: new Fab('add', 'home_increment'),
             drawer: $drawerOpen ? new Drawer($screenWidth, $screenHeight, [
-                ['label' => 'Accueil', 'icon' => 'home', 'action' => 'tab:home'],
-                ['label' => 'Réglages', 'icon' => 'settings', 'action' => 'navigate:settings'],
-                ['label' => 'Device', 'icon' => 'smartphone', 'action' => 'navigate:device'],
-                ['label' => 'API', 'icon' => 'api', 'action' => 'navigate:api'],
-                ['label' => 'Widgets', 'icon' => 'widgets', 'action' => 'navigate:widgets'],
-            ], 'Mon application') : null,
+                ['label' => Translator::t('home.drawer_home'), 'icon' => 'home', 'action' => 'tab:home'],
+                ['label' => Translator::t('home.settings_title'), 'icon' => 'settings', 'action' => 'navigate:settings'],
+                ['label' => Translator::t('home.drawer_device'), 'icon' => 'smartphone', 'action' => 'navigate:device'],
+                ['label' => Translator::t('home.drawer_api'), 'icon' => 'api', 'action' => 'navigate:api'],
+                ['label' => Translator::t('home.drawer_widgets'), 'icon' => 'widgets', 'action' => 'navigate:widgets'],
+            ], Translator::t('home.app_title')) : null,
         );
     }
 }

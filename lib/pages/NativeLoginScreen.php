@@ -30,10 +30,12 @@ use Engine\Native\Tokens;
  *
  * Also the reference example for Engine\I18n\Translator — every literal
  * string below is a t('login.*') lookup instead of a hardcoded French
- * string, see lib/lang/fr.php/en.php for the actual translations. Not
- * every screen in this framework has been converted yet (a real,
- * intentional scope boundary — this one exists to prove the pattern
- * works end to end, not to retrofit all ~40 screens in one pass).
+ * string, see lib/lang/fr.php/en.php for the actual translations.
+ * NativeRegisterScreen/NativeHomeScreen/NativeForgotPasswordScreen/
+ * NativeResetPasswordScreen (the whole auth flow) follow the same
+ * pattern now; the rest of the ~40 screens haven't been converted yet —
+ * a real, intentional scope boundary (the auth flow specifically, not
+ * every screen in one pass), not an oversight.
  */
 final class NativeLoginScreen
 {
