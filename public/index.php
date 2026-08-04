@@ -575,7 +575,7 @@ if ($path === '/native/layout-demo') {
         'otp' => \Engine\App\NativeOtpScreen::build($screenWidth, $screenHeight),
         'settings' => \Engine\App\NativeSettingsScreen::build($screenWidth, $screenHeight),
         'documents' => \Engine\App\NativeDocumentsScreen::build($screenWidth, $tapCount),
-        'product' => \Engine\App\NativeProductScreen::build($screenWidth, $_GET['id'] ?? '?'),
+        'product' => \Engine\App\NativeProductScreen::build($screenWidth, $_GET['id'] ?? '?', $_GET['tab'] ?? null),
         'login' => \Engine\App\NativeLoginScreen::build($screenWidth, $loginError),
         'register' => \Engine\App\NativeRegisterScreen::build($screenWidth, $registerError),
         'forgot-password' => \Engine\App\NativeForgotPasswordScreen::build($screenWidth, $forgotPasswordError, $devResetLink),

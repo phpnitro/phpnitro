@@ -5,6 +5,7 @@ namespace Engine\App\Tests;
 use Engine\App\NativeForgotPasswordScreen;
 use Engine\App\NativeHomeScreen;
 use Engine\App\NativeLoginScreen;
+use Engine\App\NativeProductScreen;
 use Engine\App\NativeRegisterScreen;
 use Engine\App\NativeResetPasswordScreen;
 use Engine\App\NativeWidgetsFormsScreen;
@@ -121,5 +122,16 @@ final class NativeScreensSmokeTest extends TestCase
     public function testWidgetsForms(): void
     {
         $this->assertRenders(NativeWidgetsFormsScreen::build(360.0));
+    }
+
+    /** Multi-param route ("navigate:product?id=42&tab=reviews") — $tab is optional, must render either way. */
+    public function testProductWithOnlyId(): void
+    {
+        $this->assertRenders(NativeProductScreen::build(360.0, '42', null));
+    }
+
+    public function testProductWithIdAndTab(): void
+    {
+        $this->assertRenders(NativeProductScreen::build(360.0, '42', 'reviews'));
     }
 }

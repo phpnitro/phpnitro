@@ -54,11 +54,13 @@ import org.json.JSONObject
  * WebView involved anywhere in this Activity.
  *
  * Navigation: a hit region's action starting with "navigate:" (e.g.
- * "navigate:otp", or "navigate:product/42" for a route param — mirrors
+ * "navigate:otp", or "navigate:product?id=42" for one or more route
+ * params, "navigate:product?id=42&tab=reviews" for several — mirrors
  * ProductPage.php's '/product/{id}') pushes that token onto a local back
  * stack and re-fetches — this Activity is what owns "which screen is
  * current", not PHP (each /native/layout-demo request is a stateless
- * render of whichever ?screen=&id= it's given). Plain "back" — or the
+ * render of whichever ?screen=&id=&tab=... it's given, exactly the plain
+ * $_GET a screen's build() already reads). Plain "back" — or the
  * hardware back button, via the OnBackPressedCallback below — pops the
  * stack.
  *
@@ -1138,13 +1140,27 @@ class NativeRenderPocActivity : AppCompatActivity() {
         val density = resources.displayMetrics.density
         val screenWidthDp = resources.displayMetrics.widthPixels / density
         val screenHeightDp = resources.displayMetrics.heightPixels / density
-        // "product/42" -> screen=product, id=42 — a route-param screen
-        // token is just "name/param", split once at fetch time rather
-        // than teaching screenStack about a richer shape.
+        // "product?id=42&tab=reviews" -> screen=product, a real query
+        // string carrying however many named params a screen needs — a
+        // route-param screen token is just "name?query", split once at
+        // fetch time rather than teaching screenStack about a richer
+        // shape. Each pair is re-encoded individually (not passed through
+        // as-is) so a param VALUE containing "&"/"=" or non-ASCII text
+        // can't corrupt the URL or collide with the other query params
+        // appended below (action/online/dark/...).
         val screenToken = screenStack.last()
-        val screen = screenToken.substringBefore('/')
-        val screenParam = screenToken.substringAfter('/', missingDelimiterValue = "").ifEmpty { null }
-        val idParam = if (screenParam != null) "&id=${URLEncoder.encode(screenParam, "UTF-8")}" else ""
+        val screen = screenToken.substringBefore('?')
+        val rawQuery = screenToken.substringAfter('?', missingDelimiterValue = "")
+        val routeParams = if (rawQuery.isEmpty()) {
+            ""
+        } else {
+            "&" + rawQuery.split("&").joinToString("&") { pair ->
+                val parts = pair.split("=", limit = 2)
+                val key = URLEncoder.encode(parts[0], "UTF-8")
+                val value = URLEncoder.encode(parts.getOrElse(1) { "" }, "UTF-8")
+                "$key=$value"
+            }
+        }
         val actionParam = if (action != null) "&action=${URLEncoder.encode(action, "UTF-8")}" else ""
         val onlineParam = "&online=${if (deviceBridge.isOnline()) 1 else 0}"
         // Tokens::init()'s own param — Configuration.UI_MODE_NIGHT_YES is
@@ -1195,7 +1211,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
         // "network/parse overhead" instead of one opaque total.
         val startNanos = System.nanoTime()
         try {
-            val connection = URL("http://$serverHost:$port/native/layout-demo?width=$screenWidthDp&height=$screenHeightDp&screen=$screen$idParam$actionParam$onlineParam$darkParam$localeParam$scrollYParam$fieldsParam$lastHashParam").openConnection() as HttpURLConnection
+            val connection = URL("http://$serverHost:$port/native/layout-demo?width=$screenWidthDp&height=$screenHeightDp&screen=$screen$routeParams$actionParam$onlineParam$darkParam$localeParam$scrollYParam$fieldsParam$lastHashParam").openConnection() as HttpURLConnection
             connection.connectTimeout = 5000
             val responseCode = connection.responseCode
             Log.i(TAG, "Fetching /native/layout-demo (screen=$screen, action=$action), response code $responseCode")
@@ -1603,25 +1619,31 @@ class NativeRenderPocActivity : AppCompatActivity() {
         refetch(action = null, isNavigation = true)
     }
 
-    // phpnitro://product/42 -> "product/42", the exact screenStack token
-    // shape fetchDrawCommands() already knows how to split ("name/param"
-    // — see its own comment above screenToken). A deep link is just
-    // another way to arrive at an ordinary screen, not a separate code
-    // path on the PHP side, same principle as MainActivity's own
+    // phpnitro://product?id=42 -> "product?id=42", the exact screenStack
+    // token shape fetchDrawCommands() already knows how to split
+    // ("name?query" — see its own comment above screenToken). A deep link
+    // is just another way to arrive at an ordinary screen, not a separate
+    // code path on the PHP side, same principle as MainActivity's own
     // deepLinkPath() for the legacy WebView shell. host, not path, holds
     // the first segment (standard scheme://authority/path parsing —
-    // confirmed against MainActivity's identical case), so screen and
-    // param are read from uri.host / uri.path respectively, not from
-    // uri.path alone. Returns null for a non-phpnitro URI, a bare
-    // "phpnitro://" with nothing after it, and deliberately for
-    // host="oauth-callback" (handleOAuthCallback() owns that one).
+    // confirmed against MainActivity's identical case), so the screen
+    // name is read from uri.host / uri.path, and route params from
+    // uri.query — a real query string, not positional path segments (a
+    // deep link's own params use exactly the same "?id=42&tab=reviews"
+    // shape navigate: does, decoded once here, re-encoded once in
+    // fetchDrawCommands() same as any other route param). Returns null
+    // for a non-phpnitro URI, a bare "phpnitro://" with nothing after it,
+    // and deliberately for host="oauth-callback" (handleOAuthCallback()
+    // owns that one).
     private fun deepLinkScreenToken(intent: Intent?): String? {
         val uri = intent?.data ?: return null
         if (uri.scheme != "phpnitro") return null
         if (uri.host == "oauth-callback") return null
 
-        val token = "${uri.host.orEmpty()}${uri.path.orEmpty()}".trim('/')
-        return token.ifEmpty { null }
+        val screen = "${uri.host.orEmpty()}${uri.path.orEmpty()}".trim('/')
+        if (screen.isEmpty()) return null
+
+        return if (uri.query.isNullOrEmpty()) screen else "$screen?${uri.query}"
     }
 
     // phpnitro://oauth-callback?code=...&state=... (or &error=...) — see

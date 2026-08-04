@@ -16,13 +16,17 @@ use Engine\Native\Tokens;
 
 /**
  * The native conversion of ProductPage.php — demonstrates the same thing
- * that file's docblock calls out: a route param, '/product/{id}' there,
- * "navigate:product/42" -> ?id=42 here (NativeRenderPocActivity splits
- * "product/42" into screen+id before fetching; see its docblock).
+ * that file's docblock calls out: route params, '/product/{id}' there,
+ * "navigate:product?id=42&tab=reviews" here — a screen token is
+ * "name?query", a REAL query string, so this reads $tab straight
+ * alongside $id with no extra parsing of its own (NativeRenderPocActivity
+ * splits "product?id=42&tab=reviews" into screen + that query string
+ * before fetching, re-encoding each pair individually; see its own
+ * docblock above screenToken in fetchDrawCommands()).
  */
 final class NativeProductScreen
 {
-    public static function build(float $screenWidth, string $id): Widget
+    public static function build(float $screenWidth, string $id, ?string $tab): Widget
     {
         return new Container(
             new Padding(
@@ -37,7 +41,13 @@ final class NativeProductScreen
                                 new Text("Produit #{$id}", Tokens::TEXT_TITLE, Tokens::ink()->toHex(), bold: true),
                                 new Padding(
                                     EdgeInsets::only(top: 2),
-                                    new Text('Route param réel — /product/{id}', Tokens::TEXT_CAPTION, Tokens::inkMuted()->toHex()),
+                                    new Text(
+                                        $tab !== null
+                                            ? "Route multi-paramètres réelle — /product?id={$id}&tab={$tab}"
+                                            : 'Route param réel — /product?id={id}',
+                                        Tokens::TEXT_CAPTION,
+                                        Tokens::inkMuted()->toHex(),
+                                    ),
                                 ),
                             ]))),
                         ], crossAxisAlignment: CrossAxisAlignment::CENTER)),

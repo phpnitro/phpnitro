@@ -102,7 +102,7 @@ final class NativeHomeScreen
                     ),
                     new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_MD),
-                        new ListTile('Produit #42', 'Route param réel', 'inventory_2', trailingIcon: 'chevron_right', action: 'navigate:product/42'),
+                        new ListTile('Produit #42', 'Route multi-paramètres réelle', 'inventory_2', trailingIcon: 'chevron_right', action: 'navigate:product?id=42&tab=reviews'),
                     ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
