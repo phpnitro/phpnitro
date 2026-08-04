@@ -98,6 +98,10 @@ class NativeRenderPocActivity : AppCompatActivity() {
     // actually was: not a rendering bug, an invisible failure.
     private var connectionErrorView: android.view.View? = null
     private var connectionErrorMessage: TextView? = null
+    // Which OAuthProvider (see NativeDeviceBridge.signInWithGoogle()'s
+    // sibling startOAuthFlow()) currently has a Custom Tab open — read by
+    // handleOAuthCallback() once the redirect lands back in onNewIntent().
+    private var pendingOAuthProvider: String? = null
     // Canvas::stableHash() of the last response actually applied —
     // sent back as lastHash= on the next same-screen refetch so PHP can
     // reply {"unchanged":true} instead of the whole payload when nothing
@@ -289,6 +293,33 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 deviceBridge.translateText(text, "fr", targetLanguage) { translated ->
                     fieldValues["translate_out"] = translated
                     refetch(action = null, includeFields = true)
+                }
+            }
+            // GitHub/Facebook/Microsoft/Apple — public/index.php already
+            // built the full authorize URL (client_id, scope, state)
+            // server-side via {Provider}SignIn::authorizeUrl(); this side
+            // never sees a client secret. pendingOAuthProvider is what
+            // lets handleOAuthCallback() (onNewIntent()) know which
+            // "oauth_callback:" action to fire once the redirect lands —
+            // only one OAuth flow can realistically be in flight at a
+            // time (the Custom Tab has focus), so a single field is
+            // enough, no need for a map.
+            action.startsWith("oauth:") -> {
+                val provider = action.removePrefix("oauth:")
+                val authorizeUrl = meta?.optString("url")
+                if (authorizeUrl.isNullOrEmpty()) {
+                    // public/index.php only omits "url" from this
+                    // button's meta when that provider's client_id/secret
+                    // aren't configured in .env — same "fail
+                    // informatively before opening anything" pre-flight
+                    // check googlesignin's webClientId.isBlank() does,
+                    // just decided server-side instead of via a string
+                    // resource, since the client_id itself lives there.
+                    fieldValues["oauth_error"] = "Connexion $provider non configurée (client_id manquant côté serveur)."
+                    refetch(action = null, includeFields = true)
+                } else {
+                    pendingOAuthProvider = provider
+                    deviceBridge.startOAuthFlow(authorizeUrl)
                 }
             }
             action.startsWith("select:") -> showSelectDialog(action.removePrefix("select:"), meta)
@@ -1219,6 +1250,10 @@ class NativeRenderPocActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
 
+        if (handleOAuthCallback(intent)) {
+            return
+        }
+
         if (handleNfcIntent(intent)) {
             return
         }
@@ -1227,6 +1262,37 @@ class NativeRenderPocActivity : AppCompatActivity() {
         clearTextInput()
         screenStack.add(screen)
         refetch(action = null, isNavigation = true)
+    }
+
+    // phpnitro://oauth-callback?code=...&state=... (or &error=...) — see
+    // AndroidManifest.xml's matching intent-filter and NativeDeviceBridge's
+    // startOAuthFlow(). state travels back to PHP verbatim; PHP is the one
+    // that actually verifies it against what it stored in $_SESSION when
+    // it built the authorize URL (see public/index.php's "oauth_callback:"
+    // handling) — this method doesn't validate anything itself, it's pure
+    // transport, same "PHP decides, Kotlin just reports" split as every
+    // other capability here.
+    private fun handleOAuthCallback(intent: Intent): Boolean {
+        val uri = intent.data ?: return false
+        if (uri.scheme != "phpnitro" || uri.host != "oauth-callback") return false
+
+        val provider = pendingOAuthProvider
+        pendingOAuthProvider = null
+        if (provider == null) {
+            Log.e(TAG, "oauth-callback received with no pending provider")
+            return true
+        }
+
+        val code = uri.getQueryParameter("code")
+        if (code != null) {
+            fieldValues["oauth_code"] = code
+            fieldValues["oauth_state"] = uri.getQueryParameter("state") ?: ""
+            refetch("oauth_callback:$provider", includeFields = true)
+        } else {
+            fieldValues["oauth_error"] = uri.getQueryParameter("error") ?: "Connexion annulée."
+            refetch(action = null, includeFields = true)
+        }
+        return true
     }
 
     // Same tag-reading logic as MainActivity.handleNfcIntent() — an NDEF

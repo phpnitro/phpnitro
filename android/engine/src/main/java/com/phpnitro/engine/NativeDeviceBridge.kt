@@ -331,6 +331,25 @@ class NativeDeviceBridge(private val context: Context) {
     }
 
     /**
+     * GitHub/Facebook/Microsoft/Apple sign-in — opens $authorizeUrl (a
+     * URL public/index.php already built server-side via
+     * Engine\SocialAuth\{Provider}SignIn::authorizeUrl(), client_id/
+     * secret never touching this Kotlin code at all) in a Custom Tab.
+     * The provider redirects to phpnitro://oauth-callback?code=...&
+     * state=... on success — AndroidManifest's matching intent-filter on
+     * NativeRenderPocActivity (android:launchMode="singleTask") routes
+     * that back into onNewIntent() on the SAME Activity instance, not a
+     * new one. This method's only job is opening the tab; the actual
+     * token exchange happens server-side once the code comes back (see
+     * handleOAuthCallback() in NativeRenderPocActivity.kt).
+     */
+    fun startOAuthFlow(authorizeUrl: String) {
+        androidx.browser.customtabs.CustomTabsIntent.Builder()
+            .build()
+            .launchUrl(context, android.net.Uri.parse(authorizeUrl))
+    }
+
+    /**
      * Real Google Sign-In via Credential Manager (not the deprecated
      * GoogleSignInClient) — returns a Google-issued ID token (a signed
      * JWT), NOT a Firebase session by itself. See

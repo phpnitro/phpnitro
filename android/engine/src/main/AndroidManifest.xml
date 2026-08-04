@@ -47,6 +47,20 @@
             <meta-data
                 android:name="android.nfc.action.TECH_DISCOVERED"
                 android:resource="@xml/nfc_tech_filter" />
+            <!-- OAuthProvider's browser-redirect flow (GitHub/Facebook/
+                 Microsoft/Apple — see NativeDeviceBridge.kt's
+                 startOAuthFlow()): a custom URI scheme, not an HTTPS App
+                 Link, since the latter needs a verified domain a
+                 scaffolded project may not have. android:launchMode=
+                 "singleTask" above is what routes this back into the
+                 SAME Activity instance the user was already using (via
+                 onNewIntent()) instead of spawning a second one. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="phpnitro" android:host="oauth-callback" />
+            </intent-filter>
         </activity>
 
         <receiver android:name=".AlarmReceiver" android:exported="false" />

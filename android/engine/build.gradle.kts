@@ -79,4 +79,13 @@ dependencies {
     api("androidx.credentials:credentials:1.3.0")
     api("androidx.credentials:credentials-play-services-auth:1.3.0")
     api("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    // GitHub/Facebook/Microsoft/Apple sign-in — none of these have a
+    // native Android SDK this framework bundles, so a Custom Tab pointed
+    // at the provider's own login page (not a raw external-browser
+    // Intent — Custom Tabs keeps the app's toolbar/back-button chrome,
+    // no full context switch to a separate app) is the real
+    // native-appropriate flow. See NativeDeviceBridge.kt's
+    // startOAuthFlow() and Engine\SocialAuth\OAuthProvider's own
+    // docblock.
+    api("androidx.browser:browser:1.8.0")
 }

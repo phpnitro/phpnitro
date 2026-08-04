@@ -313,6 +313,79 @@ if ($path === '/native/layout-demo') {
         }
     }
 
+    // GitHub/Facebook/Microsoft/Apple — real Engine\SocialAuth\ classes
+    // (a standard OAuth2 Authorization Code flow, see OAuthProvider's own
+    // docblock), not a native SDK — none of these four have one this
+    // framework bundles, so a Custom Tab redirect is the actual
+    // native-appropriate flow, same idea as Google's Credential Manager
+    // just without a first-party SDK to call. $oauthState is generated
+    // fresh below (see the match($screen) dispatch further down, right
+    // before NativeWidgetsFirebaseAuthScreen::build() is called) every
+    // time that screen renders, and MUST be verified here against
+    // whatever the redirect brings back — this is the actual CSRF check,
+    // not decoration; Kotlin's handleOAuthCallback() only transports the
+    // value, it never validates it.
+    $socialAuthError = null;
+    if ($action !== null && str_starts_with($action, 'oauth_callback:')) {
+        $provider = substr($action, strlen('oauth_callback:'));
+        $providerClass = match ($provider) {
+            'github' => \Engine\SocialAuth\GithubSignIn::class,
+            'facebook' => \Engine\SocialAuth\FacebookSignIn::class,
+            'microsoft' => \Engine\SocialAuth\MicrosoftSignIn::class,
+            'apple' => \Engine\SocialAuth\AppleSignIn::class,
+            default => null,
+        };
+        $code = $_GET['oauth_code'] ?? '';
+        $state = $_GET['oauth_state'] ?? '';
+        $expectedState = $_SESSION['oauth_state'] ?? null;
+        unset($_SESSION['oauth_state']); // one-shot, whether this attempt succeeds or not
+
+        if ($providerClass === null) {
+            $socialAuthError = "Fournisseur inconnu : {$provider}.";
+        } elseif ($state === '' || $expectedState === null || !hash_equals($expectedState, $state)) {
+            $socialAuthError = 'Échec de vérification de sécurité — réessaie.';
+        } elseif ($code === '') {
+            $socialAuthError = $_GET['oauth_error'] ?? 'Connexion annulée.';
+        } else {
+            $envPrefix = strtoupper($provider);
+            $clientId = $_ENV["{$envPrefix}_CLIENT_ID"] ?? '';
+            $redirectUri = 'phpnitro://oauth-callback';
+            if ($clientId === '') {
+                $socialAuthError = "{$envPrefix}_CLIENT_ID n'est pas configuré dans .env.";
+            } elseif ($provider === 'apple') {
+                $teamId = $_ENV['APPLE_TEAM_ID'] ?? '';
+                $keyId = $_ENV['APPLE_KEY_ID'] ?? '';
+                $privateKeyPath = $_ENV['APPLE_PRIVATE_KEY_PATH'] ?? '';
+                if ($teamId === '' || $keyId === '' || $privateKeyPath === '') {
+                    $socialAuthError = 'APPLE_TEAM_ID / APPLE_KEY_ID / APPLE_PRIVATE_KEY_PATH ne sont pas configurés dans .env.';
+                } else {
+                    $clientSecret = \Engine\SocialAuth\AppleSignIn::clientSecret($teamId, $keyId, $clientId, $privateKeyPath);
+                    $profile = \Engine\SocialAuth\AppleSignIn::exchangeCode($code, $clientId, $clientSecret, $redirectUri);
+                    if ($profile === null) {
+                        $socialAuthError = 'Échec de connexion Apple.';
+                    } else {
+                        $_SESSION['social_user'] = ['provider' => 'apple', ...$profile];
+                    }
+                }
+            } else {
+                $clientSecret = $_ENV["{$envPrefix}_CLIENT_SECRET"] ?? '';
+                if ($clientSecret === '') {
+                    $socialAuthError = "{$envPrefix}_CLIENT_SECRET n'est pas configuré dans .env.";
+                } else {
+                    $profile = $providerClass::exchangeCode($code, $clientId, $clientSecret, $redirectUri);
+                    if ($profile === null) {
+                        $socialAuthError = "Échec de connexion {$provider}.";
+                    } else {
+                        $_SESSION['social_user'] = ['provider' => $provider, ...$profile];
+                    }
+                }
+            }
+        }
+    }
+    if ($action === 'social_signout') {
+        unset($_SESSION['social_user']);
+    }
+
     // Feexpay mobile-money checkout — see NativeWidgetsPaymentsScreen's
     // own docblock and docs/payments.md's security note. $_SESSION only
     // ever holds the CURRENT reference (a pointer), never the payment's
@@ -376,6 +449,30 @@ if ($path === '/native/layout-demo') {
         $_SESSION['widgets_stepper_data'] = $stepperData;
     }
 
+    // Fresh state + authorize URLs on every render of this screen — the
+    // user can only ever tap whatever's CURRENTLY on screen, so
+    // regenerating on every visit (rather than once) is correct, not
+    // wasteful: $_SESSION['oauth_state'] always matches the button that's
+    // actually visible. null (not an empty-string URL) when a provider's
+    // client_id isn't configured — that's what tells
+    // NativeRenderPocActivity's "oauth:" dispatch to fail informatively
+    // instead of opening a Custom Tab to a doomed request.
+    $githubAuthorizeUrl = null;
+    $facebookAuthorizeUrl = null;
+    if ($screen === 'widgets-firebase-auth') {
+        $oauthState = bin2hex(random_bytes(16));
+        $_SESSION['oauth_state'] = $oauthState;
+        $redirectUri = 'phpnitro://oauth-callback';
+        $githubClientId = $_ENV['GITHUB_CLIENT_ID'] ?? '';
+        $facebookClientId = $_ENV['FACEBOOK_CLIENT_ID'] ?? '';
+        if ($githubClientId !== '') {
+            $githubAuthorizeUrl = \Engine\SocialAuth\GithubSignIn::authorizeUrl($githubClientId, $redirectUri) . '&state=' . $oauthState;
+        }
+        if ($facebookClientId !== '') {
+            $facebookAuthorizeUrl = \Engine\SocialAuth\FacebookSignIn::authorizeUrl($facebookClientId, $redirectUri) . '&state=' . $oauthState;
+        }
+    }
+
     // Screen builders live in lib/pages/Native*.php — captures/ has
     // multiple reference screens, and this route just dispatches to
     // whichever one ?screen= asks for instead of growing one giant
@@ -402,7 +499,7 @@ if ($path === '/native/layout-demo') {
         'widgets-countries' => \Engine\App\NativeWidgetsCountriesScreen::build($screenWidth, $screenHeight),
         'widgets-media' => \Engine\App\NativeWidgetsMediaScreen::build($screenWidth, $screenHeight),
         'widgets-maps' => \Engine\App\NativeWidgetsMapsScreen::build($screenWidth, $screenHeight),
-        'widgets-firebase-auth' => \Engine\App\NativeWidgetsFirebaseAuthScreen::build($screenWidth, $screenHeight, $firebaseError, $_GET['fb_mode'] ?? 'signin'),
+        'widgets-firebase-auth' => \Engine\App\NativeWidgetsFirebaseAuthScreen::build($screenWidth, $screenHeight, $firebaseError ?? $socialAuthError ?? ($_GET['oauth_error'] ?? null), $_GET['fb_mode'] ?? 'signin', $githubAuthorizeUrl, $facebookAuthorizeUrl),
         'widgets-payments' => \Engine\App\NativeWidgetsPaymentsScreen::build($screenWidth, $screenHeight, $paymentError, $currentOrder),
         'widgets-lottie' => \Engine\App\NativeWidgetsLottieScreen::build($screenWidth, $screenHeight),
         'widgets-splash' => \Engine\App\NativeWidgetsSplashScreen::build($screenWidth, $screenHeight),
