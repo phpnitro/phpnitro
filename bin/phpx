@@ -309,6 +309,139 @@ function cmdMakeAuth(): void
 }
 
 /**
+ * Same shape as cmdMakeMigration()'s generated stub expects: a single
+ * `return new class extends Migration {...}` per file, so make:migration/
+ * migrate/rollback/status never have to derive a class name from a
+ * filename — the file already IS the migration.
+ */
+function migrationClassNameStub(): string
+{
+    return <<<'PHP'
+    <?php
+
+    use Doctrine\DBAL\Connection;
+    use Engine\Database\Migration;
+
+    return new class extends Migration {
+        public function up(Connection $connection): void
+        {
+            // $connection->executeStatement('CREATE TABLE posts (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT)');
+        }
+
+        public function down(Connection $connection): void
+        {
+            // $connection->executeStatement('DROP TABLE posts');
+        }
+    };
+
+    PHP;
+}
+
+function cmdMakeMigration(string $name): void
+{
+    $migrationsDir = PHPX_ROOT . '/lib/backend/migrations';
+    if (!is_dir($migrationsDir)) {
+        mkdir($migrationsDir, 0777, true);
+    }
+
+    $snake = strtolower((string) preg_replace('/[^A-Za-z0-9]+/', '_', $name));
+    $snake = trim($snake, '_');
+    if ($snake === '') {
+        phpxFail('usage: phpx make:migration <name> (ex. create_posts_table)');
+    }
+
+    // A timestamp prefix, not an incrementing counter — Migrator::
+    // allMigrationFiles() sorts by filename to decide run order, and a
+    // timestamp survives two developers each running make:migration on
+    // their own branch without colliding (an incrementing counter
+    // shared through git would).
+    $filename = date('YmdHis') . "_{$snake}.php";
+    $path = "{$migrationsDir}/{$filename}";
+
+    if (is_file($path)) {
+        phpxFail("already exists: {$path}");
+    }
+
+    file_put_contents($path, migrationClassNameStub());
+    echo "Created lib/backend/migrations/{$filename}\n";
+}
+
+/**
+ * Same bootstrap public/index.php's own top does (Dotenv + Database::
+ * useSqlitePath()) — this is a CLI entry point into the same project's
+ * database, not a separate one, so it has to resolve the connection the
+ * exact same way a real request would or `phpx migrate` could silently
+ * migrate a different database than the one the running app actually
+ * reads from.
+ */
+function bootstrapProjectDatabase(): void
+{
+    $autoload = PHPX_ROOT . '/vendor/autoload.php';
+    if (!is_file($autoload)) {
+        phpxFail('vendor/autoload.php introuvable — lancez cette commande depuis la racine d\'un projet PhpNitro (composer install déjà fait).');
+    }
+    require_once $autoload;
+
+    foreach ([PHPX_ROOT . '/.env', PHPX_ROOT . '/env'] as $envFile) {
+        if (is_file($envFile)) {
+            (new \Symfony\Component\Dotenv\Dotenv())->loadEnv($envFile);
+            break;
+        }
+    }
+
+    if (!class_exists(\Engine\Database\Database::class)) {
+        phpxFail('phpnitro/database n\'est pas installé — composer require phpnitro/database.');
+    }
+    \Engine\Database\Database::useSqlitePath(PHPX_ROOT . '/lib/backend/var/data.sqlite');
+}
+
+function newMigrator(): \Engine\Database\Migrator
+{
+    bootstrapProjectDatabase();
+
+    return new \Engine\Database\Migrator(\Engine\Database\Database::connection(), PHPX_ROOT . '/lib/backend/migrations');
+}
+
+function cmdMigrate(): void
+{
+    $ran = newMigrator()->migrate();
+
+    if ($ran === []) {
+        echo "Rien à migrer — déjà à jour.\n";
+        return;
+    }
+    foreach ($ran as $migration) {
+        echo "Migré : {$migration}\n";
+    }
+}
+
+function cmdMigrateRollback(): void
+{
+    $rolledBack = newMigrator()->rollback();
+
+    if ($rolledBack === []) {
+        echo "Rien à annuler.\n";
+        return;
+    }
+    foreach ($rolledBack as $migration) {
+        echo "Annulé : {$migration}\n";
+    }
+}
+
+function cmdMigrateStatus(): void
+{
+    $status = newMigrator()->status();
+
+    if ($status === []) {
+        echo "Aucune migration dans lib/backend/migrations/ — voir `phpx make:migration`.\n";
+        return;
+    }
+    foreach ($status as $entry) {
+        echo ($entry['ran'] ? '  [✓] ' : '  [ ] ') . $entry['migration'] . "\n";
+    }
+}
+
+/**
  * @return string the destination path (for cmdMakeAuth()'s own summary — currently unused but kept for future callers)
  */
 function copyTemplateFile(string $relativePath): string
@@ -1883,6 +2016,18 @@ switch ($command) {
         break;
     case 'make:auth':
         cmdMakeAuth();
+        break;
+    case 'make:migration':
+        cmdMakeMigration($argv[2] ?? phpxFail('usage: phpx make:migration <name>'));
+        break;
+    case 'migrate':
+        cmdMigrate();
+        break;
+    case 'migrate:rollback':
+        cmdMigrateRollback();
+        break;
+    case 'migrate:status':
+        cmdMigrateStatus();
         break;
     case 'serve':
         cmdServe((int) ($argv[2] ?? 8090));
