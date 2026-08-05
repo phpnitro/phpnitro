@@ -28,7 +28,8 @@
             "Engine\\Analytics\\": "packages/analytics/src/",
             "Engine\\App\\": "lib/pages/",
             "Backend\\": "lib/backend/src/",
-            "Engine\\Format\\": "packages/format/src/"
+            "Engine\\Format\\": "packages/format/src/",
+            "Engine\\Validation\\": "packages/validation/src/"
         }
     },
     "autoload-dev": {
@@ -38,7 +39,8 @@
             "Engine\\Firebase\\Tests\\": "packages/firebase/tests/",
             "Engine\\Countries\\Tests\\": "packages/countries/tests/",
             "Engine\\Preferences\\Tests\\": "packages/preferences/tests/",
-            "Engine\\Format\\Tests\\": "packages/format/tests/"
+            "Engine\\Format\\Tests\\": "packages/format/tests/",
+            "Engine\\Validation\\Tests\\": "packages/validation/tests/"
         }
     }
 }

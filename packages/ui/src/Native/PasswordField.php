@@ -49,6 +49,7 @@ final class PasswordField implements Widget
         private readonly string $placeholder = '',
         private readonly ?float $width = null,
         private readonly float $height = 52.0,
+        private readonly ?string $error = null,
     ) {
     }
 
@@ -57,7 +58,13 @@ final class PasswordField implements Widget
         $resolvedWidth = $this->width ?? ($constraints->hasBoundedWidth() ? $constraints->maxWidth : 300.0);
         $revealed = ($_GET["{$this->name}_reveal"] ?? '') === '1';
 
-        $field = new TextField($this->name, $this->value, $this->placeholder, obscure: !$revealed, height: $this->height, width: $resolvedWidth);
+        // The eye button is Positioned at a fixed offset from the TOP
+        // (top: height/2 - 10), so it stays centered on the box itself
+        // regardless of whether TextField grows taller below it for an
+        // error caption (see TextField's own $error docblock) — no
+        // adjustment needed here for that case, only the outer height
+        // this Stack reports has to grow to make room for it.
+        $field = new TextField($this->name, $this->value, $this->placeholder, obscure: !$revealed, height: $this->height, width: $resolvedWidth, error: $this->error);
         $eyeButton = new Tappable(
             new Icon($revealed ? 'visibility_off' : 'visibility', 20.0, Tokens::inkMuted()->toHex()),
             "toggle:{$this->name}_reveal",
@@ -69,7 +76,16 @@ final class PasswordField implements Widget
             new Positioned($eyeButton, top: $this->height / 2 - 10.0, right: Tokens::SPACE_MD),
         ]);
 
-        return $this->content->layout(new Constraints($resolvedWidth, $resolvedWidth, $this->height, $this->height));
+        $hasError = $this->error !== null && $this->error !== '';
+        // Stack.layout() takes the max of its children's own reported
+        // sizes (see Stack's own layout()) — TextField already grows its
+        // OWN Size when $error is set (see its Flex::column wrap), so a
+        // tight height here would clip that caption. Only the box height
+        // is fixed; the error caption's extra height (~24dp: 4dp gap +
+        // TEXT_BODY_SMALL line) needs room in the constraint passed down.
+        $resolvedHeight = $hasError ? $this->height + 24.0 : $this->height;
+
+        return $this->content->layout(new Constraints($resolvedWidth, $resolvedWidth, $resolvedHeight, $resolvedHeight));
     }
 
     public function paint(Canvas $canvas, float $x, float $y): void

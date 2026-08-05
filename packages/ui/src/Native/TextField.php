@@ -43,6 +43,16 @@ final class TextField implements Widget
      *                      Every existing call site omits this and keeps
      *                      relying on STRETCH exactly as before.
      */
+    /**
+     * @param ?string $error Set by a Validator failure (see Engine\Validation\Validator)
+     *                       for this field's name — renders a red border on the box plus
+     *                       a caption line below it, the same round-trip-driven pattern
+     *                       every other stateful widget here already uses (PHP decides
+     *                       what to render, the client has no validation logic of its
+     *                       own). Purely visual: nothing here blocks the "submit:" Button
+     *                       from being tapped again, PHP re-validates on every submit
+     *                       the same way it always has.
+     */
     public function __construct(
         string $name,
         string $value = '',
@@ -51,11 +61,13 @@ final class TextField implements Widget
         bool $multiline = false,
         float $height = 52.0,
         ?float $width = null,
+        ?string $error = null,
     ) {
         $resolvedHeight = $multiline ? max($height, 120.0) : $height;
         $hasValue = $value !== '';
         $displayText = $hasValue ? ($obscure ? str_repeat('•', mb_strlen($value)) : $value) : $placeholder;
         $displayColor = $hasValue ? Tokens::ink() : Tokens::inkMuted();
+        $hasError = $error !== null && $error !== '';
 
         $box = new Container(
             new Padding(
@@ -68,12 +80,22 @@ final class TextField implements Widget
             height: $resolvedHeight,
             background: Tokens::surface(),
             radius: Tokens::RADIUS_MD,
-            borderColor: Tokens::border(),
-            borderWidth: 1.0,
+            borderColor: $hasError ? Tokens::danger() : Tokens::border(),
+            borderWidth: $hasError ? 1.5 : 1.0,
         );
 
         $action = 'focus:' . ($multiline ? 'multiline:' : '') . ($obscure ? 'secure:' : '') . $name;
-        $this->content = new Tappable($box, $action);
+        $tappableBox = new Tappable($box, $action);
+
+        $this->content = $hasError
+            ? Flex::column([
+                $tappableBox,
+                new Padding(
+                    EdgeInsets::only(top: 4.0, left: Tokens::SPACE_XS),
+                    new Text($error, Tokens::TEXT_BODY_SMALL, Tokens::danger()->toHex()),
+                ),
+            ])
+            : $tappableBox;
     }
 
     public function layout(Constraints $constraints): Size
