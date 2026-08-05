@@ -70,3 +70,15 @@ Ce document a été écrit avant (ou sans tenir compte de) la bascule complète 
 - **Le nouvel `Engine\Native\Router`** (voir `docs/architecture.md#routes-à-paramètres`) ferme une autre boucle : un écran généré par l'éditeur peut s'enregistrer lui-même via `Router::register()` sans toucher au `match($screen)` historique — "créer un écran depuis l'éditeur" peut rester une opération strictement additive (un nouveau fichier + un `Router::register()`), jamais une édition manuelle d'un fichier central que deux outils pourraient se disputer.
 
 Ça ne change rien aux options B/C — ça rend A′ sensiblement plus solide qu'au moment de l'écriture initiale de ce document (qui ne connaissait que le A pur, sans scission) : le preview n'est plus une approximation HTML, il est fidèle au pixel près, et la scission génération/logique règle le seul vrai reproche qui restait à faire à cette famille d'approches.
+
+## Extensions de l'éditeur — même contrat que Canvas::custom(), un troisième maillon
+
+Le moteur a déjà un point d'extension pour un widget que le framework ne connaît pas nativement : `Canvas::custom($type, $data)` émet `{"type": "custom:$type", ...}`, et qui possède l'app Kotlin appelle `registerCustomCommandHandler($type, ...)` pour lui donner un vrai rendu — voir `Sparkline`, l'exemple réel et câblé (`docs/architecture.md#extensibilité`). Un widget tiers (un plugin) a donc déjà DEUX des trois pattes dont il a besoin. La troisième — un plugin d'ÉDITEUR — suit exactement la même convention `type` plutôt que d'en inventer une nouvelle :
+
+Un plugin d'éditeur déclarerait, pour un `type` donné (ex. `"sparkline"`) :
+1. **Une entrée de palette** (icône, nom, catégorie) — pour que le widget custom apparaisse au même endroit que `Button`/`Card`, pas dans un coin séparé "widgets tiers".
+2. **Un panneau de propriétés** (quels champs, quels contrôles — un color picker pour `$color`, une zone de nombres pour `$values`).
+3. **Un générateur PHP** — comment transformer les propriétés choisies en `new Sparkline($values, $width, $height, $color)` dans le fichier généré.
+4. **Un renderer de preview JS** — le pendant exact de `registerCustomCommandHandler()` côté Kotlin, mais pour le `<canvas>` de l'éditeur : sans lui, le renderer générique de l'éditeur (qui ne connaît que `rect`/`text`/`icon`...) ne saurait pas dessiner un `"custom:sparkline"` et l'ignorerait silencieusement.
+
+Un seul package tiers (par ex. `phpnitro/sparkline-widget`) livrerait alors ses trois pattes ensemble — la classe PHP, le handler Kotlin, et le plugin d'éditeur — au lieu de trois écosystèmes d'extension distincts à apprendre. C'est la même conviction que le reste du framework : une seule convention (`type` en chaîne, données planes) qui traverse PHP → JSON → Kotlin, prolongée une fois de plus jusqu'à l'éditeur plutôt que de lui inventer son propre système de plugin isolé.
