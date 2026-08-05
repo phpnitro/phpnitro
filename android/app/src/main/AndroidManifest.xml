@@ -51,6 +51,14 @@
          foreground — Play Store review requires a declared justification
          for this permission, not added lightly. -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- WebSocketService (Engine\Device\WebSocket) — a real connection
+         that survives backgrounding needs a foreground service; both
+         permissions are "normal" (auto-granted, no runtime prompt), but
+         FOREGROUND_SERVICE_DATA_SYNC specifically is required from API 34
+         onward or the service refuses to start with that
+         foregroundServiceType. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="false" />
     <uses-feature android:name="android.hardware.sensor.gyroscope" android:required="false" />
     <uses-feature android:name="android.hardware.sensor.compass" android:required="false" />

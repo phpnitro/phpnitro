@@ -16,6 +16,7 @@ use Engine\Device\MapLauncher;
 use Engine\Device\OpenFile;
 use Engine\Device\RestartApp;
 use Engine\Device\UrlLauncher;
+use Engine\Device\WebSocket;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\AppBar;
@@ -83,6 +84,7 @@ final class NativeDeviceScreen
         $fileOut = FileSelector::result();
         $saveOut = FileSaver::result();
         $clipboardOut = Clipboard::result();
+        $wsOut = WebSocket::result();
 
         $row = static fn (string $label, string $action, ?string $result = null): Widget => new Padding(
             EdgeInsets::only(top: Tokens::SPACE_MD),
@@ -146,6 +148,12 @@ final class NativeDeviceScreen
                     $row('Lire le presse-papiers', Clipboard::pasteAction(), $clipboardOut),
                     $row('Envoyer un email', EmailSender::composeAction('contact@example.com', 'Bonjour', 'Message envoyé depuis PhpNitro.')),
                     $row('Redémarrer l\'app', RestartApp::restartAction()),
+                    new Padding(EdgeInsets::only(top: Tokens::SPACE_LG), new Divider()),
+                    new Text('WebSocket — connexion persistante réelle (survit à l\'arrière-plan)', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
+                    $row('Connecter (echo public)', WebSocket::connectAction('wss://ws.postman-echo.com/raw', 'ws_out')),
+                    $row('Envoyer "Bonjour PhpNitro !"', WebSocket::sendAction('Bonjour PhpNitro !')),
+                    $row('Déconnecter', WebSocket::disconnectAction()),
+                    ...($wsOut !== null ? [new Padding(EdgeInsets::only(top: Tokens::SPACE_SM), new Text("Reçu : {$wsOut}", Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true))] : []),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,

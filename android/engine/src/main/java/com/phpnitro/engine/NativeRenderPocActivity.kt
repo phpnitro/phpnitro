@@ -296,6 +296,52 @@ class NativeRenderPocActivity : AppCompatActivity() {
     // nothing of ours to do with its result.
     private val appUpdateLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {}
 
+    // Engine\Device\WebSocket — bound lazily on the FIRST "device:wsconnect"
+    // (not in onCreate()) so an app that never uses WebSocket never starts
+    // the foreground service or shows its persistent notification. Started
+    // AND bound (see WebSocketService's own docblock for why both) — this
+    // Activity being destroyed/recreated (rotation, process death) does
+    // NOT stop the connection, only an explicit "device:wsdisconnect" does.
+    private var webSocketService: WebSocketService? = null
+    private var webSocketBound = false
+    private var pendingWsConnect: Pair<String, String>? = null
+
+    private val webSocketConnection = object : android.content.ServiceConnection {
+        override fun onServiceConnected(name: android.content.ComponentName, binder: android.os.IBinder) {
+            val service = (binder as WebSocketService.LocalBinder).service()
+            webSocketService = service
+            service.setListener { message ->
+                fieldValues[service.currentOutputField()] = message
+                refetch(action = null, includeFields = true)
+            }
+            pendingWsConnect?.let { (url, outputField) ->
+                service.connect(url, outputField)
+                pendingWsConnect = null
+            }
+            // Replays whatever arrived while THIS Activity instance didn't
+            // exist yet (backgrounded and recreated, or a fresh instance
+            // binding to an already-running service) — a plain refetch
+            // (not from a tap) so the screen reflects it without the user
+            // needing to do anything.
+            service.lastMessage?.let { message ->
+                fieldValues[service.currentOutputField()] = message
+                refetch(action = null, includeFields = true)
+            }
+        }
+
+        override fun onServiceDisconnected(name: android.content.ComponentName) {
+            webSocketService = null
+        }
+    }
+
+    private fun ensureWebSocketServiceBound() {
+        if (webSocketBound) return
+        webSocketBound = true
+        val intent = Intent(this, WebSocketService::class.java)
+        ContextCompat.startForegroundService(this, intent)
+        bindService(intent, webSocketConnection, Context.BIND_AUTO_CREATE)
+    }
+
     private fun handlePermissionAction(token: String) {
         val parts = token.split(":")
         val outputField = parts.getOrElse(2) { "permission_out" }
@@ -1069,6 +1115,34 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 restartIntent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK)
                 if (restartIntent != null) startActivity(restartIntent)
                 Runtime.getRuntime().exit(0)
+            }
+            // Engine\Device\WebSocket — a REAL persistent connection (see
+            // WebSocketService), not polling. The URL travels
+            // rawurlencode()'d, same reason UrlLauncher's own "openurl"
+            // does.
+            "wsconnect" -> {
+                val url = java.net.URLDecoder.decode(parts.getOrElse(1) { "" }, "UTF-8")
+                val outputField = parts.getOrElse(2) { "ws_out" }
+                val service = webSocketService
+                if (service != null) {
+                    service.connect(url, outputField)
+                } else {
+                    pendingWsConnect = url to outputField
+                    ensureWebSocketServiceBound()
+                }
+            }
+            "wssend" -> {
+                val message = java.net.URLDecoder.decode(parts.getOrElse(1) { "" }, "UTF-8")
+                webSocketService?.send(message)
+            }
+            "wsdisconnect" -> {
+                webSocketService?.disconnect()
+                if (webSocketBound) {
+                    unbindService(webSocketConnection)
+                    webSocketBound = false
+                }
+                stopService(Intent(this, WebSocketService::class.java))
+                webSocketService = null
             }
         }
     }
@@ -2212,6 +2286,16 @@ class NativeRenderPocActivity : AppCompatActivity() {
         // Remote mode never constructs phpServer at all (see onCreate()) —
         // ::phpServer.isInitialized guards against UninitializedPropertyAccessException.
         if (::phpServer.isInitialized) phpServer.stop()
+        // Deliberately unbindService() only, never stopService() — the
+        // WebSocket connection was independently STARTED (see
+        // ensureWebSocketServiceBound()), so it keeps running across this
+        // Activity being destroyed (rotation, process death, swiping the
+        // app from recents). Only an explicit "device:wsdisconnect" ever
+        // calls stopService() on it.
+        if (webSocketBound) {
+            unbindService(webSocketConnection)
+            webSocketBound = false
+        }
         super.onDestroy()
     }
 }

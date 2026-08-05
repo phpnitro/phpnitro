@@ -105,4 +105,9 @@ dependencies {
     // its split successors.
     api("com.google.android.play:review-ktx:2.0.2")
     api("com.google.android.play:app-update-ktx:2.1.0")
+    // Engine\Device\WebSocket — a real persistent connection (WebSocketService.kt),
+    // not polling in a costume. OkHttp is the standard, battle-tested
+    // Android WebSocket client (java.net.http.WebSocket needs API 26+,
+    // this module's minSdk is 24).
+    api("com.squareup.okhttp3:okhttp:4.12.0")
 }

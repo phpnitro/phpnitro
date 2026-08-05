@@ -87,6 +87,23 @@
              build. See HotReloadReceiver.kt. -->
         <receiver android:name=".HotReloadReceiver" android:exported="false" />
 
+        <!-- Engine\Device\WebSocket — a real persistent connection that
+             survives this app being backgrounded, which Android only
+             allows from a declared foreground service (not a plain
+             Activity-owned background thread). android:foregroundServiceType
+             ="dataSync" is mandatory from API 34 and must match one of the
+             OS's fixed categories — a live network connection is data
+             sync, not media/location/camera/etc. See WebSocketService.kt's
+             own docblock and android/app's manifest for the matching
+             FOREGROUND_SERVICE/FOREGROUND_SERVICE_DATA_SYNC permissions
+             (declared there, not here, same "capability-specific
+             permission belongs to the consuming app" split every other
+             optional capability already takes). -->
+        <service
+            android:name=".WebSocketService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <!-- Engine\Device\OpenFile — a content:// Uri is the only way to
              hand another app (whatever resolves the file's MIME type) a
              file living in this app's own storage; a raw file:// path is
