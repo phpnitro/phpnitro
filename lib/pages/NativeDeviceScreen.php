@@ -2,6 +2,8 @@
 
 namespace Engine\App;
 
+use Engine\Native\AudioRecorder;
+use Engine\Native\CameraButton;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\AppBar;
@@ -92,6 +94,12 @@ final class NativeDeviceScreen
                     $row('Luminosité 50%', 'device:brightness'),
                     $row('Localiser', 'device:locate:location_out', $locationOut),
                     $row('Activer le micro (2s)', 'device:mic:mic_out', $micOut),
+                    new Text('Widgets CameraButton/AudioRecorder (mêmes actions, prêts à l\'emploi) :', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
+                    new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), new CameraButton()),
+                    new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), new AudioRecorder(outputField: 'clip_out', durationMs: 3000)),
+                    ...(($_GET['clip_out'] ?? null) !== null
+                        ? [new Padding(EdgeInsets::only(top: Tokens::SPACE_SM), new Text($_GET['clip_out'], Tokens::TEXT_BODY, Tokens::ink()->toHex()))]
+                        : []),
                     $row('Accéléromètre', 'device:sensor:sensor_out', $sensorOut),
                     $row('Écouter NFC', 'device:nfcstart'),
                     $row('Arrêter NFC', 'device:nfcstop', $nfcOut),

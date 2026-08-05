@@ -5,6 +5,7 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.RectF
 import android.graphics.Typeface
@@ -29,6 +30,7 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import java.net.HttpURLConnection
 import java.net.URL
@@ -154,6 +156,41 @@ class NativeRenderPocActivity : AppCompatActivity() {
             fieldValues["picked_image_out"] = if (bytes == null) "Erreur" else "Image sélectionnée (${bytes.size} octets)"
         }
         refetch(action = null, includeFields = true)
+    }
+
+    // RECORD_AUDIO is a dangerous permission (Android 6+) — declaring it
+    // in the manifest alone doesn't grant it, a real runtime prompt is
+    // required. deviceBridge.recordAudioClip() already checked
+    // checkSelfPermission() and correctly reported "permission_denied"
+    // when missing, but nothing ever actually ASKED for it — the
+    // manifest itself had no <uses-permission> line either, so this was
+    // 100% broken on every real device before this. pendingMicToken
+    // replays the original "mic:field:durationMs" action once the user
+    // answers the prompt, so a screen never needs its own permission
+    // dance — same "just call the action, the round-trip handles it"
+    // promise every other capability here already makes.
+    private var pendingMicToken: String? = null
+
+    private val requestRecordAudioPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val token = pendingMicToken
+        pendingMicToken = null
+        if (token == null) return@registerForActivityResult
+        if (granted) {
+            startMicRecording(token)
+        } else {
+            val parts = token.split(":")
+            fieldValues[parts.getOrElse(1) { "mic_out" }] = "permission_denied"
+            refetch(action = null, includeFields = true)
+        }
+    }
+
+    private fun startMicRecording(token: String) {
+        val parts = token.split(":")
+        val durationMs = parts.getOrNull(2)?.toLongOrNull() ?: 2000L
+        deviceBridge.recordAudioClip(durationMs) { _, error ->
+            fieldValues[parts.getOrElse(1) { "mic_out" }] = if (error != null) error else "Enregistré (${durationMs}ms)"
+            refetch(action = null, includeFields = true)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -684,9 +721,13 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 }
             }
             "mic" -> {
-                deviceBridge.recordAudioClip(2000L) { _, error ->
-                    fieldValues[parts.getOrElse(1) { "mic_out" }] = if (error != null) error else "Enregistré (2s)"
-                    refetch(action = null, includeFields = true)
+                if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) ==
+                    PackageManager.PERMISSION_GRANTED
+                ) {
+                    startMicRecording(token)
+                } else {
+                    pendingMicToken = token
+                    requestRecordAudioPermission.launch(android.Manifest.permission.RECORD_AUDIO)
                 }
             }
             "camera" -> takePicturePreview.launch(null)
