@@ -10,6 +10,7 @@ use Engine\Device\Connectivity;
 use Engine\Device\EmailSender;
 use Engine\Device\FileSaver;
 use Engine\Device\FileSelector;
+use Engine\Device\ImageCropper;
 use Engine\Device\InAppReview;
 use Engine\Device\InAppUpdate;
 use Engine\Device\MapLauncher;
@@ -85,6 +86,7 @@ final class NativeDeviceScreen
         $saveOut = FileSaver::result();
         $clipboardOut = Clipboard::result();
         $wsOut = WebSocket::result();
+        $cropOut = ImageCropper::result();
 
         $row = static fn (string $label, string $action, ?string $result = null): Widget => new Padding(
             EdgeInsets::only(top: Tokens::SPACE_MD),
@@ -154,6 +156,7 @@ final class NativeDeviceScreen
                     $row('Envoyer "Bonjour PhpNitro !"', WebSocket::sendAction('Bonjour PhpNitro !')),
                     $row('Déconnecter', WebSocket::disconnectAction()),
                     ...($wsOut !== null ? [new Padding(EdgeInsets::only(top: Tokens::SPACE_SM), new Text("Reçu : {$wsOut}", Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true))] : []),
+                    $row('Recadrer une image', ImageCropper::cropAction(), $cropOut),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,

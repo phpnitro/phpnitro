@@ -290,6 +290,23 @@ class NativeRenderPocActivity : AppCompatActivity() {
         refetch(action = null, includeFields = true)
     }
 
+    // Engine\Device\ImageCropper — uri=null lets the cropper library
+    // itself prompt for a source image (gallery/camera chooser) before
+    // showing the crop UI, so a screen only needs to fire one action for
+    // the whole "pick then crop" flow, not two.
+    private var pendingCropOutputField: String? = null
+
+    private val cropImage = registerForActivityResult(com.canhub.cropper.CropImageContract()) { result ->
+        val outputField = pendingCropOutputField ?: "crop_out"
+        pendingCropOutputField = null
+        fieldValues[outputField] = when {
+            result.isSuccessful && result.uriContent != null -> "Image recadrée"
+            result.isSuccessful -> "Erreur"
+            else -> "Annulé"
+        }
+        refetch(action = null, includeFields = true)
+    }
+
     // Engine\Device\InAppUpdate — startUpdateFlowForResult's own launcher;
     // the flow's UI is entirely Play's, this callback just exists because
     // the KTX API requires a registered ActivityResultLauncher, there's
@@ -516,6 +533,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 refetch(action = null, includeFields = true)
             }
             action.startsWith("video:play:") -> showVideoOverlay(action.removePrefix("video:play:"), regionDp)
+            action.startsWith("youtube:play:") -> showYoutubeOverlay(action.removePrefix("youtube:play:"), regionDp)
             action.startsWith("map:open:") -> {
                 val parts = action.removePrefix("map:open:").split(":")
                 val lat = parts.getOrNull(0)?.toDoubleOrNull() ?: 48.8566
@@ -1144,6 +1162,10 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 stopService(Intent(this, WebSocketService::class.java))
                 webSocketService = null
             }
+            "cropimage" -> {
+                pendingCropOutputField = parts.getOrElse(1) { "crop_out" }
+                cropImage.launch(com.canhub.cropper.CropImageContractOptions(uri = null, cropImageOptions = com.canhub.cropper.CropImageOptions()))
+            }
         }
     }
 
@@ -1237,6 +1259,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
             .hideSoftInputFromWindow(canvasView.windowToken, 0)
         clearVideoOverlay()
         clearMapOverlay()
+        clearYoutubeOverlay()
     }
 
     // Lottie: unlike the video/map overlays below (shown only on
@@ -1312,6 +1335,59 @@ class NativeRenderPocActivity : AppCompatActivity() {
             rootLayout.removeView(it)
         }
         activeVideoView = null
+    }
+
+    // YoutubePlayer (Engine\Native\YoutubePlayer) — same tap-to-play
+    // overlay idiom as showVideoOverlay() just above (one-shot, added on
+    // tap, torn down by clearTextInput() on every navigate/back/submit),
+    // just a WebView loaded with YouTube's IFrame embed instead of a
+    // VideoView + raw media URL: YouTube requires their own embed player
+    // (a raw .mp4/.m3u8 URL isn't available for a YouTube video), and the
+    // IFrame Player API is the same technique every current
+    // youtube_player_flutter/react-native-youtube-iframe package uses
+    // under the hood — not a compromise specific to this framework.
+    private var activeYoutubeView: android.webkit.WebView? = null
+
+    private fun showYoutubeOverlay(videoId: String, regionDp: RectF) {
+        clearYoutubeOverlay()
+
+        val density = resources.displayMetrics.density
+        val webView = android.webkit.WebView(this).apply {
+            settings.javaScriptEnabled = true
+            settings.mediaPlaybackRequiresUserGesture = false
+            webChromeClient = android.webkit.WebChromeClient()
+            loadDataWithBaseURL(
+                "https://www.youtube.com",
+                "<html><body style=\"margin:0;padding:0;background:#000;\">" +
+                    "<iframe width=\"100%\" height=\"100%\" " +
+                    "src=\"https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1\" " +
+                    "frameborder=\"0\" allow=\"autoplay; encrypted-media\" allowfullscreen></iframe>" +
+                    "</body></html>",
+                "text/html",
+                "utf-8",
+                null,
+            )
+        }
+        val params = FrameLayout.LayoutParams(
+            (regionDp.width() * density).toInt(),
+            (regionDp.height() * density).toInt(),
+        ).apply {
+            leftMargin = (regionDp.left * density).toInt()
+            topMargin = (regionDp.top * density).toInt()
+        }
+        rootLayout.addView(webView, params)
+        activeYoutubeView = webView
+    }
+
+    private fun clearYoutubeOverlay() {
+        activeYoutubeView?.let {
+            // Navigating away first stops audio/playback before the View
+            // is actually removed — simply removeView()-ing a still-
+            // playing embedded player leaves its audio track running.
+            it.loadUrl("about:blank")
+            rootLayout.removeView(it)
+        }
+        activeYoutubeView = null
     }
 
     // See ConfettiView's own docblock for the actual particle simulation

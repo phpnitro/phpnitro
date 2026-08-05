@@ -17,6 +17,7 @@ use Engine\Native\Padding;
 use Engine\Native\Tappable;
 use Engine\Native\Text;
 use Engine\Native\Tokens;
+use Engine\Native\YoutubePlayer;
 
 /**
  * The native conversion of WidgetsMediaPage.php's AudioPlayer section — a
@@ -74,6 +75,9 @@ final class NativeWidgetsMediaScreen
                         : new Button('Lire', "media:play:{$audioUrl}", icon: 'play_arrow'),
                     $caption('VideoPlayer — android.widget.VideoView réel'),
                     new VideoPlayer($videoUrl, $contentWidth),
+
+                    $caption('YoutubePlayer — WebView + IFrame Player API'),
+                    new YoutubePlayer('dQw4w9WgXcQ', $contentWidth),
 
                     $caption('GoogleTranslate — ML Kit Translate réel, sur l\'appareil'),
                     new Text("« {$sourceText} »", Tokens::TEXT_BODY_SMALL, Tokens::inkSecondary()->toHex()),

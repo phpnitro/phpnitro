@@ -110,4 +110,14 @@ dependencies {
     // Android WebSocket client (java.net.http.WebSocket needs API 26+,
     // this module's minSdk is 24).
     api("com.squareup.okhttp3:okhttp:4.12.0")
+    // Engine\Device\ImageCropper — a real interactive crop UI (drag
+    // corners/handles, pinch zoom, aspect-ratio lock). No such gesture
+    // primitive exists in this Canvas-based pipeline (Slider's own
+    // continuous-drag mechanism is 1D; a 2D crop rectangle with resize
+    // handles is a materially bigger primitive), and hand-rolling one
+    // isn't a good use of effort next to a maintained, widely-used
+    // library that already gets this right — same call this framework
+    // already made for chillerlan/php-qrcode (QR encoding) instead of
+    // hand-rolling Reed-Solomon.
+    api("com.vanniktech:android-image-cropper:4.7.0")
 }
