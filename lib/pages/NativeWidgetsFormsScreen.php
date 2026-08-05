@@ -17,12 +17,21 @@ use Engine\Native\Chip;
 use Engine\Native\CircularProgress;
 use Engine\Native\Confetti;
 use Engine\Native\ConfirmButton;
+use Engine\Native\CountryCodePicker;
+use Engine\Native\CountryPicker;
 use Engine\Native\DatePicker;
 use Engine\Native\Divider;
+use Engine\Native\DottedBorder;
+use Engine\Native\EmojiPicker;
 use Engine\Native\IconCircle;
+use Engine\Native\IntlPhoneNumberInput;
 use Engine\Native\NestedScroll;
+use Engine\Native\NumberPicker;
+use Engine\Native\PageIndicator;
+use Engine\Native\PinCodeField;
 use Engine\Native\Positioned;
 use Engine\Native\ProgressBar;
+use Engine\Native\QrCode;
 use Engine\Native\Skeleton;
 use Engine\Native\Snackbar;
 use Engine\Native\Sparkline;
@@ -68,6 +77,12 @@ final class NativeWidgetsFormsScreen
         $note = $_GET['note'] ?? '';
         $volume = (float) ($_GET['volume'] ?? '0.5');
         $plan = $_GET['plan'] ?? 'free';
+        $otp = $_GET['otp'] ?? '';
+        $quantity = (int) ($_GET['quantity'] ?? '1');
+        $dialCountry = $_GET['dial_country'] ?? 'FR';
+        $phone = $_GET['phone'] ?? '';
+        $mood = $_GET['mood'] ?? '';
+        $pagerIndex = (int) ($_GET['pager_index'] ?? '0');
 
         $caption = static fn (string $text): Widget => new Padding(
             EdgeInsets::only(top: Tokens::SPACE_LG, bottom: Tokens::SPACE_SM),
@@ -234,6 +249,37 @@ final class NativeWidgetsFormsScreen
                     ], fontSize: Tokens::TEXT_BODY, color: Tokens::ink()->toHex()),
 
                     new Divider(),
+
+                    $caption('Widgets UI purs — packages Engine\\Native (composition, zéro Kotlin)'),
+
+                    $caption('PinCodeField — pin_code_fields/pinput'),
+                    new PinCodeField('otp', $otp, 4),
+
+                    $caption('NumberPicker — stepper +/-'),
+                    new NumberPicker('quantity', $quantity, 0, 10),
+
+                    $caption('PageIndicator — dots seuls (déjà intégré dans PageView)'),
+                    new PageIndicator(4, $pagerIndex),
+
+                    $caption('DottedBorder — bordure en pointillés autour de n\'importe quel widget'),
+                    new DottedBorder(new Padding(EdgeInsets::all(Tokens::SPACE_LG), new Text('Zone de dépôt', Tokens::TEXT_BODY, Tokens::inkMuted()->toHex()))),
+
+                    $caption('CountryPicker — Engine\\Countries, 194 pays, hors-ligne'),
+                    new CountryPicker('country_full', $selected),
+
+                    $caption('IntlPhoneNumberInput — CountryCodePicker + TextField'),
+                    new IntlPhoneNumberInput('dial_country', 'phone', $dialCountry, $phone),
+                    new Padding(
+                        EdgeInsets::only(top: 4),
+                        new Text('Indicatif : ' . (CountryCodePicker::dialCode($dialCountry) ?? '?'), Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
+                    ),
+
+                    $caption('EmojiPicker — grille tappable, Canvas::text() rend l\'emoji directement'),
+                    new EmojiPicker('mood'),
+                    ...($mood !== '' ? [new Padding(EdgeInsets::only(top: Tokens::SPACE_SM), new Text("Choisi : {$mood}", Tokens::TEXT_BODY, Tokens::ink()->toHex()))] : []),
+
+                    $caption('QrCode — génération réelle (chillerlan/php-qrcode), le pendant de QrScanner'),
+                    new Center(new QrCode('https://phpnitro.dev', 160.0)),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,
