@@ -1824,6 +1824,26 @@ function cmdDoctor(): void
     $adb = trim((string) shell_exec('command -v adb 2>/dev/null'));
     doctorCheck('adb', $adb !== '', $adb !== '' ? $adb : 'not found on PATH — only needed for dev:push against a real device', required: false);
 
+    // Only checked if an android/ dir exists in the current project —
+    // doctor also runs fine from a directory that isn't a scaffolded
+    // PhpNitro project at all (just checking machine-wide tooling), where
+    // this file could never make sense to ask for. Not required: debug
+    // builds sign with a throwaway key and work without it; this is
+    // purely to surface the release-signing gap BEFORE `build:android
+    // release` fails on it, rather than only via that failure — see
+    // android/keystore.properties.example, already scaffolded by `phpx
+    // new`, for how a developer actually fills this in.
+    if (is_dir(getcwd() . '/android')) {
+        echo "\nAndroid release signing (only needed for build:android release)\n";
+        $keystoreProps = getcwd() . '/android/keystore.properties';
+        doctorCheck(
+            'android/keystore.properties',
+            is_file($keystoreProps),
+            is_file($keystoreProps) ? 'found' : 'missing — build:android release will fail signing validation without it, see android/keystore.properties.example',
+            required: false,
+        );
+    }
+
     echo "\n";
     echo $allOk
         ? "phpx is ready — every required tool is present.\n"
