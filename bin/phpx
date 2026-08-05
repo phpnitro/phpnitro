@@ -1250,6 +1250,24 @@ function minimalLayoutDemoRoute(): string
             }
             echo json_encode(['error' => $error], JSON_THROW_ON_ERROR);
         });
+
+        // Only ever set by the embedded PhpServer.kt that runs this exact
+        // php -S process on a real device — never by phpx serve (dev/CLI)
+        // or PhpNitro Studio/Go, so this never blocks local development.
+        // See PhpServer.kt's own accessToken docblock for the full threat
+        // model this closes (another app on the SAME phone port-scanning
+        // 127.0.0.1 and driving every action behind this one route with
+        // zero prior knowledge otherwise).
+        $expectedToken = getenv('PHPNITRO_ACCESS_TOKEN');
+        if ($expectedToken !== false && $expectedToken !== '') {
+            $providedToken = $_SERVER['HTTP_X_PHPNITRO_TOKEN'] ?? '';
+            if (!hash_equals($expectedToken, $providedToken)) {
+                http_response_code(403);
+                echo json_encode(['error' => ['class' => 'Forbidden', 'message' => 'Jeton manquant ou invalide.']], JSON_THROW_ON_ERROR);
+                exit;
+            }
+        }
+
         $renderStart = microtime(true);
 
         $screenWidth = (float) ($_GET['width'] ?? 360);

@@ -131,6 +131,29 @@ if ($path === '/native/layout-demo') {
         }
         echo json_encode(['error' => $error], JSON_THROW_ON_ERROR);
     });
+
+    // PHPNITRO_ACCESS_TOKEN is only ever set by the embedded PhpServer.kt
+    // that runs this exact php -S process on a real device (see its own
+    // accessToken docblock) — a fresh random secret per app launch, never
+    // logged, never written anywhere another app could read it from.
+    // Absent entirely under `phpx serve` (dev/CLI, and PhpNitro Go's LAN
+    // mode reaching a `phpx serve` on someone's dev machine), so this
+    // never blocks local development — it only ever activates on-device,
+    // where every action for every screen (login, register, payments,
+    // reorder...) already lives behind this one route, and PHP binding
+    // 127.0.0.1 only stops a remote attacker but not another app already
+    // installed on the SAME phone, which can still port-scan localhost
+    // and reach it with zero prior knowledge otherwise.
+    $expectedToken = getenv('PHPNITRO_ACCESS_TOKEN');
+    if ($expectedToken !== false && $expectedToken !== '') {
+        $providedToken = $_SERVER['HTTP_X_PHPNITRO_TOKEN'] ?? '';
+        if (!hash_equals($expectedToken, $providedToken)) {
+            http_response_code(403);
+            echo json_encode(['error' => ['class' => 'Forbidden', 'message' => 'Jeton manquant ou invalide.']], JSON_THROW_ON_ERROR);
+            exit;
+        }
+    }
+
     // Point 3 of the "grow the framework" pass: a real performance number
     // instead of an intuition. renderTimeMs covers layout()+paint() only
     // (the PHP-side compute this architecture is actually gambling on

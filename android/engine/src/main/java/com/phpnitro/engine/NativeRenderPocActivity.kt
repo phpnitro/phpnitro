@@ -90,6 +90,12 @@ class NativeRenderPocActivity : AppCompatActivity() {
     // `phpx serve` dev server over the LAN instead of an embedded php-cli
     // process, reusing this exact same rendering pipeline unmodified.
     private var serverHost: String = "127.0.0.1"
+    // Null in remote mode (PhpNitro Go) — the LAN `phpx serve` this talks
+    // to then has no idea what this token even is, see PhpServer.kt's own
+    // accessToken docblock for why that's fine (a documented, accepted,
+    // different threat model). Set right after the embedded PhpServer
+    // starts, read by every fetchDrawCommands() call from then on.
+    private var accessToken: String? = null
     private val screenStack = mutableListOf<String>()
     private val fieldValues = mutableMapOf<String, String>()
     private var activeEditText: EditText? = null
@@ -288,6 +294,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
             refetch(action = null, isNavigation = true)
         } else {
             phpServer = PhpServer(this)
+            accessToken = phpServer.accessToken
             thread {
                 val port = phpServer.start()
                 serverPort = port
@@ -1363,6 +1370,12 @@ class NativeRenderPocActivity : AppCompatActivity() {
         try {
             val connection = URL("http://$serverHost:$port/native/layout-demo?width=$screenWidthDp&height=$screenHeightDp&screen=$screen$routeParams$actionParam$onlineParam$darkParam$localeParam$scrollYParam$fieldsParam$lastHashParam").openConnection() as HttpURLConnection
             connection.connectTimeout = 5000
+            // Absent in remote mode (accessToken stays null, see its own
+            // field docblock) — public/index.php only enforces this
+            // header when PHPNITRO_ACCESS_TOKEN is actually set in its
+            // environment, which phpx serve never sets either, so this
+            // is a no-op there regardless.
+            accessToken?.let { connection.setRequestProperty("X-PhpNitro-Token", it) }
             val responseCode = connection.responseCode
             Log.i(TAG, "Fetching /native/layout-demo (screen=$screen, action=$action), response code $responseCode")
             // HttpURLConnection throws FileNotFoundException from

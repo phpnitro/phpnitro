@@ -5,6 +5,7 @@ import java.io.File
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.security.SecureRandom
 
 /**
  * Runs the bundled PHP binary — a normal cross-compiled PHP CLI executable
@@ -44,6 +45,27 @@ class PhpServer(private val context: Context) {
     private var process: Process? = null
     private var port: Int = 0
 
+    /**
+     * A fresh random secret each launch, known only to this process and
+     * the PHP child it spawns (via env var, never logged, never written
+     * to a file another app could read) — see /native/layout-demo's own
+     * check in public/index.php for why: PHP binds 127.0.0.1 only, so no
+     * OTHER device can ever reach it, but any OTHER app installed on this
+     * SAME device (Android doesn't restrict loopback between apps) could
+     * still port-scan 127.0.0.1, find it, and drive login/register/
+     * payments/etc. through it with zero prior knowledge required —
+     * every action for every screen lives behind that one route (see
+     * NativeRenderPocActivity's own fetchDrawCommands(), its only
+     * caller). This token is that route's whole defense against that:
+     * a co-located app can find the PORT by scanning, but can't guess
+     * this. Deliberately NOT applied to phpx serve (bin/phpx's own dev
+     * server never sets this env var) — that one's threat model is
+     * already documented and accepted (LAN-reachable by design, for
+     * PhpNitro Go, same trade-off `expo start` makes).
+     */
+    val accessToken: String = ByteArray(24).also { SecureRandom().nextBytes(it) }
+        .joinToString("") { "%02x".format(it) }
+
     /** Returns the port the server actually bound to. */
     fun start(): Int {
         val freePort = findFreePort()
@@ -74,6 +96,7 @@ class PhpServer(private val context: Context) {
 
         builder.environment()["LD_LIBRARY_PATH"] = nativeDir
         builder.environment()["TMPDIR"] = tmp.absolutePath
+        builder.environment()["PHPNITRO_ACCESS_TOKEN"] = accessToken
 
         process = builder.start()
 
