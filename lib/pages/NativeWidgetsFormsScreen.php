@@ -23,6 +23,7 @@ use Engine\Native\DatePicker;
 use Engine\Native\Divider;
 use Engine\Native\DottedBorder;
 use Engine\Native\EmojiPicker;
+use Engine\Native\GoogleFontText;
 use Engine\Native\IconCircle;
 use Engine\Native\IntlPhoneNumberInput;
 use Engine\Native\NestedScroll;
@@ -238,6 +239,16 @@ final class NativeWidgetsFormsScreen
                         static fn (string $name): Widget => new Icon($name, 22.0, Tokens::inkSecondary()->toHex()),
                         ['check', 'close', 'search', 'favorite', 'star', 'delete', 'edit', 'download', 'upload', 'share', 'event', 'schedule', 'mail', 'phone', 'lock', 'notifications', 'info', 'visibility'],
                     ), spacing: Tokens::SPACE_MD, runSpacing: Tokens::SPACE_MD),
+
+                    $caption('Icon(font: fontawesome) — Font Awesome Solid, 1392 glyphes (voir FontAwesomeIcons.php)'),
+                    new Wrap(array_map(
+                        static fn (string $name): Widget => new Icon($name, 22.0, Tokens::inkSecondary()->toHex(), font: 'fontawesome'),
+                        ['house', 'heart', 'star', 'user', 'gear', 'bell', 'cart_shopping', 'envelope', 'magnifying_glass', 'trash', 'pen', 'thumbs_up'],
+                    ), spacing: Tokens::SPACE_MD, runSpacing: Tokens::SPACE_MD),
+
+                    $caption('GoogleFontText — police téléchargée via l\'API Downloadable Fonts d\'Android'),
+                    new GoogleFontText('Playfair Display', 'Playfair Display', 22.0, Tokens::ink()->toHex(), bold: true),
+                    new Padding(EdgeInsets::only(top: Tokens::SPACE_SM), new GoogleFontText('Pacifico — police manuscrite', 'Pacifico', 18.0, Tokens::ink()->toHex())),
 
                     $caption('RichText — styles mixés dans un seul paragraphe'),
                     new RichText([

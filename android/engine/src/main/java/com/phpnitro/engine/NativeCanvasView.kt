@@ -2466,10 +2466,22 @@ class NativeCanvasView(context: Context) : View(context) {
 
     private fun drawTextCommand(canvas: Canvas, command: JSONObject, alpha: Float) {
         val bold = command.optBoolean("bold", false)
+        // GoogleFontText (Engine\Native\GoogleFontText) — same "draw with
+        // the fallback now, invalidate() once the real asset resolves"
+        // idiom drawImageCommand() already uses for ImageLoader.
+        val fontFamily = command.optString("fontFamily", "")
+        val typeface = if (fontFamily.isNotEmpty()) {
+            GoogleFontLoader.get(fontFamily) ?: run {
+                GoogleFontLoader.load(context, fontFamily) { invalidate() }
+                robotoTypeface(context, bold)
+            }
+        } else {
+            robotoTypeface(context, bold)
+        }
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor(command.optString("color", "#000000"))
             textSize = command.optDouble("size", 16.0).toFloat()
-            typeface = robotoTypeface(context, bold)
+            this.typeface = typeface
             letterSpacing = command.optDouble("letterSpacing", 0.0).toFloat()
             this.alpha = (this.alpha * alpha).toInt()
         }
@@ -2496,7 +2508,11 @@ class NativeCanvasView(context: Context) : View(context) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = color
             textSize = size
-            typeface = materialIconsTypeface(context)
+            typeface = if (command.optString("font", "material") == "fontawesome") {
+                fontAwesomeTypeface(context)
+            } else {
+                materialIconsTypeface(context)
+            }
             textAlign = Paint.Align.CENTER
         }
 
@@ -2776,6 +2792,19 @@ class NativeCanvasView(context: Context) : View(context) {
         private fun materialIconsTypeface(context: Context): Typeface {
             return cachedMaterialIconsTypeface ?: Typeface.createFromAsset(context.assets, "fonts/MaterialIcons-Regular.ttf").also {
                 cachedMaterialIconsTypeface = it
+            }
+        }
+
+        @Volatile
+        private var cachedFontAwesomeTypeface: Typeface? = null
+
+        // FontAwesomeIcons (Engine\Native\FontAwesomeIcons) — same glyph-
+        // against-a-bundled-font technique as materialIconsTypeface()
+        // just above, a second font family selected via the icon draw
+        // command's own "font" field (see Icon.php's $font parameter).
+        private fun fontAwesomeTypeface(context: Context): Typeface {
+            return cachedFontAwesomeTypeface ?: Typeface.createFromAsset(context.assets, "fonts/FontAwesome-Solid.ttf").also {
+                cachedFontAwesomeTypeface = it
             }
         }
 

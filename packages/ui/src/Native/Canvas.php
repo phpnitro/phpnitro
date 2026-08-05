@@ -669,7 +669,13 @@ final class Canvas
         return $this;
     }
 
-    public function text(float $x, float $y, string $text, string $color = '#000000', float $size = 16.0, bool $bold = false, float $letterSpacing = 0.0): self
+    /**
+     * $fontFamily (GoogleFontText's own use) names a Google Fonts family
+     * ("Roboto Slab", "Playfair Display"...) resolved on-device via
+     * Android's Downloadable Fonts API — omitted/null keeps the default
+     * bundled Roboto every other Text/Button/etc. already uses.
+     */
+    public function text(float $x, float $y, string $text, string $color = '#000000', float $size = 16.0, bool $bold = false, float $letterSpacing = 0.0, ?string $fontFamily = null): self
     {
         $this->commands[] = $this->tagFixed(array_filter([
             'type' => 'text',
@@ -680,29 +686,33 @@ final class Canvas
             'size' => $size,
             'bold' => $bold ?: null,
             'letterSpacing' => $letterSpacing > 0.0 ? $letterSpacing : null,
+            'fontFamily' => $fontFamily,
         ], static fn (mixed $value): bool => $value !== null));
 
         return $this;
     }
 
     /**
-     * A Material Icons glyph — NativeCanvasView draws it with
-     * Canvas.drawText() against the bundled MaterialIcons-Regular.ttf,
-     * exactly the technique Flutter's own Icons class uses internally
-     * (an icon is a character, not a bitmap or a hand-drawn path). $x/$y
-     * are the icon's top-left corner, same convention as rect()/text();
-     * $codepoint comes from MaterialIcons::codepoint($name).
+     * A Material Icons (or, with $font: 'fontawesome', Font Awesome
+     * Solid) glyph — NativeCanvasView draws it with Canvas.drawText()
+     * against the matching bundled font, exactly the technique Flutter's
+     * own Icons class uses internally (an icon is a character, not a
+     * bitmap or a hand-drawn path). $x/$y are the icon's top-left
+     * corner, same convention as rect()/text(); $codepoint comes from
+     * MaterialIcons::codepoint($name) or FontAwesomeIcons::codepoint($name)
+     * depending on $font.
      */
-    public function icon(float $x, float $y, float $size, int $codepoint, string $color = '#111827'): self
+    public function icon(float $x, float $y, float $size, int $codepoint, string $color = '#111827', string $font = 'material'): self
     {
-        $this->commands[] = $this->tagFixed([
+        $this->commands[] = $this->tagFixed(array_filter([
             'type' => 'icon',
             'x' => $x,
             'y' => $y,
             'size' => $size,
             'codepoint' => $codepoint,
             'color' => $color,
-        ]);
+            'font' => $font !== 'material' ? $font : null,
+        ], static fn (mixed $value): bool => $value !== null));
 
         return $this;
     }
