@@ -58,46 +58,71 @@ final class Tokens
     // NativeRenderPocActivity sends based on the device's real system
     // dark-mode setting (Configuration.uiMode) — the same "system, not a
     // manually-chosen app setting" default Flutter/RN apps start from.
-    private static bool $isDark = false;
+    //
+    // A STACK, not a single flag — Theme (this same namespace) pushes a
+    // per-subtree override on top and pops it back off, so a single
+    // screen can have one dark section inside an otherwise light one.
+    // init() reseeds the whole stack (never just the base), since a
+    // request boundary means any previous request's Theme push/pop pairs
+    // are irrelevant garbage, not state to preserve.
+    /** @var list<bool> */
+    private static array $darkStack = [false];
 
     public static function init(bool $isDark): void
     {
-        self::$isDark = $isDark;
+        self::$darkStack = [$isDark];
     }
 
     public static function isDark(): bool
     {
-        return self::$isDark;
+        return self::$darkStack[array_key_last(self::$darkStack)];
+    }
+
+    /** Theme's own push/pop pair — not meant to be called directly, see Theme::__construct()/layout()/paint(). */
+    public static function push(bool $isDark): void
+    {
+        self::$darkStack[] = $isDark;
+    }
+
+    public static function pop(): void
+    {
+        // Guards the base entry init() seeds — a stray extra pop() (a bug
+        // in Theme, or a future caller misusing this directly) shouldn't
+        // be able to empty the stack and make isDark() crash on every
+        // subsequent call for the rest of the request.
+        if (count(self::$darkStack) > 1) {
+            array_pop(self::$darkStack);
+        }
     }
 
     public static function ink(): Color
     {
-        return self::$isDark ? Color::gray(50) : Color::gray(900);
+        return self::isDark() ? Color::gray(50) : Color::gray(900);
     }
 
     public static function inkSecondary(): Color
     {
-        return self::$isDark ? Color::gray(400) : Color::gray(500);
+        return self::isDark() ? Color::gray(400) : Color::gray(500);
     }
 
     public static function inkMuted(): Color
     {
-        return self::$isDark ? Color::gray(500) : Color::gray(400);
+        return self::isDark() ? Color::gray(500) : Color::gray(400);
     }
 
     public static function surface(): Color
     {
-        return self::$isDark ? Color::gray(900) : Color::white();
+        return self::isDark() ? Color::gray(900) : Color::white();
     }
 
     public static function surfaceMuted(): Color
     {
-        return self::$isDark ? Color::gray(800) : Color::gray(50);
+        return self::isDark() ? Color::gray(800) : Color::gray(50);
     }
 
     public static function border(): Color
     {
-        return self::$isDark ? Color::gray(700) : Color::gray(200);
+        return self::isDark() ? Color::gray(700) : Color::gray(200);
     }
 
     public static function success(): Color
@@ -106,21 +131,21 @@ final class Tokens
         // reads as a confident, saturated green on white reads as muddy
         // and low-contrast on a near-black surface; every accent color
         // below follows the same one-step-lighter-in-dark adjustment.
-        return Color::green(self::$isDark ? 400 : 600);
+        return Color::green(self::isDark() ? 400 : 600);
     }
 
     public static function successMuted(): Color
     {
-        return self::$isDark ? Color::green(900) : Color::green(50);
+        return self::isDark() ? Color::green(900) : Color::green(50);
     }
 
     public static function danger(): Color
     {
-        return Color::red(self::$isDark ? 400 : 600);
+        return Color::red(self::isDark() ? 400 : 600);
     }
 
     public static function dangerMuted(): Color
     {
-        return self::$isDark ? Color::red(900) : Color::red(50);
+        return self::isDark() ? Color::red(900) : Color::red(50);
     }
 }
