@@ -8,6 +8,10 @@ Signs END USERS in/up via Firebase's Identity Toolkit REST API — a different G
 
 ### `static signIn(string $webApiKey, string $email, string $password): array`
 
+### `static signInWithGoogleIdToken(string $webApiKey, string $googleIdToken): array`
+
+Exchanges a Google ID token (obtained on-device via Android's Credential Manager — see NativeDeviceBridge.kt's signInWithGoogle()) for a Firebase session, through Identity Toolkit's federated-identity endpoint. The ID token itself was already issued by Google and proves the user's Google identity; this call's only job is telling Firebase "trust this token, create or look up the matching Firebase user." No client-side Firebase SDK involved, same as signIn()/signUp() above.
+
 ## `Engine\Firebase\FirebaseMessaging` (class)
 
 Sends a push via FCM's HTTP v1 API (POST .../messages:send), which requires a service-account bearer token — see GoogleServiceAccount.

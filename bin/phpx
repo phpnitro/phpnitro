@@ -576,8 +576,18 @@ function cmdGenerateApiDocs(): void
         $packageName = basename(dirname($relativeDir));
         $packages[$packageName] ??= [];
 
-        foreach (glob("{$dir}/*.php") ?: [] as $file) {
-            $className = $prefix . basename($file, '.php');
+        // Recursive, not glob("{$dir}/*.php") — that only ever saw files
+        // directly in $dir, silently skipping every class in a
+        // sub-namespace's own subdirectory (PSR-4: a subdirectory IS a
+        // sub-namespace). packages/ui/src/ maps to the bare "Engine\\"
+        // prefix, but every real widget (Button, Canvas, Container...)
+        // lives under packages/ui/src/Native/ — Engine\Native\* — which
+        // this missed entirely until now: 1 class documented out of
+        // ~100+, confirmed by re-running this after the fix.
+        foreach (globPhpFilesRecursive($dir) as $file) {
+            $relativePath = ltrim(substr($file, strlen($dir)), '/');
+            $classSuffix = str_replace('/', '\\', substr($relativePath, 0, -4));
+            $className = $prefix . $classSuffix;
             if (class_exists($className) || interface_exists($className) || enum_exists($className)) {
                 $packages[$packageName][] = $className;
             }
@@ -605,6 +615,21 @@ function cmdGenerateApiDocs(): void
     file_put_contents(PHPX_ROOT . '/docs/api.md', implode("\n", $index) . "\n");
 
     echo "Generated API reference for {$totalClasses} classes across " . count($packages) . " packages into docs/api/\n";
+}
+
+/** @return string[] absolute paths, every *.php file under $dir at any depth. */
+function globPhpFilesRecursive(string $dir): array
+{
+    $result = [];
+    foreach (glob("{$dir}/*") ?: [] as $entry) {
+        if (is_dir($entry)) {
+            $result = array_merge($result, globPhpFilesRecursive($entry));
+        } elseif (str_ends_with($entry, '.php')) {
+            $result[] = $entry;
+        }
+    }
+
+    return $result;
 }
 
 function renderClassApiDoc(string $className): string
