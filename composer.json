@@ -35,7 +35,8 @@
             "Engine\\Crypto\\": "packages/crypto/src/",
             "Engine\\Mime\\": "packages/mime/src/",
             "Engine\\Retry\\": "packages/retry/src/",
-            "Engine\\Jwt\\": "packages/jwt/src/"
+            "Engine\\Jwt\\": "packages/jwt/src/",
+            "Engine\\Geocoding\\": "packages/geocoding/src/"
         }
     },
     "autoload-dev": {
@@ -52,7 +53,8 @@
             "Engine\\Mime\\Tests\\": "packages/mime/tests/",
             "Engine\\Retry\\Tests\\": "packages/retry/tests/",
             "Engine\\Jwt\\Tests\\": "packages/jwt/tests/",
-            "Engine\\Math\\Tests\\": "packages/math/tests/"
+            "Engine\\Math\\Tests\\": "packages/math/tests/",
+            "Engine\\Geocoding\\Tests\\": "packages/geocoding/tests/"
         }
     }
 }
