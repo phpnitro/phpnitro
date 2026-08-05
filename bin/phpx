@@ -543,8 +543,7 @@ function cmdFirebase(): void
  * "the framework's API") and writes one docs/api/{package}.md per
  * packages/*\/src directory, plus an docs/api.md index — a docblock- and
  * signature-derived reference, not hand-written, so it can't silently
- * drift the way hand-maintained API docs do (see
- * ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md item #16).
+ * drift the way hand-maintained API docs do.
  */
 function cmdGenerateApiDocs(): void
 {
@@ -1311,7 +1310,7 @@ function nativeHomeScreenTemplate(): string
  * a project a developer is meant to read/edit — minifying there would be
  * actively hostile) and only turned on by cmdBundleAndroid(), where the
  * goal is exactly the opposite: ship as little readable source as possible
- * in the APK (see ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md item #2).
+ * in the APK.
  */
 function copyDirectory(string $source, string $destination, array $skip = [], bool $minifyPhp = false): void
 {
@@ -1343,8 +1342,7 @@ function copyDirectory(string $source, string $destination, array $skip = [], bo
  * Strips comments/docblocks and collapses whitespace via PHP's own
  * tokenizer — NOT a real obfuscator (no identifier renaming, no string
  * encoding: a decompressed APK's .php files are still fully readable PHP,
- * just without the comments), see ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md
- * item #2 for what real protection would require. Whitespace is collapsed
+ * just without the comments). Whitespace is collapsed
  * to a single space/newline rather than removed outright: PHP requires
  * separating whitespace between some adjacent tokens (`function foo`,
  * `return $x`), and token_get_all() never breaks up a string/heredoc body

@@ -24,7 +24,6 @@
         "box.json",
         "phpstan.neon.dist",
         "phpunit.xml",
-        "ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md",
         "README.md"
     ]
 }
