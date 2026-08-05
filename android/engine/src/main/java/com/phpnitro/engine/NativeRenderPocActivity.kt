@@ -32,6 +32,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.common.InputImage
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -235,6 +237,36 @@ class NativeRenderPocActivity : AppCompatActivity() {
         val parts = token.split(":")
         fieldValues[parts.getOrElse(2) { "permission_out" }] = if (granted) "granted" else "denied"
         refetch(action = null, includeFields = true)
+    }
+
+    // Decodes a QR/barcode from a single still, not a live-scanning
+    // preview — see build.gradle.kts's own comment on the
+    // barcode-scanning dependency for why that's the honest scope here
+    // (no persistent camera preview surface on this native Canvas-only
+    // path). A SEPARATE TakePicturePreview launcher from the plain
+    // "camera" action's — that one's callback is hardcoded to
+    // fieldValues["photo_out"], reusing it here would either clobber
+    // that field or need every camera call site to somehow know which
+    // purpose this particular tap was for.
+    private var pendingQrOutputField: String? = null
+
+    private val scanQrPicture = registerForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+        val outputField = pendingQrOutputField ?: "qr_out"
+        pendingQrOutputField = null
+        if (bitmap == null) {
+            fieldValues[outputField] = "Annulé"
+            refetch(action = null, includeFields = true)
+            return@registerForActivityResult
+        }
+        BarcodeScanning.getClient().process(InputImage.fromBitmap(bitmap, 0))
+            .addOnSuccessListener { barcodes ->
+                fieldValues[outputField] = barcodes.firstOrNull()?.rawValue ?: "Aucun code détecté"
+                refetch(action = null, includeFields = true)
+            }
+            .addOnFailureListener { e ->
+                fieldValues[outputField] = e.message ?: "Erreur de décodage"
+                refetch(action = null, includeFields = true)
+            }
     }
 
     private fun handlePermissionAction(token: String) {
@@ -796,6 +828,10 @@ class NativeRenderPocActivity : AppCompatActivity() {
             "camera" -> takePicturePreview.launch(null)
             "pickimage" -> pickImage.launch("image/*")
             "permission" -> handlePermissionAction(token)
+            "scanqr" -> {
+                pendingQrOutputField = parts.getOrElse(1) { "qr_out" }
+                scanQrPicture.launch(null)
+            }
             "googlesignin" -> {
                 val webClientId = getString(R.string.google_web_client_id)
                 deviceBridge.signInWithGoogle(webClientId) { idToken, error ->

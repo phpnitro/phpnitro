@@ -65,6 +65,17 @@ dependencies {
     // web-based translate.google.com widget. Genuinely more "native" than
     // what it replaces, not just a workaround.
     api("com.google.mlkit:translate:17.0.3")
+    // QrScannerButton (Engine\Native\QrScannerButton) — decodes a QR/
+    // barcode from a single captured still (reusing takePicturePreview's
+    // existing Bitmap result, see NativeRenderPocActivity's scanQr
+    // action), not a continuous live-scanning preview. A real live
+    // scanner needs a persistent camera preview surface, which
+    // NativeDeviceBridge.kt's own docblock already names as the one
+    // thing genuinely still WebView-only ("a LIVE camera/mic preview
+    // surface... those stay on the WebView path") — decode-a-still is
+    // the honest scope this native Canvas-only Activity can actually
+    // deliver without that.
+    api("com.google.mlkit:barcode-scanning:17.3.0")
     // RenderLottie — a real com.airbnb.android.lottie.LottieAnimationView
     // overlaid at the widget's rect (same "no Canvas concept for a
     // continuous animation loop, overlay a real Android View instead"

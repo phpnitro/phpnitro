@@ -15,6 +15,7 @@ use Engine\Native\Flex;
 use Engine\Native\Widget;
 use Engine\Native\Padding;
 use Engine\Native\PermissionButton;
+use Engine\Native\QrScannerButton;
 use Engine\Native\Text;
 use Engine\Native\Tokens;
 
@@ -62,6 +63,7 @@ final class NativeDeviceScreen
         $nfcOut = $_GET['nfc_out'] ?? null;
         $iapOut = $_GET['iap_out'] ?? null;
         $locPermOut = $_GET['loc_perm_out'] ?? null;
+        $qrOut = $_GET['qr_out'] ?? null;
 
         $row = static fn (string $label, string $action, ?string $result = null): Widget => new Padding(
             EdgeInsets::only(top: Tokens::SPACE_MD),
@@ -109,6 +111,10 @@ final class NativeDeviceScreen
                     ),
                     ...($locPermOut !== null
                         ? [new Padding(EdgeInsets::only(top: Tokens::SPACE_SM), new Text($locPermOut, Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true))]
+                        : []),
+                    new Padding(EdgeInsets::only(top: Tokens::SPACE_LG), new QrScannerButton()),
+                    ...($qrOut !== null
+                        ? [new Padding(EdgeInsets::only(top: Tokens::SPACE_SM), new Text($qrOut, Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true))]
                         : []),
                     $row('Accéléromètre', 'device:sensor:sensor_out', $sensorOut),
                     $row('Écouter NFC', 'device:nfcstart'),
