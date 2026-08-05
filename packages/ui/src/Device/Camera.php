@@ -9,7 +9,7 @@
  * file that was distributed with this source code.
  */
 
-namespace Engine\Native;
+namespace Engine\Device;
 
 /**
  * Launches the system camera app (ActivityResultContracts.TakePicturePreview,

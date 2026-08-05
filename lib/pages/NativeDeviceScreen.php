@@ -2,20 +2,33 @@
 
 namespace Engine\App;
 
-use Engine\Native\Camera;
+use Engine\Device\AppLinks;
+use Engine\Device\AppSettings;
+use Engine\Device\Camera;
+use Engine\Device\Clipboard;
+use Engine\Device\Connectivity;
+use Engine\Device\EmailSender;
+use Engine\Device\FileSaver;
+use Engine\Device\FileSelector;
+use Engine\Device\InAppReview;
+use Engine\Device\InAppUpdate;
+use Engine\Device\MapLauncher;
+use Engine\Device\OpenFile;
+use Engine\Device\RestartApp;
+use Engine\Device\UrlLauncher;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\AppBar;
 use Engine\Native\Button;
 use Engine\Native\Divider;
-use Engine\Native\Microphone;
+use Engine\Device\VoiceRecorder;
 use Engine\Native\Scaffold;
 use Engine\Native\Container;
 use Engine\Native\Flex;
 use Engine\Native\Widget;
 use Engine\Native\Padding;
-use Engine\Native\Permission;
-use Engine\Native\QrScanner;
+use Engine\Device\Permission;
+use Engine\Device\QrScanner;
 use Engine\Native\Text;
 use Engine\Native\Tokens;
 
@@ -58,12 +71,18 @@ final class NativeDeviceScreen
         $pickedImageOut = $_GET['picked_image_out'] ?? null;
         $biometricOut = $_GET['biometric_out'] ?? null;
         $locationOut = $_GET['location_out'] ?? null;
-        $micOut = Microphone::result();
+        $micOut = VoiceRecorder::result();
         $sensorOut = $_GET['sensor_out'] ?? null;
         $nfcOut = $_GET['nfc_out'] ?? null;
         $iapOut = $_GET['iap_out'] ?? null;
         $locPermOut = Permission::result('loc_perm_out');
         $qrOut = QrScanner::result();
+        $connectivityOut = Connectivity::result();
+        $appLinkOut = AppLinks::result();
+        $updateOut = InAppUpdate::result();
+        $fileOut = FileSelector::result();
+        $saveOut = FileSaver::result();
+        $clipboardOut = Clipboard::result();
 
         $row = static fn (string $label, string $action, ?string $result = null): Widget => new Padding(
             EdgeInsets::only(top: Tokens::SPACE_MD),
@@ -97,7 +116,7 @@ final class NativeDeviceScreen
                     $row('Authentifier (biométrie)', 'device:biometric:biometric_out', $biometricOut),
                     $row('Luminosité 50%', 'device:brightness'),
                     $row('Localiser', 'device:locate:location_out', $locationOut),
-                    $row('Activer le micro (2s)', Microphone::recordAction(), $micOut),
+                    $row('Activer le micro (2s)', VoiceRecorder::recordAction(), $micOut),
                     $row('Vérifier/demander la localisation', Permission::requestAction('location', 'loc_perm_out'), $locPermOut),
                     $row('Scanner un QR code', QrScanner::scanAction(), $qrOut),
                     $row('Accéléromètre', 'device:sensor:sensor_out', $sensorOut),
@@ -111,6 +130,22 @@ final class NativeDeviceScreen
                     $row('Annuler tâche de fond', 'device:bgcancel'),
                     new Padding(EdgeInsets::only(top: Tokens::SPACE_LG), new Divider()),
                     $row('Imprimer (PDF)', 'device:printpdf'),
+                    new Padding(EdgeInsets::only(top: Tokens::SPACE_LG), new Divider()),
+                    new Text('Capacités device — packages Engine\\Device (aucun widget imposé)', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
+                    $row('Ouvrir un lien', UrlLauncher::openAction('https://phpnitro.dev')),
+                    $row('Connectivité', Connectivity::checkAction(), $connectivityOut),
+                    $row('Demander un avis', InAppReview::requestAction()),
+                    $row('Dernier lien entrant', AppLinks::lastLinkAction(), $appLinkOut),
+                    $row('Réglages de l\'app', AppSettings::openAction('app')),
+                    $row('Ouvrir un fichier', OpenFile::openAction('Bonjour depuis PhpNitro !')),
+                    $row('Vérifier les mises à jour', InAppUpdate::checkAction(), $updateOut),
+                    $row('Choisir un fichier', FileSelector::pickAction(), $fileOut),
+                    $row('Ouvrir Paris dans Maps', MapLauncher::openAction(48.8566, 2.3522, 'Paris')),
+                    $row('Enregistrer une note', FileSaver::saveAction('note.txt', 'Ma note PhpNitro'), $saveOut),
+                    $row('Copier dans le presse-papiers', Clipboard::copyAction('Copié depuis PhpNitro !')),
+                    $row('Lire le presse-papiers', Clipboard::pasteAction(), $clipboardOut),
+                    $row('Envoyer un email', EmailSender::composeAction('contact@example.com', 'Bonjour', 'Message envoyé depuis PhpNitro.')),
+                    $row('Redémarrer l\'app', RestartApp::restartAction()),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,

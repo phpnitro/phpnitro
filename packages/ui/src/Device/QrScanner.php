@@ -9,7 +9,7 @@
  * file that was distributed with this source code.
  */
 
-namespace Engine\Native;
+namespace Engine\Device;
 
 /**
  * Scans a QR code or barcode — a photo is taken via the system camera app

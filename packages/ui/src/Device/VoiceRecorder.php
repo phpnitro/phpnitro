@@ -9,12 +9,12 @@
  * file that was distributed with this source code.
  */
 
-namespace Engine\Native;
+namespace Engine\Device;
 
 /**
  * Records a short audio clip via MediaRecorder (NativeDeviceBridge.kt's
  * recordAudioClip()) — an action-string builder, not a widget: attach
- * Microphone::recordAction() to any Button of your choosing.
+ * VoiceRecorder::recordAction() to any Button of your choosing.
  *
  * A real RECORD_AUDIO runtime permission prompt is involved (see
  * NativeRenderPocActivity's ActivityResultContracts.RequestPermission()
@@ -22,7 +22,7 @@ namespace Engine\Native;
  * $outputField the same round-trip way a successful recording does —
  * check for that value, not just truthiness.
  */
-final class Microphone
+final class VoiceRecorder
 {
     public static function recordAction(string $outputField = 'mic_out', int $durationMs = 2000): string
     {

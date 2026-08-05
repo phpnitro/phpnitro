@@ -99,4 +99,10 @@ dependencies {
     // startOAuthFlow() and Engine\SocialAuth\OAuthProvider's own
     // docblock.
     api("androidx.browser:browser:1.8.0")
+    // Engine\Device\InAppReview / Engine\Device\InAppUpdate — Play's own
+    // review sheet and update flow, not custom dialogs pretending to be
+    // them. Play Core's old monolithic artifact is deprecated; these are
+    // its split successors.
+    api("com.google.android.play:review-ktx:2.0.2")
+    api("com.google.android.play:app-update-ktx:2.1.0")
 }

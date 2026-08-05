@@ -86,5 +86,22 @@
              broadcast -n` can still target it explicitly on a debuggable
              build. See HotReloadReceiver.kt. -->
         <receiver android:name=".HotReloadReceiver" android:exported="false" />
+
+        <!-- Engine\Device\OpenFile — a content:// Uri is the only way to
+             hand another app (whatever resolves the file's MIME type) a
+             file living in this app's own storage; a raw file:// path is
+             rejected across app boundaries since API 24. ${applicationId}
+             resolves to the consuming app's own package at merge time, so
+             this authority never collides between two PhpNitro apps
+             installed side by side on the same device. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

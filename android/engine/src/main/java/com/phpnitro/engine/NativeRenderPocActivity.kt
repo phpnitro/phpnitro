@@ -269,6 +269,33 @@ class NativeRenderPocActivity : AppCompatActivity() {
             }
     }
 
+    // Engine\Device\FileSelector — picks any file type (unlike pickImage's
+    // "image/*"), reports back the display name only (see FileSelector's
+    // own docblock for why not the bytes).
+    private var pendingFileOutputField: String? = null
+
+    private val pickFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val outputField = pendingFileOutputField ?: "file_out"
+        pendingFileOutputField = null
+        if (uri == null) {
+            fieldValues[outputField] = "Annulé"
+        } else {
+            var name = uri.lastPathSegment ?: "fichier"
+            contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (nameIndex >= 0 && cursor.moveToFirst()) name = cursor.getString(nameIndex)
+            }
+            fieldValues[outputField] = name
+        }
+        refetch(action = null, includeFields = true)
+    }
+
+    // Engine\Device\InAppUpdate — startUpdateFlowForResult's own launcher;
+    // the flow's UI is entirely Play's, this callback just exists because
+    // the KTX API requires a registered ActivityResultLauncher, there's
+    // nothing of ours to do with its result.
+    private val appUpdateLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {}
+
     private fun handlePermissionAction(token: String) {
         val parts = token.split(":")
         val outputField = parts.getOrElse(2) { "permission_out" }
@@ -869,6 +896,180 @@ class NativeRenderPocActivity : AppCompatActivity() {
             "bgschedule" -> deviceBridge.scheduleBackgroundTask("/api/ping", 15)
             "bgcancel" -> deviceBridge.cancelBackgroundTask()
             "printpdf" -> printCurrentScreen()
+            // Engine\Device\UrlLauncher — the URL travels rawurlencode()'d
+            // (see UrlLauncher's own docblock for why), decoded back here.
+            "openurl" -> {
+                val url = java.net.URLDecoder.decode(parts.getOrElse(1) { "" }, "UTF-8")
+                if (url.isNotEmpty()) startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+            }
+            // Engine\Device\Connectivity — reuses the same isOnline() the
+            // WebView path's Engine\Connectivity\ConnectivityBadge calls.
+            "connectivity" -> {
+                fieldValues[parts.getOrElse(1) { "connectivity_out" }] = if (deviceBridge.isOnline()) "online" else "offline"
+                refetch(action = null, includeFields = true)
+            }
+            // Engine\Device\InAppReview — Play Core's own review sheet;
+            // no result to report, see InAppReview's own docblock for why
+            // Play never guarantees the prompt actually shows.
+            "inappreview" -> {
+                val manager = com.google.android.play.core.review.ReviewManagerFactory.create(this)
+                manager.requestReviewFlow().addOnCompleteListener { task ->
+                    if (task.isSuccessful) manager.launchReviewFlow(this, task.result)
+                }
+            }
+            // Engine\Device\AppLinks — the current Intent's own data URI;
+            // setIntent() in onNewIntent() keeps `intent` current even
+            // after the launching Intent that started this instance.
+            "applink" -> {
+                fieldValues[parts.getOrElse(1) { "app_link_out" }] = intent?.data?.toString() ?: "Aucun lien"
+                refetch(action = null, includeFields = true)
+            }
+            // Engine\Device\AppSettings — a fixed whitelist of Settings
+            // screens, same "reject an unknown key up front" pattern
+            // handlePermissionAction() uses; an unrecognised $screen falls
+            // back to this app's own detail page.
+            "appsettings" -> {
+                val settingsIntent = when (parts.getOrElse(1) { "app" }) {
+                    "wifi" -> Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)
+                    "location" -> Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                    "notifications" -> Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
+                    "bluetooth" -> Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
+                    else -> Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", packageName, null))
+                }
+                startActivity(settingsIntent)
+            }
+            // Engine\Device\OpenFile — writes the demo content to this
+            // app's own files dir, then hands it off via the FileProvider
+            // declared in this module's AndroidManifest.xml (see
+            // res/xml/file_paths.xml) — a raw file:// Uri would be
+            // rejected across app boundaries since API 24.
+            "openfile" -> {
+                val fileName = java.net.URLDecoder.decode(parts.getOrElse(1) { "document.txt" }, "UTF-8")
+                val mimeType = java.net.URLDecoder.decode(parts.getOrElse(2) { "text/plain" }, "UTF-8")
+                val content = java.net.URLDecoder.decode(parts.getOrElse(3) { "" }, "UTF-8")
+                val file = java.io.File(filesDir, fileName)
+                file.writeText(content)
+                val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+                startActivity(
+                    Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(uri, mimeType)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    },
+                )
+            }
+            // Engine\Device\InAppUpdate — outside a real Play Store
+            // install this always resolves to update_not_available (no
+            // Play-side release exists to compare against), see
+            // InAppUpdate's own docblock.
+            "checkupdate" -> {
+                val outputField = parts.getOrElse(1) { "update_out" }
+                val appUpdateManager = com.google.android.play.core.appupdate.AppUpdateManagerFactory.create(this)
+                appUpdateManager.appUpdateInfo
+                    .addOnSuccessListener { info ->
+                        if (info.updateAvailability() == com.google.android.play.core.install.model.UpdateAvailability.UPDATE_AVAILABLE &&
+                            info.isUpdateTypeAllowed(com.google.android.play.core.install.model.AppUpdateType.FLEXIBLE)
+                        ) {
+                            fieldValues[outputField] = "update_available"
+                            appUpdateManager.startUpdateFlowForResult(
+                                info,
+                                appUpdateLauncher,
+                                com.google.android.play.core.appupdate.AppUpdateOptions.newBuilder(
+                                    com.google.android.play.core.install.model.AppUpdateType.FLEXIBLE,
+                                ).build(),
+                            )
+                        } else {
+                            fieldValues[outputField] = "update_not_available"
+                        }
+                        refetch(action = null, includeFields = true)
+                    }
+                    .addOnFailureListener {
+                        fieldValues[outputField] = "update_not_available"
+                        refetch(action = null, includeFields = true)
+                    }
+            }
+            "pickfile" -> {
+                pendingFileOutputField = parts.getOrElse(1) { "file_out" }
+                pickFile.launch(arrayOf("*/*"))
+            }
+            // Engine\Device\MapLauncher — a "geo:" Uri, resolved by
+            // whichever maps app the OS has (or a chooser if several).
+            "openmap" -> {
+                val lat = parts.getOrNull(1) ?: "0"
+                val lng = parts.getOrNull(2) ?: "0"
+                val label = java.net.URLDecoder.decode(parts.getOrElse(3) { "" }, "UTF-8")
+                val geoUri = if (label.isNotEmpty()) {
+                    android.net.Uri.parse("geo:$lat,$lng?q=$lat,$lng(${android.net.Uri.encode(label)})")
+                } else {
+                    android.net.Uri.parse("geo:$lat,$lng?q=$lat,$lng")
+                }
+                startActivity(Intent(Intent.ACTION_VIEW, geoUri))
+            }
+            // Engine\Device\FileSaver — MediaStore.Downloads needs API 29+
+            // (the scoped-storage way, no WRITE_EXTERNAL_STORAGE
+            // permission); minSdk here is 24, hence the version gate.
+            "savefile" -> {
+                val fileName = java.net.URLDecoder.decode(parts.getOrElse(1) { "phpnitro.txt" }, "UTF-8")
+                val content = java.net.URLDecoder.decode(parts.getOrElse(2) { "" }, "UTF-8")
+                val outputField = parts.getOrElse(3) { "save_out" }
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    try {
+                        val values = android.content.ContentValues().apply {
+                            put(android.provider.MediaStore.Downloads.DISPLAY_NAME, fileName)
+                            put(android.provider.MediaStore.Downloads.MIME_TYPE, "text/plain")
+                        }
+                        val uri = contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                        if (uri != null) {
+                            contentResolver.openOutputStream(uri)?.use { it.write(content.toByteArray()) }
+                            fieldValues[outputField] = "Enregistré"
+                        } else {
+                            fieldValues[outputField] = "Erreur d'enregistrement"
+                        }
+                    } catch (e: Exception) {
+                        fieldValues[outputField] = e.message ?: "Erreur d'enregistrement"
+                    }
+                } else {
+                    fieldValues[outputField] = "Non supporté (Android < 10)"
+                }
+                refetch(action = null, includeFields = true)
+            }
+            "clipboardcopy" -> {
+                val text = java.net.URLDecoder.decode(parts.getOrElse(1) { "" }, "UTF-8")
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("PhpNitro", text))
+            }
+            "clipboardpaste" -> {
+                val outputField = parts.getOrElse(1) { "clipboard_out" }
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                val text = clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(this)?.toString()
+                fieldValues[outputField] = text?.takeIf { it.isNotEmpty() } ?: "Presse-papiers vide ou inaccessible"
+                refetch(action = null, includeFields = true)
+            }
+            // Engine\Device\EmailSender — ACTION_SENDTO with a "mailto:"
+            // Uri only ever matches real mail apps, unlike ACTION_SEND.
+            "sendemail" -> {
+                val to = java.net.URLDecoder.decode(parts.getOrElse(1) { "" }, "UTF-8")
+                val subject = java.net.URLDecoder.decode(parts.getOrElse(2) { "" }, "UTF-8")
+                val body = java.net.URLDecoder.decode(parts.getOrElse(3) { "" }, "UTF-8")
+                startActivity(
+                    Intent(Intent.ACTION_SENDTO).apply {
+                        data = android.net.Uri.parse("mailto:")
+                        putExtra(Intent.EXTRA_EMAIL, arrayOf(to))
+                        putExtra(Intent.EXTRA_SUBJECT, subject)
+                        putExtra(Intent.EXTRA_TEXT, body)
+                    },
+                )
+            }
+            // Engine\Device\RestartApp — relaunches the launcher Intent
+            // with FLAG_ACTIVITY_CLEAR_TASK, then kills this process, so
+            // the next launch is a genuinely fresh process.
+            "restartapp" -> {
+                val restartIntent = packageManager.getLaunchIntentForPackage(packageName)
+                restartIntent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK)
+                if (restartIntent != null) startActivity(restartIntent)
+                Runtime.getRuntime().exit(0)
+            }
         }
     }
 

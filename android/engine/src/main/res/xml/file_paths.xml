@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Backs the FileProvider declared in this module's AndroidManifest.xml
+     (Engine\Device\OpenFile). Exposes context.filesDir — where
+     "device:openfile" writes its demo content before handing off a
+     content:// Uri for it — and nothing else. -->
+<paths>
+    <files-path name="files" path="." />
+</paths>
