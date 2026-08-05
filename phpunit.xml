@@ -43,5 +43,20 @@
         <testsuite name="analytics">
             <directory>packages/analytics/tests</directory>
         </testsuite>
+        <testsuite name="uuid">
+            <directory>packages/uuid/tests</directory>
+        </testsuite>
+        <testsuite name="crypto">
+            <directory>packages/crypto/tests</directory>
+        </testsuite>
+        <testsuite name="mime">
+            <directory>packages/mime/tests</directory>
+        </testsuite>
+        <testsuite name="retry">
+            <directory>packages/retry/tests</directory>
+        </testsuite>
+        <testsuite name="jwt">
+            <directory>packages/jwt/tests</directory>
+        </testsuite>
     </testsuites>
 </phpunit>
