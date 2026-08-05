@@ -413,13 +413,14 @@ final class Canvas
      * bounded amount of content, not a long list; LazyList still owns
      * that case), the drag itself 100% client-side. Unlike
      * horizontalScroll()'s axis-based disambiguation against the outer
-     * page scroll (same touch, different axis — an easy split),
-     * NativeCanvasView.kt claims this region for the WHOLE gesture the
-     * moment a drag starts inside its rect (both this and the outer
-     * scroll are vertical, so there's no axis to arbitrate on) — see its
-     * own comment for why that's an intentional, real scope boundary,
-     * not full nested-scroll bubble semantics. See NestedScroll, the
-     * only real caller.
+     * page scroll (same touch, different axis — an easy split), both this
+     * and the outer scroll are vertical, so there's no axis to arbitrate
+     * on: NativeCanvasView.kt claims a drag starting inside this region's
+     * rect for it, but once the drag pushes past this region's own
+     * top/bottom edge, the excess bubbles to the outer page scroll for
+     * the rest of that same gesture — see its own ACTION_MOVE handling.
+     * Still only one level (a region nested inside another isn't
+     * arbitrated). See NestedScroll, the only real caller.
      */
     public function verticalScroll(string $key, float $x, float $y, float $viewportWidth, float $viewportHeight, float $contentHeight, array $regionCommands, array $regionHitRegions): self
     {

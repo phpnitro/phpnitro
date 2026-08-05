@@ -334,12 +334,14 @@ class NativeCanvasView(context: Context) : View(context) {
     // NestedScroll (Canvas::verticalScroll()) — the vertical counterpart
     // to HScrollRegion right above, with one real difference: both this
     // and the outer page scroll move on the SAME axis, so there's no
-    // horizontal-vs-vertical split to arbitrate a drag with. Instead, a
-    // drag starting inside a registered region's rect claims the WHOLE
-    // gesture for that region (never bubbles to the outer scroll even
-    // once the nested content hits its own top/bottom) — a real,
-    // intentional scope boundary short of full nested-scroll semantics,
-    // see Canvas::verticalScroll()'s own docblock.
+    // horizontal-vs-vertical split to arbitrate a drag with. A drag
+    // starting inside a registered region's rect claims the gesture for
+    // it, but only up to that region's own top/bottom edge — once
+    // reached, the excess delta bubbles to the outer page scroll for the
+    // rest of that same gesture (see the ACTION_MOVE handling below).
+    // Only ONE level of nesting either way (a NestedScroll inside another
+    // NestedScroll isn't arbitrated) — full multi-level bubbling like
+    // Flutter's NestedScrollView isn't implemented, just this one level.
     private data class VScrollRegion(val key: String, val rect: RectF, val contentHeight: Float, val viewportHeight: Float)
     private var vScrollRegions: List<VScrollRegion> = emptyList()
     private val vScrollOffsets = mutableMapOf<String, Float>()
@@ -1307,8 +1309,30 @@ class NativeCanvasView(context: Context) : View(context) {
                     val region = activeVScroll!!
                     val deltaDp = (lastTouchY - event.y) / density
                     val maxOffset = (region.contentHeight - region.viewportHeight).coerceAtLeast(0f)
-                    vScrollOffsets[region.key] = ((vScrollOffsets[region.key] ?: 0f) + deltaDp).coerceIn(0f, maxOffset)
-                    lastTouchY = event.y
+                    val current = vScrollOffsets[region.key] ?: 0f
+                    val next = current + deltaDp
+                    if (next < 0f || next > maxOffset) {
+                        // The nested region just hit its own top/bottom edge
+                        // — only the EXCESS beyond that edge (not the whole
+                        // delta) bubbles to the outer page scroll, so the
+                        // handoff has no dead zone (see Canvas::
+                        // verticalScroll()'s docblock, which documented this
+                        // exact gap as a real scope boundary before this
+                        // fix). Once handed off, the REST of this gesture
+                        // (through ACTION_UP) stays with the page scroll
+                        // rather than re-arbitrating every frame — avoids a
+                        // flicker if the finger hovers right at the edge.
+                        val excess = if (next < 0f) next else next - maxOffset
+                        vScrollOffsets[region.key] = current.coerceIn(0f, maxOffset)
+                        activeVScroll = null
+                        isDragging = true
+                        scrollY = (scrollY + excess).coerceIn(0f, maxScroll)
+                        lastTouchY = event.y
+                        checkScrollFollow()
+                    } else {
+                        vScrollOffsets[region.key] = next
+                        lastTouchY = event.y
+                    }
                     invalidate()
                 } else {
                     // Pull-to-refresh's own "should this gesture even start
