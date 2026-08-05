@@ -2,20 +2,20 @@
 
 namespace Engine\App;
 
-use Engine\Native\AudioRecorder;
-use Engine\Native\CameraButton;
+use Engine\Native\Camera;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\AppBar;
 use Engine\Native\Button;
 use Engine\Native\Divider;
+use Engine\Native\Microphone;
 use Engine\Native\Scaffold;
 use Engine\Native\Container;
 use Engine\Native\Flex;
 use Engine\Native\Widget;
 use Engine\Native\Padding;
-use Engine\Native\PermissionButton;
-use Engine\Native\QrScannerButton;
+use Engine\Native\Permission;
+use Engine\Native\QrScanner;
 use Engine\Native\Text;
 use Engine\Native\Tokens;
 
@@ -54,16 +54,16 @@ final class NativeDeviceScreen
         $secureOut = $_GET['secure_out'] ?? null;
         $contactsOut = $_GET['contacts_out'] ?? null;
         $calendarOut = $_GET['calendar_out'] ?? null;
-        $photoOut = $_GET['photo_out'] ?? null;
+        $photoOut = Camera::result();
         $pickedImageOut = $_GET['picked_image_out'] ?? null;
         $biometricOut = $_GET['biometric_out'] ?? null;
         $locationOut = $_GET['location_out'] ?? null;
-        $micOut = $_GET['mic_out'] ?? null;
+        $micOut = Microphone::result();
         $sensorOut = $_GET['sensor_out'] ?? null;
         $nfcOut = $_GET['nfc_out'] ?? null;
         $iapOut = $_GET['iap_out'] ?? null;
-        $locPermOut = $_GET['loc_perm_out'] ?? null;
-        $qrOut = $_GET['qr_out'] ?? null;
+        $locPermOut = Permission::result('loc_perm_out');
+        $qrOut = QrScanner::result();
 
         $row = static fn (string $label, string $action, ?string $result = null): Widget => new Padding(
             EdgeInsets::only(top: Tokens::SPACE_MD),
@@ -92,30 +92,14 @@ final class NativeDeviceScreen
                     $row('Partager', 'device:share'),
                     $row('Icône bleue', 'device:appicon:alt'),
                     $row('Icône par défaut', 'device:appicon:default'),
-                    $row('Photo native', 'device:camera', $photoOut),
+                    $row('Photo native', Camera::captureAction(), $photoOut),
                     $row('Choisir une image', 'device:pickimage', $pickedImageOut),
                     $row('Authentifier (biométrie)', 'device:biometric:biometric_out', $biometricOut),
                     $row('Luminosité 50%', 'device:brightness'),
                     $row('Localiser', 'device:locate:location_out', $locationOut),
-                    $row('Activer le micro (2s)', 'device:mic:mic_out', $micOut),
-                    new Text('Widgets CameraButton/AudioRecorder (mêmes actions, prêts à l\'emploi) :', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
-                    new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), new CameraButton()),
-                    new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), new AudioRecorder(outputField: 'clip_out', durationMs: 3000)),
-                    ...(($_GET['clip_out'] ?? null) !== null
-                        ? [new Padding(EdgeInsets::only(top: Tokens::SPACE_SM), new Text($_GET['clip_out'], Tokens::TEXT_BODY, Tokens::ink()->toHex()))]
-                        : []),
-                    new Text('Widget PermissionButton (générique, réutilisable) :', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
-                    new Padding(
-                        EdgeInsets::only(top: Tokens::SPACE_MD),
-                        new PermissionButton('location', 'Vérifier/demander la localisation', outputField: 'loc_perm_out'),
-                    ),
-                    ...($locPermOut !== null
-                        ? [new Padding(EdgeInsets::only(top: Tokens::SPACE_SM), new Text($locPermOut, Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true))]
-                        : []),
-                    new Padding(EdgeInsets::only(top: Tokens::SPACE_LG), new QrScannerButton()),
-                    ...($qrOut !== null
-                        ? [new Padding(EdgeInsets::only(top: Tokens::SPACE_SM), new Text($qrOut, Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true))]
-                        : []),
+                    $row('Activer le micro (2s)', Microphone::recordAction(), $micOut),
+                    $row('Vérifier/demander la localisation', Permission::requestAction('location', 'loc_perm_out'), $locPermOut),
+                    $row('Scanner un QR code', QrScanner::scanAction(), $qrOut),
                     $row('Accéléromètre', 'device:sensor:sensor_out', $sensorOut),
                     $row('Écouter NFC', 'device:nfcstart'),
                     $row('Arrêter NFC', 'device:nfcstop', $nfcOut),

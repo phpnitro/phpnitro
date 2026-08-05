@@ -13,12 +13,10 @@ namespace Engine\Native;
 
 /**
  * Checks (and if needed, prompts for) a dangerous Android runtime
- * permission — the generic counterpart to CameraButton/AudioRecorder's
- * OWN one-off permission handling: those two already knew exactly which
- * single permission they needed, but a screen wanting to gate some other
- * feature on a permission first (before that feature's own action even
- * exists yet) had no reusable way to ask without hand-wiring its own
- * NativeRenderPocActivity launcher.
+ * permission — an action-string builder, not a widget: attach
+ * Permission::requestAction() to any Button of your choosing, the same
+ * way Flutter's permission_handler package hands you a plain
+ * Permission.camera.request() call rather than a widget.
  *
  * $permission is one of a fixed whitelist NativeRenderPocActivity itself
  * defines (see its own permissionKeys map) — 'camera', 'microphone',
@@ -34,26 +32,15 @@ namespace Engine\Native;
  * Result lands in $_GET[$outputField] as 'granted', 'denied', or
  * 'unknown_permission' — check for that value, not just truthiness.
  */
-final class PermissionButton implements Widget
+final class Permission
 {
-    private readonly Button $content;
-
-    public function __construct(
-        string $permission,
-        string $label,
-        string $outputField = 'permission_out',
-        ?Color $background = null,
-    ) {
-        $this->content = new Button($label, "device:permission:{$permission}:{$outputField}", background: $background);
+    public static function requestAction(string $permission, string $outputField = 'permission_out'): string
+    {
+        return "device:permission:{$permission}:{$outputField}";
     }
 
-    public function layout(Constraints $constraints): Size
+    public static function result(string $outputField = 'permission_out'): ?string
     {
-        return $this->content->layout($constraints);
-    }
-
-    public function paint(Canvas $canvas, float $x, float $y): void
-    {
-        $this->content->paint($canvas, $x, $y);
+        return $_GET[$outputField] ?? null;
     }
 }

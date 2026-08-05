@@ -12,10 +12,13 @@
 namespace Engine\Native;
 
 /**
- * Scans a QR code or barcode — a photo is taken via the system camera
- * app (same ActivityResultContracts.TakePicturePreview CameraButton
- * uses) and decoded on-device with ML Kit's barcode-scanning model, see
+ * Scans a QR code or barcode — a photo is taken via the system camera app
+ * (same ActivityResultContracts.TakePicturePreview Camera uses) and
+ * decoded on-device with ML Kit's barcode-scanning model, see
  * NativeRenderPocActivity's own scanQrPicture launcher.
+ *
+ * An action-string builder, not a widget: attach QrScanner::scanAction()
+ * to any Button of your choosing.
  *
  * Deliberately NOT a live-scanning preview (point the camera and it
  * detects automatically, no shutter tap) — that needs a persistent
@@ -31,25 +34,15 @@ namespace Engine\Native;
  * if a screen needs to tell "no code" apart from "cancelled" from a real
  * value.
  */
-final class QrScannerButton implements Widget
+final class QrScanner
 {
-    private readonly Button $content;
-
-    public function __construct(
-        string $label = '▦ Scanner un QR code',
-        string $outputField = 'qr_out',
-        ?Color $background = null,
-    ) {
-        $this->content = new Button($label, "device:scanqr:{$outputField}", background: $background);
+    public static function scanAction(string $outputField = 'qr_out'): string
+    {
+        return "device:scanqr:{$outputField}";
     }
 
-    public function layout(Constraints $constraints): Size
+    public static function result(string $outputField = 'qr_out'): ?string
     {
-        return $this->content->layout($constraints);
-    }
-
-    public function paint(Canvas $canvas, float $x, float $y): void
-    {
-        $this->content->paint($canvas, $x, $y);
+        return $_GET[$outputField] ?? null;
     }
 }
