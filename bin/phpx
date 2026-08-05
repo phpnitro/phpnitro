@@ -1231,6 +1231,25 @@ function minimalLayoutDemoRoute(): string
     return <<<'PHP'
     if ($path === '/native/layout-demo') {
         header('Content-Type: application/json');
+        // Without this, a fatal error anywhere below (a screen's build(),
+        // a typo'd class name, a missing use import) falls through to
+        // whatever HTML error handler the app bootstrap installed earlier
+        // — the Content-Type header above is already locked in, so the
+        // client receives an HTML body labeled application/json, fails to
+        // parse it, and shows nothing with zero indication of why. This
+        // replaces the handler for the rest of this request and gives
+        // callers (NativeRenderPocActivity, PhpNitro Studio's Design mode)
+        // a real {"error": {...}} shape to detect and display instead.
+        set_exception_handler(static function (\Throwable $e) use ($debug): void {
+            http_response_code(500);
+            $error = ['class' => $e::class, 'message' => $e->getMessage()];
+            if ($debug) {
+                $error['file'] = $e->getFile();
+                $error['line'] = $e->getLine();
+                $error['trace'] = $e->getTraceAsString();
+            }
+            echo json_encode(['error' => $error], JSON_THROW_ON_ERROR);
+        });
         $renderStart = microtime(true);
 
         $screenWidth = (float) ($_GET['width'] ?? 360);
