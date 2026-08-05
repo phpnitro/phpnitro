@@ -14,6 +14,7 @@ use Engine\Native\Container;
 use Engine\Native\Flex;
 use Engine\Native\Widget;
 use Engine\Native\Padding;
+use Engine\Native\PermissionButton;
 use Engine\Native\Text;
 use Engine\Native\Tokens;
 
@@ -60,6 +61,7 @@ final class NativeDeviceScreen
         $sensorOut = $_GET['sensor_out'] ?? null;
         $nfcOut = $_GET['nfc_out'] ?? null;
         $iapOut = $_GET['iap_out'] ?? null;
+        $locPermOut = $_GET['loc_perm_out'] ?? null;
 
         $row = static fn (string $label, string $action, ?string $result = null): Widget => new Padding(
             EdgeInsets::only(top: Tokens::SPACE_MD),
@@ -99,6 +101,14 @@ final class NativeDeviceScreen
                     new Padding(EdgeInsets::only(top: Tokens::SPACE_MD), new AudioRecorder(outputField: 'clip_out', durationMs: 3000)),
                     ...(($_GET['clip_out'] ?? null) !== null
                         ? [new Padding(EdgeInsets::only(top: Tokens::SPACE_SM), new Text($_GET['clip_out'], Tokens::TEXT_BODY, Tokens::ink()->toHex()))]
+                        : []),
+                    new Text('Widget PermissionButton (générique, réutilisable) :', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
+                    new Padding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new PermissionButton('location', 'Vérifier/demander la localisation', outputField: 'loc_perm_out'),
+                    ),
+                    ...($locPermOut !== null
+                        ? [new Padding(EdgeInsets::only(top: Tokens::SPACE_SM), new Text($locPermOut, Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true))]
                         : []),
                     $row('Accéléromètre', 'device:sensor:sensor_out', $sensorOut),
                     $row('Écouter NFC', 'device:nfcstart'),

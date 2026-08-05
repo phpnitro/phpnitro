@@ -199,6 +199,62 @@ class NativeRenderPocActivity : AppCompatActivity() {
         }
     }
 
+    // A generic, standalone counterpart to the "mic" action's own
+    // one-off permission dance above — "permission:<key>:<outputField>"
+    // checks (and if needed, prompts for) any ONE of a small whitelisted
+    // set of dangerous permissions this app already declares in its own
+    // AndroidManifest.xml, and reports back "granted"/"denied"/
+    // "unknown_permission" the same fieldValues+refetch way every other
+    // capability here does. A screen that wants to gate some OTHER
+    // feature on a permission (before wiring that feature's own action)
+    // can check/ask up front with this instead of copying "mic"'s whole
+    // pendingToken+launcher dance for itself — this is that dance, done
+    // once, reusable. Deliberately a fixed whitelist, not "request
+    // whatever string PHP sends": a typo'd or made-up permission name
+    // from a screen would otherwise either silently no-op or (worse)
+    // successfully request a permission this app's manifest never
+    // declared, which throws at the OS level with a confusing message
+    // far from where the typo actually is.
+    private val permissionKeys = mapOf(
+        "camera" to android.Manifest.permission.CAMERA,
+        "microphone" to android.Manifest.permission.RECORD_AUDIO,
+        "location" to android.Manifest.permission.ACCESS_FINE_LOCATION,
+        "coarse_location" to android.Manifest.permission.ACCESS_COARSE_LOCATION,
+        "contacts" to android.Manifest.permission.READ_CONTACTS,
+        "calendar" to android.Manifest.permission.READ_CALENDAR,
+        "notifications" to android.Manifest.permission.POST_NOTIFICATIONS,
+        "bluetooth" to android.Manifest.permission.BLUETOOTH_CONNECT,
+    )
+
+    private var pendingPermissionToken: String? = null
+
+    private val requestGenericPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val token = pendingPermissionToken
+        pendingPermissionToken = null
+        if (token == null) return@registerForActivityResult
+        val parts = token.split(":")
+        fieldValues[parts.getOrElse(2) { "permission_out" }] = if (granted) "granted" else "denied"
+        refetch(action = null, includeFields = true)
+    }
+
+    private fun handlePermissionAction(token: String) {
+        val parts = token.split(":")
+        val outputField = parts.getOrElse(2) { "permission_out" }
+        val permission = permissionKeys[parts.getOrNull(1)]
+        if (permission == null) {
+            fieldValues[outputField] = "unknown_permission"
+            refetch(action = null, includeFields = true)
+            return
+        }
+        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
+            fieldValues[outputField] = "granted"
+            refetch(action = null, includeFields = true)
+        } else {
+            pendingPermissionToken = token
+            requestGenericPermission.launch(permission)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Same native SplashScreen MainActivity uses (Theme.App.Starting,
         // themes.xml) — stays up exactly until the PHP server is bound and
@@ -739,6 +795,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
             }
             "camera" -> takePicturePreview.launch(null)
             "pickimage" -> pickImage.launch("image/*")
+            "permission" -> handlePermissionAction(token)
             "googlesignin" -> {
                 val webClientId = getString(R.string.google_web_client_id)
                 deviceBridge.signInWithGoogle(webClientId) { idToken, error ->
