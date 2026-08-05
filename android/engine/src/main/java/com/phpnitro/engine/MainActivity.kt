@@ -112,6 +112,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         splashScreen.setKeepOnScreenCondition { !(serverReady && pageLoaded) }
 
+        CrashReporter.install(this)
+
         ActivityCompat.requestPermissions(this, requestedPermissions, 0)
 
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)

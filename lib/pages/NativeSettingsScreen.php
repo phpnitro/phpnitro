@@ -105,6 +105,27 @@ final class NativeSettingsScreen
                         EdgeInsets::only(top: Tokens::SPACE_MD),
                         new ListTile('Moteur', null, 'memory', leadingColor: Tokens::inkSecondary(), trailingText: 'PHP -> Canvas'),
                     ),
+                    new Padding(
+                        EdgeInsets::only(top: Tokens::SPACE_XL),
+                        new Text('SUPPORT', Tokens::TEXT_CAPTION, Tokens::inkMuted()->toHex(), bold: true, letterSpacing: 0.04),
+                    ),
+                    // CrashReporter.kt persists every uncaught native
+                    // exception AND every PHP error the JSON overlay ever
+                    // showed — this just opens the share sheet on that
+                    // log. Works in a real release build too (no
+                    // isDebuggable() gate, unlike the dev tools overlay):
+                    // this is for an actual user hitting an actual crash,
+                    // not a developer's own device.
+                    new Padding(
+                        EdgeInsets::only(top: Tokens::SPACE_MD),
+                        new ListTile(
+                            'Signaler un problème',
+                            'Envoie les derniers rapports de plantage enregistrés',
+                            'bug_report',
+                            leadingColor: Tokens::inkSecondary(),
+                            action: 'device:report_crash',
+                        ),
+                    ),
                 ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             ),
             width: $screenWidth,

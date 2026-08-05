@@ -166,6 +166,11 @@ class NativeRenderPocActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         splashScreen.setKeepOnScreenCondition { serverPort == 0 || !firstScreenRendered }
 
+        // As early as possible — anything that throws further down in this
+        // very method still gets caught and persisted, not just crashes
+        // once the UI is up.
+        CrashReporter.install(this)
+
         // Without this, every fetchDrawCommands() request gets a BRAND NEW
         // PHPSESSID — java.net.HttpURLConnection never sends/stores cookies
         // on its own, and nothing else in this app ever installed a
@@ -622,6 +627,11 @@ class NativeRenderPocActivity : AppCompatActivity() {
         when (parts.getOrNull(0)) {
             "vibrate" -> deviceBridge.vibrate(200)
             "torch" -> deviceBridge.toggleTorch()
+            // See CrashReporter — a real user's actual path to a
+            // developer's inbox for a crash that already happened,
+            // regardless of build type (no debug gate, unlike the dev
+            // tools overlay).
+            "report_crash" -> deviceBridge.share(CrashReporter.formatForSharing(this), "Rapport de bug PhpNitro")
             "battery" -> {
                 fieldValues[parts.getOrElse(1) { "battery_out" }] = "${deviceBridge.batteryLevel()}%"
                 refetch(action = null, includeFields = true)
@@ -1416,6 +1426,8 @@ class NativeRenderPocActivity : AppCompatActivity() {
             showConnectionError()
             return
         }
+
+        CrashReporter.logPhpError(this, error)
 
         screenErrorView?.let { rootLayout.removeView(it) }
 
