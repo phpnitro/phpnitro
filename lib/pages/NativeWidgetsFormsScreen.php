@@ -8,6 +8,7 @@ use Engine\Native\EdgeInsets;
 use Engine\Native\AlertButton;
 use Engine\Native\Badge;
 use Engine\Native\Banner;
+use Engine\Native\BarChart;
 use Engine\Native\BottomSheet;
 use Engine\Native\Center;
 use Engine\Native\Checkbox;
@@ -38,6 +39,7 @@ use Engine\Native\Flex;
 use Engine\Native\Icon;
 use Engine\Native\Widget;
 use Engine\Native\Padding;
+use Engine\Native\PieChart;
 use Engine\Native\RichText;
 use Engine\Native\Text;
 use Engine\Native\Wrap;
@@ -187,6 +189,12 @@ final class NativeWidgetsFormsScreen
 
                     $caption('Sparkline — Canvas::custom(), dessiné par NativeRenderPocActivity, pas par le moteur'),
                     new Sparkline([3, 5, 4, 8, 6, 9, 7, 12, 10, 15], $contentWidth, 48.0),
+
+                    $caption('BarChart — même mécanisme que Sparkline'),
+                    new BarChart([12, 28, 19, 34, 22, 40], $contentWidth, 100.0),
+
+                    $caption('PieChart — palette de couleurs auto-résolue'),
+                    new Center(new PieChart([35, 25, 20, 20], 140.0)),
 
                     $caption('NestedScroll — scroll indépendant dans le scroll de la page'),
                     new NestedScroll(

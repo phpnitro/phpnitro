@@ -1074,6 +1074,63 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 canvas.drawPath(path, paint)
             }
         }
+
+        // BarChart (Engine\Native\BarChart) — same custom-command pattern
+        // as sparkline right above, registered here rather than a new
+        // drawXxxCommand() in NativeCanvasView.kt for the same reason.
+        canvasView.registerCustomCommandHandler("barChart") { canvas, command, alpha ->
+            val x = command.getDouble("x").toFloat()
+            val y = command.getDouble("y").toFloat()
+            val w = command.getDouble("width").toFloat()
+            val h = command.getDouble("height").toFloat()
+            val gap = command.getDouble("gap").toFloat()
+            val values = command.getJSONArray("values")
+            val count = values.length()
+            if (count > 0) {
+                var max = 0.0
+                for (i in 0 until count) max = maxOf(max, values.getDouble(i))
+                if (max <= 0.0) max = 1.0
+                val barWidth = (w - gap * (count - 1)) / count
+                val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    style = android.graphics.Paint.Style.FILL
+                    color = Color.parseColor(command.getString("color"))
+                    this.alpha = (this.alpha * alpha).toInt()
+                }
+                for (i in 0 until count) {
+                    val barHeight = (h * (values.getDouble(i) / max)).toFloat().coerceAtLeast(0f)
+                    val left = x + i * (barWidth + gap)
+                    canvas.drawRect(left, y + h - barHeight, left + barWidth, y + h, paint)
+                }
+            }
+        }
+
+        // PieChart (Engine\Native\PieChart) — same pattern again, one arc
+        // per slice via drawArc(useCenter = true), sweep angle
+        // proportional to that slice's share of the total.
+        canvasView.registerCustomCommandHandler("pieChart") { canvas, command, alpha ->
+            val x = command.getDouble("x").toFloat()
+            val y = command.getDouble("y").toFloat()
+            val diameter = command.getDouble("diameter").toFloat()
+            val values = command.getJSONArray("values")
+            val colors = command.getJSONArray("colors")
+            val count = values.length()
+            var total = 0.0
+            for (i in 0 until count) total += values.getDouble(i)
+            if (count > 0 && total > 0.0) {
+                val rect = android.graphics.RectF(x, y, x + diameter, y + diameter)
+                val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    style = android.graphics.Paint.Style.FILL
+                }
+                var startAngle = -90f
+                for (i in 0 until count) {
+                    val sweep = (values.getDouble(i) / total * 360.0).toFloat()
+                    paint.color = Color.parseColor(colors.getString(i))
+                    paint.alpha = (paint.alpha * alpha).toInt()
+                    canvas.drawArc(rect, startAngle, sweep, true, paint)
+                    startAngle += sweep
+                }
+            }
+        }
     }
 
     private fun setupDevTools() {
