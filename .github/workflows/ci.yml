@@ -68,3 +68,44 @@ jobs:
         with:
           name: app-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+  android-e2e-test:
+    name: Android E2E (real emulator, android/app/src/androidTest)
+    # macos-14 (Apple Silicon, ARM64) is required, not ubuntu-latest —
+    # android/README.md documents only armeabi-v7a/arm64-v8a builds of
+    # libphp.so exist (no x86_64), so a standard Linux runner's x86_64
+    # emulator would boot the app straight into "PHP binary not found".
+    # An ARM64 system image on Apple Silicon gets real HVF hardware
+    # acceleration; the same arch on an Intel/AMD runner would fall back
+    # to software emulation, slow enough to blow past any reasonable CI
+    # timeout.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, pdo_sqlite
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: php bin/phpx bundle:android
+      - uses: gradle/actions/setup-gradle@v4
+      # connectedDebugAndroidTest builds+installs both the app APK and the
+      # test APK itself — no separate assembleDebug needed first. Only
+      # NativeUiE2ETest.kt's non-@Ignore()'d tests actually run; the two
+      # @Ignore()'d ones (drag-to-reorder, horizontal scroll) stay skipped
+      # for the documented reason in their own annotations, not silently
+      # dropped.
+      - name: Run instrumented E2E tests on a real arm64-v8a emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          arch: arm64-v8a
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          script: cd android && gradle :app:connectedDebugAndroidTest
