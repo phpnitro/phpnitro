@@ -304,6 +304,19 @@ class NativeCanvasView(context: Context) : View(context) {
     // only fills in keys this map doesn't already have.
     private val clientTabState = mutableMapOf<String, Int>()
 
+    // Cross-fade between the previously selected panel and the newly
+    // selected one — same alpha-compositing idea as drawCommands()'s
+    // whole-screen fadeProgress (see the previous/current pass around line
+    // 1958), just applied locally to one ClientTabs group's own two
+    // panels instead of the entire screen. Absent from this map = commit
+    // straight to clientTabState, no animation (BottomSheet's slide is a
+    // separate, already-animated mechanism — see sheetAnimatedOffsetY —
+    // so a key with a registered sheetHandleRegion never goes through
+    // this map at all, setClientTab() branches before it's ever touched).
+    private data class TabCrossfade(val fromIndex: Int, val toIndex: Int, var progress: Float = 0f)
+    private val clientTabCrossfade = mutableMapOf<String, TabCrossfade>()
+    private val clientTabCrossfadeAnimators = mutableMapOf<String, ValueAnimator>()
+
     // HorizontalScroll (Canvas::horizontalScroll()) — a nested scroll
     // region with its own local offset, independent of the outer page
     // scroll (scrollY below). hScrollOffsets follows clientTabState's exact
@@ -390,11 +403,41 @@ class NativeCanvasView(context: Context) : View(context) {
      * keeps drawing the "open" panel throughout the close animation
      * instead of it vanishing instantly while still visually mid-slide.
      * Every other clientTab key (ClientTabs, HorizontalScroll's discrete
-     * states) is untouched: instant, exactly as before.
+     * states) cross-fades instead of snapping — see clientTabCrossfade
+     * above and drawClientPanelCommand()'s use of it.
      */
     fun setClientTab(key: String, index: Int) {
         val sheet = sheetHandleRegions.firstOrNull { it.key == key }
-        if (sheet == null || index == clientTabState[key]) {
+        if (sheet == null) {
+            val current = clientTabState[key]
+            if (current == null || current == index) {
+                clientTabState[key] = index
+                invalidate()
+                return
+            }
+            clientTabCrossfadeAnimators[key]?.cancel()
+            val fade = TabCrossfade(fromIndex = current, toIndex = index)
+            clientTabCrossfade[key] = fade
+            clientTabCrossfadeAnimators[key] = ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = 160
+                interpolator = DecelerateInterpolator()
+                addUpdateListener {
+                    fade.progress = it.animatedValue as Float
+                    invalidate()
+                }
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        clientTabState[key] = index
+                        clientTabCrossfade.remove(key)
+                        invalidate()
+                    }
+                })
+                start()
+            }
+            return
+        }
+
+        if (index == clientTabState[key]) {
             clientTabState[key] = index
             invalidate()
             return
@@ -1036,14 +1079,26 @@ class NativeCanvasView(context: Context) : View(context) {
         canvas.restoreToCount(saved)
     }
 
-    // Only the panel whose index matches this group's current local
+    // Normally only the panel matching this group's current local
     // selection draws — every other panel this same command list carries
-    // (there's one clientPanel command per ClientTabs panel, all
-    // sharing the same rect) is skipped outright, same idea as the
-    // dismiss/reorder key checks in drawCommands() just above.
+    // (there's one clientPanel command per ClientTabs panel, all sharing
+    // the same rect) is skipped outright, same idea as the dismiss/reorder
+    // key checks in drawCommands() just above. Mid cross-fade (see
+    // clientTabCrossfade / setClientTab()), BOTH the outgoing and incoming
+    // panel draw at once, opposite alphas, exactly like drawCommands()'s
+    // own previous/current screen-transition pass — just scoped to this
+    // one panel's rect instead of the whole canvas.
     private fun drawClientPanelCommand(canvas: Canvas, command: JSONObject, alpha: Float) {
         val key = command.getString("key")
-        if (clientTabState[key] != command.getInt("index")) return
+        val panelIndex = command.getInt("index")
+        val crossfade = clientTabCrossfade[key]
+        val panelAlpha = when {
+            crossfade != null && panelIndex == crossfade.fromIndex -> alpha * (1f - crossfade.progress)
+            crossfade != null && panelIndex == crossfade.toIndex -> alpha * crossfade.progress
+            crossfade == null && clientTabState[key] == panelIndex -> alpha
+            else -> return
+        }
+        if (panelAlpha <= 0f) return
         val saved = canvas.save()
         canvas.translate(command.getDouble("x").toFloat(), command.getDouble("y").toFloat())
         // BottomSheet's own slide: setClientTab()'s open/close tween
@@ -1056,7 +1111,7 @@ class NativeCanvasView(context: Context) : View(context) {
         if (sheetOffset != 0f) canvas.translate(0f, sheetOffset)
         val nested = command.getJSONArray("commands")
         for (index in 0 until nested.length()) {
-            drawSingleCommand(canvas, nested.getJSONObject(index), alpha)
+            drawSingleCommand(canvas, nested.getJSONObject(index), panelAlpha)
         }
         canvas.restoreToCount(saved)
     }
