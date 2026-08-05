@@ -647,6 +647,16 @@ if ($path === '/native/layout-demo') {
         $canvas->setTransition('slideRight');
     }
 
+    // Automatic screen_view — the one event every app wants without a
+    // developer having to remember to call Analytics::track() from every
+    // single screen. Same "what counts as an actual navigation, not a
+    // same-screen refetch" condition setTransition() just used right
+    // above: a toggle/counter-increment refetch isn't a new screen view,
+    // the first load and every navigate:/back/tab: is.
+    if ($action === null || str_starts_with($action, 'navigate:') || $action === 'back' || str_starts_with($action, 'tab:')) {
+        \Engine\Analytics\Analytics::track('screen_view', ['screen' => $screen]);
+    }
+
     // NativeRenderPocActivity sends back the hash of the last response it
     // actually applied (only for a same-screen refetch — see
     // Canvas::stableHash()'s docblock). An identical hash means

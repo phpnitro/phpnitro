@@ -14,6 +14,7 @@ parameters:
         - packages/cloudinary/src
         - packages/i18n/src
         - packages/state/src
+        - packages/analytics/src
         - lib/pages
         - lib/backend/src
         - public/index.php

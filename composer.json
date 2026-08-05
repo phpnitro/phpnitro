@@ -25,6 +25,7 @@
             "Engine\\Cloudinary\\": "packages/cloudinary/src/",
             "Engine\\I18n\\": "packages/i18n/src/",
             "Engine\\State\\": "packages/state/src/",
+            "Engine\\Analytics\\": "packages/analytics/src/",
             "Engine\\App\\": "lib/pages/",
             "Backend\\": "lib/backend/src/",
             "Engine\\Format\\": "packages/format/src/"

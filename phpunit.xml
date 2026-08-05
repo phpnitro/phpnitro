@@ -40,5 +40,8 @@
         <testsuite name="state">
             <directory>packages/state/tests</directory>
         </testsuite>
+        <testsuite name="analytics">
+            <directory>packages/analytics/tests</directory>
+        </testsuite>
     </testsuites>
 </phpunit>
