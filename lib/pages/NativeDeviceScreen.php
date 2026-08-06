@@ -10,6 +10,7 @@ use Engine\Device\Connectivity;
 use Engine\Device\EmailSender;
 use Engine\Device\FileSaver;
 use Engine\Device\FileSelector;
+use Engine\Device\DynamicIcon;
 use Engine\Device\ImageCropper;
 use Engine\Device\InAppReview;
 use Engine\Device\InAppUpdate;
@@ -113,8 +114,8 @@ final class NativeDeviceScreen
                     $row('Jouer un son', 'device:sound'),
                     $row('Notification', 'device:notify'),
                     $row('Partager', 'device:share'),
-                    $row('Icône bleue', 'device:appicon:alt'),
-                    $row('Icône par défaut', 'device:appicon:default'),
+                    $row('Icône bleue', DynamicIcon::setAction('alt')),
+                    $row('Icône par défaut', DynamicIcon::setAction('default')),
                     $row('Photo native', Camera::captureAction(), $photoOut),
                     $row('Choisir une image', 'device:pickimage', $pickedImageOut),
                     $row('Authentifier (biométrie)', 'device:biometric:biometric_out', $biometricOut),

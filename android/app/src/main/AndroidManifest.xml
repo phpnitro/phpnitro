@@ -107,12 +107,17 @@
         </activity>
 
         <!-- Dynamic app icon: the MAIN/LAUNCHER entry point moved here (off
-             the target Activity itself) so it can switch between two
-             mutually exclusive icons at runtime — Engine\Device\AppIcon::
-             onClick() -> WebAppInterface.kt's setAppIcon() (or
-             NativeDeviceBridge.kt's setAppIcon() from the native side)
-             calls PackageManager.setComponentEnabledSetting() to enable
-             one alias and disable the other.
+             the target Activity itself) so it can switch between mutually
+             exclusive icons at runtime — Engine\Device\DynamicIcon::
+             setAction($key) -> NativeDeviceBridge.kt's setAppIcon()
+             discovers every activity-alias below by the ".DynamicIcon*"
+             naming convention (PackageManager, not a hardcoded list — see
+             its own docblock), enables the one matching $key, disables
+             every other one it found. Two variants ship here as the demo;
+             a project isn't capped at two — add another
+             ".DynamicIcon<Key>" alias below (same shape, its own
+             icon/roundIcon) and setAppIcon() picks it up with no Kotlin
+             change.
 
              Both aliases target NativeRenderPocActivity, not MainActivity —
              the native render engine (docs/proposals/moteur-rendu-natif.md)
@@ -131,7 +136,7 @@
              registration (none by default — see NativeRenderPocActivity's
              docblock) or its own single alias take over. -->
         <activity-alias
-            android:name=".MainActivityDefault"
+            android:name=".DynamicIconDefault"
             android:targetActivity="com.phpnitro.engine.NativeRenderPocActivity"
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
@@ -144,7 +149,7 @@
         </activity-alias>
 
         <activity-alias
-            android:name=".MainActivityAlt"
+            android:name=".DynamicIconAlt"
             android:targetActivity="com.phpnitro.engine.NativeRenderPocActivity"
             android:icon="@mipmap/ic_launcher_alt"
             android:roundIcon="@mipmap/ic_launcher_alt_round"
