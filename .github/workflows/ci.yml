@@ -79,7 +79,17 @@ jobs:
     # acceleration; the same arch on an Intel/AMD runner would fall back
     # to software emulation, slow enough to blow past any reasonable CI
     # timeout.
-    runs-on: macos-14
+    #
+    # -xlarge specifically (not plain macos-14): confirmed by a real CI
+    # run's own QEMU output — "HVF error: HV_UNSUPPORTED" /
+    # "qemu-system-aarch64-headless: failed to initialize HVF: Invalid
+    # argument" — that GitHub's STANDARD macos-14 runner doesn't expose
+    # nested virtualization (HVF) to the VM it hands out, so the
+    # emulator's own hypervisor init crashes before any emulator-options
+    # tuning could ever matter. Only the -xlarge tier does. This is a
+    # billed runner size — costs real Actions minutes at a higher rate,
+    # confirmed acceptable before this change (see PR discussion).
+    runs-on: macos-14-xlarge
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
@@ -108,18 +118,17 @@ jobs:
           target: google_apis
           profile: pixel_6
           disable-animations: true
-          # A previous attempt here added `-gpu swiftshader_indirect`
-          # (a software renderer meant for x86 emulation acceleration)
-          # alongside `-no-window` — confirmed by a real CI run to make
-          # things WORSE, not better: the emulator process never even
-          # bound port 5554 ("could not connect to TCP port 5554:
-          # Connection refused"), a hard launch failure, not just a slow
-          # boot. Reverted to no custom GPU mode (emulator picks a
-          # sensible default for this arm64-v8a-on-Apple-Silicon
-          # combination on its own) — only the boot timeout is bumped
-          # past the action's 300s default, a strictly additive change
-          # that can only help a genuinely slow-but-otherwise-working
-          # boot, not break a working one.
+          # A previous theory blamed `-gpu swiftshader_indirect` for the
+          # emulator never binding port 5554 and reverted to this
+          # action's own default emulator-options — WRONG, disproven by
+          # a real CI run's own log: the actual launch command still
+          # included `-gpu swiftshader_indirect` regardless (it's this
+          # action's DEFAULT, not something the earlier custom
+          # `emulator-options:` line was uniquely responsible for), and
+          # the real crash was `runs-on`'s runner tier the whole time
+          # (see its own comment above) — QEMU's HVF init failing, logged
+          # several lines before adb ever gets involved. The boot-timeout
+          # bump stays; it's still a strictly additive safety margin.
           emulator-boot-timeout: 900
           script: cd android && gradle :app:connectedDebugAndroidTest
 
