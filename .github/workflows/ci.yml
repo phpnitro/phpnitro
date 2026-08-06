@@ -139,12 +139,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: xcodebuild -scheme PhpNitroWebViewBridge -destination 'generic/platform=iOS Simulator' build
-      # Xcode's auto-generated scheme for a single LIBRARY product (named
-      # after that product, "PhpNitroNativeEngine") isn't wired for the
-      # Test action — only the scheme matching the PACKAGE's own name
-      # (Package.swift's `name: "PhpNitroEngine"`, which aggregates every
-      # target including PhpNitroNativeEngineTests) is. Confirmed for
-      # real: `-scheme PhpNitroNativeEngine ... test` failed with "Scheme
-      # PhpNitroNativeEngine is not currently configured for the test
-      # action" on the first real CI run of this job.
-      - run: xcodebuild -scheme PhpNitroEngine -destination 'platform=iOS Simulator,name=iPhone 15' test
+      # Confirmed by a real CI run's `xcodebuild -list` output (three
+      # wrong guesses before this one — "PhpNitroNativeEngine" exists but
+      # isn't wired for the Test action; bare "PhpNitroEngine" doesn't
+      # exist as a scheme at all; "PhpNitroNativeEngineTests" doesn't
+      # either): Xcode's actual auto-generated schemes for this package
+      # are "PhpNitroEngine-Package", "PhpNitroNativeEngine", and
+      # "PhpNitroWebViewBridge" — the package-level aggregate scheme
+      # (which IS wired for Test, running every test target including
+      # PhpNitroNativeEngineTests) gets a "-Package" suffix Xcode never
+      # documents up front, it only shows up in -list's real output.
+      - run: xcodebuild -scheme PhpNitroEngine-Package -destination 'platform=iOS Simulator,name=iPhone 15' test
