@@ -109,3 +109,25 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: cd android && gradle :app:connectedDebugAndroidTest
+
+  ios-build:
+    name: iOS Swift package (xcodebuild, PhpNitroNativeEngine)
+    # No .xcodeproj is committed — Xcode has built raw SPM packages
+    # directly by scheme name since Xcode 11, so `xcodebuild -scheme
+    # <target>` against a bare Package.swift works with nothing to
+    # generate first. See ios/README.md: PhpNitroWebViewBridge (the
+    # older WKWebView fallback path) and PhpNitroNativeEngine (this
+    # framework's actual primary render pipeline, ported for the first
+    # time here) are two separate targets — this job builds+tests the
+    # one with real unit tests today; PhpNitroWebViewBridge has none yet
+    # (it has never run against a real WKWebView either, see its own
+    # docblocks), so it's built here (catches compile errors) but not
+    # tested.
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v4
+      - run: xcodebuild -scheme PhpNitroWebViewBridge -destination 'generic/platform=iOS Simulator' build
+      - run: xcodebuild -scheme PhpNitroNativeEngine -destination 'platform=iOS Simulator,name=iPhone 15' test
