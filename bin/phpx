@@ -1064,8 +1064,18 @@ function cmdNew(string $directory): void
     // stale copy of packages/*/src, the very thing this whole
     // Composer-package migration was meant to stop shipping) into every
     // new project's checkout before it ever ran bundle:android itself.
+    // 'release.keystore' excluded for the same class of reason, but a
+    // real credential this time, not just a stale build artifact:
+    // gitignored (never in a fresh clone, see .gitignore), but real on
+    // whichever machine actually built+signed a release locally — this
+    // whole-directory copy had no exclusion for it, so running `phpx
+    // new` on a machine that already has one would silently copy that
+    // real signing key into every new project's checkout.
+    // copyDirectory()'s $skip is an exact filename match, not a glob —
+    // if a differently-named keystore shows up here later, it needs its
+    // own entry, this doesn't catch it by extension.
     copyDirectory(PHPX_TOOL_ROOT . '/android/app', "{$targetDir}/android/app", [
-        'vendor', 'node_modules', '.gradle', 'build', '.kotlin', 'local.properties', 'var', 'www',
+        'vendor', 'node_modules', '.gradle', 'build', '.kotlin', 'local.properties', 'var', 'www', 'release.keystore',
     ]);
     echo "Copied android/app/ to {$targetDir}/android/app\n";
 
