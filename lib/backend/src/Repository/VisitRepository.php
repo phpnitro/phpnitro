@@ -3,12 +3,19 @@
 namespace Backend\Repository;
 
 use Engine\Database\Database;
+use Engine\Database\Repository;
 
-final class VisitRepository
+/** Refactored onto the generic Engine\Database\Repository base — insert()/count() below are its own, ensureSchema() is the only bespoke bit left. */
+final class VisitRepository extends Repository
 {
     public function __construct()
     {
         $this->ensureSchema();
+    }
+
+    protected function table(): string
+    {
+        return 'visits';
     }
 
     private function ensureSchema(): void
@@ -20,13 +27,11 @@ final class VisitRepository
 
     public function recordVisit(): void
     {
-        Database::connection()->insert('visits', [
-            'created_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
-        ]);
+        $this->insert(['created_at' => (new \DateTimeImmutable())->format(DATE_ATOM)]);
     }
 
     public function countVisits(): int
     {
-        return (int) Database::connection()->fetchOne('SELECT COUNT(*) FROM visits');
+        return $this->count();
     }
 }

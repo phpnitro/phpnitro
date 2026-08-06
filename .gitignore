@@ -3,16 +3,22 @@
 /node_modules/
 /.phpunit.result.cache
 /public/assets/
+/public/__qr.png
 composer.lock
 /android/.gradle/
 /android/build/
 /android/app/build/
+/android/engine/build/
+/android/go/build/
 /lib/backend/var/*.sqlite
 /lib/backend/var/uploads/
+/var/
 /.tools/
 /android/local.properties
 /android/app/*.keystore
 /android/keystore.properties
+/android/go/*.keystore
+/android/go/keystore.properties
 /android/.kotlin/
 /android/app/src/main/assets/www/
 /dist/
@@ -30,3 +36,7 @@ composer.lock
 /examples/*/android/local.properties
 /examples/*/android/.kotlin/
 /examples/*/android/app/src/main/assets/www/
+
+# Notes de travail locales, jamais commitées (voir consigne : pas de
+# fichier de comparaison/roadmap Flutter/RN persistant dans l'historique).
+/docs/notes/

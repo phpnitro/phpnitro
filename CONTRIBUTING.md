@@ -4,7 +4,6 @@
 
 ```bash
 composer install
-npm install   # uniquement pour reconstruire tailwind.css
 ```
 
 Voir [docs/getting-started.md](docs/getting-started.md) pour la structure complète d'un projet.
@@ -17,7 +16,13 @@ php -l chemin/vers/fichier.php               # vérification syntaxique rapide
 vendor/bin/phpstan analyse packages lib      # analyse statique
 ```
 
-Un `bin/phpx serve` local + un test manuel dans le navigateur reste le moyen le plus sûr de valider un changement touchant au rendu ou à `nav.js`. Pour tout ce qui touche au pont natif Android (`WebAppInterface.kt`, permissions, capteurs...), il n'y a pas de substitut à un test sur device réel via `adb` — les tests PHPUnit ne couvrent que la génération des trigger JS côté PHP, jamais le code Kotlin lui-même.
+Un `bin/phpx serve` local + `curl` sur `/native/layout-demo?screen=...` reste le moyen le plus sûr de valider un changement touchant au moteur de rendu natif (`packages/ui/src/Native/`, `lib/pages/Native*Screen.php`). Pour tout ce qui touche au pont natif Android (`NativeDeviceBridge.kt`, `NativeCanvasView.kt`, permissions, capteurs...), il n'y a pas de substitut à un `./gradlew assembleDebug` réel (voire un test sur device via `adb`) — les tests PHPUnit ne couvrent que la génération des commandes de dessin côté PHP, jamais le code Kotlin lui-même.
+
+```bash
+cd android && gradle :app:connectedDebugAndroidTest   # tests E2E réels sur device/émulateur connecté
+```
+
+`android/app/src/androidTest/java/com/mobile/engine/NativeUiE2ETest.kt` — UI Automator, pas Espresso : chaque écran est un seul `NativeCanvasView.onDraw()` qui peint des pixels bruts, pas une vue Android par widget, donc les matchers de vue d'Espresso n'ont rien à cibler. UI Automator pilote à la place le même arbre virtuel de nœuds d'accessibilité que `CanvasAccessibilityNodeProvider` expose à TalkBack. Un seul test tourne réellement pour l'instant (`tappingIncrementButtonAdvancesTheCounter` — vrai tap, vrai device, vraie vérification via l'arbre d'accessibilité) ; deux autres (drag-to-reorder, scroll horizontal indépendant) sont `@Ignore`d avec la raison exacte du blocage dans leur annotation — les deux fonctionnent réellement à la main sur device, mais pas encore automatisables dans ce harnais.
 
 ## Où va le code
 

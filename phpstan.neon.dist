@@ -4,18 +4,27 @@ parameters:
         - packages/ui/src
         - packages/database/src
         - packages/payments/src
-        - packages/maps/src
-        - packages/dialogs/src
         - packages/firebase/src
-        - packages/device/src
         - packages/countries/src
         - packages/preferences/src
-        - packages/connectivity/src
-        - packages/launcher/src
-        - packages/diagnostics/src
         - packages/format/src
         - packages/socialauth/src
-        - lib/pages/app
+        - packages/math/src
+        - packages/date/src
+        - packages/cloudinary/src
+        - packages/i18n/src
+        - packages/state/src
+        - packages/analytics/src
+        - packages/validation/src
+        - packages/uuid/src
+        - packages/crypto/src
+        - packages/mime/src
+        - packages/retry/src
+        - packages/jwt/src
+        - packages/geocoding/src
+        - packages/supabase/src
+        - packages/offline/src
+        - lib/pages
         - lib/backend/src
         - public/index.php
         - public/router.php

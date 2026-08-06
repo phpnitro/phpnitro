@@ -6,7 +6,7 @@
         "symfony/dotenv": "^8.1",
         "symfony/yaml": "^8.1",
         "doctrine/dbal": "^4.4",
-        "feexpay/feexpay-php": "^2.0"
+        "chillerlan/php-qrcode": "^6.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^13.2",
@@ -16,38 +16,49 @@
         "psr-4": {
             "Engine\\": "packages/ui/src/",
             "Engine\\Database\\": "packages/database/src/",
-            "Engine\\Payments\\": "packages/payments/src/",
-            "Engine\\Maps\\": "packages/maps/src/",
-            "Engine\\Dialogs\\": "packages/dialogs/src/",
             "Engine\\Firebase\\": "packages/firebase/src/",
-            "Engine\\Device\\": "packages/device/src/",
             "Engine\\Countries\\": "packages/countries/src/",
             "Engine\\Preferences\\": "packages/preferences/src/",
-            "Engine\\Connectivity\\": "packages/connectivity/src/",
-            "Engine\\App\\": "lib/pages/app/",
+            "Engine\\Payments\\": "packages/payments/src/",
+            "Engine\\SocialAuth\\": "packages/socialauth/src/",
+            "Engine\\Math\\": "packages/math/src/",
+            "Engine\\Date\\": "packages/date/src/",
+            "Engine\\Cloudinary\\": "packages/cloudinary/src/",
+            "Engine\\I18n\\": "packages/i18n/src/",
+            "Engine\\State\\": "packages/state/src/",
+            "Engine\\Analytics\\": "packages/analytics/src/",
+            "Engine\\App\\": "lib/pages/",
             "Backend\\": "lib/backend/src/",
-            "Engine\\Launcher\\": "packages/launcher/src/",
-            "Engine\\Diagnostics\\": "packages/diagnostics/src/",
             "Engine\\Format\\": "packages/format/src/",
-            "Engine\\SocialAuth\\": "packages/socialauth/src/"
+            "Engine\\Validation\\": "packages/validation/src/",
+            "Engine\\Uuid\\": "packages/uuid/src/",
+            "Engine\\Crypto\\": "packages/crypto/src/",
+            "Engine\\Mime\\": "packages/mime/src/",
+            "Engine\\Retry\\": "packages/retry/src/",
+            "Engine\\Jwt\\": "packages/jwt/src/",
+            "Engine\\Geocoding\\": "packages/geocoding/src/",
+            "Engine\\Supabase\\": "packages/supabase/src/",
+            "Engine\\Offline\\": "packages/offline/src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
             "Engine\\Tests\\": "packages/ui/tests/",
             "Engine\\Database\\Tests\\": "packages/database/tests/",
-            "Engine\\Payments\\Tests\\": "packages/payments/tests/",
-            "Engine\\Maps\\Tests\\": "packages/maps/tests/",
-            "Engine\\Dialogs\\Tests\\": "packages/dialogs/tests/",
             "Engine\\Firebase\\Tests\\": "packages/firebase/tests/",
-            "Engine\\Device\\Tests\\": "packages/device/tests/",
             "Engine\\Countries\\Tests\\": "packages/countries/tests/",
             "Engine\\Preferences\\Tests\\": "packages/preferences/tests/",
-            "Engine\\Connectivity\\Tests\\": "packages/connectivity/tests/",
-            "Engine\\Launcher\\Tests\\": "packages/launcher/tests/",
-            "Engine\\Diagnostics\\Tests\\": "packages/diagnostics/tests/",
             "Engine\\Format\\Tests\\": "packages/format/tests/",
-            "Engine\\SocialAuth\\Tests\\": "packages/socialauth/tests/"
+            "Engine\\Validation\\Tests\\": "packages/validation/tests/",
+            "Engine\\Uuid\\Tests\\": "packages/uuid/tests/",
+            "Engine\\Crypto\\Tests\\": "packages/crypto/tests/",
+            "Engine\\Mime\\Tests\\": "packages/mime/tests/",
+            "Engine\\Retry\\Tests\\": "packages/retry/tests/",
+            "Engine\\Jwt\\Tests\\": "packages/jwt/tests/",
+            "Engine\\Math\\Tests\\": "packages/math/tests/",
+            "Engine\\Geocoding\\Tests\\": "packages/geocoding/tests/",
+            "Engine\\Supabase\\Tests\\": "packages/supabase/tests/",
+            "Engine\\Offline\\Tests\\": "packages/offline/tests/"
         }
     }
 }

@@ -10,20 +10,8 @@
         <testsuite name="database">
             <directory>packages/database/tests</directory>
         </testsuite>
-        <testsuite name="maps">
-            <directory>packages/maps/tests</directory>
-        </testsuite>
-        <testsuite name="dialogs">
-            <directory>packages/dialogs/tests</directory>
-        </testsuite>
         <testsuite name="firebase">
             <directory>packages/firebase/tests</directory>
-        </testsuite>
-        <testsuite name="device">
-            <directory>packages/device/tests</directory>
-        </testsuite>
-        <testsuite name="payments">
-            <directory>packages/payments/tests</directory>
         </testsuite>
         <testsuite name="countries">
             <directory>packages/countries/tests</directory>
@@ -31,20 +19,47 @@
         <testsuite name="preferences">
             <directory>packages/preferences/tests</directory>
         </testsuite>
-        <testsuite name="connectivity">
-            <directory>packages/connectivity/tests</directory>
-        </testsuite>
-        <testsuite name="launcher">
-            <directory>packages/launcher/tests</directory>
-        </testsuite>
-        <testsuite name="diagnostics">
-            <directory>packages/diagnostics/tests</directory>
-        </testsuite>
         <testsuite name="format">
             <directory>packages/format/tests</directory>
         </testsuite>
-        <testsuite name="socialauth">
-            <directory>packages/socialauth/tests</directory>
+        <testsuite name="math">
+            <directory>packages/math/tests</directory>
+        </testsuite>
+        <testsuite name="date">
+            <directory>packages/date/tests</directory>
+        </testsuite>
+        <testsuite name="i18n">
+            <directory>packages/i18n/tests</directory>
+        </testsuite>
+        <testsuite name="cloudinary">
+            <directory>packages/cloudinary/tests</directory>
+        </testsuite>
+        <testsuite name="screens">
+            <directory>lib/pages/tests</directory>
+        </testsuite>
+        <testsuite name="state">
+            <directory>packages/state/tests</directory>
+        </testsuite>
+        <testsuite name="analytics">
+            <directory>packages/analytics/tests</directory>
+        </testsuite>
+        <testsuite name="uuid">
+            <directory>packages/uuid/tests</directory>
+        </testsuite>
+        <testsuite name="crypto">
+            <directory>packages/crypto/tests</directory>
+        </testsuite>
+        <testsuite name="mime">
+            <directory>packages/mime/tests</directory>
+        </testsuite>
+        <testsuite name="retry">
+            <directory>packages/retry/tests</directory>
+        </testsuite>
+        <testsuite name="jwt">
+            <directory>packages/jwt/tests</directory>
+        </testsuite>
+        <testsuite name="offline">
+            <directory>packages/offline/tests</directory>
         </testsuite>
     </testsuites>
 </phpunit>

@@ -17,7 +17,7 @@ Prérequis build : Android SDK (compileSdk 35), **Gradle ≥ 8.9** (pas de wrapp
 
 Installation sur téléphone : `adb install -r app-debug.apk`, ou transfère le fichier et autorise l'installation de sources inconnues. APK signé en debug (parfait pour tester, pas pour le Play Store — il faudra une clé de release).
 
-**Vérifié en conditions réelles** sur un Infinix X6532 (Android 14, `armeabi-v7a`) : navigation complète, biométrie, paiements en mode démo, animations, deep linking, partage natif, changement d'icône dynamique, alarme planifiée, accessibilité TalkBack — voir [ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md](../ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md) pour le détail exact de ce qui a été testé et comment.
+**Vérifié en conditions réelles** sur un Infinix X6532 (Android 14, `armeabi-v7a`) : navigation complète, biométrie, paiements en mode démo, animations, deep linking, partage natif, changement d'icône dynamique, alarme planifiée, accessibilité TalkBack.
 
 ### Mesures de performance (device réel, non comparées à Flutter/RN)
 

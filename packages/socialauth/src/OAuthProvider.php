@@ -13,18 +13,27 @@ namespace Engine\SocialAuth;
 
 /**
  * Shared standard OAuth2 Authorization Code flow every provider in this
- * package (Google, Microsoft, GitHub, Slack, Facebook, X) is built on —
- * Apple also extends this but overrides token exchange for its ES256
- * client-secret JWT requirement (see AppleSignIn).
+ * package (Google, Microsoft, GitHub, Facebook) is built on — Apple also
+ * extends this but overrides token exchange for its ES256 client-secret
+ * JWT requirement (see AppleSignIn). Google itself is handled by a real
+ * native SDK instead (Credential Manager — see NativeDeviceBridge.kt's
+ * signInWithGoogle()), not this class; GoogleSignIn isn't restored here
+ * for that reason, the other four have no equivalent native Android SDK
+ * this framework bundles, so a standard browser-redirect OAuth flow is
+ * the actual native-appropriate approach for them, not a compromise.
  *
- * Services, not widgets, same idiom as Engine\Device\: onClick() returns a
- * JS trigger (a full-page redirect to the provider's own login screen) to
- * attach to ANY button/image the developer already has via
- * Button::make($label, onClick: GithubSignIn::onClick(...)) — there is no
- * pre-styled "Sign in with X" button widget here. The developer's own
- * redirect_uri route calls exchangeCode() with the "code" query param
- * Backend\Kernel receives, and gets back normalized user info
- * (id/email/name) to create a session/account with — the whole
+ * authorizeUrl() replaces the pre-native-render onClick() (which returned
+ * a `window.location.href = ...` JS string — there is no WebView/JS
+ * runtime left to execute that in). NativeDeviceBridge.kt's
+ * startOAuthFlow() opens the URL this returns in a Custom Tab; the
+ * provider's own redirect lands back in the app via an App Link
+ * (AndroidManifest's oauth-callback intent-filter, see
+ * NativeRenderPocActivity's onNewIntent()), which extracts "code" and
+ * reports it back through the same generic "device capability reports
+ * its result, then a normal refetch" shape every other device: capability
+ * already uses. The developer's own action handler (public/index.php)
+ * then calls exchangeCode() with that code and gets back normalized user
+ * info (id/email/name) to create a session/account with — the whole
  * authenticate-and-fetch-profile round trip in one call.
  */
 abstract class OAuthProvider
@@ -70,7 +79,7 @@ abstract class OAuthProvider
      */
     abstract protected static function normalize(array $tokenResponse, ?array $userInfoResponse): array;
 
-    public static function onClick(string $clientId, string $redirectUri, ?string $scope = null): string
+    public static function authorizeUrl(string $clientId, string $redirectUri, ?string $scope = null): string
     {
         $params = array_merge([
             'client_id' => $clientId,
@@ -79,9 +88,7 @@ abstract class OAuthProvider
             'scope' => $scope ?? static::defaultScope(),
         ], static::extraAuthorizeParams());
 
-        $url = static::authorizeEndpoint() . '?' . http_build_query($params);
-
-        return 'window.location.href = ' . json_encode($url, JSON_THROW_ON_ERROR);
+        return static::authorizeEndpoint() . '?' . http_build_query($params);
     }
 
     /**

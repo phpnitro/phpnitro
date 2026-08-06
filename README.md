@@ -4,7 +4,7 @@
 
 **Écris des applications mobiles natives en PHP.**
 
-Un vrai runtime PHP embarqué sur le device (pas un serveur distant, pas de transpilation), affiché dans une WebView native, avec un pont natif Android/iOS pour tout ce qu'une app "juste web" ne peut pas faire.
+Un vrai runtime PHP embarqué sur le device (pas un serveur distant, pas de transpilation) calcule un arbre de widgets et des commandes de dessin ; un vrai `android.graphics.Canvas` (Skia) les rejoue — même famille d'architecture que Flutter (layout à contraintes, moteur de peinture), sans WebView ni HTML/CSS nulle part dans le pipeline de rendu.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![PHP](https://img.shields.io/badge/PHP-%3E%3D8.1-777bb4.svg)](composer.json)
@@ -12,8 +12,7 @@ Un vrai runtime PHP embarqué sur le device (pas un serveur distant, pas de tran
 
 [Démarrage rapide](#démarrage-rapide) ·
 [Documentation](#documentation) ·
-[Widgets](docs/widgets.md) ·
-[Roadmap honnête](ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md)
+[Widgets](docs/widgets.md)
 
 </div>
 
@@ -21,45 +20,48 @@ Un vrai runtime PHP embarqué sur le device (pas un serveur distant, pas de tran
 
 ## Pourquoi PhpNitro
 
-Flutter compile en code natif. React Native transpile en JS. **PhpNitro exécute du vrai PHP, en continu, sur le téléphone** — chaque interaction (clic, formulaire, navigation) est une vraie requête traitée par un vrai runtime PHP embarqué (Android : binaire cross-compilé via le NDK, déjà fourni dans le dépôt), pas une simulation ni un aller-retour vers un serveur distant.
+Flutter compile en code natif. React Native transpile en JS. **PhpNitro exécute du vrai PHP, en continu, sur le téléphone** — chaque interaction (tap, geste) est une vraie requête traitée par un vrai runtime PHP embarqué (Android : binaire cross-compilé via le NDK, déjà fourni dans le dépôt), qui recalcule l'écran et renvoie des commandes de dessin JSON rejouées sur un vrai Canvas. Pas de simulation, pas d'aller-retour vers un serveur distant.
 
-Résultat : si tu sais écrire du PHP, tu sais écrire une app mobile. Pas de Dart, pas de JSX, pas de nouveau langage — juste des classes PHP (`Screen`, `Widget`) et Tailwind CSS pour le style.
+Résultat : si tu sais écrire du PHP, tu sais écrire une app mobile. Pas de Dart, pas de JSX, pas de nouveau langage — un arbre de `Widget` (`Container`, `Flex`, `Button`...), exactement l'idée d'un `RenderObject` Flutter.
 
 ```php
-final class HomePage extends Screen
+final class HomeScreen
 {
-    protected function initialState(): array
+    public static function build(float $screenWidth, float $screenHeight): Widget
     {
-        return ['count' => 0];
-    }
+        $count = (int) Preferences::get('count', '0');
 
-    protected function onIncrement(): void
-    {
-        $this->state['count']++;
+        return new Scaffold(
+            new Container(
+                new Center(Flex::column([
+                    new Text("Compteur : {$count}", Tokens::TEXT_TITLE, Tokens::ink()->toHex()),
+                    new Button('Incrémenter', 'increment'),
+                ])),
+                width: $screenWidth,
+            ),
+            $screenWidth,
+            $screenHeight,
+        );
     }
+}
 
-    public function build(): Widget
-    {
-        return Column::make([
-            Text::make('Compteur : ' . $this->state['count']),
-            Button::make('Incrémenter', action: 'increment'),
-        ]);
-    }
+// public/index.php, avant de construire l'arbre :
+if ($action === 'increment') {
+    Preferences::set('count', (string) ((int) Preferences::get('count', '0') + 1));
 }
 ```
 
 ## Ce que ça donne concrètement
 
-- **~75 widgets & services** — mise en page (`Stack`, `Positioned`, `Wrap`, `Row`, `Column`...), formulaires, média, animations (`FadeIn`, `AnimatedText`), pagination infinie, Lottie — [référence complète](docs/widgets.md).
-- **Capacités device réellement natives** — caméra, biométrie (Face ID/Touch ID/empreinte), notifications hors-ligne, impression/PDF, partage natif, deep linking, icône d'app dynamique, alarme planifiée — pas de simulation WebView, du vrai code Kotlin/Swift. [Détails](docs/device-and-native.md).
-- **7 fournisseurs d'authentification sociale** — Google, Apple, Microsoft, GitHub, Slack, Facebook, X — en services attachables à n'importe quel bouton, pas des widgets imposés. [Détails](docs/integrations.md#authentification-sociale).
-- **7 gateways de paiement**, 3 fournisseurs de cartes, Firebase (Auth/Messaging/Firestore), 194 pays offline avec villes/capitales/drapeaux. [Détails](docs/integrations.md).
+- **~50 widgets natifs** — mise en page (`Flex`, `Stack`, `Wrap`...), formulaires (dialogues Android réels), texte riche multi-styles, animations implicites (`Animated`/`Hero`, FLIP réel), listes virtualisées (`LazyList`) — [référence complète](docs/widgets.md).
+- **~30 capacités device réellement natives** — caméra, biométrie, NFC, géofencing, achat intégré, impression PDF, traduction sur l'appareil (ML Kit) — pas de simulation WebView, du vrai code Kotlin appelé directement. [Détails](docs/device-and-native.md).
+- **Un geste vraiment continu** — `Dismissible` (glisser pour supprimer) suit le doigt à 100% côté client, zéro requête réseau par frame, PHP ne voit que le résultat final.
 - **Backend unifié** — Symfony HttpFoundation + Doctrine DBAL, dans le même processus, zéro configuration réseau supplémentaire.
 - **CLI complète** (`phpx`) — scaffold de projet, génération de pages/entités, bundle Android, packaging `.phar`. [Détails](docs/cli.md).
 
 ## Démarrage rapide
 
-Prérequis : PHP ≥ 8.1 + Composer. (Node.js seulement pour reconstruire le CSS Tailwind ; Android SDK + Gradle ≥ 8.9 seulement pour builder l'APK — voir [docs/mobile-builds.md](docs/mobile-builds.md).)
+Prérequis : PHP ≥ 8.1 + Composer. (Android SDK + Gradle ≥ 8.9 seulement pour builder l'APK — voir [docs/mobile-builds.md](docs/mobile-builds.md).)
 
 ```bash
 php bin/phpx new mon-app
@@ -76,27 +78,18 @@ Ouvre `http://127.0.0.1:8090/`. C'est tout — pas de build step, pas de simulat
 | Guide | Contenu |
 |---|---|
 | [Démarrage & architecture](docs/getting-started.md) | Structure d'un projet, écrire un écran, navigation, formulaires |
-| [Widgets](docs/widgets.md) | Référence complète des ~75 widgets & services, API de style typée, animations |
-| [Capacités device & natif](docs/device-and-native.md) | Caméra, biométrie, notifications, partage, deep linking, accessibilité |
-| [Paiements](docs/payments.md) | 7 gateways, niveau de confiance de chacun, sécurité PCI-DSS |
-| [Intégrations](docs/integrations.md) | Cartes, Firebase, Countries (offline), authentification sociale, formats |
+| [Widgets](docs/widgets.md) | Référence complète des ~50 widgets natifs, texte riche, animations, gestes |
+| [Capacités device & natif](docs/device-and-native.md) | Caméra, biométrie, notifications, partage, impression, accessibilité |
 | [CLI (`phpx`)](docs/cli.md) | Toutes les commandes, `phpnitro.yml`, packaging `.phar` |
 | [Builds mobiles](docs/mobile-builds.md) | APK Android (PHP embarqué), état iOS |
-| [Architecture interne](docs/architecture.md) | Rendu, navigation SPA, backend, base de données |
-| [Référence API](docs/api.md) | Générée automatiquement (`phpx docs:api`) — 137 classes, 14 packages |
-| [Tutoriels](docs/tutorials/) | Guides pas-à-pas, du zéro à une fonctionnalité complète |
+| [Architecture interne](docs/architecture.md) | Cycle de rendu, actions, gestes continus, backend, base de données |
+| [Référence API](docs/api.md) | Générée automatiquement (`phpx docs:api`) pour les packages hors moteur natif |
 | [Changelog](CHANGELOG.md) | Historique des changements notables |
 | [Contribuer](CONTRIBUTING.md) | Installation, conventions, structure du code |
 
 ## État du projet
 
-Honnêtement : **le runtime Android fonctionne réellement, vérifié sur device physique** (biométrie, navigation complète, animations, partage natif, deep linking) — ce n'est pas un prototype qui ne marche qu'en démo. Les paiements, eux, ne sont vérifiés qu'en mode démo : 5 des 7 gateways n'ont jamais tourné contre un vrai compte sandbox (voir [docs/payments.md](docs/payments.md)). iOS a un pont natif complet mais non compilé (pas de Mac disponible pendant son développement). Aucune obfuscation du code, aucun écosystème de packages tiers. Le signing de release (keystore, R8/ProGuard) et le build one-command (`phpx build:android`) sont câblés mais pas encore vérifiés par un vrai build signé de bout en bout.
-
-Le détail complet, sans enjoliver, de ce qui est vérifié vs supposé, et de ce qu'il reste pour rivaliser avec Flutter/React Native, est dans **[ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md](ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md)**.
-
-## Exemple complet
-
-[`examples/ecom`](examples/ecom/README.md) — une boutique en ligne (catalogue, panier, checkout multi-gateway, compte, carte interactive, biométrie, suivi de commande en direct) qui utilise la quasi-totalité du framework.
+Honnêtement : **le runtime Android fonctionne réellement, vérifié sur device physique** (biométrie, navigation complète, animations, geste de glisser, impression PDF, arbre d'accessibilité pour le rendu Canvas) — ce n'est pas un prototype qui ne marche qu'en démo. iOS a un pont natif écrit pour l'ancienne architecture WebView mais jamais recompilé pour le moteur de rendu natif actuel (pas de Mac disponible). Aucune obfuscation du code, aucun écosystème de packages tiers, aucun test E2E automatisé. Le signing de release (keystore, R8/ProGuard) et le build one-command (`phpx build:android`) sont câblés mais pas encore vérifiés par un vrai build signé de bout en bout.
 
 ## Licence
 

@@ -1,0 +1,114 @@
+package com.phpnitro.engine
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import android.util.Log
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import com.google.firebase.messaging.FirebaseMessagingService
+import com.google.firebase.messaging.RemoteMessage
+import java.io.OutputStreamWriter
+import java.net.HttpURLConnection
+import java.net.URL
+
+/**
+ * Firebase Cloud Messaging service — NOT compiled by default (.kt.example,
+ * not .kt) because it needs a real Firebase project to even build:
+ *
+ * 1. Create a project at https://console.firebase.google.com, add an
+ *    Android app with applicationId "com.mobile.engine" (or your own).
+ * 2. Download the generated google-services.json into android/app/.
+ * 3. In android/build.gradle.kts, uncomment:
+ *      id("com.google.gms.google-services") version "4.4.2" apply false
+ * 4. In android/app/build.gradle.kts, uncomment:
+ *      id("com.google.gms.google-services")
+ *      implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
+ *      implementation("com.google.firebase:firebase-messaging")
+ * 5. Rename this file to FcmService.kt.
+ * 6. Register it in AndroidManifest.xml inside <application>:
+ *      <service android:name=".FcmService" android:exported="false">
+ *          <intent-filter><action android:name="com.google.firebase.MESSAGING_EVENT" /></intent-filter>
+ *      </service>
+ *
+ * Once active: onNewToken() fires with the device's push token, which this
+ * forwards to the backend's /api/fcm/register (see
+ * backend/src/Controller/FcmController.php) so a server-side job can later
+ * send notifications to it via Engine\Firebase\FirebaseMessaging (see
+ * packages/firebase/src/) — that send step must run from your own hosted
+ * server, never from the PHP-on-device process, since it requires a
+ * Firebase service-account credential that must never ship inside the app.
+ */
+class FcmService : FirebaseMessagingService() {
+
+    companion object {
+        // Same channel id WebAppInterface.kt already uses for local
+        // notifications (NotifyButton) — one shared "Notifications"
+        // channel in system settings instead of two near-identical ones.
+        private const val NOTIFICATION_CHANNEL_ID = "phpx_default"
+    }
+
+    override fun onNewToken(token: String) {
+        super.onNewToken(token)
+        Thread { registerToken(token) }.start()
+    }
+
+    override fun onMessageReceived(message: RemoteMessage) {
+        super.onMessageReceived(message)
+
+        val notification = message.notification ?: return
+        showNotification(notification.title ?: return, notification.body ?: "")
+    }
+
+    private fun showNotification(title: String, body: String) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ActivityCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                NOTIFICATION_CHANNEL_ID,
+                "Notifications",
+                NotificationManager.IMPORTANCE_DEFAULT,
+            )
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(channel)
+        }
+
+        val builtNotification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .build()
+
+        NotificationManagerCompat.from(this).notify(System.currentTimeMillis().toInt(), builtNotification)
+    }
+
+    private fun registerToken(token: String) {
+        try {
+            val port = PhpServer.lastKnownPort(this)
+            val url = URL("http://127.0.0.1:$port/api/fcm/register")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json")
+
+            OutputStreamWriter(connection.outputStream).use {
+                it.write("""{"token":"$token"}""")
+            }
+
+            connection.responseCode
+            connection.disconnect()
+        } catch (e: Exception) {
+            Log.e("FcmService", "Failed to register FCM token", e)
+        }
+    }
+}

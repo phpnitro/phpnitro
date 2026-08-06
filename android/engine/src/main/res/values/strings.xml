@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Google Cloud OAuth 2.0 "Web application" client ID (Firebase
+         Console -> Authentication -> Sign-in method -> Google -> Web SDK
+         configuration), used by NativeDeviceBridge.kt's
+         signInWithGoogle(). Empty by default — the "Continuer avec
+         Google" button (NativeWidgetsFirebaseAuthScreen.php) fails
+         informatively rather than crashing until a consuming project
+         overrides this in its own res/values/strings.xml with a real ID,
+         same per-project-configuration shape as .env's
+         FIREBASE_WEB_API_KEY on the PHP side. -->
+    <string name="google_web_client_id" translatable="false"></string>
+</resources>

@@ -1,0 +1,24 @@
+{
+    "commands": [
+        {
+            "type": "rect",
+            "x": 0,
+            "y": 0,
+            "width": 200,
+            "height": 80,
+            "color": "#F3F4F6",
+            "radius": 12,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 16,
+            "y": 28.8,
+            "text": "Bonjour",
+            "color": "#111827",
+            "size": 16
+        }
+    ],
+    "hitRegions": [],
+    "contentHeight": 0
+}

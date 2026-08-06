@@ -2,63 +2,56 @@
 
 namespace Engine\Tests;
 
-use Engine\Router;
-use Engine\Screen;
-use Engine\Text;
-use Engine\Widget;
+use Engine\Native\Router;
+use Engine\Native\Text;
 use PHPUnit\Framework\TestCase;
-
-final class FakeScreen extends Screen
-{
-    protected function initialState(): array
-    {
-        return [];
-    }
-
-    public function build(): Widget
-    {
-        return Text::make('fake');
-    }
-}
 
 final class RouterTest extends TestCase
 {
-    private Router $router;
-
     protected function setUp(): void
     {
-        $this->router = new Router([
-            '/' => FakeScreen::class,
-            '/settings' => FakeScreen::class,
-            '/product/{id}' => FakeScreen::class,
-        ]);
+        Router::reset();
     }
 
-    public function testResolvesStaticRoute(): void
+    public function testHasIsFalseForAnUnregisteredScreen(): void
     {
-        $resolved = $this->router->resolve('/settings');
-
-        $this->assertSame(FakeScreen::class, $resolved['class']);
-        $this->assertSame([], $resolved['params']);
+        $this->assertFalse(Router::has('nonexistent'));
+        $this->assertNull(Router::build('nonexistent'));
     }
 
-    public function testResolvesRootWithTrailingSlashVariants(): void
+    public function testRegisterAndBuild(): void
     {
-        $this->assertSame(FakeScreen::class, $this->router->resolve('/')['class']);
-        $this->assertSame(FakeScreen::class, $this->router->resolve('/settings/')['class']);
+        Router::register('greeting', static fn () => new Text('hello', 14.0, '#000000'));
+
+        $this->assertTrue(Router::has('greeting'));
+        $this->assertInstanceOf(Text::class, Router::build('greeting'));
     }
 
-    public function testExtractsRouteParameters(): void
+    public function testBuilderIsCalledFreshEveryTime(): void
     {
-        $resolved = $this->router->resolve('/product/42');
+        $calls = 0;
+        Router::register('counted', static function () use (&$calls) {
+            $calls++;
 
-        $this->assertSame(['id' => '42'], $resolved['params']);
+            return new Text((string) $calls, 14.0, '#000000');
+        });
+
+        Router::build('counted');
+        Router::build('counted');
+
+        $this->assertSame(2, $calls);
     }
 
-    public function testThrowsOnUnknownPath(): void
+    public function testReRegisteringOverwrites(): void
     {
-        $this->expectException(\RuntimeException::class);
+        Router::register('screen', static fn () => new Text('first', 14.0, '#000000'));
+        Router::register('screen', static fn () => new Text('second', 14.0, '#000000'));
 
-        $this->router->resolve('/nope');
+        $canvas = new \Engine\Native\Canvas();
+        $widget = Router::build('screen');
+        $widget->layout(new \Engine\Native\Constraints(0, 360, 0, \Engine\Native\Constraints::INFINITY));
+        $widget->paint($canvas, 0, 0);
+
+        $this->assertStringContainsString('second', $canvas->toJson());
     }
 }

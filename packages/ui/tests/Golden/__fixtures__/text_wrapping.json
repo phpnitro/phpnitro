@@ -1,0 +1,38 @@
+{
+    "commands": [
+        {
+            "type": "text",
+            "x": 0,
+            "y": 11.200000000000001,
+            "text": "Ce texte est assez long",
+            "color": "#111827",
+            "size": 14
+        },
+        {
+            "type": "text",
+            "x": 0,
+            "y": 28.700000000000003,
+            "text": "pour se répartir sur",
+            "color": "#111827",
+            "size": 14
+        },
+        {
+            "type": "text",
+            "x": 0,
+            "y": 46.2,
+            "text": "plusieurs lignes dans une",
+            "color": "#111827",
+            "size": 14
+        },
+        {
+            "type": "text",
+            "x": 0,
+            "y": 63.7,
+            "text": "boîte étroite.",
+            "color": "#111827",
+            "size": 14
+        }
+    ],
+    "hitRegions": [],
+    "contentHeight": 0
+}

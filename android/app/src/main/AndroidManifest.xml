@@ -1,19 +1,46 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- android.permission.INTERNET is already declared by :engine
+         (PhpServer always needs it) — everything below is capability-
+         specific, only needed because THIS demo app's screens exercise
+         every optional capability the engine supports. A real app should
+         trim this list to whatever it actually uses (a blank `phpx new`
+         project starts with none of these — see
+         newProjectAndroidManifestXml() in bin/phpx). -->
+
+    <!-- Live camera preview + photo capture (Engine\Device\Camera). -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Audio recording for VoiceRecorder (Engine\Device\VoiceRecorder). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Precise GPS/network location for Geolocation/Geofence
+         (Engine\Device\Geolocation, Engine\Device\Geofence). -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Coarser network-based location fallback, same screens as above. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Haptic feedback for HapticFeedback (Engine\Device\HapticFeedback). -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Required on Android 13+ (API 33) to actually show local/push
+         notifications (Engine\Device\LocalNotification, FCM). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Lets Connectivity (Engine\Device\Connectivity) read the current
+         network state (Wi-Fi/mobile/offline) without a location permission. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Exact-time alarm scheduling for AlarmReceiver
+         (Engine\Device\LocalNotification's scheduled variant), required on
+         Android 12+ (API 31) alongside USE_EXACT_ALARM below. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- Bluetooth device scanning/connection for a paired-device screen
+         (Engine\Device\Bluetooth). -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <!-- Reading the device's contact list (Engine\Device\Contacts). -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Reading the device's calendar events (Engine\Device\Calendar). -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <!-- NFC tag read/write and foreground dispatch
+         (NativeRenderPocActivity's NFC intent-filter, see
+         res/xml/nfc_tech_filter.xml). -->
     <uses-permission android:name="android.permission.NFC" />
     <!-- Billing (Engine\Device\InAppPurchase) requires this exact permission
          string — Play Billing silently no-ops purchase flows without it. -->
@@ -24,6 +51,14 @@
          foreground — Play Store review requires a declared justification
          for this permission, not added lightly. -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- WebSocketService (Engine\Device\WebSocket) — a real connection
+         that survives backgrounding needs a foreground service; both
+         permissions are "normal" (auto-granted, no runtime prompt), but
+         FOREGROUND_SERVICE_DATA_SYNC specifically is required from API 34
+         onward or the service refuses to start with that
+         foregroundServiceType. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="false" />
     <uses-feature android:name="android.hardware.sensor.gyroscope" android:required="false" />
     <uses-feature android:name="android.hardware.sensor.compass" android:required="false" />
@@ -37,11 +72,12 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.AppCompat.DayNight.NoActionBar"
         android:usesCleartextTraffic="true">
-        <activity
-            android:name=".MainActivity"
-            android:theme="@style/Theme.App.Starting"
-            android:exported="true"
-            android:launchMode="singleTask">
+        <!-- :engine's own manifest already declares this activity (theme,
+             launchMode, NFC intent-filter) — redeclared here by fully-
+             qualified name just to add the deep-link intent-filters,
+             which are an app-specific choice (scheme, verified domain),
+             not the engine's. Android's manifest merger unions the two. -->
+        <activity android:name="com.phpnitro.engine.MainActivity">
             <!-- Custom-scheme deep link (phpnitro://<path>), e.g.
                  phpnitro://product/42 opens /product/42 — see
                  MainActivity.kt's deepLinkPath(). A real HTTPS App Link
@@ -68,30 +104,35 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="app.example.com" />
             </intent-filter>
-
-            <!-- NFC foreground dispatch (MainActivity.onResume) intercepts
-                 tag scans before this filter ever matches while the app is
-                 in front; TECH_DISCOVERED + NDEF catches any NDEF-formatted
-                 tag without requiring a specific registered MIME type. -->
-            <intent-filter>
-                <action android:name="android.nfc.action.TECH_DISCOVERED" />
-            </intent-filter>
-            <meta-data
-                android:name="android.nfc.action.TECH_DISCOVERED"
-                android:resource="@xml/nfc_tech_filter" />
         </activity>
 
         <!-- Dynamic app icon: the MAIN/LAUNCHER entry point moved here (off
-             MainActivity itself) so it can switch between two mutually
-             exclusive icons at runtime — Engine\Device\AppIcon::onClick()
-             -> WebAppInterface.kt's setAppIcon() calls
-             PackageManager.setComponentEnabledSetting() to enable one alias
-             and disable the other. Both target the same MainActivity, so
-             this doesn't change what actually launches, only which
-             home-screen icon/label a tap resolves through. -->
+             the target Activity itself) so it can switch between two
+             mutually exclusive icons at runtime — Engine\Device\AppIcon::
+             onClick() -> WebAppInterface.kt's setAppIcon() (or
+             NativeDeviceBridge.kt's setAppIcon() from the native side)
+             calls PackageManager.setComponentEnabledSetting() to enable
+             one alias and disable the other.
+
+             Both aliases target NativeRenderPocActivity, not MainActivity —
+             the native render engine (docs/proposals/moteur-rendu-natif.md)
+             is the app's real launcher now, not an opt-in preview: every
+             production route (lib/pages/Native*Screen.php) reaches
+             full parity with its WebView original gets that WebView page
+             deleted (see e.g. HomePage.php's removal), so MainActivity's
+             WebView pipeline is what's left over for the genuinely
+             not-yet-portable pieces (camera preview, NFC foreground
+             dispatch, VideoPlayer, interactive maps, animations —
+             reachable from native screens via "Voir sur WebView" buttons,
+             see NativeDeviceBridge.kt's openWebView()), not the default
+             experience. This activity-alias mechanism is itself an app
+             choice — a project that doesn't want a swappable icon can
+             drop it entirely and just let :engine's own MAIN/LAUNCHER
+             registration (none by default — see NativeRenderPocActivity's
+             docblock) or its own single alias take over. -->
         <activity-alias
             android:name=".MainActivityDefault"
-            android:targetActivity=".MainActivity"
+            android:targetActivity="com.phpnitro.engine.NativeRenderPocActivity"
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
             android:enabled="true"
@@ -104,7 +145,7 @@
 
         <activity-alias
             android:name=".MainActivityAlt"
-            android:targetActivity=".MainActivity"
+            android:targetActivity="com.phpnitro.engine.NativeRenderPocActivity"
             android:icon="@mipmap/ic_launcher_alt"
             android:roundIcon="@mipmap/ic_launcher_alt_round"
             android:enabled="false"
@@ -114,8 +155,5 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
-
-        <receiver android:name=".AlarmReceiver" android:exported="false" />
-        <receiver android:name=".GeofenceReceiver" android:exported="false" />
     </application>
 </manifest>

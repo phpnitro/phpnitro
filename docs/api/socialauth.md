@@ -16,30 +16,14 @@ UNVERIFIED — no real Facebook App available in this environment.
 
 UNVERIFIED — no real GitHub OAuth App available in this environment.
 
-## `Engine\SocialAuth\GoogleSignIn` (class)
-
-google_sign_in equivalent — standard OAuth2 Authorization Code flow (see OAuthProvider), not the Google Identity Services JS SDK: one consistent mechanism across every provider in this package rather than a different client-side SDK per provider.
-
 ## `Engine\SocialAuth\MicrosoftSignIn` (class)
 
 Microsoft identity platform (Azure AD / personal Microsoft accounts), "common" tenant so both work. UNVERIFIED — no real Azure app registration available in this environment.
 
 ## `Engine\SocialAuth\OAuthProvider` (class)
 
-Shared standard OAuth2 Authorization Code flow every provider in this package (Google, Microsoft, GitHub, Slack, Facebook, X) is built on — Apple also extends this but overrides token exchange for its ES256 client-secret JWT requirement (see AppleSignIn).
+Shared standard OAuth2 Authorization Code flow every provider in this package (Google, Microsoft, GitHub, Facebook) is built on — Apple also extends this but overrides token exchange for its ES256 client-secret JWT requirement (see AppleSignIn). Google itself is handled by a real native SDK instead (Credential Manager — see NativeDeviceBridge.kt's signInWithGoogle()), not this class; GoogleSignIn isn't restored here for that reason, the other four have no equivalent native Android SDK this framework bundles, so a standard browser-redirect OAuth flow is the actual native-appropriate approach for them, not a compromise.
 
-### `static onClick(string $clientId, string $redirectUri, ?string $scope = NULL): string`
-
-### `static exchangeCode(string $code, string $clientId, string $clientSecret, string $redirectUri): ?array`
-
-## `Engine\SocialAuth\SlackSignIn` (class)
-
-"Sign in with Slack" (OpenID Connect on top of Slack's OAuth) — needs the openid/email/profile scopes, not Slack's older bot/workspace scopes. UNVERIFIED — no real Slack App available in this environment.
-
-## `Engine\SocialAuth\XSignIn` (class)
-
-X (formerly Twitter) OAuth2 — the only provider in this package that mandates PKCE. The code_verifier has to survive between onClick()'s redirect and exchangeCode() handling the callback, so it's round-tripped through the session (started by public/index.php for the whole app already) rather than requiring the caller to thread it through themselves.
-
-### `static onClick(string $clientId, string $redirectUri, ?string $scope = NULL): string`
+### `static authorizeUrl(string $clientId, string $redirectUri, ?string $scope = NULL): string`
 
 ### `static exchangeCode(string $code, string $clientId, string $clientSecret, string $redirectUri): ?array`

@@ -1,0 +1,592 @@
+{
+    "commands": [
+        {
+            "type": "rect",
+            "x": 0,
+            "y": 56,
+            "width": 400,
+            "height": 680,
+            "color": "#F9FAFB",
+            "radius": 0,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 20,
+            "y": 86.4,
+            "text": "home.not_connected",
+            "color": "#6B7280",
+            "size": 13,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 112.25,
+            "width": 360,
+            "height": 153.5,
+            "color": "#FFFFFF",
+            "radius": 18,
+            "borderWidth": 1,
+            "elevation": 3
+        },
+        {
+            "type": "text",
+            "x": 36,
+            "y": 137.85,
+            "text": "home.counter_label",
+            "color": "#9CA3AF",
+            "size": 12,
+            "bold": true,
+            "letterSpacing": 0.04
+        },
+        {
+            "type": "text",
+            "x": 36,
+            "y": 168.05,
+            "text": "0",
+            "color": "#111827",
+            "size": 26,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 36,
+            "y": 195.75,
+            "width": 328,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "icon",
+            "x": 131.6635,
+            "y": 213.75,
+            "size": 18,
+            "codepoint": 57669,
+            "color": "#FFFFFF"
+        },
+        {
+            "type": "text",
+            "x": 157.6635,
+            "y": 225.375,
+            "text": "home.increment",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 285.75,
+            "width": 360,
+            "height": 62,
+            "color": "#FFFFFF",
+            "radius": 18,
+            "borderColor": "#E5E7EB",
+            "borderWidth": 1
+        },
+        {
+            "type": "rect",
+            "x": 36,
+            "y": 298.75,
+            "width": 36,
+            "height": 36,
+            "color": "#F9FAFB",
+            "radius": 18,
+            "borderWidth": 0
+        },
+        {
+            "type": "icon",
+            "x": 45,
+            "y": 307.75,
+            "size": 18,
+            "codepoint": 59576,
+            "color": "#111827"
+        },
+        {
+            "type": "text",
+            "x": 84,
+            "y": 309.75,
+            "text": "home.settings_title",
+            "color": "#111827",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "text",
+            "x": 84,
+            "y": 329.9,
+            "text": "home.settings_subtitle",
+            "color": "#9CA3AF",
+            "size": 13
+        },
+        {
+            "type": "rect",
+            "x": 334,
+            "y": 301.75,
+            "width": 30,
+            "height": 30,
+            "color": "#F9FAFB",
+            "radius": 15,
+            "borderWidth": 0
+        },
+        {
+            "type": "icon",
+            "x": 341.5,
+            "y": 309.25,
+            "size": 15,
+            "codepoint": 58828,
+            "color": "#111827"
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 359.75,
+            "width": 360,
+            "height": 62,
+            "color": "#FFFFFF",
+            "radius": 18,
+            "borderColor": "#E5E7EB",
+            "borderWidth": 1
+        },
+        {
+            "type": "rect",
+            "x": 36,
+            "y": 372.75,
+            "width": 36,
+            "height": 36,
+            "color": "#F9FAFB",
+            "radius": 18,
+            "borderWidth": 0
+        },
+        {
+            "type": "icon",
+            "x": 45,
+            "y": 381.75,
+            "size": 18,
+            "codepoint": 59507,
+            "color": "#111827"
+        },
+        {
+            "type": "text",
+            "x": 84,
+            "y": 383.75,
+            "text": "home.documents_title",
+            "color": "#111827",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "text",
+            "x": 84,
+            "y": 403.9,
+            "text": "home.documents_subtitle",
+            "color": "#9CA3AF",
+            "size": 13
+        },
+        {
+            "type": "rect",
+            "x": 334,
+            "y": 375.75,
+            "width": 30,
+            "height": 30,
+            "color": "#F9FAFB",
+            "radius": 15,
+            "borderWidth": 0
+        },
+        {
+            "type": "icon",
+            "x": 341.5,
+            "y": 383.25,
+            "size": 15,
+            "codepoint": 58828,
+            "color": "#111827"
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 433.75,
+            "width": 360,
+            "height": 62,
+            "color": "#FFFFFF",
+            "radius": 18,
+            "borderColor": "#E5E7EB",
+            "borderWidth": 1
+        },
+        {
+            "type": "rect",
+            "x": 36,
+            "y": 446.75,
+            "width": 36,
+            "height": 36,
+            "color": "#F9FAFB",
+            "radius": 18,
+            "borderWidth": 0
+        },
+        {
+            "type": "icon",
+            "x": 45,
+            "y": 455.75,
+            "size": 18,
+            "codepoint": 59872,
+            "color": "#111827"
+        },
+        {
+            "type": "text",
+            "x": 84,
+            "y": 457.75,
+            "text": "home.verification_title",
+            "color": "#111827",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "text",
+            "x": 84,
+            "y": 477.9,
+            "text": "home.verification_subtitle",
+            "color": "#9CA3AF",
+            "size": 13
+        },
+        {
+            "type": "rect",
+            "x": 334,
+            "y": 449.75,
+            "width": 30,
+            "height": 30,
+            "color": "#F9FAFB",
+            "radius": 15,
+            "borderWidth": 0
+        },
+        {
+            "type": "icon",
+            "x": 341.5,
+            "y": 457.25,
+            "size": 15,
+            "codepoint": 58828,
+            "color": "#111827"
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 507.75,
+            "width": 360,
+            "height": 62,
+            "color": "#FFFFFF",
+            "radius": 18,
+            "borderColor": "#E5E7EB",
+            "borderWidth": 1
+        },
+        {
+            "type": "rect",
+            "x": 36,
+            "y": 520.75,
+            "width": 36,
+            "height": 36,
+            "color": "#F9FAFB",
+            "radius": 18,
+            "borderWidth": 0
+        },
+        {
+            "type": "icon",
+            "x": 45,
+            "y": 529.75,
+            "size": 18,
+            "codepoint": 57761,
+            "color": "#111827"
+        },
+        {
+            "type": "text",
+            "x": 84,
+            "y": 531.75,
+            "text": "home.product_title",
+            "color": "#111827",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "text",
+            "x": 84,
+            "y": 551.9,
+            "text": "home.product_subtitle",
+            "color": "#9CA3AF",
+            "size": 13
+        },
+        {
+            "type": "rect",
+            "x": 334,
+            "y": 523.75,
+            "width": 30,
+            "height": 30,
+            "color": "#F9FAFB",
+            "radius": 15,
+            "borderWidth": 0
+        },
+        {
+            "type": "icon",
+            "x": 341.5,
+            "y": 531.25,
+            "size": 15,
+            "codepoint": 58828,
+            "color": "#111827"
+        },
+        {
+            "type": "rect",
+            "x": 0,
+            "y": 0,
+            "width": 400,
+            "height": 56,
+            "color": "#FFFFFF",
+            "radius": 0,
+            "borderWidth": 0,
+            "elevation": 2,
+            "fixed": true
+        },
+        {
+            "type": "rect",
+            "x": 16,
+            "y": 10,
+            "width": 36,
+            "height": 36,
+            "color": "#F9FAFB",
+            "radius": 18,
+            "borderWidth": 0,
+            "fixed": true
+        },
+        {
+            "type": "icon",
+            "x": 25,
+            "y": 19,
+            "size": 18,
+            "codepoint": 58834,
+            "color": "#111827",
+            "fixed": true
+        },
+        {
+            "type": "text",
+            "x": 64,
+            "y": 31.325000000000003,
+            "text": "home.app_title",
+            "color": "#111827",
+            "size": 19,
+            "bold": true,
+            "fixed": true
+        },
+        {
+            "type": "rect",
+            "x": 0,
+            "y": 736,
+            "width": 400,
+            "height": 64,
+            "color": "#FFFFFF",
+            "radius": 0,
+            "borderWidth": 0,
+            "elevation": 4,
+            "fixed": true
+        },
+        {
+            "type": "icon",
+            "x": 39,
+            "y": 748.5,
+            "size": 22,
+            "codepoint": 59530,
+            "color": "#111827",
+            "fixed": true
+        },
+        {
+            "type": "text",
+            "x": 29.940799999999996,
+            "y": 782.1,
+            "text": "Accueil",
+            "color": "#111827",
+            "size": 12,
+            "bold": true,
+            "fixed": true
+        },
+        {
+            "type": "icon",
+            "x": 139,
+            "y": 748.5,
+            "size": 22,
+            "codepoint": 57789,
+            "color": "#9CA3AF",
+            "fixed": true
+        },
+        {
+            "type": "text",
+            "x": 128.2236,
+            "y": 782.1,
+            "text": "Widgets",
+            "color": "#9CA3AF",
+            "size": 12,
+            "fixed": true
+        },
+        {
+            "type": "icon",
+            "x": 239,
+            "y": 748.5,
+            "size": 22,
+            "codepoint": 58156,
+            "color": "#9CA3AF",
+            "fixed": true
+        },
+        {
+            "type": "text",
+            "x": 232.1926,
+            "y": 782.1,
+            "text": "Device",
+            "color": "#9CA3AF",
+            "size": 12,
+            "fixed": true
+        },
+        {
+            "type": "icon",
+            "x": 339,
+            "y": 748.5,
+            "size": 22,
+            "codepoint": 61879,
+            "color": "#9CA3AF",
+            "fixed": true
+        },
+        {
+            "type": "text",
+            "x": 326.9384,
+            "y": 782.1,
+            "text": "Backend",
+            "color": "#9CA3AF",
+            "size": 12,
+            "fixed": true
+        },
+        {
+            "type": "rect",
+            "x": 328,
+            "y": 664,
+            "width": 56,
+            "height": 56,
+            "color": "#111827",
+            "radius": 28,
+            "borderWidth": 0,
+            "elevation": 6,
+            "fixed": true
+        },
+        {
+            "type": "icon",
+            "x": 344,
+            "y": 680,
+            "size": 24,
+            "codepoint": 57669,
+            "color": "#FFFFFF",
+            "fixed": true
+        }
+    ],
+    "hitRegions": [
+        {
+            "x": 20,
+            "y": 76,
+            "width": 360,
+            "height": 16.25,
+            "action": "navigate:login"
+        },
+        {
+            "x": 36,
+            "y": 147.25,
+            "width": 14.9162,
+            "height": 32.5,
+            "action": "noop",
+            "meta": {
+                "onDoubleClick": "home_increment",
+                "onSwipeLeft": "home_decrement",
+                "onSwipeRight": "home_increment"
+            }
+        },
+        {
+            "x": 36,
+            "y": 195.75,
+            "width": 328,
+            "height": 54,
+            "action": "home_increment"
+        },
+        {
+            "x": 20,
+            "y": 285.75,
+            "width": 360,
+            "height": 62,
+            "action": "navigate:settings"
+        },
+        {
+            "x": 20,
+            "y": 359.75,
+            "width": 360,
+            "height": 62,
+            "action": "navigate:documents"
+        },
+        {
+            "x": 20,
+            "y": 433.75,
+            "width": 360,
+            "height": 62,
+            "action": "navigate:otp"
+        },
+        {
+            "x": 20,
+            "y": 507.75,
+            "width": 360,
+            "height": 62,
+            "action": "navigate:product?id=42&tab=reviews"
+        },
+        {
+            "x": 16,
+            "y": 10,
+            "width": 36,
+            "height": 36,
+            "action": "toggle:drawer_open",
+            "meta": {
+                "next": "1"
+            },
+            "fixed": true
+        },
+        {
+            "x": 0,
+            "y": 736,
+            "width": 100,
+            "height": 64,
+            "action": "tab:home",
+            "fixed": true
+        },
+        {
+            "x": 100,
+            "y": 736,
+            "width": 100,
+            "height": 64,
+            "action": "tab:widgets",
+            "fixed": true
+        },
+        {
+            "x": 200,
+            "y": 736,
+            "width": 100,
+            "height": 64,
+            "action": "tab:device",
+            "fixed": true
+        },
+        {
+            "x": 300,
+            "y": 736,
+            "width": 100,
+            "height": 64,
+            "action": "tab:api",
+            "fixed": true
+        },
+        {
+            "x": 328,
+            "y": 664,
+            "width": 56,
+            "height": 56,
+            "action": "home_increment",
+            "fixed": true
+        }
+    ],
+    "contentHeight": 0
+}

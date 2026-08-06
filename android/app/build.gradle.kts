@@ -25,6 +25,13 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1"
+        // Real on-device UI tests (src/androidTest) — see this module's
+        // own docblock on why UI Automator, not Espresso: every screen is
+        // one NativeCanvasView.onDraw() call, not a real Android View per
+        // widget, so Espresso's view-matcher model has nothing to match.
+        // UI Automator instead drives the same virtual accessibility node
+        // tree CanvasAccessibilityNodeProvider exposes to TalkBack.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -69,17 +76,25 @@ android {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("androidx.biometric:biometric:1.1.0")
-    implementation("androidx.core:core-splashscreen:1.0.1")
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
-    implementation("androidx.work:work-runtime-ktx:2.9.1")
-    implementation("com.android.billingclient:billing-ktx:7.1.1")
-    implementation("com.google.android.gms:play-services-location:21.3.0")
+    // The native render engine itself — NativeRenderPocActivity,
+    // NativeCanvasView, PhpServer, MainActivity's WebView pipeline, every
+    // Device/*Receiver, libphp.so/libsqlite3.so, and every dependency the
+    // engine's own code needs (biometric, billing, maps, translate,
+    // lottie...) come in transitively as `api` dependencies of :engine —
+    // see android/engine/build.gradle.kts. A project scaffolded via
+    // `phpx new` instead depends on the published com.phpnitro:engine
+    // artifact; this project() dependency is this monorepo's own
+    // "developing the framework itself" path.
+    implementation(project(":engine"))
 
     // Push notifications — uncomment together with the plugin above and
     // google-services.json, see FcmService.kt.example.
     // implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
     // implementation("com.google.firebase:firebase-messaging")
+
+    // E2E tests only (src/androidTest) — never shipped in a real APK.
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
 }

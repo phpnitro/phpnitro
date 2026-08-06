@@ -8,8 +8,7 @@ assignees: ''
 
 ## Le besoin
 
-<!-- Quel problème ça résout ? Un équivalent Flutter/React Native/Kivy existant
-     à égaler (voir ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md) ? -->
+<!-- Quel problème ça résout ? -->
 
 ## Approche envisagée
 

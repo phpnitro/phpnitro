@@ -95,5 +95,3 @@ is informal while the project is pre-1.0 (see `phpnitro.yml`'s `version`).
 - README rewritten as a short, professional pitch; detailed reference material
   moved to `docs/` (getting started, widgets, device/native, payments,
   integrations, CLI, mobile builds, architecture).
-- `ROADMAP-PARITE-FLUTTER-REACT-NATIVE.md` updated with real device-verification
-  notes and a Kivy-specific gaps section.

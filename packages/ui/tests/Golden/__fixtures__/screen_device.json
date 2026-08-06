@@ -1,0 +1,1554 @@
+{
+    "commands": [
+        {
+            "type": "rect",
+            "x": 0,
+            "y": 56,
+            "width": 400,
+            "height": 680,
+            "color": "#F9FAFB",
+            "radius": 0,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 20,
+            "y": 86.4,
+            "text": "Pont natif réel — NativeDeviceBridge.kt",
+            "color": "#9CA3AF",
+            "size": 13
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 104.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 179.35399999999998,
+            "y": 133.875,
+            "text": "Vibrer",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 170.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 176.2145,
+            "y": 199.875,
+            "text": "Torche",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 236.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 173.2925,
+            "y": 265.875,
+            "text": "Batterie",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 302.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 169.0565,
+            "y": 331.875,
+            "text": "ID device",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 368.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 167.23399999999998,
+            "y": 397.875,
+            "text": "Bluetooth",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 434.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 140.62324999999998,
+            "y": 463.875,
+            "text": "Stocker un secret",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 500.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 156.25475,
+            "y": 529.875,
+            "text": "Lire le secret",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 566.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 169.805,
+            "y": 595.875,
+            "text": "Contacts",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 632.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 165.09050000000002,
+            "y": 661.875,
+            "text": "Calendrier",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 698.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 156.15724999999998,
+            "y": 727.875,
+            "text": "Jouer un son",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 764.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 160.4015,
+            "y": 793.875,
+            "text": "Notification",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 830.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 170.7725,
+            "y": 859.875,
+            "text": "Partager",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 896.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 161.0435,
+            "y": 925.875,
+            "text": "Icône bleue",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 962.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 144.995,
+            "y": 991.875,
+            "text": "Icône par défaut",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 1028.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 157.50875000000002,
+            "y": 1057.875,
+            "text": "Photo native",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 1094.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 139.07825,
+            "y": 1123.875,
+            "text": "Choisir une image",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 1160.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 120.35824999999998,
+            "y": 1189.875,
+            "text": "Authentifier (biométrie)",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 1226.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 146.38400000000001,
+            "y": 1255.875,
+            "text": "Luminosité 50%",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 1292.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 169.16899999999998,
+            "y": 1321.875,
+            "text": "Localiser",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 1358.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 131.53175,
+            "y": 1387.875,
+            "text": "Activer le micro (2s)",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 1424.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 89.40350000000001,
+            "y": 1453.875,
+            "text": "Vérifier/demander la localisation",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 1490.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 131.8715,
+            "y": 1519.875,
+            "text": "Scanner un QR code",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 1556.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 150.2,
+            "y": 1585.875,
+            "text": "Accéléromètre",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 1622.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 157.92575,
+            "y": 1651.875,
+            "text": "Écouter NFC",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 1688.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 159.90425,
+            "y": 1717.875,
+            "text": "Arrêter NFC",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 1754.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 119.873,
+            "y": 1783.875,
+            "text": "Produits (achat intégré)",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 1820.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 123.19774999999998,
+            "y": 1849.875,
+            "text": "Acheter demo_product",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 1886.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 110.10499999999999,
+            "y": 1915.875,
+            "text": "Activer zone (Paris, 200m)",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 1952.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 138.15575,
+            "y": 1981.875,
+            "text": "Désactiver la zone",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 2018.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 123.59599999999998,
+            "y": 2047.875,
+            "text": "Planifier tâche de fond",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 2084.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 125.65325,
+            "y": 2113.875,
+            "text": "Annuler tâche de fond",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 2154.25,
+            "width": 360,
+            "height": 1,
+            "color": "#E5E7EB",
+            "radius": 0,
+            "borderWidth": 0
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 2167.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 148.124,
+            "y": 2196.875,
+            "text": "Imprimer (PDF)",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 2237.25,
+            "width": 360,
+            "height": 1,
+            "color": "#E5E7EB",
+            "radius": 0,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 20,
+            "y": 2248.65,
+            "text": "Capacités device — packages Engine\\Device (aucun widget",
+            "color": "#9CA3AF",
+            "size": 13
+        },
+        {
+            "type": "text",
+            "x": 20,
+            "y": 2264.9,
+            "text": "imposé)",
+            "color": "#9CA3AF",
+            "size": 13
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 2282.75,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 154.9985,
+            "y": 2312.375,
+            "text": "Ouvrir un lien",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 2348.75,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 157.60175,
+            "y": 2378.375,
+            "text": "Connectivité",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 2414.75,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 139.562,
+            "y": 2444.375,
+            "text": "Demander un avis",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 2480.75,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 135.10025000000002,
+            "y": 2510.375,
+            "text": "Dernier lien entrant",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 2546.75,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 141.03050000000002,
+            "y": 2576.375,
+            "text": "Réglages de l'app",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 2612.75,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 145.66325,
+            "y": 2642.375,
+            "text": "Ouvrir un fichier",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 2678.75,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 120.128,
+            "y": 2708.375,
+            "text": "Vérifier les mises à jour",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 2744.75,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 142.4,
+            "y": 2774.375,
+            "text": "Choisir un fichier",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 2810.75,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 121.38575,
+            "y": 2840.375,
+            "text": "Ouvrir Paris dans Maps",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 2876.75,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 131.3705,
+            "y": 2906.375,
+            "text": "Enregistrer une note",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 2942.75,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 99.12950000000002,
+            "y": 2972.375,
+            "text": "Copier dans le presse-papiers",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 3008.75,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 126.5885,
+            "y": 3038.375,
+            "text": "Lire le presse-papiers",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 3074.75,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 142.313,
+            "y": 3104.375,
+            "text": "Envoyer un email",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 3140.75,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 142.565,
+            "y": 3170.375,
+            "text": "Redémarrer l'app",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 3210.75,
+            "width": 360,
+            "height": 1,
+            "color": "#E5E7EB",
+            "radius": 0,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 20,
+            "y": 3222.15,
+            "text": "WebSocket — connexion persistante réelle (survit à",
+            "color": "#9CA3AF",
+            "size": 13
+        },
+        {
+            "type": "text",
+            "x": 20,
+            "y": 3238.4,
+            "text": "l'arrière-plan)",
+            "color": "#9CA3AF",
+            "size": 13
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 3256.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 119.27000000000001,
+            "y": 3285.875,
+            "text": "Connecter (echo public)",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 3322.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 104.17325,
+            "y": 3351.875,
+            "text": "Envoyer \"Bonjour PhpNitro !\"",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 3388.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 157.23499999999999,
+            "y": 3417.875,
+            "text": "Déconnecter",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 3454.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 132.44675,
+            "y": 3483.875,
+            "text": "Recadrer une image",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 0,
+            "y": 0,
+            "width": 400,
+            "height": 56,
+            "color": "#FFFFFF",
+            "radius": 0,
+            "borderWidth": 0,
+            "elevation": 2,
+            "fixed": true
+        },
+        {
+            "type": "rect",
+            "x": 16,
+            "y": 10,
+            "width": 36,
+            "height": 36,
+            "color": "#F9FAFB",
+            "radius": 18,
+            "borderWidth": 0,
+            "fixed": true
+        },
+        {
+            "type": "icon",
+            "x": 25,
+            "y": 19,
+            "size": 18,
+            "codepoint": 58820,
+            "color": "#111827",
+            "fixed": true
+        },
+        {
+            "type": "text",
+            "x": 64,
+            "y": 31.325000000000003,
+            "text": "Capacités du device",
+            "color": "#111827",
+            "size": 19,
+            "bold": true,
+            "fixed": true
+        },
+        {
+            "type": "rect",
+            "x": 0,
+            "y": 2936,
+            "width": 400,
+            "height": 64,
+            "color": "#FFFFFF",
+            "radius": 0,
+            "borderWidth": 0,
+            "elevation": 4,
+            "fixed": true
+        },
+        {
+            "type": "icon",
+            "x": 39,
+            "y": 2948.5,
+            "size": 22,
+            "codepoint": 59530,
+            "color": "#9CA3AF",
+            "fixed": true
+        },
+        {
+            "type": "text",
+            "x": 30.3974,
+            "y": 2982.1,
+            "text": "Accueil",
+            "color": "#9CA3AF",
+            "size": 12,
+            "fixed": true
+        },
+        {
+            "type": "icon",
+            "x": 139,
+            "y": 2948.5,
+            "size": 22,
+            "codepoint": 57789,
+            "color": "#9CA3AF",
+            "fixed": true
+        },
+        {
+            "type": "text",
+            "x": 128.2236,
+            "y": 2982.1,
+            "text": "Widgets",
+            "color": "#9CA3AF",
+            "size": 12,
+            "fixed": true
+        },
+        {
+            "type": "icon",
+            "x": 239,
+            "y": 2948.5,
+            "size": 22,
+            "codepoint": 58156,
+            "color": "#111827",
+            "fixed": true
+        },
+        {
+            "type": "text",
+            "x": 231.8692,
+            "y": 2982.1,
+            "text": "Device",
+            "color": "#111827",
+            "size": 12,
+            "bold": true,
+            "fixed": true
+        },
+        {
+            "type": "icon",
+            "x": 339,
+            "y": 2948.5,
+            "size": 22,
+            "codepoint": 61879,
+            "color": "#9CA3AF",
+            "fixed": true
+        },
+        {
+            "type": "text",
+            "x": 326.9384,
+            "y": 2982.1,
+            "text": "Backend",
+            "color": "#9CA3AF",
+            "size": 12,
+            "fixed": true
+        }
+    ],
+    "hitRegions": [
+        {
+            "x": 20,
+            "y": 104.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:vibrate"
+        },
+        {
+            "x": 20,
+            "y": 170.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:torch"
+        },
+        {
+            "x": 20,
+            "y": 236.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:battery:battery_out"
+        },
+        {
+            "x": 20,
+            "y": 302.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:deviceid:device_id_out"
+        },
+        {
+            "x": 20,
+            "y": 368.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:bluetooth:bt_out"
+        },
+        {
+            "x": 20,
+            "y": 434.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:securestore:demo_key"
+        },
+        {
+            "x": 20,
+            "y": 500.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:secureretrieve:demo_key:secure_out"
+        },
+        {
+            "x": 20,
+            "y": 566.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:contacts:contacts_out"
+        },
+        {
+            "x": 20,
+            "y": 632.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:calendar:calendar_out"
+        },
+        {
+            "x": 20,
+            "y": 698.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:sound"
+        },
+        {
+            "x": 20,
+            "y": 764.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:notify"
+        },
+        {
+            "x": 20,
+            "y": 830.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:share"
+        },
+        {
+            "x": 20,
+            "y": 896.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:appicon:alt"
+        },
+        {
+            "x": 20,
+            "y": 962.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:appicon:default"
+        },
+        {
+            "x": 20,
+            "y": 1028.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:camera"
+        },
+        {
+            "x": 20,
+            "y": 1094.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:pickimage"
+        },
+        {
+            "x": 20,
+            "y": 1160.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:biometric:biometric_out"
+        },
+        {
+            "x": 20,
+            "y": 1226.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:brightness"
+        },
+        {
+            "x": 20,
+            "y": 1292.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:locate:location_out"
+        },
+        {
+            "x": 20,
+            "y": 1358.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:mic:mic_out:2000"
+        },
+        {
+            "x": 20,
+            "y": 1424.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:permission:location:loc_perm_out"
+        },
+        {
+            "x": 20,
+            "y": 1490.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:scanqr:qr_out"
+        },
+        {
+            "x": 20,
+            "y": 1556.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:sensor:sensor_out"
+        },
+        {
+            "x": 20,
+            "y": 1622.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:nfcstart"
+        },
+        {
+            "x": 20,
+            "y": 1688.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:nfcstop"
+        },
+        {
+            "x": 20,
+            "y": 1754.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:iapquery:iap_out"
+        },
+        {
+            "x": 20,
+            "y": 1820.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:iappurchase"
+        },
+        {
+            "x": 20,
+            "y": 1886.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:geofenceadd"
+        },
+        {
+            "x": 20,
+            "y": 1952.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:geofenceremove"
+        },
+        {
+            "x": 20,
+            "y": 2018.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:bgschedule"
+        },
+        {
+            "x": 20,
+            "y": 2084.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:bgcancel"
+        },
+        {
+            "x": 20,
+            "y": 2167.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:printpdf"
+        },
+        {
+            "x": 20,
+            "y": 2282.75,
+            "width": 360,
+            "height": 54,
+            "action": "device:openurl:https%3A%2F%2Fphpnitro.dev"
+        },
+        {
+            "x": 20,
+            "y": 2348.75,
+            "width": 360,
+            "height": 54,
+            "action": "device:connectivity:connectivity_out"
+        },
+        {
+            "x": 20,
+            "y": 2414.75,
+            "width": 360,
+            "height": 54,
+            "action": "device:inappreview"
+        },
+        {
+            "x": 20,
+            "y": 2480.75,
+            "width": 360,
+            "height": 54,
+            "action": "device:applink:app_link_out"
+        },
+        {
+            "x": 20,
+            "y": 2546.75,
+            "width": 360,
+            "height": 54,
+            "action": "device:appsettings:app"
+        },
+        {
+            "x": 20,
+            "y": 2612.75,
+            "width": 360,
+            "height": 54,
+            "action": "device:openfile:document.txt:text%2Fplain:Bonjour%20depuis%20PhpNitro%20%21"
+        },
+        {
+            "x": 20,
+            "y": 2678.75,
+            "width": 360,
+            "height": 54,
+            "action": "device:checkupdate:update_out"
+        },
+        {
+            "x": 20,
+            "y": 2744.75,
+            "width": 360,
+            "height": 54,
+            "action": "device:pickfile:file_out"
+        },
+        {
+            "x": 20,
+            "y": 2810.75,
+            "width": 360,
+            "height": 54,
+            "action": "device:openmap:48.8566:2.3522:Paris"
+        },
+        {
+            "x": 20,
+            "y": 2876.75,
+            "width": 360,
+            "height": 54,
+            "action": "device:savefile:note.txt:Ma%20note%20PhpNitro:save_out"
+        },
+        {
+            "x": 20,
+            "y": 2942.75,
+            "width": 360,
+            "height": 54,
+            "action": "device:clipboardcopy:Copi%C3%A9%20depuis%20PhpNitro%20%21"
+        },
+        {
+            "x": 20,
+            "y": 3008.75,
+            "width": 360,
+            "height": 54,
+            "action": "device:clipboardpaste:clipboard_out"
+        },
+        {
+            "x": 20,
+            "y": 3074.75,
+            "width": 360,
+            "height": 54,
+            "action": "device:sendemail:contact%40example.com:Bonjour:Message%20envoy%C3%A9%20depuis%20PhpNitro."
+        },
+        {
+            "x": 20,
+            "y": 3140.75,
+            "width": 360,
+            "height": 54,
+            "action": "device:restartapp"
+        },
+        {
+            "x": 20,
+            "y": 3256.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:wsconnect:wss%3A%2F%2Fws.postman-echo.com%2Fraw:ws_out"
+        },
+        {
+            "x": 20,
+            "y": 3322.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:wssend:Bonjour%20PhpNitro%20%21"
+        },
+        {
+            "x": 20,
+            "y": 3388.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:wsdisconnect"
+        },
+        {
+            "x": 20,
+            "y": 3454.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:cropimage:crop_out"
+        },
+        {
+            "x": 16,
+            "y": 10,
+            "width": 36,
+            "height": 36,
+            "action": "back",
+            "fixed": true
+        },
+        {
+            "x": 0,
+            "y": 2936,
+            "width": 100,
+            "height": 64,
+            "action": "tab:home",
+            "fixed": true
+        },
+        {
+            "x": 100,
+            "y": 2936,
+            "width": 100,
+            "height": 64,
+            "action": "tab:widgets",
+            "fixed": true
+        },
+        {
+            "x": 200,
+            "y": 2936,
+            "width": 100,
+            "height": 64,
+            "action": "tab:device",
+            "fixed": true
+        },
+        {
+            "x": 300,
+            "y": 2936,
+            "width": 100,
+            "height": 64,
+            "action": "tab:api",
+            "fixed": true
+        }
+    ],
+    "contentHeight": 0
+}

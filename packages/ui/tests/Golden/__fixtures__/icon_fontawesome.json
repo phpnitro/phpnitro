@@ -1,0 +1,15 @@
+{
+    "commands": [
+        {
+            "type": "icon",
+            "x": 0,
+            "y": 0,
+            "size": 24,
+            "codepoint": 61444,
+            "color": "#DC2626",
+            "font": "fontawesome"
+        }
+    ],
+    "hitRegions": [],
+    "contentHeight": 0
+}

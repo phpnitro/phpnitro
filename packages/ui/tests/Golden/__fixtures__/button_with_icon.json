@@ -1,0 +1,41 @@
+{
+    "commands": [
+        {
+            "type": "rect",
+            "x": 0,
+            "y": 0,
+            "width": 200,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "icon",
+            "x": 63.09825000000001,
+            "y": 18,
+            "size": 18,
+            "codepoint": 58826,
+            "color": "#FFFFFF"
+        },
+        {
+            "type": "text",
+            "x": 89.09825000000001,
+            "y": 29.625,
+            "text": "Valider",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        }
+    ],
+    "hitRegions": [
+        {
+            "x": 0,
+            "y": 0,
+            "width": 200,
+            "height": 54,
+            "action": "submit:demo"
+        }
+    ],
+    "contentHeight": 0
+}

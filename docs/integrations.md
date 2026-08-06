@@ -2,19 +2,7 @@
 
 ## Cartes
 
-Trois fournisseurs dans `packages/maps/src/` (namespace `Engine\Maps\`) :
-
-| Fournisseur | Confiance | Détail |
-|---|---|---|
-| **OpenStreetMap** (`OsmMap`) | Élevée, testé | Leaflet.js + tuiles OSM, aucune clé — vérifiée en conditions réelles sur device. |
-| **Mapbox** (`MapboxMap`) | Élevée sur le principe, non testé | Mapbox GL JS v3, jeton d'accès public. Pas de compte disponible pour tester en réel. |
-| **Google Maps** (`GoogleMap`) | Élevée sur le principe, non testé | Google Maps JavaScript API, clé restreinte par domaine/package. |
-
-```php
-Maps\MapView::make($lat, $lng, $zoom)   // choisit automatiquement Mapbox > Google Maps > OpenStreetMap selon .env
-```
-
-Rien configuré = OpenStreetMap, toujours disponible (voir `phpnitro.yml`'s `maps:`, `phpx maps`).
+`packages/maps/` (le widget HTML `Maps\MapView`/`OsmMap`/`MapboxMap`/`GoogleMap`) a été supprimé une fois remplacé par un vrai widget natif : `Engine\Native\MapView`, une véritable `org.osmdroid.views.MapView` overlayée au tap (tuiles OpenStreetMap réelles, pan/zoom natif, aucune clé API). Voir [docs/widgets.md](widgets.md).
 
 ## Firebase
 
@@ -50,27 +38,7 @@ Données dérivées de deux jeux de données ouverts, licences documentées dans
 
 ## Authentification sociale
 
-`packages/socialauth/src/` (namespace `Engine\SocialAuth\`) — **des services, pas des boutons pré-stylés**. Chaque fournisseur suit le même flux OAuth2 Authorization Code (base commune `OAuthProvider`) : `onClick()` redirige vers l'écran de connexion du fournisseur, ta propre route de callback appelle `exchangeCode()` qui fait l'échange serveur-à-serveur et te renvoie `{id, email, name}` — à toi de créer/connecter l'utilisateur avec.
-
-```php
-Button::make('Se connecter avec Google', onClick: GoogleSignIn::onClick($clientId, $redirectUri))
-
-// Dans ta route de callback (reçoit ?code=...) :
-$user = GoogleSignIn::exchangeCode($code, $clientId, $clientSecret, $redirectUri);
-// $user === ['id' => '...', 'email' => '...', 'name' => '...'] ou null si échec
-```
-
-| Fournisseur | Particularité |
-|---|---|
-| `GoogleSignIn` | OAuth2 standard |
-| `MicrosoftSignIn` | tenant `common` (comptes pro et perso) |
-| `GithubSignIn` | OAuth2 standard |
-| `SlackSignIn` | OpenID Connect (scopes `openid email profile`, pas les anciens scopes bot/workspace) |
-| `FacebookSignIn` | OAuth2 standard |
-| `XSignIn` | seul fournisseur nécessitant PKCE — le `code_verifier` est conservé en session entre `onClick()` et `exchangeCode()` |
-| `AppleSignIn` | le seul sans `client_secret` statique : `AppleSignIn::clientSecret($teamId, $keyId, $clientId, $privateKeyPath)` génère le JWT ES256 requis (même idiome que `GoogleServiceAccount`, vérifié cryptographiquement avec une vraie paire de clés EC). Pas d'endpoint userinfo REST — les infos utilisateur n'arrivent que dans l'`id_token` du premier login. |
-
-Tous **non vérifiés contre un vrai compte développeur** (aucun disponible dans l'environnement de développement) — même tier de confiance que Mapbox/Firebase. `AppleSignIn::normalize()` décode le JWT sans vérifier sa signature contre le JWKS d'Apple (acceptable seulement parce que le token vient directement de l'endpoint token d'Apple en TLS, jamais réutilisable tel quel pour un token reçu d'ailleurs).
+`packages/socialauth/` (7 fournisseurs OAuth2 — Google, Microsoft, GitHub, Slack, Facebook, X, Apple) a été supprimé : c'était un service attaché à `Button::make()`, le widget Tailwind supprimé avec la bascule vers le rendu natif, et il n'avait plus aucun appelant. Pas encore reconstruit en natif — un vrai chantier futur (flux OAuth2 déclenché depuis un `Button`, callback géré côté PHP comme avant) plutôt qu'une résurrection de l'ancien code.
 
 ## Formats (nombres, devises, dates)
 
