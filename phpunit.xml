@@ -58,5 +58,8 @@
         <testsuite name="jwt">
             <directory>packages/jwt/tests</directory>
         </testsuite>
+        <testsuite name="offline">
+            <directory>packages/offline/tests</directory>
+        </testsuite>
     </testsuites>
 </phpunit>

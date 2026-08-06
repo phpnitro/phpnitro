@@ -23,6 +23,7 @@ parameters:
         - packages/jwt/src
         - packages/geocoding/src
         - packages/supabase/src
+        - packages/offline/src
         - lib/pages
         - lib/backend/src
         - public/index.php
