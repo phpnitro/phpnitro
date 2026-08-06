@@ -1,0 +1,26 @@
+{
+    "commands": [
+        {
+            "type": "rect",
+            "x": 0,
+            "y": 0,
+            "width": 40,
+            "height": 40,
+            "color": "#EF4444",
+            "radius": 0,
+            "borderWidth": 0
+        },
+        {
+            "type": "rect",
+            "x": 48,
+            "y": 0,
+            "width": 40,
+            "height": 40,
+            "color": "#3B82F6",
+            "radius": 0,
+            "borderWidth": 0
+        }
+    ],
+    "hitRegions": [],
+    "contentHeight": 0
+}

@@ -39,8 +39,25 @@ final class Database
     private static ?Connection $connection = null;
     private static ?string $sqlitePath = null;
 
+    /**
+     * Forces a reconnect on the next connection() call when the path
+     * actually changes — without this, a connection already cached from
+     * an EARLIER call to connection() (before useSqlitePath() ever ran,
+     * or against a since-superseded path) would silently keep being
+     * reused, because connection()'s own reuse check only cares whether
+     * the existing connection is still alive, not whether it points at
+     * the path this call just asked for. Caught for real: a test calling
+     * Preferences::get() before setting up its own sqlite path connected
+     * to (and wrote into) this project's real default var/data.sqlite;
+     * a later useSqlitePath() call to a fresh test path had no effect at
+     * all, because the already-alive connection to the wrong file was
+     * simply reused.
+     */
     public static function useSqlitePath(string $path): void
     {
+        if (self::$sqlitePath !== $path) {
+            self::$connection = null;
+        }
         self::$sqlitePath = $path;
     }
 

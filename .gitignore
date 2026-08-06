@@ -12,6 +12,7 @@ composer.lock
 /android/go/build/
 /lib/backend/var/*.sqlite
 /lib/backend/var/uploads/
+/var/
 /.tools/
 /android/local.properties
 /android/app/*.keystore

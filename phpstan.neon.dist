@@ -15,6 +15,14 @@ parameters:
         - packages/i18n/src
         - packages/state/src
         - packages/analytics/src
+        - packages/validation/src
+        - packages/uuid/src
+        - packages/crypto/src
+        - packages/mime/src
+        - packages/retry/src
+        - packages/jwt/src
+        - packages/geocoding/src
+        - packages/supabase/src
         - lib/pages
         - lib/backend/src
         - public/index.php
