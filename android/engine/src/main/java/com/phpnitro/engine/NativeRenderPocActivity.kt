@@ -1009,7 +1009,14 @@ class NativeRenderPocActivity : AppCompatActivity() {
             // res/xml/file_paths.xml) — a raw file:// Uri would be
             // rejected across app boundaries since API 24.
             "openfile" -> {
-                val fileName = java.net.URLDecoder.decode(parts.getOrElse(1) { "document.txt" }, "UTF-8")
+                // java.io.File(filesDir, fileName)'s two-arg constructor
+                // does NOT confine the result to filesDir — a fileName of
+                // "../../../etc/whatever" resolves right past it (a real
+                // path-traversal write, not a hypothetical one). Taking
+                // just File(fileName).name discards any directory
+                // component before it ever reaches the real File(dir,
+                // name) constructor below.
+                val fileName = java.io.File(java.net.URLDecoder.decode(parts.getOrElse(1) { "document.txt" }, "UTF-8")).name
                 val mimeType = java.net.URLDecoder.decode(parts.getOrElse(2) { "text/plain" }, "UTF-8")
                 val content = java.net.URLDecoder.decode(parts.getOrElse(3) { "" }, "UTF-8")
                 val file = java.io.File(filesDir, fileName)
