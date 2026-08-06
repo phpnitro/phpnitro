@@ -108,6 +108,15 @@ jobs:
           target: google_apis
           profile: pixel_6
           disable-animations: true
+          # "Timeout waiting for emulator to boot" is a documented flaky
+          # failure mode of this action on GitHub-hosted macOS runners,
+          # not something this repo's own code controls — these are the
+          # action's own recommended mitigations: a longer boot timeout
+          # than its 300s default, and headless/no-GPU/no-audio options
+          # that avoid driver-related hangs on a runner with no real
+          # display or audio device.
+          emulator-boot-timeout: 900
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: cd android && gradle :app:connectedDebugAndroidTest
 
   ios-build:
@@ -130,4 +139,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: xcodebuild -scheme PhpNitroWebViewBridge -destination 'generic/platform=iOS Simulator' build
-      - run: xcodebuild -scheme PhpNitroNativeEngine -destination 'platform=iOS Simulator,name=iPhone 15' test
+      # Xcode's auto-generated scheme for a single LIBRARY product (named
+      # after that product, "PhpNitroNativeEngine") isn't wired for the
+      # Test action — only the scheme matching the PACKAGE's own name
+      # (Package.swift's `name: "PhpNitroEngine"`, which aggregates every
+      # target including PhpNitroNativeEngineTests) is. Confirmed for
+      # real: `-scheme PhpNitroNativeEngine ... test` failed with "Scheme
+      # PhpNitroNativeEngine is not currently configured for the test
+      # action" on the first real CI run of this job.
+      - run: xcodebuild -scheme PhpNitroEngine -destination 'platform=iOS Simulator,name=iPhone 15' test

@@ -107,7 +107,7 @@ public final class NativeCanvasView: UIView {
             x: command.cx - command.radius,
             y: command.cy - command.radius,
             width: command.radius * 2,
-            height: command.radius * 2,
+            height: command.radius * 2
         )
         let path = UIBezierPath(ovalIn: rect).cgPath
 
@@ -162,7 +162,7 @@ public final class NativeCanvasView: UIView {
             radius: command.radius,
             startAngle: startRadians,
             endAngle: endRadians,
-            clockwise: true,
+            clockwise: true
         )
         context.strokePath()
         context.restoreGState()
@@ -198,7 +198,7 @@ extension UIColor {
             red: CGFloat(r) / 255,
             green: CGFloat(g) / 255,
             blue: CGFloat(b) / 255,
-            alpha: CGFloat(a) / 255,
+            alpha: CGFloat(a) / 255
         )
     }
 }
