@@ -37,7 +37,7 @@ let package = Package(
         .testTarget(
             name: "PhpNitroNativeEngineTests",
             dependencies: ["PhpNitroNativeEngine"],
-            path: "Tests/PhpNitroNativeEngineTests",
+            path: "Tests/PhpNitroNativeEngineTests"
         ),
-    ],
+    ]
 )
