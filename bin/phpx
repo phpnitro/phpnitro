@@ -48,6 +48,84 @@ require_once __DIR__ . '/QrCode.php';
 // the source that tag mirrors).
 define('ANDROID_ENGINE_VERSION', 'v1.2.0');
 
+/**
+ * The bare "PHPNITRO" wordmark every letter needed for this specific
+ * word — not a general figlet/toilet port (those are whole external
+ * binaries with full alphabets/fonts, real dependencies this framework
+ * has otherwise avoided reaching for all along, e.g. QrCode::toTerminal()
+ * hand-rolls its own QR rendering rather than shelling out to `qrencode`).
+ * Each letter is a 5-row x 5-col block glyph; buildBanner() joins them
+ * with a 1-column gap and does the '#'/'.' -> block/space substitution
+ * ONCE, programmatically — a hand-typed final string is exactly the kind
+ * of thing that silently goes one column ragged on one row and nobody
+ * notices until it's already merged (caught for real while building
+ * this: a hand-typed version came out 51/52/52/52/51 columns instead of
+ * a consistent 47).
+ *
+ * @return array<int, string>
+ */
+function phpxBannerLines(): array
+{
+    $letters = [
+        'P' => ['####.', '#...#', '####.', '#....', '#....'],
+        'H' => ['#...#', '#...#', '#####', '#...#', '#...#'],
+        'N' => ['#...#', '##..#', '#.#.#', '#..##', '#...#'],
+        'I' => ['#####', '..#..', '..#..', '..#..', '#####'],
+        'T' => ['#####', '..#..', '..#..', '..#..', '..#..'],
+        'R' => ['####.', '#...#', '####.', '#..#.', '#...#'],
+        'O' => ['.###.', '#...#', '#...#', '#...#', '.###.'],
+    ];
+
+    $word = str_split('PHPNITRO');
+    $lines = [];
+    for ($row = 0; $row < 5; $row++) {
+        $glyphs = array_map(static fn (string $letter): string => $letters[$letter][$row], $word);
+        $lines[] = str_replace(['#', '.'], ['█', ' '], implode(' ', $glyphs));
+    }
+
+    return $lines;
+}
+
+function printPhpxUsage(): void
+{
+    $isTty = function_exists('posix_isatty') && posix_isatty(STDOUT);
+    $cyan = $isTty ? "\033[36m" : '';
+    $reset = $isTty ? "\033[0m" : '';
+    $bold = $isTty ? "\033[1m" : '';
+
+    foreach (phpxBannerLines() as $line) {
+        echo "{$cyan}{$line}{$reset}\n";
+    }
+    echo "\n{$bold}Le framework PHP pour de vraies apps Android natives — pas de WebView.{$reset}\n\n";
+
+    $commands = [
+        'make:page <Name>' => 'Génère une Page + un Controller backend associé',
+        'make:entity <Name>' => 'Génère une Entity + un Repository associé',
+        'make:migration <name>' => 'Génère une migration de base de données',
+        'migrate' => 'Applique les migrations en attente',
+        'migrate:rollback' => 'Annule le dernier lot de migrations',
+        'migrate:status' => 'Liste les migrations appliquées/en attente',
+        'serve [port]' => 'Sert public/ (8090 par défaut)',
+        'new <directory>' => 'Crée un nouveau projet (android/ ios/ lib/ packages/ public/)',
+        'bundle:android' => "Copie public/ + lib/ + packages/ + .env dans l'app Android",
+        'build:android [debug|release]' => 'bundle:android + gradle assemble (installe Gradle si besoin)',
+        'dev:push [--watch]' => "Pousse le PHP directement sur un device connecté, sans rebuild",
+        'payments' => 'Liste les moyens de paiement déclarés dans phpnitro.yml',
+        'maps' => 'Liste les fournisseurs de carte déclarés dans phpnitro.yml',
+        'icon' => "Régénère l'icône Android depuis phpnitro.yml",
+        'firebase' => 'Liste la config Firebase déclarée dans phpnitro.yml',
+        'docs:api' => 'Génère docs/api/*.md depuis les docblocks des classes publiques',
+        'doctor' => 'Vérifie que la machine est prête pour développer avec phpx',
+    ];
+
+    $width = max(array_map('strlen', array_keys($commands)));
+    foreach ($commands as $usage => $description) {
+        $padded = str_pad($usage, $width);
+        echo "  {$cyan}phpx {$padded}{$reset}  {$description}\n";
+    }
+    echo "\n";
+}
+
 function phpxFail(string $message): never
 {
     fwrite(STDERR, "phpx: {$message}\n");
@@ -2063,5 +2141,9 @@ switch ($command) {
         cmdDoctor();
         break;
     default:
-        phpxFail('usage: phpx <make:page|make:entity|serve|new|bundle:android|build:android|dev:push|payments|maps|icon|firebase|docs:api|doctor> ...');
+        printPhpxUsage();
+        if ($command !== null) {
+            fwrite(STDERR, "phpx: commande inconnue : {$command}\n");
+        }
+        exit(1);
 }
