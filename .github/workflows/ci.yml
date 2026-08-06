@@ -71,6 +71,20 @@ jobs:
 
   android-e2e-test:
     name: Android E2E (real emulator, android/app/src/androidTest)
+    # DISABLED FOR NOW — remove this `if` line to re-enable, once the
+    # account's GitHub billing/spending limit is sorted (Settings >
+    # Billing and plans). Real root cause, confirmed by a real CI run's
+    # own QEMU output — "HVF error: HV_UNSUPPORTED" / "qemu-system-
+    # aarch64-headless: failed to initialize HVF: Invalid argument" —
+    # is that GitHub's STANDARD macos-14 runner doesn't expose nested
+    # virtualization (HVF) to the VM it hands out, so the emulator's own
+    # hypervisor init crashes before any emulator-options tuning could
+    # ever matter; only the larger `macos-14-xlarge` tier does. That tier
+    # is billed at a higher per-minute rate, and this account's own job
+    # run came back with "The job was not started because recent account
+    # payments have failed or your spending limit needs to be increased"
+    # — a GitHub account setting, not anything fixable from workflow code.
+    if: false
     # macos-14 (Apple Silicon, ARM64) is required, not ubuntu-latest —
     # android/README.md documents only armeabi-v7a/arm64-v8a builds of
     # libphp.so exist (no x86_64), so a standard Linux runner's x86_64
@@ -78,17 +92,8 @@ jobs:
     # An ARM64 system image on Apple Silicon gets real HVF hardware
     # acceleration; the same arch on an Intel/AMD runner would fall back
     # to software emulation, slow enough to blow past any reasonable CI
-    # timeout.
-    #
-    # -xlarge specifically (not plain macos-14): confirmed by a real CI
-    # run's own QEMU output — "HVF error: HV_UNSUPPORTED" /
-    # "qemu-system-aarch64-headless: failed to initialize HVF: Invalid
-    # argument" — that GitHub's STANDARD macos-14 runner doesn't expose
-    # nested virtualization (HVF) to the VM it hands out, so the
-    # emulator's own hypervisor init crashes before any emulator-options
-    # tuning could ever matter. Only the -xlarge tier does. This is a
-    # billed runner size — costs real Actions minutes at a higher rate,
-    # confirmed acceptable before this change (see PR discussion).
+    # timeout. -xlarge specifically (not plain macos-14): see the `if:
+    # false` comment above for why plain macos-14 can never work here.
     runs-on: macos-14-xlarge
     steps:
       - uses: actions/checkout@v4
