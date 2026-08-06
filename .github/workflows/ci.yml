@@ -139,12 +139,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: xcodebuild -scheme PhpNitroWebViewBridge -destination 'generic/platform=iOS Simulator' build
-      # Xcode's auto-generated scheme for a single LIBRARY product (named
-      # after that product, "PhpNitroNativeEngine") isn't wired for the
-      # Test action — only the scheme matching the PACKAGE's own name
-      # (Package.swift's `name: "PhpNitroEngine"`, which aggregates every
-      # target including PhpNitroNativeEngineTests) is. Confirmed for
-      # real: `-scheme PhpNitroNativeEngine ... test` failed with "Scheme
-      # PhpNitroNativeEngine is not currently configured for the test
-      # action" on the first real CI run of this job.
-      - run: xcodebuild -scheme PhpNitroEngine -destination 'platform=iOS Simulator,name=iPhone 15' test
+      # Two wrong guesses already made and corrected by real CI runs, in
+      # order: "PhpNitroNativeEngine" (the library product's own scheme)
+      # exists but isn't wired for the Test action; "PhpNitroEngine" (the
+      # package's own `name:` in Package.swift) doesn't exist as a scheme
+      # at all — Xcode does NOT auto-generate a package-level aggregate
+      # scheme for a raw SPM package the way an actual .xcodeproj would.
+      # This step lists every scheme xcodebuild actually sees BEFORE the
+      # test step below runs, so the next failure (if this next guess is
+      # also wrong) comes with the real answer already in the log instead
+      # of costing a third blind guess.
+      - run: xcodebuild -list
+      - run: xcodebuild -scheme PhpNitroNativeEngineTests -destination 'platform=iOS Simulator,name=iPhone 15' test
