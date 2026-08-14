@@ -9,9 +9,10 @@ import UIKit
 /// client for whatever `phpx serve` happens to be running on the same
 /// network, same as Expo Go's relationship to a Metro dev server.
 ///
-/// Unlike ConnectActivity.kt, there is no QR scanner yet (no AVFoundation
-/// capture session wired up here) — manual "IP:PORT" entry only, same v1
-/// scoping android/go itself started from before ScanActivity existed.
+/// "Scanner un QR code" pushes ScanViewController (see that file), same
+/// AVFoundation-based decoding ScanActivity.kt does with CameraX + ML Kit
+/// on Android — both ultimately funnel into the same HostPort.parse(_:)
+/// + push-a-real-screen path as the manual field below.
 ///
 /// Built as plain views in code, not a `.xib`/storyboard — matches this
 /// module's Android counterpart (also built as plain Views, see
@@ -46,6 +47,16 @@ public final class ConnectViewController: UIViewController, UITextFieldDelegate 
         titleLabel.text = "PhpNitro Go"
         titleLabel.font = .boldSystemFont(ofSize: 28)
 
+        let scanButton = UIButton(type: .system)
+        scanButton.setTitle("📷  Scanner un QR code", for: .normal)
+        scanButton.titleLabel?.font = .boldSystemFont(ofSize: 16)
+        scanButton.backgroundColor = .systemOrange
+        scanButton.setTitleColor(.white, for: .normal)
+        scanButton.layer.cornerRadius = 12
+        scanButton.clipsToBounds = true
+        scanButton.heightAnchor.constraint(equalToConstant: 48).isActive = true
+        scanButton.addTarget(self, action: #selector(scanTapped), for: .touchUpInside)
+
         let subtitleLabel = UILabel()
         subtitleLabel.text = "Adresse du serveur"
         subtitleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
@@ -68,10 +79,11 @@ public final class ConnectViewController: UIViewController, UITextFieldDelegate 
         connectButton.titleLabel?.font = .boldSystemFont(ofSize: 16)
         connectButton.addTarget(self, action: #selector(connectTapped), for: .touchUpInside)
 
-        let stack = UIStackView(arrangedSubviews: [titleLabel, subtitleLabel, urlField, errorLabel, connectButton])
+        let stack = UIStackView(arrangedSubviews: [titleLabel, scanButton, subtitleLabel, urlField, errorLabel, connectButton])
         stack.axis = .vertical
         stack.spacing = 12
         stack.setCustomSpacing(28, after: titleLabel)
+        stack.setCustomSpacing(24, after: scanButton)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         view.addSubview(stack)
@@ -84,6 +96,10 @@ public final class ConnectViewController: UIViewController, UITextFieldDelegate 
 
     @objc private func connectTapped() {
         attemptConnect()
+    }
+
+    @objc private func scanTapped() {
+        navigationController?.pushViewController(ScanViewController(), animated: true)
     }
 
     public func textFieldShouldReturn(_ textField: UITextField) -> Bool {
