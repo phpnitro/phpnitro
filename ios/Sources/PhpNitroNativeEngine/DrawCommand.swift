@@ -27,6 +27,9 @@ public enum DrawCommand: Decodable {
     case circle(CircleCommand)
     case line(LineCommand)
     case arc(ArcCommand)
+    case image(ImageCommand)
+    case spinner(SpinnerCommand)
+    case skeleton(SkeletonCommand)
     case unknown(type: String)
 
     private enum CodingKeys: String, CodingKey {
@@ -44,6 +47,9 @@ public enum DrawCommand: Decodable {
         case "circle": self = .circle(try CircleCommand(from: decoder))
         case "line": self = .line(try LineCommand(from: decoder))
         case "arc": self = .arc(try ArcCommand(from: decoder))
+        case "image": self = .image(try ImageCommand(from: decoder))
+        case "spinner": self = .spinner(try SpinnerCommand(from: decoder))
+        case "skeleton": self = .skeleton(try SkeletonCommand(from: decoder))
         default: self = .unknown(type: type)
         }
     }
@@ -119,6 +125,46 @@ public struct ArcCommand: Decodable {
     public let sweepDegrees: Double
     public let color: String
     public let strokeWidth: Double
+}
+
+/// Mirrors Canvas::image()'s field set (Image.php's own $url is passed
+/// through verbatim — including a `data:` URI, when it's a camera-
+/// captured/gallery-picked photo, not a real network location). `radius`
+/// is 0.0 (not omitted) when unset — Canvas::image()'s array_filter()
+/// only strips null, and 0.0 is never null.
+public struct ImageCommand: Decodable {
+    public let x: Double
+    public let y: Double
+    public let width: Double
+    public let height: Double
+    public let url: String
+    public let radius: Double?
+}
+
+/// Mirrors Canvas::spinner()'s field set. No rotation angle travels with
+/// this command at all (same reasoning documented on the PHP side) —
+/// NativeCanvasView.swift's own draw(_:in:) computes it fresh from the
+/// system clock every frame, the same idea as NativeCanvasView.kt's
+/// drawSpinnerCommand().
+public struct SpinnerCommand: Decodable {
+    public let x: Double
+    public let y: Double
+    public let size: Double
+    public let color: String
+    public let trackColor: String
+    public let strokeWidth: Double
+}
+
+/// Mirrors Canvas::skeleton()'s field set — a loading placeholder with a
+/// continuously-sweeping shimmer, same "no honest way to travel as one
+/// static JSON response" reasoning as spinner() above.
+public struct SkeletonCommand: Decodable {
+    public let x: Double
+    public let y: Double
+    public let width: Double
+    public let height: Double
+    public let color: String
+    public let radius: Double
 }
 
 /// Mirrors one entry of Canvas::toJson()'s "hitRegions" array — see

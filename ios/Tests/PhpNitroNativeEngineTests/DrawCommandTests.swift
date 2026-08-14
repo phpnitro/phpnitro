@@ -132,6 +132,61 @@ final class DrawCommandTests: XCTestCase {
         XCTAssertEqual(payload.action(at: CGPoint(x: 10, y: 10)), "background")
     }
 
+    func testDecodesImageCommand() throws {
+        let json = """
+        {"type":"image","x":10,"y":20,"width":100,"height":80,"url":"https://example.com/photo.jpg","radius":12}
+        """
+        let command = try JSONDecoder().decode(DrawCommand.self, from: Data(json.utf8))
+
+        guard case .image(let image) = command else { return XCTFail("expected .image") }
+        XCTAssertEqual(image.url, "https://example.com/photo.jpg")
+        XCTAssertEqual(image.radius, 12)
+    }
+
+    func testDecodesImageCommandWithDataUri() throws {
+        let json = """
+        {"type":"image","x":0,"y":0,"width":50,"height":50,"url":"data:image/png;base64,AAAA","radius":0}
+        """
+        let command = try JSONDecoder().decode(DrawCommand.self, from: Data(json.utf8))
+
+        guard case .image(let image) = command else { return XCTFail("expected .image") }
+        XCTAssertTrue(image.url.hasPrefix("data:"))
+    }
+
+    func testDecodesSpinnerCommand() throws {
+        let json = """
+        {"type":"spinner","x":0,"y":0,"size":24,"color":"#111827","trackColor":"#E5E7EB","strokeWidth":3}
+        """
+        let command = try JSONDecoder().decode(DrawCommand.self, from: Data(json.utf8))
+
+        guard case .spinner(let spinner) = command else { return XCTFail("expected .spinner") }
+        XCTAssertEqual(spinner.size, 24)
+        XCTAssertEqual(spinner.trackColor, "#E5E7EB")
+    }
+
+    func testDecodesSkeletonCommand() throws {
+        let json = """
+        {"type":"skeleton","x":0,"y":0,"width":200,"height":16,"color":"#E5E7EB","radius":8}
+        """
+        let command = try JSONDecoder().decode(DrawCommand.self, from: Data(json.utf8))
+
+        guard case .skeleton(let skeleton) = command else { return XCTFail("expected .skeleton") }
+        XCTAssertEqual(skeleton.width, 200)
+        XCTAssertEqual(skeleton.radius, 8)
+    }
+
+    func testImageLoaderDecodesADataUriWithoutNetworkAccess() {
+        let expectation = expectation(description: "data: URI decodes synchronously enough to load")
+        let pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+
+        ImageLoader.load("data:image/png;base64,\(pngBase64)") {
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 5)
+        XCTAssertNotNil(ImageLoader.get("data:image/png;base64,\(pngBase64)"))
+    }
+
     func testIconFontsRegisterAndProduceARealUIFont() {
         XCTAssertNotNil(IconFont.materialName, "MaterialIcons-Regular.ttf should register from the bundled SPM resource")
         XCTAssertNotNil(IconFont.fontAwesomeName, "FontAwesome-Solid.ttf should register from the bundled SPM resource")
