@@ -38,14 +38,27 @@ public final class ScreenClient {
     }
 
     /// Mirrors fetchDrawCommands()'s own
-    /// "/native/layout-demo?width=...&height=...&screen=...&action=..."
-    /// URL, minus the params this minimal client doesn't send yet (see
-    /// this type's own docblock) — every one of those has a server-side
-    /// default (see public/index.php's own `$_GET[...] ?? ...` fallbacks),
-    /// so omitting them is a real degradation (no dark mode, no i18n,
-    /// always the full 'fr'/light-mode render) rather than a broken
-    /// request.
-    static func url(host: String, port: Int, screen: String, action: String?, width: Double, height: Double) -> URL? {
+    /// "/native/layout-demo?width=...&height=...&screen=...&action=...
+    /// &<field>=<value>..." URL, minus the params this minimal client
+    /// doesn't send yet (see this type's own docblock) — every one of
+    /// those has a server-side default (see public/index.php's own
+    /// `$_GET[...] ?? ...` fallbacks), so omitting them is a real
+    /// degradation (no dark mode, no i18n, always the full 'fr'/
+    /// light-mode render) rather than a broken request. `fieldValues`
+    /// (a TextField's current text, or any other widget's own output
+    /// slot — see NativeRenderPocActivity.kt's own fieldValues, used far
+    /// beyond just text fields) is always sent when non-empty, unlike
+    /// Android's explicit `includeFields` toggle — sending it costs
+    /// nothing when there's nothing to send.
+    static func url(
+        host: String,
+        port: Int,
+        screen: String,
+        action: String?,
+        width: Double,
+        height: Double,
+        fieldValues: [String: String] = [:]
+    ) -> URL? {
         var components = URLComponents()
         components.scheme = "http"
         components.host = host
@@ -59,6 +72,14 @@ public final class ScreenClient {
         ]
         if let action {
             items.append(URLQueryItem(name: "action", value: action))
+        }
+        // Sorted by name — an arbitrary but STABLE order, so the same
+        // fieldValues always produce the same URL (matters for tests,
+        // and for anything that might cache/log/compare these URLs
+        // later); [String: String] iteration order is otherwise
+        // unspecified.
+        for name in fieldValues.keys.sorted() {
+            items.append(URLQueryItem(name: name, value: fieldValues[name]))
         }
         components.queryItems = items
 
@@ -75,9 +96,10 @@ public final class ScreenClient {
         action: String? = nil,
         width: Double,
         height: Double,
+        fieldValues: [String: String] = [:],
         completion: @escaping (Result<DrawCommandPayload, ScreenFetchError>) -> Void
     ) {
-        guard let url = Self.url(host: host, port: port, screen: screen, action: action, width: width, height: height) else {
+        guard let url = Self.url(host: host, port: port, screen: screen, action: action, width: width, height: height, fieldValues: fieldValues) else {
             completion(.failure(.decoding("invalid URL for host \(host):\(port)")))
             return
         }
