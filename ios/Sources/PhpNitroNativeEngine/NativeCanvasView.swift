@@ -309,7 +309,7 @@ public final class NativeCanvasView: UIView {
         let periodMs = 1100.0
         let elapsedMs = CACurrentMediaTime() * 1000
         let rotationRadians = (elapsedMs.truncatingRemainder(dividingBy: periodMs)) / periodMs * (.pi * 2)
-        let sweepRadians = 110 * .pi / 180
+        let sweepRadians: Double = 110 * .pi / 180
 
         context.setStrokeColor(color.cgColor)
         context.setLineCap(.round)
