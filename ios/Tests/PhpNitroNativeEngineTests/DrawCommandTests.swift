@@ -187,6 +187,63 @@ final class DrawCommandTests: XCTestCase {
         XCTAssertNotNil(ImageLoader.get("data:image/png;base64,\(pngBase64)"))
     }
 
+    func testDecodesClientPanelCommandWithNestedCommands() throws {
+        let json = """
+        {
+            "type": "clientPanel",
+            "key": "tabs1",
+            "index": 1,
+            "initiallyActive": false,
+            "x": 0,
+            "y": 40,
+            "commands": [
+                {"type":"text","x":0,"y":0,"text":"Onglet 2","color":"#111827"}
+            ],
+            "hitRegions": []
+        }
+        """
+        let command = try JSONDecoder().decode(DrawCommand.self, from: Data(json.utf8))
+
+        guard case .clientPanel(let panel) = command else { return XCTFail("expected .clientPanel") }
+        XCTAssertEqual(panel.key, "tabs1")
+        XCTAssertEqual(panel.index, 1)
+        XCTAssertFalse(panel.initiallyActive)
+        XCTAssertEqual(panel.commands.count, 1)
+    }
+
+    func testDecodesHScrollCommand() throws {
+        let json = """
+        {"type":"hScroll","key":"carousel","x":0,"y":0,"width":300,"height":120,"contentWidth":900,"commands":[],"hitRegions":[]}
+        """
+        let command = try JSONDecoder().decode(DrawCommand.self, from: Data(json.utf8))
+
+        guard case .hScroll(let scroll) = command else { return XCTFail("expected .hScroll") }
+        XCTAssertEqual(scroll.key, "carousel")
+        XCTAssertEqual(scroll.contentWidth, 900)
+    }
+
+    func testDecodesVScrollCommand() throws {
+        let json = """
+        {"type":"vScroll","key":"comments","x":0,"y":0,"width":300,"height":200,"contentHeight":600,"commands":[],"hitRegions":[]}
+        """
+        let command = try JSONDecoder().decode(DrawCommand.self, from: Data(json.utf8))
+
+        guard case .vScroll(let scroll) = command else { return XCTFail("expected .vScroll") }
+        XCTAssertEqual(scroll.key, "comments")
+        XCTAssertEqual(scroll.contentHeight, 600)
+    }
+
+    func testDecodesSliderCommand() throws {
+        let json = """
+        {"type":"slider","key":"volume","x":0,"y":0,"width":260,"height":32,"trackHeight":4,"thumbSize":20,"value":0.4,"trackColor":"#E5E7EB","activeColor":"#111827","thumbColor":"#FFFFFF"}
+        """
+        let command = try JSONDecoder().decode(DrawCommand.self, from: Data(json.utf8))
+
+        guard case .slider(let slider) = command else { return XCTFail("expected .slider") }
+        XCTAssertEqual(slider.key, "volume")
+        XCTAssertEqual(slider.value, 0.4)
+    }
+
     func testIconFontsRegisterAndProduceARealUIFont() {
         XCTAssertNotNil(IconFont.materialName, "MaterialIcons-Regular.ttf should register from the bundled SPM resource")
         XCTAssertNotNil(IconFont.fontAwesomeName, "FontAwesome-Solid.ttf should register from the bundled SPM resource")
