@@ -21,11 +21,11 @@ import PackageDescription
 ///   WebView bridge above.
 ///
 /// - PhpNitroGo — the iOS counterpart of android/go: a companion-app
-///   entry screen (ConnectViewController) that hands back a validated
-///   (host, port) for a remote `phpx serve`, no project PHP bundled.
-///   Depends on nothing else here (not even PhpNitroNativeEngine) —
-///   there's no live NativeCanvasView screen to navigate to yet, since
-///   that target still has no network fetch loop (see ios/README.md).
+///   entry screen (ConnectViewController) that validates a manually
+///   entered "IP:PORT" and, by default, pushes PhpNitroNativeEngine's own
+///   NativeScreenViewController pointed at it — no project PHP bundled,
+///   a pure client for whatever `phpx serve` happens to be running on the
+///   same network.
 ///
 /// Neither PhpNitroWebViewBridge nor PhpNitroNativeEngine embeds PHP
 /// itself (see PhpEmbedBridge.swift's own TODOs) — an actual on-device
@@ -62,7 +62,7 @@ let package = Package(
             dependencies: ["PhpNitroNativeEngine"],
             path: "Tests/PhpNitroNativeEngineTests"
         ),
-        .target(name: "PhpNitroGo", path: "Sources/PhpNitroGo"),
+        .target(name: "PhpNitroGo", dependencies: ["PhpNitroNativeEngine"], path: "Sources/PhpNitroGo"),
         .testTarget(
             name: "PhpNitroGoTests",
             dependencies: ["PhpNitroGo"],

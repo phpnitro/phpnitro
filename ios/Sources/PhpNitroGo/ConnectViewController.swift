@@ -1,27 +1,36 @@
+import PhpNitroNativeEngine
 import UIKit
 
 /// The iOS counterpart of android/go's ConnectActivity — everything past
 /// a successful "Connecter" tap is PhpNitroNativeEngine's own
-/// NativeCanvasView pointed at a remote `phpx serve`, the same relationship
-/// PhpNitro Go on Android has to `NativeRenderPocActivity`. This app never
-/// bundles a single line of any project's PHP: a pure client for whatever
-/// `phpx serve` happens to be running on the same network, same as Expo
-/// Go's relationship to a Metro dev server.
+/// NativeScreenViewController pointed at a remote `phpx serve`, the same
+/// relationship PhpNitro Go on Android has to `NativeRenderPocActivity`.
+/// This app never bundles a single line of any project's PHP: a pure
+/// client for whatever `phpx serve` happens to be running on the same
+/// network, same as Expo Go's relationship to a Metro dev server.
 ///
 /// Unlike ConnectActivity.kt, there is no QR scanner yet (no AVFoundation
 /// capture session wired up here) — manual "IP:PORT" entry only, same v1
 /// scoping android/go itself started from before ScanActivity existed.
-/// `onConnect` fires with the parsed (host, port) on success; navigating
-/// to a live NativeCanvasView screen is real, separate follow-up work —
-/// PhpNitroNativeEngine has no network fetch loop yet (see ios/README.md),
-/// so there is nowhere to navigate TO yet, only a form that validates and
-/// hands back a well-formed destination once one exists.
 ///
 /// Built as plain views in code, not a `.xib`/storyboard — matches this
 /// module's Android counterpart (also built as plain Views, see
-/// ConnectActivity.kt's own docblock) and keeps this target dependency-free.
+/// ConnectActivity.kt's own docblock).
 public final class ConnectViewController: UIViewController, UITextFieldDelegate {
+    /// Fires with the parsed (host, port) on a successful "Connecter" —
+    /// purely an observation hook (tests, analytics, a caller that wants
+    /// to know a connection was attempted); it does NOT gate navigation,
+    /// see `navigatesAutomatically` below for that.
     public var onConnect: ((_ host: String, _ port: Int) -> Void)?
+
+    /// When true (the default) and this controller has a
+    /// `navigationController`, a successful "Connecter" pushes a real
+    /// `NativeScreenViewController` — same "tap Connecter, land on the
+    /// actual remote screen" behavior `renderIntent()`/ConnectActivity.kt
+    /// gives on Android. Set false to opt out (e.g. a host app that wants
+    /// to drive navigation itself from `onConnect`, or a unit test that
+    /// doesn't want a real network fetch to start).
+    public var navigatesAutomatically = true
 
     private let urlField = UITextField()
     private let errorLabel = UILabel()
@@ -91,5 +100,9 @@ public final class ConnectViewController: UIViewController, UITextFieldDelegate 
 
         errorLabel.isHidden = true
         onConnect?(parsed.host, parsed.port)
+
+        if navigatesAutomatically {
+            navigationController?.pushViewController(NativeScreenViewController(host: parsed.host, port: parsed.port), animated: true)
+        }
     }
 }
