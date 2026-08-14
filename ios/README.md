@@ -55,11 +55,18 @@ Tout ce qui précède porte le repli WKWebView (`android/app`'s `MainActivity.kt
 - `Sources/PhpNitroNativeEngine/NativeCanvasView.swift` — un `UIView` qui rejoue ces commandes avec Core Graphics dans `draw(rect:)`. Aucune gestion tactile/hit-region, aucun scroll, aucune transition Hero, aucune vue superposée (VideoPlayer/MapView/Lottie) — ça prouve que le protocole JSON se rejoue correctement sur iOS, tout le reste interactif est un chantier séparé, réel, pas encore attaqué.
 - `Tests/PhpNitroNativeEngineTests/DrawCommandTests.swift` — **de vrais tests unitaires**, y compris un décodage d'une fixture golden-file copiée verbatim depuis `packages/ui/tests/Golden/__fixtures__/button_with_icon.json` côté PHP : si `Canvas.php` change de forme JSON d'une façon qui casse ce décodeur, c'est un changement qu'un humain ferait exprès (en mettant à jour la fixture golden ET cette copie), pas une régression silencieuse.
 
+**Fait depuis** : rendu réel des icônes (Core Text, `IconFont.swift`), hit-testing (`DrawCommandPayload.action(at:)`, câblé sur un vrai `UITapGestureRecognizer` dans `NativeCanvasView.swift`), et une première vague de parité des commandes de dessin avec `NativeCanvasView.kt` — `image` (`ImageLoader.swift`, décodage + cache + fetch réseau via `URLSession`, y compris les URIs `data:` d'une photo capturée/choisie), `spinner` et `skeleton` (animés via `CADisplayLink`, même idée que les `ValueAnimator` démarrés/arrêtés à la demande côté Kotlin).
+
 **Ce qui manque encore ici, dans l'ordre de priorité** :
 1. Aucun binaire PHP embarqué (même lacune que `PhpNitroWebViewBridge` — voir plus haut, aucun raccourci ici).
-2. Aucune police MaterialIcons/FontAwesome bundlée — `IconCommand` se décode mais `NativeCanvasView.swift` ne dessine rien pour les commandes `icon` tant que `MaterialIcons-Regular.ttf`/`FontAwesome-Solid.ttf` (voir `android/engine/src/main/assets/fonts/`) n'ont pas été ajoutées comme ressources iOS.
-3. Aucune gestion du hit-testing (`hitRegions`) — nécessaire avant qu'un seul bouton soit tapable.
-4. Aucun overlay pour les Views natives (VideoPlayer, MapView, Lottie, TextField/EditText) — le pendant de `rootLayout.addView(...)` dans `NativeRenderPocActivity.kt`.
-5. Aucune boucle de fetch réseau (l'équivalent de `fetchDrawCommands()`) — cette cible sait REJOUER un payload déjà en mémoire, pas encore aller le chercher.
+2. Encore des types de commande non portés : `clientPanel`, `hScroll`/`vScroll`, `slider`, `custom:*` — tous encore `.unknown(type:)` côté iOS (no-op silencieux, pas un crash).
+3. Aucun overlay pour les Views natives (VideoPlayer, MapView, Lottie, TextField/EditText) — le pendant de `rootLayout.addView(...)` dans `NativeRenderPocActivity.kt`.
+4. Aucune boucle de fetch réseau (l'équivalent de `fetchDrawCommands()`) — cette cible sait REJOUER un payload déjà en mémoire, pas encore aller le chercher. C'est aussi ce qui bloque `PhpNitroGo` (voir plus bas) : l'écran de connexion existe, mais n'a nulle part où naviguer une fois connecté.
+
+## PhpNitroGo — l'équivalent iOS d'`android/go/`
+
+`Sources/PhpNitroGo/` — un écran de connexion (`ConnectViewController`, `HostPort.swift`) qui valide une saisie `IP:PORT` et renvoie `(host, port)` via `onConnect`, même rôle que `ConnectActivity.kt`/`HostPort.kt` côté Android. Contrairement à `android/go/`, **pas encore de scan QR** (pas de session `AVFoundation`) — saisie manuelle seulement, même limitation de départ qu'avait `android/go/` avant `ScanActivity`. `HostPort.parse(_:)` a de vrais tests unitaires (`Tests/PhpNitroGoTests/HostPortTests.swift`), vérifiés en CI comme le reste.
+
+**Ne fait PAS encore ce qu'`android/go/` fait** : `onConnect` renvoie un `(host, port)` validé, mais rien n'écoute cette closure pour lancer un vrai écran `NativeCanvasView` — ça dépend du point 4 juste au-dessus (aucune boucle de fetch réseau n'existe encore sur `PhpNitroNativeEngine`). Une fois cette boucle réelle, câbler `onConnect` dessus est la suite logique.
 
 **Vérifié pour de vrai, pour la première fois dans ce dossier** : `.github/workflows/ci.yml`'s job `ios-build` (runner `macos-14`) compile `PhpNitroWebViewBridge` et compile+exécute les tests de `PhpNitroNativeEngine` à chaque push — `xcodebuild -scheme <cible> ...` fonctionne directement contre ce `Package.swift`, aucun `.xcodeproj` à committer (Xcode sait ouvrir/construire un paquet SPM brut par nom de scheme depuis Xcode 11). Si ce job casse, c'est une vraie régression de compilation, pas juste "jamais vérifié".
