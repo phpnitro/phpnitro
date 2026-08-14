@@ -41,6 +41,21 @@ public final class NativeCanvasView: UIView {
     /// doesn't redraw 60x/sec for nothing.
     private var displayLink: CADisplayLink?
 
+    /// `key -> selected panel index`, seeded once from whichever panel
+    /// has `initiallyActive == true` and never overwritten by a later
+    /// render for the same key — mirrors NativeCanvasView.kt's own
+    /// `clientTabState`. No tap-to-switch-tab wiring yet (see
+    /// ClientPanelCommand's own docblock), so this only ever reflects
+    /// whatever PHP marked active on the most recent render that
+    /// introduced this key.
+    private var clientTabState: [String: Int] = [:]
+
+    /// Reserved for future client-side drag support (see HScrollCommand's
+    /// own docblock) — always 0 for now, so every hScroll command renders
+    /// at its server-authored, undragged position.
+    private let hScrollOffsets: [String: CGFloat] = [:]
+    private let vScrollOffsets: [String: CGFloat] = [:]
+
     override public init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .white
@@ -59,6 +74,15 @@ public final class NativeCanvasView: UIView {
         displayLink?.invalidate()
     }
 
+    /// A ClientTabs tab switch — entirely local, no fetch (see
+    /// ScreenNavigationResult.clientTabOnly), same role
+    /// canvasView.setClientTab(key, index) plays in
+    /// NativeRenderPocActivity.kt's own `clientTab:` dispatch branch.
+    public func setClientTab(_ key: String, index: Int) {
+        clientTabState[key] = index
+        setNeedsDisplay()
+    }
+
     public func setPayload(_ payload: DrawCommandPayload) {
         self.payload = payload
         updateAnimationState()
@@ -69,18 +93,31 @@ public final class NativeCanvasView: UIView {
         guard let context = UIGraphicsGetCurrentContext(), let payload else { return }
 
         for command in payload.commands {
-            switch command {
-            case .rect(let rect): draw(rect, in: context)
-            case .text(let text): draw(text, in: context)
-            case .icon(let icon): draw(icon, in: context)
-            case .circle(let circle): draw(circle, in: context)
-            case .line(let line): draw(line, in: context)
-            case .arc(let arc): draw(arc, in: context)
-            case .image(let image): draw(image, in: context)
-            case .spinner(let spinner): draw(spinner, in: context)
-            case .skeleton(let skeleton): draw(skeleton, in: context)
-            case .unknown: break // Same "an unhandled command is a no-op, not a crash" contract DrawCommand.init(from:) already documents.
-            }
+            drawCommand(command, in: context)
+        }
+    }
+
+    /// Single dispatch point for one DrawCommand — pulled out of
+    /// `draw(rect:)` so drawClientPanel/drawHScroll/drawVScroll below can
+    /// recurse into their own nested `commands` array through the exact
+    /// same switch, same idea as NativeCanvasView.kt's own
+    /// drawSingleCommand() helper.
+    private func drawCommand(_ command: DrawCommand, in context: CGContext) {
+        switch command {
+        case .rect(let rect): draw(rect, in: context)
+        case .text(let text): draw(text, in: context)
+        case .icon(let icon): draw(icon, in: context)
+        case .circle(let circle): draw(circle, in: context)
+        case .line(let line): draw(line, in: context)
+        case .arc(let arc): draw(arc, in: context)
+        case .image(let image): draw(image, in: context)
+        case .spinner(let spinner): draw(spinner, in: context)
+        case .skeleton(let skeleton): draw(skeleton, in: context)
+        case .clientPanel(let panel): draw(panel, in: context)
+        case .hScroll(let scroll): draw(scroll, in: context)
+        case .vScroll(let scroll): draw(scroll, in: context)
+        case .slider(let slider): draw(slider, in: context)
+        case .unknown: break // Same "an unhandled command is a no-op, not a crash" contract DrawCommand.init(from:) already documents.
         }
     }
 
@@ -363,6 +400,107 @@ public final class NativeCanvasView: UIView {
                 options: []
             )
         }
+
+        context.restoreGState()
+    }
+
+    // Only the panel matching this key's current local selection draws —
+    // every other panel this same command list carries (one clientPanel
+    // command per ClientTabs panel, all sharing the same key) is skipped
+    // outright. No crossfade between tabs yet (see
+    // drawClientPanelCommand()'s own clientTabCrossfade on Android) — a
+    // tab switch here would jump-cut rather than fade, real, separate
+    // follow-up work.
+    private func draw(_ command: ClientPanelCommand, in context: CGContext) {
+        if clientTabState[command.key] == nil, command.initiallyActive {
+            clientTabState[command.key] = command.index
+        }
+        guard clientTabState[command.key] == command.index else { return }
+
+        context.saveGState()
+        context.translateBy(x: CGFloat(command.x), y: CGFloat(command.y))
+        for nested in command.commands {
+            drawCommand(nested, in: context)
+        }
+        context.restoreGState()
+    }
+
+    // Clips to the viewport rect so content past its edge doesn't paint
+    // over neighboring content, then shifts by -offset along the local
+    // drag axis — offset is always 0 for now (see hScrollOffsets' own
+    // docblock), so this always renders the undragged start of the
+    // content.
+    private func draw(_ command: HScrollCommand, in context: CGContext) {
+        let offset = hScrollOffsets[command.key] ?? 0
+        let rect = CGRect(x: command.x, y: command.y, width: command.width, height: command.height)
+
+        context.saveGState()
+        context.clip(to: rect)
+        context.translateBy(x: CGFloat(command.x) - offset, y: CGFloat(command.y))
+        for nested in command.commands {
+            drawCommand(nested, in: context)
+        }
+        context.restoreGState()
+    }
+
+    // Vertical counterpart to the hScroll draw method right above — same
+    // clip-then-translate shape, just along the other axis.
+    private func draw(_ command: VScrollCommand, in context: CGContext) {
+        let offset = vScrollOffsets[command.key] ?? 0
+        let rect = CGRect(x: command.x, y: command.y, width: command.width, height: command.height)
+
+        context.saveGState()
+        context.clip(to: rect)
+        context.translateBy(x: CGFloat(command.x), y: CGFloat(command.y) - offset)
+        for nested in command.commands {
+            drawCommand(nested, in: context)
+        }
+        context.restoreGState()
+    }
+
+    // Thumb travel is [x + thumbSize/2, x + width - thumbSize/2] — the
+    // thumb's CENTER, not its edge, tracks `value` linearly, mirroring
+    // drawSliderCommand()'s own formula exactly so a future drag handler
+    // can invert it the same way hitTestSlider() does on Android. Always
+    // renders at the server-authored `value` — no local drag override
+    // yet, see SliderCommand's own docblock.
+    private func draw(_ command: SliderCommand, in context: CGContext) {
+        guard let trackColor = UIColor(hex: command.trackColor),
+              let activeColor = UIColor(hex: command.activeColor),
+              let thumbColor = UIColor(hex: command.thumbColor) else { return }
+
+        let x = CGFloat(command.x)
+        let y = CGFloat(command.y)
+        let width = CGFloat(command.width)
+        let height = CGFloat(command.height)
+        let trackHeight = CGFloat(command.trackHeight)
+        let thumbSize = CGFloat(command.thumbSize)
+        let value = min(max(CGFloat(command.value), 0), 1)
+
+        let trackY = y + (height - trackHeight) / 2
+        let thumbCx = x + thumbSize / 2 + (width - thumbSize) * value
+        let thumbCy = y + height / 2
+
+        context.saveGState()
+
+        context.setFillColor(trackColor.cgColor)
+        context.addPath(UIBezierPath(roundedRect: CGRect(x: x, y: trackY, width: width, height: trackHeight), cornerRadius: trackHeight / 2).cgPath)
+        context.fillPath()
+
+        context.setFillColor(activeColor.cgColor)
+        let activeWidth = max(thumbCx - x, 0)
+        context.addPath(UIBezierPath(roundedRect: CGRect(x: x, y: trackY, width: activeWidth, height: trackHeight), cornerRadius: trackHeight / 2).cgPath)
+        context.fillPath()
+
+        let thumbRect = CGRect(x: thumbCx - thumbSize / 2, y: thumbCy - thumbSize / 2, width: thumbSize, height: thumbSize)
+        context.setFillColor(thumbColor.cgColor)
+        context.addPath(UIBezierPath(ovalIn: thumbRect).cgPath)
+        context.fillPath()
+
+        context.setStrokeColor(activeColor.cgColor)
+        context.setLineWidth(1.5)
+        context.addPath(UIBezierPath(ovalIn: thumbRect).cgPath)
+        context.strokePath()
 
         context.restoreGState()
     }
