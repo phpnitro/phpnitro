@@ -30,6 +30,10 @@ public enum DrawCommand: Decodable {
     case image(ImageCommand)
     case spinner(SpinnerCommand)
     case skeleton(SkeletonCommand)
+    case clientPanel(ClientPanelCommand)
+    case hScroll(HScrollCommand)
+    case vScroll(VScrollCommand)
+    case slider(SliderCommand)
     case unknown(type: String)
 
     private enum CodingKeys: String, CodingKey {
@@ -50,6 +54,10 @@ public enum DrawCommand: Decodable {
         case "image": self = .image(try ImageCommand(from: decoder))
         case "spinner": self = .spinner(try SpinnerCommand(from: decoder))
         case "skeleton": self = .skeleton(try SkeletonCommand(from: decoder))
+        case "clientPanel": self = .clientPanel(try ClientPanelCommand(from: decoder))
+        case "hScroll": self = .hScroll(try HScrollCommand(from: decoder))
+        case "vScroll": self = .vScroll(try VScrollCommand(from: decoder))
+        case "slider": self = .slider(try SliderCommand(from: decoder))
         default: self = .unknown(type: type)
         }
     }
@@ -165,6 +173,74 @@ public struct SkeletonCommand: Decodable {
     public let height: Double
     public let color: String
     public let radius: Double
+}
+
+/// Mirrors Canvas::clientTabPanel()'s field set — one embedded, already
+/// laid-out-and-painted panel (ClientTabs). Only the panel whose `index`
+/// matches this `key`'s current LOCAL selection actually draws (see
+/// NativeCanvasView.swift's own clientTabState) — switching tabs is a
+/// local redraw, never a server round trip, same as
+/// drawClientPanelCommand()'s own `clientTabState`/`clientTabCrossfade`
+/// on Android. `hitRegions` here isn't wired into
+/// DrawCommandPayload.action(at:) yet — nested hit-testing (a tap landing
+/// on a hitRegion inside a client-side panel/scroll) is real, separate
+/// follow-up work.
+public struct ClientPanelCommand: Decodable {
+    public let key: String
+    public let index: Int
+    public let initiallyActive: Bool
+    public let x: Double
+    public let y: Double
+    public let commands: [DrawCommand]
+    public let hitRegions: [HitRegion]
+}
+
+/// Mirrors Canvas::horizontalScroll()'s field set — a "carousel inside a
+/// list" (HorizontalScroll), scrolled along a local drag axis rather than
+/// switching between discrete panels like ClientPanelCommand above.
+/// NativeCanvasView.swift only renders this at a fixed (never dragged)
+/// offset for now — see that file's own hScrollOffsets.
+public struct HScrollCommand: Decodable {
+    public let key: String
+    public let x: Double
+    public let y: Double
+    public let width: Double
+    public let height: Double
+    public let contentWidth: Double
+    public let commands: [DrawCommand]
+    public let hitRegions: [HitRegion]
+}
+
+/// Vertical counterpart to HScrollCommand above — mirrors
+/// Canvas::verticalScroll()'s field set (NestedScroll).
+public struct VScrollCommand: Decodable {
+    public let key: String
+    public let x: Double
+    public let y: Double
+    public let width: Double
+    public let height: Double
+    public let contentHeight: Double
+    public let commands: [DrawCommand]
+    public let hitRegions: [HitRegion]
+}
+
+/// Mirrors Canvas::slider()'s field set (Slider). NativeCanvasView.swift
+/// only renders this at the server-authored `value` for now — dragging
+/// the thumb client-side (drawSliderCommand()'s own `sliderValues` map on
+/// Android) is real, separate follow-up work, same as the scroll
+/// commands above.
+public struct SliderCommand: Decodable {
+    public let key: String
+    public let x: Double
+    public let y: Double
+    public let width: Double
+    public let height: Double
+    public let trackHeight: Double
+    public let thumbSize: Double
+    public let value: Double
+    public let trackColor: String
+    public let activeColor: String
+    public let thumbColor: String
 }
 
 /// Mirrors one entry of Canvas::toJson()'s "hitRegions" array — see

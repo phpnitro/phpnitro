@@ -62,6 +62,22 @@ final class ScreenClientTests: XCTestCase {
         XCTAssertFalse(query.contains { $0.name == "action" })
     }
 
+    func testUrlIncludesFieldValuesSortedByName() {
+        let url = ScreenClient.url(
+            host: "127.0.0.1",
+            port: 8090,
+            screen: "login",
+            action: nil,
+            width: 390,
+            height: 844,
+            fieldValues: ["password": "hunter2", "email": "a@b.com"]
+        )
+        let query = url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems } ?? []
+
+        XCTAssertTrue(query.contains(URLQueryItem(name: "email", value: "a@b.com")))
+        XCTAssertTrue(query.contains(URLQueryItem(name: "password", value: "hunter2")))
+    }
+
     func testFetchScreenDecodesASuccessfulPayload() {
         let json = """
         {"commands":[],"hitRegions":[{"x":0,"y":0,"width":10,"height":10,"action":"noop"}],"contentHeight":100}
