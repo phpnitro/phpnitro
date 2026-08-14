@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// One entry from Engine\Native\Canvas::toJson()'s "commands" array —
@@ -120,11 +121,45 @@ public struct ArcCommand: Decodable {
     public let strokeWidth: Double
 }
 
-/// The envelope Canvas::toJson() wraps every render in — only the two
-/// fields a first renderer needs are modeled; the rest (hitRegions,
-/// heroRegions, autoNavigate, snackbar...) are exactly as real a porting
-/// task as this file itself, just not attempted yet (see ios/README.md).
+/// Mirrors one entry of Canvas::toJson()'s "hitRegions" array — see
+/// Tappable.php/Canvas::hitRegion() on the PHP side. `meta` (extra data
+/// a specific action needs, like SelectBox's own options) isn't modeled
+/// yet — this is enough to answer "what did this tap hit", not yet
+/// enough to fully replicate every action type's own handling.
+public struct HitRegion: Decodable {
+    public let x: Double
+    public let y: Double
+    public let width: Double
+    public let height: Double
+    public let action: String
+}
+
+/// The envelope Canvas::toJson() wraps every render in. `hitRegions` is
+/// always present (possibly empty), never omitted — Canvas::toJson()'s
+/// own array_filter() only strips null values, and an empty array isn't
+/// null. Still missing: heroRegions, autoNavigate, snackbar, and the
+/// rest — exactly as real a porting task as this file itself, just not
+/// attempted yet (see ios/README.md).
 public struct DrawCommandPayload: Decodable {
     public let commands: [DrawCommand]
+    public let hitRegions: [HitRegion]
     public let contentHeight: Double
+
+    /// Which hitRegion (if any) a tap at $point should fire — checked in
+    /// REVERSE declaration order, since a later region in the array was
+    /// painted later (Tappable.php wraps widgets depth-first, later
+    /// siblings/ancestors paint on top), so a tap where two regions
+    /// overlap should hit whichever one is visually on top. Mirrors
+    /// NativeCanvasView.kt's own hit-testing intent (last-drawn wins),
+    /// not a literal port of its implementation.
+    public func action(at point: CGPoint) -> String? {
+        for region in hitRegions.reversed() {
+            let rect = CGRect(x: region.x, y: region.y, width: region.width, height: region.height)
+            if rect.contains(point) {
+                return region.action
+            }
+        }
+
+        return nil
+    }
 }

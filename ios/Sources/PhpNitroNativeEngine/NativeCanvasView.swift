@@ -48,7 +48,7 @@ public final class NativeCanvasView: UIView {
             switch command {
             case .rect(let rect): draw(rect, in: context)
             case .text(let text): draw(text, in: context)
-            case .icon: break // Needs MaterialIcons/FontAwesome font assets bundled on iOS first — see IconCommand's own docblock.
+            case .icon(let icon): draw(icon, in: context)
             case .circle(let circle): draw(circle, in: context)
             case .line(let line): draw(line, in: context)
             case .arc(let arc): draw(arc, in: context)
@@ -99,6 +99,29 @@ public final class NativeCanvasView: UIView {
         // TextMetrics.php assumed when it computed this y in the first
         // place.
         let origin = CGPoint(x: command.x, y: command.y - font.ascender)
+        attributed.draw(at: origin)
+    }
+
+    private func draw(_ command: IconCommand, in context: CGContext) {
+        guard let font = IconFont.font(forKey: command.font, size: CGFloat(command.size)) else { return }
+        guard let scalar = Unicode.Scalar(command.codepoint) else { return }
+
+        let color = command.color.flatMap(UIColor.init(hex:)) ?? (UIColor(hex: "#111827") ?? .black)
+        let attributed = NSAttributedString(string: String(Character(scalar)), attributes: [.font: font, .foregroundColor: color])
+
+        // NativeCanvasView.kt's drawIconCommand() treats (x, y) as the
+        // top-left of a size×size box and centers the glyph inside it
+        // (textAlign = CENTER, a baseline offset tuned to 86% of size
+        // for Android's own font metrics) — rather than replicate that
+        // Android-specific magic number against a different font
+        // renderer (Core Text), this measures the glyph's REAL size and
+        // centers it directly, landing on the same visual result
+        // (centered in the box) without assuming Android's metrics.
+        let measured = attributed.size()
+        let origin = CGPoint(
+            x: command.x + (CGFloat(command.size) - measured.width) / 2,
+            y: command.y + (CGFloat(command.size) - measured.height) / 2
+        )
         attributed.draw(at: origin)
     }
 

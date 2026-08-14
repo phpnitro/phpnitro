@@ -33,7 +33,22 @@ let package = Package(
     ],
     targets: [
         .target(name: "PhpNitroWebViewBridge", path: "Sources/PhpNitroWebViewBridge"),
-        .target(name: "PhpNitroNativeEngine", path: "Sources/PhpNitroNativeEngine"),
+        .target(
+            name: "PhpNitroNativeEngine",
+            path: "Sources/PhpNitroNativeEngine",
+            // Verbatim copies of the SAME two font files
+            // android/engine/src/main/assets/fonts/ already bundles —
+            // MaterialIcons/FontAwesome glyphs are just Unicode
+            // codepoints in a font, not Android-specific in any way, so
+            // there's nothing to "port" here, only to copy. `.copy`
+            // (not `.process`) because font files need to reach the
+            // bundle byte-for-byte, not go through a resource
+            // processing pipeline meant for things like asset catalogs.
+            resources: [
+                .copy("Resources/MaterialIcons-Regular.ttf"),
+                .copy("Resources/FontAwesome-Solid.ttf")
+            ]
+        ),
         .testTarget(
             name: "PhpNitroNativeEngineTests",
             dependencies: ["PhpNitroNativeEngine"],
