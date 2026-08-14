@@ -75,6 +75,8 @@ final class DrawCommandTests: XCTestCase {
 
         XCTAssertEqual(payload.commands.count, 3)
         XCTAssertEqual(payload.contentHeight, 0)
+        XCTAssertEqual(payload.hitRegions.count, 1)
+        XCTAssertEqual(payload.hitRegions[0].action, "submit:demo")
     }
 
     func testColorHexParsing() {
@@ -82,5 +84,64 @@ final class DrawCommandTests: XCTestCase {
         XCTAssertNotNil(UIColor(hex: "111827"))
         XCTAssertNotNil(UIColor(hex: "#11182780"))
         XCTAssertNil(UIColor(hex: "not-a-color"))
+    }
+
+    func testEmptyHitRegionsArrayDecodesNotThrows() throws {
+        let json = """
+        {"commands":[],"hitRegions":[],"contentHeight":0}
+        """
+        let payload = try JSONDecoder().decode(DrawCommandPayload.self, from: Data(json.utf8))
+
+        XCTAssertEqual(payload.hitRegions.count, 0)
+    }
+
+    func testActionAtPointHitsTheContainingRegion() throws {
+        let json = """
+        {
+            "commands": [],
+            "hitRegions": [
+                {"x":0,"y":0,"width":100,"height":50,"action":"navigate:home"},
+                {"x":100,"y":0,"width":100,"height":50,"action":"navigate:settings"}
+            ],
+            "contentHeight": 0
+        }
+        """
+        let payload = try JSONDecoder().decode(DrawCommandPayload.self, from: Data(json.utf8))
+
+        XCTAssertEqual(payload.action(at: CGPoint(x: 50, y: 25)), "navigate:home")
+        XCTAssertEqual(payload.action(at: CGPoint(x: 150, y: 25)), "navigate:settings")
+        XCTAssertNil(payload.action(at: CGPoint(x: 500, y: 500)))
+    }
+
+    func testActionAtPointPrefersTheLastRegionWhenOverlapping() throws {
+        let json = """
+        {
+            "commands": [],
+            "hitRegions": [
+                {"x":0,"y":0,"width":200,"height":200,"action":"background"},
+                {"x":50,"y":50,"width":50,"height":50,"action":"foreground_button"}
+            ],
+            "contentHeight": 0
+        }
+        """
+        let payload = try JSONDecoder().decode(DrawCommandPayload.self, from: Data(json.utf8))
+
+        // Inside both rects — the later-declared (visually on top) one should win.
+        XCTAssertEqual(payload.action(at: CGPoint(x: 60, y: 60)), "foreground_button")
+        // Inside only the background rect.
+        XCTAssertEqual(payload.action(at: CGPoint(x: 10, y: 10)), "background")
+    }
+
+    func testIconFontsRegisterAndProduceARealUIFont() {
+        XCTAssertNotNil(IconFont.materialName, "MaterialIcons-Regular.ttf should register from the bundled SPM resource")
+        XCTAssertNotNil(IconFont.fontAwesomeName, "FontAwesome-Solid.ttf should register from the bundled SPM resource")
+
+        let materialFont = IconFont.font(forKey: nil, size: 24)
+        XCTAssertNotNil(materialFont, "font(forKey: nil, ...) should default to Material Icons")
+        XCTAssertEqual(materialFont?.pointSize, 24)
+
+        let fontAwesomeFont = IconFont.font(forKey: "fontawesome", size: 18)
+        XCTAssertNotNil(fontAwesomeFont)
+        XCTAssertEqual(fontAwesomeFont?.pointSize, 18)
     }
 }
