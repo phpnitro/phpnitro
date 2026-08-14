@@ -11,14 +11,37 @@ import WebKit
 ///
 /// What's still missing, unlike Android (see PhpEmbedBridge.swift): there is
 /// no PHP binary running on the device yet. `serverURL` below points at a
-/// PHP process reachable over the network — replace
-/// `YOUR_COMPUTER_LAN_IP` with the LAN IP of the machine running
-/// `php bin/phpx serve` to test any of this once compiled on a Mac.
+/// PHP process reachable over the network — resolved automatically for the
+/// one case that needs zero configuration (see `resolveServerURL()`): the
+/// iOS Simulator shares the host Mac's network stack, so `phpx serve`
+/// running on that same Mac is always reachable at `127.0.0.1`, no LAN IP
+/// needed. Testing from a physical device still needs a real LAN IP — same
+/// constraint android/go/'s ConnectActivity solves with a QR-code scan/
+/// manual paste (see that module's own README); this target has no such
+/// companion-app entry screen yet, so `PHPX_SERVER_HOST` (an Xcode scheme
+/// environment variable, Edit Scheme > Run > Arguments) is the stopgap
+/// until it does.
 ///
 /// NOT COMPILED, NOT TESTED — no Xcode/Mac available in this environment.
 final class ViewController: UIViewController, WKUIDelegate, WKNavigationDelegate {
 
-    private let serverURL = URL(string: "http://YOUR_COMPUTER_LAN_IP:8090/")!
+    private let serverURL = ViewController.resolveServerURL()
+
+    /// `127.0.0.1` on the Simulator (same Mac as `phpx serve`, always
+    /// correct, no configuration) — otherwise `PHPX_SERVER_HOST` from the
+    /// environment if set (physical device, developer supplies the LAN IP
+    /// `phpx serve` itself prints on startup), otherwise falls back to
+    /// `127.0.0.1` anyway so this at least fails as "connection refused"
+    /// rather than crashing on a force-unwrap.
+    private static func resolveServerURL() -> URL {
+        #if targetEnvironment(simulator)
+        let host = "127.0.0.1"
+        #else
+        let host = ProcessInfo.processInfo.environment["PHPX_SERVER_HOST"] ?? "127.0.0.1"
+        #endif
+
+        return URL(string: "http://\(host):8090/")!
+    }
 
     private var webView: WKWebView!
     private var webAppInterface: WebAppInterface!

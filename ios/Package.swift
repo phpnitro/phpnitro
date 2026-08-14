@@ -20,16 +20,24 @@ import PackageDescription
 ///   iOS had no awareness of this protocol at all, only of the older
 ///   WebView bridge above.
 ///
-/// Neither target embeds PHP itself (see PhpEmbedBridge.swift's own
-/// TODOs) — an actual on-device PHP process/SAPI-embed build for iOS is
-/// real, separate, substantial work no file in this directory attempts
-/// to fake.
+/// - PhpNitroGo — the iOS counterpart of android/go: a companion-app
+///   entry screen (ConnectViewController) that hands back a validated
+///   (host, port) for a remote `phpx serve`, no project PHP bundled.
+///   Depends on nothing else here (not even PhpNitroNativeEngine) —
+///   there's no live NativeCanvasView screen to navigate to yet, since
+///   that target still has no network fetch loop (see ios/README.md).
+///
+/// Neither PhpNitroWebViewBridge nor PhpNitroNativeEngine embeds PHP
+/// itself (see PhpEmbedBridge.swift's own TODOs) — an actual on-device
+/// PHP process/SAPI-embed build for iOS is real, separate, substantial
+/// work no file in this directory attempts to fake.
 let package = Package(
     name: "PhpNitroEngine",
     platforms: [.iOS(.v15)],
     products: [
         .library(name: "PhpNitroWebViewBridge", targets: ["PhpNitroWebViewBridge"]),
         .library(name: "PhpNitroNativeEngine", targets: ["PhpNitroNativeEngine"]),
+        .library(name: "PhpNitroGo", targets: ["PhpNitroGo"]),
     ],
     targets: [
         .target(name: "PhpNitroWebViewBridge", path: "Sources/PhpNitroWebViewBridge"),
@@ -53,6 +61,12 @@ let package = Package(
             name: "PhpNitroNativeEngineTests",
             dependencies: ["PhpNitroNativeEngine"],
             path: "Tests/PhpNitroNativeEngineTests"
+        ),
+        .target(name: "PhpNitroGo", path: "Sources/PhpNitroGo"),
+        .testTarget(
+            name: "PhpNitroGoTests",
+            dependencies: ["PhpNitroGo"],
+            path: "Tests/PhpNitroGoTests"
         ),
     ]
 )
