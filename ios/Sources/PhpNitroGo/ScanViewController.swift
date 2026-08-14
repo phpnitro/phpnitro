@@ -21,6 +21,7 @@ public final class ScanViewController: UIViewController, AVCaptureMetadataOutput
 
     private let captureSession = AVCaptureSession()
     private let statusLabel = UILabel()
+    private var previewLayer: AVCaptureVideoPreviewLayer?
 
     /// Guards against decoding and handling more than once — the metadata
     /// output keeps calling the delegate on every frame, and the preview
@@ -53,7 +54,7 @@ public final class ScanViewController: UIViewController, AVCaptureMetadataOutput
     private func configureLayout() {
         let titleLabel = UILabel()
         titleLabel.text = "Scanner un QR code"
-        titleLabel.font = .boldSystemFont(ofSize: 17, weight: .bold)
+        titleLabel.font = .boldSystemFont(ofSize: 17)
         titleLabel.textColor = .white
         titleLabel.textAlignment = .center
 
@@ -118,8 +119,18 @@ public final class ScanViewController: UIViewController, AVCaptureMetadataOutput
         let previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
         previewLayer.videoGravity = .resizeAspectFill
         previewLayer.frame = view.bounds
-        previewLayer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
         view.layer.insertSublayer(previewLayer, at: 0)
+        self.previewLayer = previewLayer
+    }
+
+    // AVCaptureVideoPreviewLayer has no autoresizingMask of its own to
+    // keep pace with the view (unlike a UIView, which gets one for free
+    // from Auto Layout/autoresizing) — resizing it manually here is the
+    // standard way to keep a raw CALayer in sync with its host view's
+    // bounds across rotation/size-class changes.
+    override public func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        previewLayer?.frame = view.bounds
     }
 
     public func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
