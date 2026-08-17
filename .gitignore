@@ -40,3 +40,7 @@ composer.lock
 # Notes de travail locales, jamais commitées (voir consigne : pas de
 # fichier de comparaison/roadmap Flutter/RN persistant dans l'historique).
 /docs/notes/
+
+/captures/
+/linux/**/__pycache__/
+/linux/.pytest_cache/
