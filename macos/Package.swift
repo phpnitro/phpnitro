@@ -30,7 +30,14 @@ let package = Package(
     targets: [
         .target(
             name: "PhpNitroMacEngine",
-            dependencies: [.product(name: "PhpNitroProtocol", package: "PhpNitroEngine")],
+            // `package:` here must match the DEPENDENCY'S DIRECTORY NAME
+            // ("ios"), not the `name:` field ios/Package.swift declares
+            // for itself ("PhpNitroEngine") — confirmed by a real CI
+            // failure: "unknown package 'PhpNitroEngine' in dependencies
+            // of target 'PhpNitroMacEngine'; valid packages are: 'ios'".
+            // SPM resolves a local path dependency's identity from its
+            // path, not its own manifest's self-declared name.
+            dependencies: [.product(name: "PhpNitroProtocol", package: "ios")],
             path: "Sources/PhpNitroMacEngine",
             // Verbatim copies of the same two font files
             // ios/Sources/PhpNitroNativeEngine/Resources/ and
