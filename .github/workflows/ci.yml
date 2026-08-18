@@ -264,3 +264,30 @@ jobs:
       # "-Package" suffix at all. Same scheme for both actions below.
       - run: xcodebuild -scheme PhpNitroMacEngine -destination 'platform=macOS' build
       - run: xcodebuild -scheme PhpNitroMacEngine -destination 'platform=macOS' test
+
+  windows-desktop-protocol:
+    name: Windows desktop protocol layer (dotnet test)
+    # Runs on ubuntu-latest, deliberately — windows/PhpNitroDesktop.Protocol
+    # targets plain net8.0, no Windows-specific API anywhere in it (see
+    # windows/README.md for the full reasoning: no .NET/C# toolchain was
+    # available while writing this, so only the platform-agnostic slice
+    # was attempted at all, mirroring ios/'s own PhpNitroProtocol). This
+    # job running at all, on Linux, is real proof of that claim — not
+    # just a comment saying so.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, pdo_sqlite
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+        working-directory: .
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet test PhpNitroDesktop.Protocol.Tests --verbosity normal

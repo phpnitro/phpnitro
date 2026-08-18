@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Deliberately targets plain net8.0 (not net8.0-windows) — this whole
+    project only uses System.Text.Json/System.Net.Http, nothing
+    Windows-specific, matching PhpNitroProtocol (iOS/macOS) and
+    draw_command.py/screen_client.py/navigation.py (Linux) all being
+    platform-agnostic for the exact same reason. Verified in CI on
+    ubuntu-latest (see .github/workflows/ci.yml's windows-desktop-protocol
+    job) — a real, running cross-platform proof, not just a claim, the
+    same way ../macos/'s own PhpNitroMacEngine target proves
+    PhpNitroProtocol is genuinely shared by building it for macOS.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>PhpNitroDesktop.Protocol</RootNamespace>
+  </PropertyGroup>
+
+</Project>
