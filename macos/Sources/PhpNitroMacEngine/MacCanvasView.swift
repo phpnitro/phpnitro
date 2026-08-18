@@ -109,15 +109,22 @@ public final class MacCanvasView: NSView {
     // MARK: - Animation loop (spinner/skeleton only)
 
     private func updateAnimationState() {
-        let needsAnimation = payload?.commands.contains { needsAnimation(for: $0) } ?? false
+        // NOT named `needsAnimation` — that would shadow the
+        // needsAnimation(for:) method called on the very next line for
+        // the whole rest of this statement's scope (Swift resolves the
+        // closure's `needsAnimation(for: $0)` against the new local
+        // constant being declared, not the method, and fails to compile
+        // with "cannot reference invalid declaration"). Confirmed by a
+        // real CI compile failure, not a guess.
+        let shouldAnimate = payload?.commands.contains { needsAnimation(for: $0) } ?? false
 
-        if needsAnimation, animationTimer == nil {
+        if shouldAnimate, animationTimer == nil {
             let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
                 self?.needsDisplay = true
             }
             RunLoop.current.add(timer, forMode: .common)
             animationTimer = timer
-        } else if !needsAnimation, let timer = animationTimer {
+        } else if !shouldAnimate, let timer = animationTimer {
             timer.invalidate()
             animationTimer = nil
         }
