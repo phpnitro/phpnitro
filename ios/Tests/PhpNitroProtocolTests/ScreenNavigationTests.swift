@@ -1,5 +1,5 @@
 import XCTest
-@testable import PhpNitroNativeEngine
+@testable import PhpNitroProtocol
 
 final class ScreenNavigationTests: XCTestCase {
     func testNavigatePushesOntoTheStack() {

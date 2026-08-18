@@ -8,7 +8,7 @@ Un vrai runtime PHP embarqué sur le device (pas un serveur distant, pas de tran
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![PHP](https://img.shields.io/badge/PHP-%3E%3D8.1-777bb4.svg)](composer.json)
-[![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS-informational.svg)](docs/mobile-builds.md)
+[![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS%20%7C%20Linux%20%7C%20macOS%20%7C%20Windows-informational.svg)](docs/mobile-builds.md)
 
 [Démarrage rapide](#démarrage-rapide) ·
 [Documentation](#documentation) ·
@@ -82,6 +82,9 @@ Ouvre `http://127.0.0.1:8090/`. C'est tout — pas de build step, pas de simulat
 | [Capacités device & natif](docs/device-and-native.md) | Caméra, biométrie, notifications, partage, impression, accessibilité |
 | [CLI (`phpx`)](docs/cli.md) | Toutes les commandes, `phpnitro.yml`, packaging `.phar` |
 | [Builds mobiles](docs/mobile-builds.md) | APK Android (PHP embarqué), état iOS |
+| [Desktop — Linux](linux/README.md) | GTK4/Cairo, target le plus vérifié après Android (48 tests réels, dont de vrais pixels rendus) |
+| [Desktop — macOS](macos/README.md) | Réutilise Core Graphics/le protocole d'iOS, jamais compilé sur un vrai Mac |
+| [Desktop — Windows](windows/README.md) | Couche protocole seulement (C#), rendu GDI+/Direct2D pas encore commencé |
 | [Architecture interne](docs/architecture.md) | Cycle de rendu, actions, gestes continus, backend, base de données |
 | [Référence API](docs/api.md) | Générée automatiquement (`phpx docs:api`) pour les packages hors moteur natif |
 | [Changelog](CHANGELOG.md) | Historique des changements notables |
@@ -89,7 +92,7 @@ Ouvre `http://127.0.0.1:8090/`. C'est tout — pas de build step, pas de simulat
 
 ## État du projet
 
-Honnêtement : **le runtime Android fonctionne réellement, vérifié sur device physique** (biométrie, navigation complète, animations, geste de glisser, impression PDF, arbre d'accessibilité pour le rendu Canvas) — ce n'est pas un prototype qui ne marche qu'en démo. iOS a un pont natif écrit pour l'ancienne architecture WebView mais jamais recompilé pour le moteur de rendu natif actuel (pas de Mac disponible). Aucune obfuscation du code, aucun écosystème de packages tiers, aucun test E2E automatisé. Le signing de release (keystore, R8/ProGuard) et le build one-command (`phpx build:android`) sont câblés mais pas encore vérifiés par un vrai build signé de bout en bout.
+Honnêtement : **le runtime Android fonctionne réellement, vérifié sur device physique** (biométrie, navigation complète, animations, geste de glisser, impression PDF, arbre d'accessibilité pour le rendu Canvas) — ce n'est pas un prototype qui ne marche qu'en démo. **iOS** a un vrai moteur de rendu (Core Graphics), un client réseau et une pile d'écrans écrits et testés en continu (CI réelle sur `macos-14`) — mais rien n'a encore tourné sur un simulateur ou un device réel (pas de Mac disponible). **Linux** (GTK4/Cairo) est le desktop le plus avancé — 48 tests réels dont un vrai rendu Cairo vérifié pixel par pixel. **macOS** réutilise le protocole/Core Graphics d'iOS mais n'a jamais compilé sur un vrai Mac. **Windows** n'a que sa couche protocole (C#) ; le rendu GDI+/Direct2D n'est pas commencé. Aucune obfuscation du code, aucun écosystème de packages tiers, aucun test E2E automatisé au-delà d'Android. Le signing de release (keystore, R8/ProGuard) et le build one-command (`phpx build:android`) sont câblés mais pas encore vérifiés par un vrai build signé de bout en bout.
 
 ## Licence
 

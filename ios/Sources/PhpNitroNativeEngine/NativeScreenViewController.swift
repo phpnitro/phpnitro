@@ -1,3 +1,4 @@
+import PhpNitroProtocol
 import UIKit
 
 /// The iOS counterpart of NativeRenderPocActivity.kt — deliberately the
