@@ -255,5 +255,12 @@ jobs:
       # inference applied to a package that didn't exist yet to test it
       # against directly.
       - run: xcodebuild -list
+      # Confirmed by this same job's own `xcodebuild -list` step (see
+      # above): unlike ios/'s own package (4 products, so Xcode also
+      # generates a separate aggregate "-Package" scheme alongside the
+      # per-target ones — see ios-build's own comment on that), this
+      # package has exactly ONE product, and Xcode names its one
+      # auto-generated scheme after that product directly, no
+      # "-Package" suffix at all. Same scheme for both actions below.
       - run: xcodebuild -scheme PhpNitroMacEngine -destination 'platform=macOS' build
-      - run: xcodebuild -scheme PhpNitroMacEngine-Package -destination 'platform=macOS' test
+      - run: xcodebuild -scheme PhpNitroMacEngine -destination 'platform=macOS' test

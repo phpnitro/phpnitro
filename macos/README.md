@@ -27,10 +27,10 @@ Les appels Core Graphics eux-mêmes (`context.addPath`, `fillPath`, `strokePath`
 
 **Aucun Mac disponible pour écrire ni vérifier ce port** — même situation que le reste d'`ios/` jusqu'ici. Le job CI `macos-build` (`.github/workflows/ci.yml`, runner `macos-14`) :
 
-1. `xcodebuild -list` en premier, volontairement — les noms de scheme ci-dessous (`PhpNitroMacEngine`, `PhpNitroMacEngine-Package`) sont **déduits par précédent** (le suffixe `-Package` déjà confirmé pour `ios/`'s propre aggregate scheme), pas vérifiés contre un vrai `xcodebuild -list` sur ce nouveau package. Si le nom est faux, le log de ce step le montrera immédiatement.
+1. `xcodebuild -list` en premier — confirme qu'il n'y a qu'**un seul scheme, `PhpNitroMacEngine`**, sans suffixe `-Package` (contrairement à `ios/`, qui a 4 produits et donc un scheme agrégé séparé — voir `ios/README.md`) : avec un seul produit dans tout le package, Xcode ne génère pas de scheme agrégé distinct, il nomme simplement l'unique scheme d'après ce produit. Deux échecs CI réels ont précédé cette version (mauvais nom de `package:` dans la dépendance de chemin local, puis ce même mauvais nom de scheme par analogie avec `ios/` avant que `-list` ne montre la vraie liste) — corrigés, pas juste supposés.
 2. `brew install php` (télécharge sur le réseau du runner CI, pas celui de la machine qui a écrit ce code).
 3. `xcodebuild -scheme PhpNitroMacEngine -destination 'platform=macOS' build`
-4. `xcodebuild -scheme PhpNitroMacEngine-Package -destination 'platform=macOS' test` — inclut `MacRenderingSupportTests` (police d'icônes, parsing couleur hex, `data:` URI) et `MacPhpProcessTests` (un vrai `php -S` lancé contre ce monorepo, avec un vrai fetch HTTP — la même rigueur que `linux/tests/test_php_process.py`, `XCTSkip` en repli propre si `php` n'est pas disponible plutôt qu'un échec trompeur).
+4. `xcodebuild -scheme PhpNitroMacEngine -destination 'platform=macOS' test` — même scheme, action `test` : inclut `MacRenderingSupportTests` (police d'icônes, parsing couleur hex, `data:` URI) et `MacPhpProcessTests` (un vrai `php -S` lancé contre ce monorepo, avec un vrai fetch HTTP — la même rigueur que `linux/tests/test_php_process.py`, `XCTSkip` en repli propre si `php` n'est pas disponible plutôt qu'un échec trompeur).
 
 ## Ce qui manque encore, dans l'ordre de priorité
 
