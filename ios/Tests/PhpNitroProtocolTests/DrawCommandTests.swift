@@ -1,6 +1,6 @@
-import UIKit
+import CoreGraphics
 import XCTest
-@testable import PhpNitroNativeEngine
+@testable import PhpNitroProtocol
 
 /// Decodes real JSON shapes Engine\Native\Canvas::toJson() actually
 /// produces — the "button_with_icon" fixture below is copied verbatim
@@ -9,6 +9,12 @@ import XCTest
 /// payload), so a change to Canvas.php's JSON shape that breaks this
 /// decoder is a change a human would actually make on purpose, not
 /// something invented for this test alone.
+///
+/// Pure decoding only — no UIKit here at all (see
+/// PhpNitroNativeEngineTests' own NativeRenderingSupportTests.swift for
+/// the iOS-specific rendering tests, like icon font registration, that
+/// used to live in this same file before PhpNitroProtocol split off
+/// into its own cross-platform target).
 final class DrawCommandTests: XCTestCase {
     func testDecodesRectCommand() throws {
         let json = """
@@ -77,13 +83,6 @@ final class DrawCommandTests: XCTestCase {
         XCTAssertEqual(payload.contentHeight, 0)
         XCTAssertEqual(payload.hitRegions.count, 1)
         XCTAssertEqual(payload.hitRegions[0].action, "submit:demo")
-    }
-
-    func testColorHexParsing() {
-        XCTAssertNotNil(UIColor(hex: "#111827"))
-        XCTAssertNotNil(UIColor(hex: "111827"))
-        XCTAssertNotNil(UIColor(hex: "#11182780"))
-        XCTAssertNil(UIColor(hex: "not-a-color"))
     }
 
     func testEmptyHitRegionsArrayDecodesNotThrows() throws {
@@ -175,18 +174,6 @@ final class DrawCommandTests: XCTestCase {
         XCTAssertEqual(skeleton.radius, 8)
     }
 
-    func testImageLoaderDecodesADataUriWithoutNetworkAccess() {
-        let expectation = expectation(description: "data: URI decodes synchronously enough to load")
-        let pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
-
-        ImageLoader.load("data:image/png;base64,\(pngBase64)") {
-            expectation.fulfill()
-        }
-
-        wait(for: [expectation], timeout: 5)
-        XCTAssertNotNil(ImageLoader.get("data:image/png;base64,\(pngBase64)"))
-    }
-
     func testDecodesClientPanelCommandWithNestedCommands() throws {
         let json = """
         {
@@ -242,18 +229,5 @@ final class DrawCommandTests: XCTestCase {
         guard case .slider(let slider) = command else { return XCTFail("expected .slider") }
         XCTAssertEqual(slider.key, "volume")
         XCTAssertEqual(slider.value, 0.4)
-    }
-
-    func testIconFontsRegisterAndProduceARealUIFont() {
-        XCTAssertNotNil(IconFont.materialName, "MaterialIcons-Regular.ttf should register from the bundled SPM resource")
-        XCTAssertNotNil(IconFont.fontAwesomeName, "FontAwesome-Solid.ttf should register from the bundled SPM resource")
-
-        let materialFont = IconFont.font(forKey: nil, size: 24)
-        XCTAssertNotNil(materialFont, "font(forKey: nil, ...) should default to Material Icons")
-        XCTAssertEqual(materialFont?.pointSize, 24)
-
-        let fontAwesomeFont = IconFont.font(forKey: "fontawesome", size: 18)
-        XCTAssertNotNil(fontAwesomeFont)
-        XCTAssertEqual(fontAwesomeFont?.pointSize, 18)
     }
 }

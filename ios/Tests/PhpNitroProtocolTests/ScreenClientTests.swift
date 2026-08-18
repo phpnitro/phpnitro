@@ -1,5 +1,5 @@
 import XCTest
-@testable import PhpNitroNativeEngine
+@testable import PhpNitroProtocol
 
 /// Intercepts every request on a URLSession configured with it — lets
 /// ScreenClientTests exercise the real URLSession/JSONDecoder pipeline

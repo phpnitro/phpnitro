@@ -1,24 +1,35 @@
 // swift-tools-version:5.9
 import PackageDescription
 
-/// Two SEPARATE libraries, matching two separate Android modules:
+/// Despite the directory's name (`ios/` — historical), one of these
+/// targets is now genuinely cross-platform:
 ///
-/// - PhpNitroWebViewBridge — the WKWebView fallback path, mirroring
+/// - PhpNitroProtocol — the platform-agnostic wire protocol (draw-command
+///   decoding, the network fetch client, the screen-navigation reducer).
+///   Only imports Foundation/CoreGraphics, never UIKit, which is exactly
+///   what makes it buildable for iOS AND macOS unchanged — split out from
+///   PhpNitroNativeEngine once ../macos/'s own PhpNitroMacEngine needed
+///   the exact same logic (see ../macos/Package.swift), rather than
+///   duplicating it or `#if os()`-guarding it inline. Deliberately kept
+///   in THIS package (not moved to ../macos/) and consumed from there via
+///   a local path dependency — PhpNitroWebViewBridge/PhpNitroNativeEngine/
+///   PhpNitroGo all import UIKit unconditionally, so this whole package's
+///   own aggregate `-Package` scheme can never be built FOR macOS without
+///   those failing to compile; ../macos/'s own separate package is what
+///   keeps a macOS build from ever touching them at all, rather than
+///   guarding every iOS file with `#if os(iOS)` to make one shared
+///   aggregate scheme safe for both platforms.
+///
+/// - PhpNitroWebViewBridge — the iOS-only WKWebView fallback path, mirroring
 ///   MainActivity.kt/WebAppInterface.kt (the pieces `android/app`'s own
 ///   native Canvas engine still can't reach yet: a live camera/mic
 ///   preview surface, NFC foreground dispatch, etc. — see
-///   NativeDeviceBridge.kt's own docblock). This was already written
-///   (see README.md's own history) before this package manifest existed;
-///   moving it here doesn't change a line of it, just makes it
-///   `xcodebuild`-able for the first time.
+///   NativeDeviceBridge.kt's own docblock).
 ///
 /// - PhpNitroNativeEngine — the iOS side of THIS framework's actual
 ///   primary rendering path (android/engine's NativeCanvasView.kt
-///   equivalent): decodes the same draw-command JSON
-///   Engine\Native\Canvas::toJson() already produces and replays it with
-///   Core Graphics. Brand new, added alongside this manifest — until now
-///   iOS had no awareness of this protocol at all, only of the older
-///   WebView bridge above.
+///   equivalent): replays PhpNitroProtocol's DrawCommandPayload with
+///   Core Graphics, through UIKit (UIView/UIColor/UIFont).
 ///
 /// - PhpNitroGo — the iOS counterpart of android/go: a companion-app
 ///   entry screen (ConnectViewController) that validates a manually
@@ -30,19 +41,30 @@ import PackageDescription
 /// Neither PhpNitroWebViewBridge nor PhpNitroNativeEngine embeds PHP
 /// itself (see PhpEmbedBridge.swift's own TODOs) — an actual on-device
 /// PHP process/SAPI-embed build for iOS is real, separate, substantial
-/// work no file in this directory attempts to fake.
+/// work no file in this directory attempts to fake. See ../macos/README.md
+/// for why macOS doesn't need any such thing at all.
 let package = Package(
     name: "PhpNitroEngine",
     platforms: [.iOS(.v15)],
     products: [
+        .library(name: "PhpNitroProtocol", targets: ["PhpNitroProtocol"]),
         .library(name: "PhpNitroWebViewBridge", targets: ["PhpNitroWebViewBridge"]),
         .library(name: "PhpNitroNativeEngine", targets: ["PhpNitroNativeEngine"]),
         .library(name: "PhpNitroGo", targets: ["PhpNitroGo"]),
     ],
     targets: [
+        .target(name: "PhpNitroProtocol", path: "Sources/PhpNitroProtocol"),
+        .testTarget(
+            name: "PhpNitroProtocolTests",
+            dependencies: ["PhpNitroProtocol"],
+            path: "Tests/PhpNitroProtocolTests"
+        ),
+
         .target(name: "PhpNitroWebViewBridge", path: "Sources/PhpNitroWebViewBridge"),
+
         .target(
             name: "PhpNitroNativeEngine",
+            dependencies: ["PhpNitroProtocol"],
             path: "Sources/PhpNitroNativeEngine",
             // Verbatim copies of the SAME two font files
             // android/engine/src/main/assets/fonts/ already bundles —
