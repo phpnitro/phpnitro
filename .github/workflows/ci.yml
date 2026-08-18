@@ -208,3 +208,39 @@ jobs:
       # PhpNitroNativeEngineTests) gets a "-Package" suffix Xcode never
       # documents up front, it only shows up in -list's real output.
       - run: xcodebuild -scheme PhpNitroEngine-Package -destination 'platform=iOS Simulator,name=iPhone 15' test
+
+  macos-build:
+    name: macOS Swift package (xcodebuild, PhpNitroMacEngine)
+    # A genuinely SEPARATE package from ios/ (macos/Package.swift, with a
+    # local path dependency on ios/'s own PhpNitroProtocol product) — see
+    # that manifest's own docblock for why: ios/'s aggregate `-Package`
+    # scheme (the one wired for the Test action, per ios-build's own
+    # comment above) would try to build EVERY target in that package for
+    # macOS, including UIKit-only ones, and fail. A separate package
+    # means this job can never touch iOS-only code at all.
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: macos
+    steps:
+      - uses: actions/checkout@v4
+      # Homebrew is preinstalled on GitHub's macOS runners — this
+      # downloads over GitHub's own network (the CI runner's), never the
+      # machine that queued this workflow. Needed for
+      # MacPhpProcessTests' real spawn-a-server integration test (mirrors
+      # linux/tests/test_php_process.py's own real `php -S` test); that
+      # specific test skips itself gracefully (XCTSkip) if this step
+      # were ever removed or `php` weren't actually on PATH afterward,
+      # so this isn't a hard requirement for the rest of the suite.
+      - run: brew install php
+      # This package's own scheme names have never been confirmed against
+      # a real `xcodebuild -list` (no Mac was available while writing
+      # this) — logged up front specifically so a wrong guess below is a
+      # two-second diagnosis from the log instead of a mystery. ios-build's
+      # own "-Package" aggregate scheme naming was confirmed exactly this
+      # way originally (see that job's own comment) — this is the same
+      # inference applied to a package that didn't exist yet to test it
+      # against directly.
+      - run: xcodebuild -list
+      - run: xcodebuild -scheme PhpNitroMacEngine -destination 'platform=macOS' build
+      - run: xcodebuild -scheme PhpNitroMacEngine-Package -destination 'platform=macOS' test
