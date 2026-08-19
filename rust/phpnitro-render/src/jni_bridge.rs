@@ -29,8 +29,8 @@
 
 use crate::hittest::{hit_test, InteractionState};
 use crate::protocol::decode_envelope;
-use crate::raster::render_commands;
 use crate::text::TextRenderer;
+use crate::transition::render_transition;
 use jni::objects::{JClass, JString};
 use jni::sys::{jbyteArray, jfloat, jint, jlong, jstring};
 use jni::JNIEnv;
@@ -42,6 +42,18 @@ struct JniRenderer {
 
 fn jstring_to_string(env: &mut JNIEnv, value: &JString) -> String {
     env.get_string(value).map(|s| s.into()).unwrap_or_default()
+}
+
+/// A null Java `String` (Kotlin `String?` = `null`) must decode to `None`,
+/// not the same as an empty string — used for `previousEnvelopeJson`,
+/// where null means "no transition" and an empty/malformed string is
+/// treated as absent too (see `transition::render_transition`'s own
+/// tolerance for that).
+fn jstring_to_optional_string(env: &mut JNIEnv, value: &JString) -> Option<String> {
+    if value.is_null() {
+        return None;
+    }
+    env.get_string(value).ok().map(|s| s.into())
 }
 
 fn new_jstring_or_null(env: &mut JNIEnv, value: &str) -> jstring {
@@ -97,6 +109,8 @@ pub extern "system" fn Java_com_phpnitro_engine_RustRenderer_nativeRenderFrame<'
     _class: JClass<'local>,
     handle: jlong,
     envelope_json: JString<'local>,
+    previous_envelope_json: JString<'local>,
+    transition_elapsed_ms: jlong,
     width_px: jint,
     height_px: jint,
     elapsed_ms: jlong,
@@ -110,11 +124,20 @@ pub extern "system" fn Java_com_phpnitro_engine_RustRenderer_nativeRenderFrame<'
     let Ok(envelope) = decode_envelope(&json) else {
         return std::ptr::null_mut();
     };
+    let previous_envelope = jstring_to_optional_string(&mut env, &previous_envelope_json)
+        .and_then(|json| decode_envelope(&json).ok());
     let Some(mut pixmap) = Pixmap::new(width_px as u32, height_px as u32) else {
         return std::ptr::null_mut();
     };
 
-    render_commands(&mut pixmap, &envelope.commands, elapsed_ms as u64, &mut renderer.text_renderer);
+    render_transition(
+        &mut pixmap,
+        &envelope,
+        previous_envelope.as_ref(),
+        transition_elapsed_ms as u64,
+        elapsed_ms as u64,
+        &mut renderer.text_renderer,
+    );
 
     let width = pixmap.width();
     let height = pixmap.height();
