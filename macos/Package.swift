@@ -63,7 +63,8 @@ let package = Package(
             // see this package's own MacIconFont.swift.
             resources: [
                 .copy("Resources/MaterialIcons-Regular.ttf"),
-                .copy("Resources/FontAwesome-Solid.ttf")
+                .copy("Resources/FontAwesome-Solid.ttf"),
+                .copy("Resources/Roboto-Regular.ttf")
             ]
         ),
         .testTarget(

@@ -1,17 +1,20 @@
-"""Registers MaterialIcons-Regular.ttf/FontAwesome-Solid.ttf (bundled
-alongside this module — verbatim copies of the same two files
-android/engine/src/main/assets/fonts/ already ships, same font IconFont.swift
-loads on iOS) with fontconfig at process start, so Pango can resolve
-them by family name without installing anything system-wide.
+"""Registers MaterialIcons-Regular.ttf/FontAwesome-Solid.ttf/Roboto-Regular.ttf
+(bundled alongside this module — verbatim copies of the same three files
+android/engine/src/main/assets/fonts/ already ships) with fontconfig at
+process start, so Pango can resolve them by family name without
+installing anything system-wide.
 
-Body text (the "text" draw command) deliberately does NOT get a bundled
-font here — it uses whatever sans-serif Pango/fontconfig already
-resolves on this system, the same "system font, not a custom one"
-choice IconFont.font(forKey:) makes on iOS (UIFont.systemFont) and
-NativeCanvasView.kt's own drawTextCommand() makes on Android (Paint's
-default typeface). Only icon glyphs need a specific bundled font, since
-Material Icons/Font Awesome codepoints don't mean anything in a system
-font.
+Body text (the "text" draw command) DOES need this bundled Roboto now —
+NativeCanvasView.kt's own robotoTypeface() docblock explains why:
+packages/ui/src/Native/TextMetrics.php's per-character advance-width
+table was measured against real Roboto, so if the client actually paints
+with a different font (whatever generic "sans-serif" Pango/fontconfig
+resolves on this host), PHP's computed box sizes/wrap points silently
+disagree with the glyphs actually drawn — the same off-center/clipped
+text bug already confirmed on non-stock Android builds, fixed there by
+bundling the exact same Roboto-Regular.ttf and loading it explicitly
+instead of relying on Typeface.DEFAULT. This is that same fix, applied
+here.
 
 fontconfig has no GObject-Introspection binding (Pango/Cairo just use
 it internally) — FcConfigAppFontAddFile is the standard C API for
@@ -32,6 +35,10 @@ MATERIAL_ICONS_FAMILY = "Material Icons"
 # 6 Free Solid", not "5" (the codepoints in Icon.php's own FontAwesome
 # map still come from the same "Solid" style either way).
 FONT_AWESOME_FAMILY = "Font Awesome 6 Free Solid"
+# Confirmed via the same fc-query technique — matches BODY_FAMILY in
+# rust/phpnitro-render/src/text.rs and the family Roboto-Regular.ttf's
+# own name table declares itself under everywhere else it's bundled.
+ROBOTO_FAMILY = "Roboto"
 
 _fontconfig = ctypes.CDLL("libfontconfig.so.1")
 _fontconfig.FcConfigGetCurrent.restype = ctypes.c_void_p
@@ -58,7 +65,7 @@ def register_bundled_fonts() -> bool:
         return False
 
     ok = True
-    for filename in ("MaterialIcons-Regular.ttf", "FontAwesome-Solid.ttf"):
+    for filename in ("MaterialIcons-Regular.ttf", "FontAwesome-Solid.ttf", "Roboto-Regular.ttf"):
         path = FONTS_DIR / filename
         added = _fontconfig.FcConfigAppFontAddFile(config, str(path).encode("utf-8"))
         ok = ok and bool(added)

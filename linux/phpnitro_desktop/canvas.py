@@ -177,7 +177,12 @@ def _pango_layout_for(ctx, family: str, size_px: float, bold: bool = False):
 def _draw_text(ctx, c: TextCommand) -> None:
     color = parse_color(c.color) or (0, 0, 0, 1)
     size = c.size or 16
-    layout = _pango_layout_for(ctx, c.font_family or "sans-serif", size, bold=bool(c.bold))
+    # Falls back to the bundled Roboto (see fonts.py), not the host's
+    # generic "sans-serif" — packages/ui/src/Native/TextMetrics.php's
+    # width table was measured against real Roboto, so painting body
+    # text in a different font here would silently disagree with the
+    # box sizes/wrap points PHP already computed.
+    layout = _pango_layout_for(ctx, c.font_family or fonts.ROBOTO_FAMILY, size, bold=bool(c.bold))
     layout.set_text(c.text, -1)
 
     # Canvas::text()'s (x, y) is the drawText BASELINE (same convention
