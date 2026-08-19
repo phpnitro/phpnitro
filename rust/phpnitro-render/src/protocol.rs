@@ -316,6 +316,33 @@ pub enum DrawCommand {
     Unknown(Value),
 }
 
+impl DrawCommand {
+    /// The command's own `tags.hero` field, if any — the PER-COMMAND tag
+    /// `transition.rs`'s `collectByField`/`excludeHeroTags` port matches
+    /// against, distinct from `HeroRegion.tag` (the subtree bounding-box
+    /// map keyed the same way, but a separate top-level structure).
+    /// `Custom`/`Unknown` carry no `CommandTags` at all, so they can never
+    /// participate in a hero flight.
+    pub fn hero_tag(&self) -> Option<&str> {
+        match self {
+            DrawCommand::Rect(c) => c.tags.hero.as_deref(),
+            DrawCommand::Text(c) => c.tags.hero.as_deref(),
+            DrawCommand::Icon(c) => c.tags.hero.as_deref(),
+            DrawCommand::Image(c) => c.tags.hero.as_deref(),
+            DrawCommand::Circle(c) => c.tags.hero.as_deref(),
+            DrawCommand::Line(c) => c.tags.hero.as_deref(),
+            DrawCommand::Arc(c) => c.tags.hero.as_deref(),
+            DrawCommand::Spinner(c) => c.tags.hero.as_deref(),
+            DrawCommand::Skeleton(c) => c.tags.hero.as_deref(),
+            DrawCommand::ClientPanel(c) => c.tags.hero.as_deref(),
+            DrawCommand::HScroll(c) => c.tags.hero.as_deref(),
+            DrawCommand::VScroll(c) => c.tags.hero.as_deref(),
+            DrawCommand::Slider(c) => c.tags.hero.as_deref(),
+            DrawCommand::Custom(_) | DrawCommand::Unknown(_) => None,
+        }
+    }
+}
+
 impl<'de> Deserialize<'de> for DrawCommand {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

@@ -29,10 +29,15 @@
 //! `initiallyActive` panel, an unscrolled viewport) since no client-side
 //! tab-switch/drag offset reaches this render call yet — the same
 //! interaction-state plumbing `hittest.rs` already has for hit-testing,
-//! just not threaded into the render path yet. Crossfade/hero transitions
-//! (needing a previous-frame + progress fraction) are likewise out of
-//! this surface for now: only Android has anything to preserve there, so
-//! deferring is zero regression for every other platform.
+//! just not threaded into the render path yet.
+//!
+//! Crossfade/hero transitions (`transition.rs`) ARE in this surface now:
+//! `phpnitro_render_frame` takes an optional `previous_envelope_json` and
+//! a `transition_elapsed_ms` — pass `previous_envelope_json = NULL` for
+//! the common case (first render, or a same-screen refetch that never
+//! wants a transition at all) and every existing caller's behavior is
+//! unchanged, at zero extra cost (see `transition::render_transition`'s
+//! own early-return for that case).
 
 use std::cell::RefCell;
 use std::ffi::{CStr, CString};
@@ -44,6 +49,7 @@ pub mod hittest;
 pub mod protocol;
 pub mod raster;
 pub mod text;
+pub mod transition;
 
 #[cfg(target_os = "android")]
 pub mod jni_bridge;
@@ -131,18 +137,27 @@ pub struct PhpNitroFrame {
     pixmap: Pixmap,
 }
 
-/// Rasterizes one `Canvas::toJson()` envelope into a new frame. Returns
-/// null on failure (malformed JSON, zero width/height, or an internal
-/// panic) — check `phpnitro_render_last_error()` for why.
+/// Rasterizes one `Canvas::toJson()` envelope into a new frame — optionally
+/// blended with a previous envelope for a crossfade/hero transition (see
+/// `transition::render_transition`). Returns null on failure (malformed
+/// `envelope_json`, zero width/height, or an internal panic) — check
+/// `phpnitro_render_last_error()` for why. A malformed
+/// `previous_envelope_json` is NOT a hard failure — it's treated the same
+/// as null (no transition), since a caller's own bookkeeping bug about the
+/// previous frame shouldn't stop the current one from rendering.
 ///
 /// # Safety
 /// `renderer` must be a live pointer from `phpnitro_render_new`.
 /// `envelope_json` must be null or point to a NUL-terminated UTF-8 string
 /// valid for the duration of this call; it is read, never retained.
+/// `previous_envelope_json` may be null (no transition) or point to
+/// another such string, under the same validity contract.
 #[no_mangle]
 pub unsafe extern "C" fn phpnitro_render_frame(
     renderer: *mut PhpNitroRenderer,
     envelope_json: *const c_char,
+    previous_envelope_json: *const c_char,
+    transition_elapsed_ms: u64,
     width_px: u32,
     height_px: u32,
     elapsed_ms: u64,
@@ -163,12 +178,21 @@ pub unsafe extern "C" fn phpnitro_render_frame(
                 return None;
             }
         };
+        let previous_envelope =
+            borrow_str(previous_envelope_json).and_then(|json| protocol::decode_envelope(json).ok());
         let Some(mut pixmap) = Pixmap::new(width_px, height_px) else {
             set_last_error("phpnitro_render_frame: width_px and height_px must both be > 0");
             return None;
         };
 
-        raster::render_commands(&mut pixmap, &envelope.commands, elapsed_ms, &mut renderer.text_renderer);
+        transition::render_transition(
+            &mut pixmap,
+            &envelope,
+            previous_envelope.as_ref(),
+            transition_elapsed_ms,
+            elapsed_ms,
+            &mut renderer.text_renderer,
+        );
 
         Some(Box::into_raw(Box::new(PhpNitroFrame { pixmap })))
     }));
@@ -361,7 +385,7 @@ mod tests {
                 r##"{"commands":[{"type":"rect","x":0,"y":0,"width":10,"height":10,"color":"#FF0000","radius":0}],"hitRegions":[],"contentHeight":10}"##,
             )
             .unwrap();
-            let frame = phpnitro_render_frame(renderer, json.as_ptr(), 20, 20, 0);
+            let frame = phpnitro_render_frame(renderer, json.as_ptr(), std::ptr::null(), 0, 20, 20, 0);
             assert!(!frame.is_null());
             assert_eq!(phpnitro_render_frame_width(frame), 20);
             assert_eq!(phpnitro_render_frame_height(frame), 20);
@@ -378,7 +402,7 @@ mod tests {
         unsafe {
             let renderer = phpnitro_render_new();
             let bad_json = StdCString::new("{not valid json").unwrap();
-            let frame = phpnitro_render_frame(renderer, bad_json.as_ptr(), 10, 10, 0);
+            let frame = phpnitro_render_frame(renderer, bad_json.as_ptr(), std::ptr::null(), 0, 10, 10, 0);
             assert!(frame.is_null());
             let error = CStr::from_ptr(phpnitro_render_last_error()).to_str().unwrap();
             assert!(!error.is_empty());
@@ -391,8 +415,34 @@ mod tests {
         unsafe {
             let renderer = phpnitro_render_new();
             let json = StdCString::new(r##"{"commands":[],"hitRegions":[],"contentHeight":0}"##).unwrap();
-            let frame = phpnitro_render_frame(renderer, json.as_ptr(), 0, 0, 0);
+            let frame = phpnitro_render_frame(renderer, json.as_ptr(), std::ptr::null(), 0, 0, 0, 0);
             assert!(frame.is_null());
+            phpnitro_render_free(renderer);
+        }
+    }
+
+    #[test]
+    fn render_frame_blends_a_previous_envelope_mid_crossfade() {
+        unsafe {
+            let renderer = phpnitro_render_new();
+            let old_json = StdCString::new(
+                r##"{"commands":[{"type":"rect","x":0,"y":0,"width":20,"height":20,"color":"#FF0000"}],"hitRegions":[],"contentHeight":20}"##,
+            )
+            .unwrap();
+            let new_json = StdCString::new(
+                r##"{"commands":[{"type":"rect","x":0,"y":0,"width":20,"height":20,"color":"#0000FF"}],"hitRegions":[],"contentHeight":20}"##,
+            )
+            .unwrap();
+            // transition_elapsed_ms = 0 -> the eased crossfade progress is
+            // still 0, i.e. only the previous (red) envelope should show.
+            let frame = phpnitro_render_frame(renderer, new_json.as_ptr(), old_json.as_ptr(), 0, 20, 20, 0);
+            assert!(!frame.is_null());
+            let pixels = phpnitro_render_frame_pixels(frame);
+            let stride = phpnitro_render_frame_stride(frame) as usize;
+            let offset = 10 * stride + 10 * 4;
+            let slice = std::slice::from_raw_parts(pixels, stride * 20);
+            assert_eq!(&slice[offset..offset + 4], &[255, 0, 0, 255], "still showing the previous envelope at t=0");
+            phpnitro_render_free_frame(frame);
             phpnitro_render_free(renderer);
         }
     }

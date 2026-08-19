@@ -109,7 +109,8 @@ internal static class NativeMethods
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern IntPtr phpnitro_render_frame(
-        IntPtr renderer, byte[] envelopeJsonUtf8, uint widthPx, uint heightPx, ulong elapsedMs);
+        IntPtr renderer, byte[] envelopeJsonUtf8, byte[]? previousEnvelopeJsonUtf8, ulong transitionElapsedMs,
+        uint widthPx, uint heightPx, ulong elapsedMs);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern IntPtr phpnitro_render_frame_pixels(IntPtr frame);
@@ -191,11 +192,18 @@ public sealed class RustRenderer : IDisposable
     }
 
     /// Returns null on failure (malformed JSON, zero width/height) —
-    /// check LastError() for why.
-    public RenderedFrame? RenderFrame(string envelopeJson, uint widthPx, uint heightPx, ulong elapsedMs = 0)
+    /// check LastError() for why. previousEnvelopeJson/transitionElapsedMs
+    /// drive a crossfade/hero transition between it and envelopeJson (see
+    /// rust/phpnitro-render/src/transition.rs) — omit both (the defaults)
+    /// for a plain, untransitioned render.
+    public RenderedFrame? RenderFrame(
+        string envelopeJson, uint widthPx, uint heightPx, ulong elapsedMs = 0,
+        string? previousEnvelopeJson = null, ulong transitionElapsedMs = 0)
     {
+        var previousBytes = previousEnvelopeJson is null ? null : NativeMethods.Utf8WithNul(previousEnvelopeJson);
         var frame = NativeMethods.phpnitro_render_frame(
-            _handle, NativeMethods.Utf8WithNul(envelopeJson), widthPx, heightPx, elapsedMs);
+            _handle, NativeMethods.Utf8WithNul(envelopeJson), previousBytes, transitionElapsedMs,
+            widthPx, heightPx, elapsedMs);
         if (frame == IntPtr.Zero)
         {
             return null;

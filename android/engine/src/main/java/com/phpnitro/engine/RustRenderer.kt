@@ -58,9 +58,23 @@ class RustRenderer {
         }
     }
 
-    /** Returns null on failure (malformed JSON, zero width/height). */
-    fun renderFrame(envelopeJson: String, widthPx: Int, heightPx: Int, elapsedMs: Long = 0): RenderedFrame? {
-        val packed = nativeRenderFrame(handle, envelopeJson, widthPx, heightPx, elapsedMs) ?: return null
+    /**
+     * Returns null on failure (malformed JSON, zero width/height).
+     * `previousEnvelopeJson`/`transitionElapsedMs` drive a crossfade/hero
+     * transition between it and `envelopeJson` (see
+     * rust/phpnitro-render/src/transition.rs) — omit both (the defaults)
+     * for a plain, untransitioned render, the same zero-extra-cost path
+     * every existing caller already takes.
+     */
+    fun renderFrame(
+        envelopeJson: String,
+        widthPx: Int,
+        heightPx: Int,
+        elapsedMs: Long = 0,
+        previousEnvelopeJson: String? = null,
+        transitionElapsedMs: Long = 0,
+    ): RenderedFrame? {
+        val packed = nativeRenderFrame(handle, envelopeJson, previousEnvelopeJson, transitionElapsedMs, widthPx, heightPx, elapsedMs) ?: return null
         // [width:i32 LE][height:i32 LE][stride:i32 LE][premultiplied RGBA8 pixels...]
         // — see jni_bridge.rs's own nativeRenderFrame doc comment for why
         // this is one packed ByteArray instead of separate accessors.
@@ -126,6 +140,8 @@ class RustRenderer {
         @JvmStatic private external fun nativeRenderFrame(
             handle: Long,
             envelopeJson: String,
+            previousEnvelopeJson: String?,
+            transitionElapsedMs: Long,
             widthPx: Int,
             heightPx: Int,
             elapsedMs: Long,

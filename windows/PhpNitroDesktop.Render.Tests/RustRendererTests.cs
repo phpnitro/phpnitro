@@ -133,6 +133,45 @@ public class RustRendererTests
     }
 
     [Fact]
+    public void RenderFrameCrossfadesBetweenTwoEnvelopes()
+    {
+        // Not a Cairo/Rust-style parity check (Cairo has no crossfade
+        // path at all) — exercises RenderFrame's own optional
+        // previousEnvelopeJson/transitionElapsedMs parameters directly
+        // (see rust/phpnitro-render/src/transition.rs), the real FFI
+        // round-trip through this project's own P/Invoke bindings.
+        if (!TryCreateRenderer(out var renderer))
+        {
+            return;
+        }
+        using (renderer)
+        {
+            const string oldEnvelope = """
+                {"commands":[{"type":"rect","x":0,"y":0,"width":20,"height":20,"color":"#FF0000"}],
+                 "hitRegions":[],"contentHeight":20}
+                """;
+            const string newEnvelope = """
+                {"commands":[{"type":"rect","x":0,"y":0,"width":20,"height":20,"color":"#0000FF"}],
+                 "hitRegions":[],"contentHeight":20}
+                """;
+
+            // transitionElapsedMs = 0 -> eased crossfade progress is still
+            // 0, i.e. only the OLD (red) envelope should be visible.
+            var atStart = renderer!.RenderFrame(newEnvelope, 20, 20, previousEnvelopeJson: oldEnvelope, transitionElapsedMs: 0);
+            Assert.NotNull(atStart);
+            var offset = (int)(10 * atStart!.Stride + 10 * 4);
+            Assert.Equal(255, atStart.Data[offset]);
+            Assert.Equal(0, atStart.Data[offset + 2]);
+
+            // Past the 220ms crossfade duration -> only the NEW (blue) envelope.
+            var atEnd = renderer.RenderFrame(newEnvelope, 20, 20, previousEnvelopeJson: oldEnvelope, transitionElapsedMs: 220);
+            Assert.NotNull(atEnd);
+            Assert.Equal(0, atEnd!.Data[offset]);
+            Assert.Equal(255, atEnd.Data[offset + 2]);
+        }
+    }
+
+    [Fact]
     public void HitTestFindsTheRealButtonActionAtItsCenter()
     {
         try
