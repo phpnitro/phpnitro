@@ -106,7 +106,7 @@ function printPhpxUsage(): void
         'migrate:rollback' => 'Annule le dernier lot de migrations',
         'migrate:status' => 'Liste les migrations appliquées/en attente',
         'serve [port]' => 'Sert public/ (8090 par défaut)',
-        'new <directory>' => 'Crée un nouveau projet (android/ ios/ lib/ packages/ public/)',
+        'new <directory> [--all]' => 'Crée un nouveau projet (android/ ios/ par défaut, +linux/ macos/ windows/ avec --all)',
         'bundle:android' => "Copie public/ + lib/ + packages/ + .env dans l'app Android",
         'build:android [debug|release]' => 'bundle:android + gradle assemble (installe Gradle si besoin)',
         'dev:push [--watch]' => "Pousse le PHP directement sur un device connecté, sans rebuild",
@@ -1006,7 +1006,7 @@ function cmdServe(int $port): void
     );
 }
 
-function cmdNew(string $directory): void
+function cmdNew(string $directory, bool $all = false): void
 {
     // Resolved against the current working directory (like `composer create-project`
     // or `flutter create`) — a new project lives wherever the developer is
@@ -1126,6 +1126,29 @@ function cmdNew(string $directory): void
         file_put_contents($appBuildGradlePath, str_replace($monorepoComment, $scaffoldedComment, $appBuildGradle));
     }
 
+    // --all: the three desktop platforms, opt-in — unlike android/ios
+    // (a real production-ready target for most apps), linux/macos/windows
+    // are each still pre-alpha (see their own README.md: macOS/Windows have
+    // no consuming app yet, only library projects; Linux has a real running
+    // app but no PyPI package to reference instead). Wholesale copy, same
+    // treatment `ios` already gets above — there's no "reference a
+    // published package" option for any of them yet, so copying the actual
+    // source is the only way a scaffolded project gets working code at all.
+    // Skipped by default so a plain `phpx new` stays exactly what it always
+    // was: an Android + iOS project, not a 5-platform one nobody asked for.
+    if ($all) {
+        foreach (['linux', 'macos', 'windows'] as $part) {
+            $source = PHPX_TOOL_ROOT . '/' . $part;
+            $destination = $targetDir . '/' . $part;
+            copyDirectory($source, $destination, [
+                'vendor', 'node_modules', '__pycache__', '.venv',
+                'build', 'bin', 'obj', '.build', 'DerivedData',
+                '.gradle', '.kotlin', 'local.properties', 'var',
+            ]);
+            echo "Copied {$part}/ to {$destination}\n";
+        }
+    }
+
     // package.json/package-lock.json aren't copied — the only reason a Node
     // toolchain existed here was Tailwind CSS, removed along with the last
     // WebView page (see git history: "remove Tailwind CSS and its JS
@@ -1141,7 +1164,11 @@ function cmdNew(string $directory): void
 
     resetPagesForNewProject($targetDir);
 
-    echo "Project scaffolded at {$targetDir}\n";
+    $platforms = $all ? 'android, ios, linux, macos, windows' : 'android, ios';
+    echo "Project scaffolded at {$targetDir} ({$platforms})\n";
+    if (!$all) {
+        echo "Tip: re-run with --all to also scaffold linux/ macos/ windows/ (still pre-alpha — see their own README.md)\n";
+    }
     echo "Next: cd {$directory} && composer install && phpx make:page Home && phpx serve\n";
 }
 
@@ -2111,7 +2138,7 @@ switch ($command) {
         cmdServe((int) ($argv[2] ?? 8090));
         break;
     case 'new':
-        cmdNew($argv[2] ?? phpxFail('usage: phpx new <directory>'));
+        cmdNew($argv[2] ?? phpxFail('usage: phpx new <directory> [--all]'), in_array('--all', $argv, true));
         break;
     case 'bundle:android':
         cmdBundleAndroid();
