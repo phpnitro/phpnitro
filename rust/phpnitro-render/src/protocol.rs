@@ -500,7 +500,11 @@ pub struct Envelope {
     pub snackbar: Option<Snackbar>,
     #[serde(default)]
     pub transition: Option<Transition>,
-    pub hash: String,
+    /// Present on a real server response but stripped from golden
+    /// fixtures before they're saved (`GoldenTestCase` strips
+    /// `renderTimeMs`/`hash` since both are non-deterministic per run).
+    #[serde(default)]
+    pub hash: Option<String>,
 }
 
 /// Decodes one full `Canvas::toJson()` payload.
