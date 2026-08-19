@@ -1,4 +1,4 @@
-module CPhpNitroRender {
+module CPhpNitroRenderMac {
     header "phpnitro_render.h"
     export *
 }
