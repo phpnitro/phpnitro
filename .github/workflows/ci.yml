@@ -221,7 +221,22 @@ jobs:
         working-directory: ios
     steps:
       - uses: actions/checkout@v4
+      # rust/phpnitro-render cross-compiled for the iOS SIMULATOR target
+      # (aarch64-apple-ios-sim — this runner is Apple Silicon, so its
+      # simulator runs the arm64 slice, not x86_64; see ios/Package.swift's
+      # own comment for the full reasoning). RustNativeRenderer's linker
+      # flags expect this exact target/aarch64-apple-ios-sim/release/ path
+      # to exist before xcodebuild links anything against it.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios-sim
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/phpnitro-render
+      - run: cargo build --release --target aarch64-apple-ios-sim --locked
+        working-directory: rust/phpnitro-render
       - run: xcodebuild -scheme PhpNitroWebViewBridge -destination 'generic/platform=iOS Simulator' build
+      - run: xcodebuild -scheme RustNativeRenderer -destination 'generic/platform=iOS Simulator' build
       # Confirmed by a real CI run's `xcodebuild -list` output (three
       # wrong guesses before this one — "PhpNitroNativeEngine" exists but
       # isn't wired for the Test action; bare "PhpNitroEngine" doesn't
@@ -231,7 +246,12 @@ jobs:
       # "PhpNitroWebViewBridge" — the package-level aggregate scheme
       # (which IS wired for Test, running every test target including
       # PhpNitroNativeEngineTests) gets a "-Package" suffix Xcode never
-      # documents up front, it only shows up in -list's real output.
+      # documents up front, it only shows up in -list's real output. A
+      # 5th product (RustNativeRenderer) was added without re-confirming
+      # this via -list again — the same aggregate-scheme mechanism that
+      # already covers 4 products should cover 5, but if this job starts
+      # failing with a scheme-not-found error, check a fresh `xcodebuild
+      # -list` output first rather than guessing again.
       - run: xcodebuild -scheme PhpNitroEngine-Package -destination 'platform=iOS Simulator,name=iPhone 15' test
 
   macos-build:

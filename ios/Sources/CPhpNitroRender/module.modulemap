@@ -1,0 +1,4 @@
+module CPhpNitroRender {
+    header "phpnitro_render.h"
+    export *
+}
