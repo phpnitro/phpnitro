@@ -24,13 +24,14 @@
 //! ## What's NOT in this v1 surface
 //!
 //! `phpnitro_render_frame` deliberately has no `interaction_state_json`
-//! parameter — nothing it currently draws (see `raster.rs`) reads
-//! interaction state; only `hittest.rs`'s hit-testing does. Adding it
-//! back is a natural, additive follow-up once nested `clientPanel`/
-//! `hScroll`/`vScroll` painting exists, not something worth a dead,
-//! ignored parameter today. Crossfade/hero transitions (needing a
-//! previous-frame + progress fraction) are likewise out of this surface
-//! for the same reason: only Android has anything to preserve there, so
+//! parameter — `clientPanel`/`hScroll`/`vScroll` now paint (see
+//! `raster.rs`), but always at their server-authored resting state (the
+//! `initiallyActive` panel, an unscrolled viewport) since no client-side
+//! tab-switch/drag offset reaches this render call yet — the same
+//! interaction-state plumbing `hittest.rs` already has for hit-testing,
+//! just not threaded into the render path yet. Crossfade/hero transitions
+//! (needing a previous-frame + progress fraction) are likewise out of
+//! this surface for now: only Android has anything to preserve there, so
 //! deferring is zero regression for every other platform.
 
 use std::cell::RefCell;
@@ -48,7 +49,6 @@ pub mod text;
 pub mod jni_bridge;
 
 use hittest::InteractionState;
-use protocol::DrawCommand;
 use text::TextRenderer;
 use tiny_skia::Pixmap;
 
@@ -168,14 +168,7 @@ pub unsafe extern "C" fn phpnitro_render_frame(
             return None;
         };
 
-        raster::render_commands(&mut pixmap, &envelope.commands, elapsed_ms);
-        for command in &envelope.commands {
-            match command {
-                DrawCommand::Text(text) => renderer.text_renderer.render_text(&mut pixmap, text),
-                DrawCommand::Icon(icon) => renderer.text_renderer.render_icon(&mut pixmap, icon),
-                _ => {}
-            }
-        }
+        raster::render_commands(&mut pixmap, &envelope.commands, elapsed_ms, &mut renderer.text_renderer);
 
         Some(Box::into_raw(Box::new(PhpNitroFrame { pixmap })))
     }));
