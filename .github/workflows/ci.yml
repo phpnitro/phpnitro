@@ -258,24 +258,34 @@ jobs:
       # were ever removed or `php` weren't actually on PATH afterward,
       # so this isn't a hard requirement for the rest of the suite.
       - run: brew install php
-      # This package's own scheme names have never been confirmed against
-      # a real `xcodebuild -list` (no Mac was available while writing
-      # this) — logged up front specifically so a wrong guess below is a
-      # two-second diagnosis from the log instead of a mystery. ios-build's
-      # own "-Package" aggregate scheme naming was confirmed exactly this
-      # way originally (see that job's own comment) — this is the same
-      # inference applied to a package that didn't exist yet to test it
-      # against directly.
+      # rust/phpnitro-render, compiled NATIVELY for this runner's own
+      # macOS/arm64 host (no cross-compilation toolchain needed at all —
+      # unlike Android/iOS, this CI runner's own architecture already IS
+      # the target). RustMacRenderer's linker flags (see macos/Package.swift's
+      # own #filePath-computed rustReleaseDir) expect this exact
+      # target/release/ path to exist before xcodebuild links anything
+      # against it.
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/phpnitro-render
+      - run: cargo build --release --locked
+        working-directory: rust/phpnitro-render
+      # This package's scheme names have never been confirmed against a
+      # real `xcodebuild -list` since RustMacRenderer/CPhpNitroRender were
+      # added — logged up front specifically so a wrong guess below is a
+      # two-second diagnosis from the log instead of a mystery. This
+      # package now has 2 products (PhpNitroMacEngine, RustMacRenderer),
+      # not 1 — per ios-build's own precedent (4 products there), Xcode
+      # is therefore expected to generate a "PhpNitroMacEngine-Package"
+      # aggregate scheme (wired for the Test action) alongside per-target
+      # build-only ones, NOT keep the old single-scheme-no-suffix
+      # behavior this job's previous comment (see git history) documented
+      # for the 1-product package that existed before this commit.
       - run: xcodebuild -list
-      # Confirmed by this same job's own `xcodebuild -list` step (see
-      # above): unlike ios/'s own package (4 products, so Xcode also
-      # generates a separate aggregate "-Package" scheme alongside the
-      # per-target ones — see ios-build's own comment on that), this
-      # package has exactly ONE product, and Xcode names its one
-      # auto-generated scheme after that product directly, no
-      # "-Package" suffix at all. Same scheme for both actions below.
       - run: xcodebuild -scheme PhpNitroMacEngine -destination 'platform=macOS' build
-      - run: xcodebuild -scheme PhpNitroMacEngine -destination 'platform=macOS' test
+      - run: xcodebuild -scheme RustMacRenderer -destination 'platform=macOS' build
+      - run: xcodebuild -scheme PhpNitroMacEngine-Package -destination 'platform=macOS' test
 
   windows-desktop-protocol:
     name: Windows desktop protocol layer (dotnet test)
