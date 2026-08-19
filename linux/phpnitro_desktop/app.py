@@ -11,21 +11,31 @@ written in — see linux/README.md).
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 from pathlib import Path
 from typing import Optional
 
+import cairo
 import gi
 
 gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
-from . import image_loader, navigation, php_process, screen_client  # noqa: E402
+from . import image_loader, navigation, php_process, rust_render, screen_client  # noqa: E402
 from .canvas import RenderState, needs_animation, render_payload  # noqa: E402
 from .draw_command import DrawCommandPayload  # noqa: E402
 
 APP_ID = "com.phpnitro.desktop"
+
+# Phase 2 proof-of-concept switch (see rust/phpnitro-render/README.md):
+# the Cairo path above stays the default, untouched, always-available
+# renderer. Setting this opts into the new Rust core instead, per-widget,
+# falling back to Cairo automatically (with a printed reason) if the
+# compiled library isn't found or a given frame fails to render — never
+# a hard crash for trying this out.
+_RUST_RENDER_ENABLED = os.environ.get("PHPNITRO_RUST_RENDER") == "1"
 
 
 class PhpNitroCanvasWidget(Gtk.DrawingArea):
@@ -39,9 +49,12 @@ class PhpNitroCanvasWidget(Gtk.DrawingArea):
     def __init__(self):
         super().__init__()
         self.payload: Optional[DrawCommandPayload] = None
+        self.raw_json: Optional[str] = None
         self.client_tab_state: dict[str, int] = {}
         self.on_action = None  # Optional[Callable[[str], None]]
         self._timer_id: Optional[int] = None
+        self._rust_renderer: Optional[rust_render.RustRenderer] = None
+        self._rust_render_start = time.monotonic()
 
         self.set_draw_func(self._on_draw)
 
@@ -51,8 +64,9 @@ class PhpNitroCanvasWidget(Gtk.DrawingArea):
 
         image_loader.on_image_loaded = self.queue_draw
 
-    def set_payload(self, payload: DrawCommandPayload) -> None:
+    def set_payload(self, payload: DrawCommandPayload, raw_json: Optional[str] = None) -> None:
         self.payload = payload
+        self.raw_json = raw_json
         self._update_animation_timer()
         self.queue_draw()
 
@@ -60,11 +74,38 @@ class PhpNitroCanvasWidget(Gtk.DrawingArea):
         self.client_tab_state[key] = index
         self.queue_draw()
 
-    def _on_draw(self, _area, ctx, _width, _height) -> None:
+    def _on_draw(self, _area, ctx, width, height) -> None:
         if self.payload is None:
+            return
+        if _RUST_RENDER_ENABLED and self.raw_json is not None and self._draw_via_rust(ctx, width, height):
             return
         state = RenderState(now=time.monotonic(), client_tab_state=self.client_tab_state)
         render_payload(ctx, self.payload, state)
+
+    def _draw_via_rust(self, ctx, width: int, height: int) -> bool:
+        """Returns False on any failure (library missing, malformed
+        response, etc.) so `_on_draw` falls back to the Cairo path above
+        — this proof-of-concept switch must never be the reason a screen
+        fails to render at all.
+        """
+        if self._rust_renderer is None:
+            try:
+                self._rust_renderer = rust_render.RustRenderer()
+            except rust_render.RustRenderUnavailable as exc:
+                print(f"[phpnitro] PHPNITRO_RUST_RENDER=1 but the library isn't available, using Cairo: {exc}")
+                return False
+
+        elapsed_ms = int((time.monotonic() - self._rust_render_start) * 1000)
+        frame = self._rust_renderer.render_frame(self.raw_json, width, height, elapsed_ms)
+        if frame is None:
+            print(f"[phpnitro] Rust render_frame failed, using Cairo for this frame: {rust_render.last_error()}")
+            return False
+
+        bgra = rust_render.to_cairo_bgra(frame)
+        surface = cairo.ImageSurface.create_for_data(bgra, cairo.FORMAT_ARGB32, frame.width, frame.height, frame.stride)
+        ctx.set_source_surface(surface, 0, 0)
+        ctx.paint()
+        return True
 
     def _on_click(self, _gesture, _n_press, x: float, y: float) -> None:
         if self.payload is None:
@@ -150,7 +191,7 @@ class ScreenWindow(Gtk.ApplicationWindow):
 
     def _apply_result(self, result: screen_client.FetchResult) -> bool:
         if isinstance(result, screen_client.FetchSuccess):
-            self.canvas.set_payload(result.payload)
+            self.canvas.set_payload(result.payload, raw_json=result.raw_json)
         else:
             # A real error card (see NativeRenderPocActivity.kt's
             # showConnectionError()/showScreenErrorOverlay(), or
