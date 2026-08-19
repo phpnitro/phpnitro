@@ -75,6 +75,14 @@ class PhpNitroCanvasWidget(Gtk.DrawingArea):
         self.queue_draw()
 
     def _on_draw(self, _area, ctx, width, height) -> None:
+        # Scaffold/Container only paint a background rect when one is
+        # explicitly given (see Tokens::surface(), #FFFFFF by default) —
+        # most screens omit it, relying on the host surface underneath.
+        # Android gets this for free from its Activity theme; GTK4 has no
+        # such default, so without this the user's dark system theme shows
+        # through every unpainted pixel.
+        ctx.set_source_rgb(1, 1, 1)
+        ctx.paint()
         if self.payload is None:
             return
         if _RUST_RENDER_ENABLED and self.raw_json is not None and self._draw_via_rust(ctx, width, height):
