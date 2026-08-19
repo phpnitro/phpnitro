@@ -1,5 +1,25 @@
 // swift-tools-version:5.9
+import Foundation
 import PackageDescription
+
+/// Absolute path to rust/phpnitro-render's build output for the iOS
+/// SIMULATOR target — computed from this manifest's own compile-time-known
+/// location (#filePath), same idea as [CallerFilePath]/Path(__file__)
+/// elsewhere in this repo, and the same technique ../macos/Package.swift
+/// uses for its own (host-native, no cross-compilation needed) build.
+/// Unlike macOS, this one IS a cross-compiled target — aarch64-apple-ios-sim,
+/// matching the Apple Silicon macos-14 CI runner's own simulator
+/// architecture (see .github/workflows/ci.yml's ios-build job, which adds
+/// `rustup target add aarch64-apple-ios-sim` + `cargo build --release
+/// --target aarch64-apple-ios-sim` before xcodebuild links anything
+/// against this path) — so the output lives under
+/// target/aarch64-apple-ios-sim/release/, not plain target/release/ the
+/// way a host-native build would.
+let rustIosSimReleaseDir = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .appendingPathComponent("../rust/phpnitro-render/target/aarch64-apple-ios-sim/release")
+    .standardized
+    .path
 
 /// Despite the directory's name (`ios/` — historical), one of these
 /// targets is now genuinely cross-platform:
@@ -51,6 +71,7 @@ let package = Package(
         .library(name: "PhpNitroWebViewBridge", targets: ["PhpNitroWebViewBridge"]),
         .library(name: "PhpNitroNativeEngine", targets: ["PhpNitroNativeEngine"]),
         .library(name: "PhpNitroGo", targets: ["PhpNitroGo"]),
+        .library(name: "RustNativeRenderer", targets: ["RustNativeRenderer"]),
     ],
     targets: [
         .target(name: "PhpNitroProtocol", path: "Sources/PhpNitroProtocol"),
@@ -89,6 +110,40 @@ let package = Package(
             name: "PhpNitroGoTests",
             dependencies: ["PhpNitroGo"],
             path: "Tests/PhpNitroGoTests"
+        ),
+
+        // A plain C target exposing rust/phpnitro-render's own
+        // include/phpnitro_render.h (copied verbatim here, verified
+        // identical — same idiom as the 2 bundled fonts above) via a
+        // hand-written module map, so RustNativeRenderer below can
+        // `import CPhpNitroRender` and call its C functions directly —
+        // no name-mangling shim needed, unlike JNI on Android.
+        .target(
+            name: "CPhpNitroRender",
+            path: "Sources/CPhpNitroRender"
+        ),
+        .target(
+            name: "RustNativeRenderer",
+            dependencies: ["CPhpNitroRender"],
+            path: "Sources/RustNativeRenderer",
+            linkerSettings: [
+                // -L/-l find the .dylib at LINK time; -rpath bakes an
+                // absolute search path into the built binary so dyld can
+                // find it at RUN time too (inside the iOS Simulator),
+                // without relying on an environment variable being set
+                // by whatever eventually runs it (xcodebuild's own test
+                // runner included).
+                .unsafeFlags([
+                    "-L", rustIosSimReleaseDir,
+                    "-lphpnitro_render",
+                    "-Xlinker", "-rpath", "-Xlinker", rustIosSimReleaseDir,
+                ])
+            ]
+        ),
+        .testTarget(
+            name: "RustNativeRendererTests",
+            dependencies: ["RustNativeRenderer"],
+            path: "Tests/RustNativeRendererTests"
         ),
     ]
 )
