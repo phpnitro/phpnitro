@@ -112,13 +112,20 @@ let package = Package(
             path: "Tests/PhpNitroGoTests"
         ),
 
-        // A plain C target exposing rust/phpnitro-render's own
+        // A `.systemLibrary` target, NOT a plain `.target` — confirmed by
+        // a real CI failure on ../macos/'s identical setup ("Build input
+        // file cannot be found: .../CPhpNitroRender.o ... Did you forget
+        // to declare this file as an output of a script phase...") the
+        // first time this was written as `.target`: a regular C-family
+        // target always expects to COMPILE something into an object
+        // file, but this target has no .c/.m source at all, only a
+        // header + module map exposing rust/phpnitro-render's own
         // include/phpnitro_render.h (copied verbatim here, verified
-        // identical — same idiom as the 2 bundled fonts above) via a
-        // hand-written module map, so RustNativeRenderer below can
-        // `import CPhpNitroRender` and call its C functions directly —
-        // no name-mangling shim needed, unlike JNI on Android.
-        .target(
+        // identical). `.systemLibrary` is SPM's purpose-built target
+        // kind for exactly this "headers + module map only" case — the
+        // real linking happens via RustNativeRenderer's own
+        // linkerSettings below, not through this target at all.
+        .systemLibrary(
             name: "CPhpNitroRender",
             path: "Sources/CPhpNitroRender"
         ),
