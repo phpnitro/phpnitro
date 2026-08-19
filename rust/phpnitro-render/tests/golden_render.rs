@@ -10,8 +10,10 @@
 //! hand-built JSON in `protocol.rs`'s own unit tests.
 
 use phpnitro_render::protocol::decode_envelope;
+use phpnitro_render::raster::render_commands;
 use std::fs;
 use std::path::PathBuf;
+use tiny_skia::Pixmap;
 
 fn fixture(name: &str) -> String {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -44,6 +46,26 @@ golden_decode_test!(decodes_screen_device, "screen_device.json");
 golden_decode_test!(decodes_screen_home, "screen_home.json");
 golden_decode_test!(decodes_screen_widgets_forms, "screen_widgets_forms.json");
 golden_decode_test!(decodes_text_wrapping, "text_wrapping.json");
+
+#[test]
+fn flex_row_distribution_renders_the_two_expected_rects() {
+    // The only existing golden fixture whose commands are 100% covered by
+    // raster.rs today (two plain rects, no text) — a real pixel test, not
+    // just a decode check.
+    let json = fixture("flex_row_distribution.json");
+    let envelope = decode_envelope(&json).unwrap();
+    let mut pixmap = Pixmap::new(100, 40).unwrap();
+    render_commands(&mut pixmap, &envelope.commands);
+
+    let red_rect = pixmap.pixel(20, 20).unwrap();
+    assert_eq!((red_rect.red(), red_rect.green(), red_rect.blue()), (239, 68, 68), "#EF4444");
+
+    let blue_rect = pixmap.pixel(68, 20).unwrap();
+    assert_eq!((blue_rect.red(), blue_rect.green(), blue_rect.blue()), (59, 130, 246), "#3B82F6");
+
+    let gap = pixmap.pixel(44, 20).unwrap();
+    assert_eq!(gap.alpha(), 0, "the 8px gap between the two rects must stay unpainted");
+}
 
 #[test]
 fn button_with_icon_has_exactly_the_expected_command_shape() {
