@@ -8,6 +8,7 @@ use std::ffi::CString;
 use std::os::raw::c_char;
 
 pub mod animate;
+pub mod hittest;
 pub mod protocol;
 pub mod raster;
 pub mod text;
