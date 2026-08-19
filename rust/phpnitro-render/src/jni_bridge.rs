@@ -28,7 +28,7 @@
 #![cfg(target_os = "android")]
 
 use crate::hittest::{hit_test, InteractionState};
-use crate::protocol::{decode_envelope, DrawCommand};
+use crate::protocol::decode_envelope;
 use crate::raster::render_commands;
 use crate::text::TextRenderer;
 use jni::objects::{JClass, JString};
@@ -114,14 +114,7 @@ pub extern "system" fn Java_com_phpnitro_engine_RustRenderer_nativeRenderFrame<'
         return std::ptr::null_mut();
     };
 
-    render_commands(&mut pixmap, &envelope.commands, elapsed_ms as u64);
-    for command in &envelope.commands {
-        match command {
-            DrawCommand::Text(text) => renderer.text_renderer.render_text(&mut pixmap, text),
-            DrawCommand::Icon(icon) => renderer.text_renderer.render_icon(&mut pixmap, icon),
-            _ => {}
-        }
-    }
+    render_commands(&mut pixmap, &envelope.commands, elapsed_ms as u64, &mut renderer.text_renderer);
 
     let width = pixmap.width();
     let height = pixmap.height();
