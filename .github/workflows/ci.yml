@@ -152,6 +152,18 @@ jobs:
       # build (not pip-installable in any portable way) — see
       # linux/README.md.
       - run: sudo apt-get update && sudo apt-get install -y python3-gi python3-gi-cairo gir1.2-gtk-4.0 xvfb
+      # Phase 2 proof-of-concept (rust/phpnitro-render/README.md):
+      # test_rust_render_parity.py compares this Cairo path's own output
+      # against the new Rust core's, pixel by pixel, on real fixtures —
+      # it self-skips cleanly if this build step is ever missing, but
+      # building it here means CI actually exercises that comparison
+      # instead of silently skipping it every run.
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/phpnitro-render
+      - run: cargo build --release --locked
+        working-directory: rust/phpnitro-render
       # Confirmed by a real CI run: running with NO display backend at
       # all (not even Xvfb) segfaulted partway through
       # test_app_widget.py's animation-timer test — a real, reproducible
@@ -291,3 +303,25 @@ jobs:
         with:
           dotnet-version: '8.0.x'
       - run: dotnet test PhpNitroDesktop.Protocol.Tests --verbosity normal
+
+  rust-render-core:
+    name: Rust shared render core (cargo test, phpnitro-render)
+    # rust/phpnitro-render is the future single rendering engine meant to
+    # replace the 4 separately-written native renderers (Android/iOS+macOS/
+    # Linux/Windows) — see rust/phpnitro-render/README.md. This job only
+    # exercises the crate itself (protocol decoding, rasterization, hit-
+    # testing, animation math) offscreen via tiny-skia's Pixmap, the same
+    # no-display-server approach linux/tests already uses with Cairo's
+    # ImageSurface — unlike the linux-desktop job below, this one needs no
+    # Xvfb at all, since nothing here ever opens a real window.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust/phpnitro-render
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/phpnitro-render
+      - run: cargo test --locked --verbose

@@ -1,0 +1,19 @@
+[package]
+name = "phpnitro-render"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Shared rasterization/hit-testing core for PhpNitro's native draw-command protocol (Engine\\Native\\Canvas)."
+
+[lib]
+name = "phpnitro_render"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tiny-skia = "0.11"
+cosmic-text = "0.12"
+fontdb = "0.16"
+
+[dev-dependencies]

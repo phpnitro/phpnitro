@@ -32,6 +32,14 @@ class FetchError:
 @dataclass(frozen=True)
 class FetchSuccess:
     payload: DrawCommandPayload
+    # The exact bytes the server returned, decoded as text — kept
+    # alongside the already-decoded `payload` so a Rust-render path
+    # (see rust_render.py) can hand this straight to
+    # phpnitro_render_frame() without re-serializing `payload` back into
+    # JSON (DrawCommandPayload has no such method, and reconstructing
+    # JSON from already-decoded dataclasses would risk subtly diverging
+    # from what the server actually sent).
+    raw_json: str
 
 
 FetchResult = Union[FetchSuccess, FetchError]
@@ -109,7 +117,7 @@ def fetch_screen(
     except (json.JSONDecodeError, KeyError, TypeError) as error:
         return FetchError(kind="decoding", message=str(error))
 
-    return FetchSuccess(payload=payload)
+    return FetchSuccess(payload=payload, raw_json=body.decode("utf-8"))
 
 
 def _server_error_message(body: bytes) -> Optional[str]:

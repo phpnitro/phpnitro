@@ -1,0 +1,48 @@
+{
+    "commands": [
+        {
+            "type": "hScroll",
+            "key": "carousel",
+            "x": 0,
+            "y": 0,
+            "width": 400,
+            "height": 60,
+            "contentWidth": 196,
+            "commands": [
+                {
+                    "type": "rect",
+                    "x": 0,
+                    "y": 0,
+                    "width": 60,
+                    "height": 60,
+                    "color": "#EF4444",
+                    "radius": 0,
+                    "borderWidth": 0
+                },
+                {
+                    "type": "rect",
+                    "x": 68,
+                    "y": 0,
+                    "width": 60,
+                    "height": 60,
+                    "color": "#3B82F6",
+                    "radius": 0,
+                    "borderWidth": 0
+                },
+                {
+                    "type": "rect",
+                    "x": 136,
+                    "y": 0,
+                    "width": 60,
+                    "height": 60,
+                    "color": "#22C55E",
+                    "radius": 0,
+                    "borderWidth": 0
+                }
+            ],
+            "hitRegions": []
+        }
+    ],
+    "hitRegions": [],
+    "contentHeight": 0
+}

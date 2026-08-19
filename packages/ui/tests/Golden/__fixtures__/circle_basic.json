@@ -1,0 +1,14 @@
+{
+    "commands": [
+        {
+            "type": "circle",
+            "cx": 30,
+            "cy": 30,
+            "radius": 24,
+            "color": "#22C55E",
+            "borderWidth": 0
+        }
+    ],
+    "hitRegions": [],
+    "contentHeight": 0
+}

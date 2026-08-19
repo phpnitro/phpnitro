@@ -44,3 +44,4 @@ composer.lock
 /captures/
 /linux/**/__pycache__/
 /linux/.pytest_cache/
+/rust/**/target/
