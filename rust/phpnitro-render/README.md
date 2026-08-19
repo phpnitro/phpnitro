@@ -1,4 +1,4 @@
-# phpnitro-render — le futur moteur de rendu partagé, pas encore consommé par une plateforme
+# phpnitro-render — le futur moteur de rendu partagé
 
 Ce crate est destiné à remplacer les 4 moteurs de rendu natifs séparés
 (`android/engine/.../NativeCanvasView.kt`, `ios/`+`macos/`'s Core
@@ -8,10 +8,16 @@ dessin produit par `Engine\Native\Canvas::toJson()` (`packages/ui/src/Native/Can
 écrit une fois en Rust (`tiny-skia` pour le dessin, `cosmic-text` pour
 le texte/les polices), exposé via une interface C (`include/phpnitro_render.h`).
 
-**Aucune plateforme ne l'utilise encore.** Ce README décrit ce qui est
-réellement vérifié en CI aujourd'hui — le décodage, le rendu pixel, le
-hit-testing, les formules d'animation, la surface FFI elle-même — pas
-une promesse d'intégration à venir.
+**Statut par plateforme** : Linux est la première intégration réelle —
+`linux/phpnitro_desktop/rust_render.py` (liaisons ctypes) peut rendre
+un écran en direct derrière `PHPNITRO_RUST_RENDER=1`, testé pixel par
+pixel contre le chemin Cairo existant (`linux/tests/test_rust_render_parity.py`)
+et vérifié à la main de bout en bout contre un vrai `php -S` de ce
+monorepo (voir `linux/README.md`). **Le chemin Cairo reste le défaut** —
+Rust est un essai opt-in, pas encore la voie principale. Android, iOS,
+macOS, Windows ne consomment pas encore ce crate. Ce README décrit ce
+qui est réellement vérifié en CI aujourd'hui, pas une promesse
+d'intégration à venir pour les plateformes qui ne l'ont pas encore.
 
 ## Pourquoi ce chantier existe
 
@@ -45,10 +51,17 @@ push.
 
 ## Ce qui est délibérément hors de portée pour l'instant
 
-- **Aucune plateforme ne consomme ce crate.** Pas de câblage Android/JNI,
-  Swift, Python `ctypes`, ou C# P/Invoke encore écrit — voir le plan de
-  migration pour l'ordre prévu (Linux en preuve de concept d'abord,
-  `ctypes` étant le pont FFI le plus simple des quatre).
+- **Android/iOS/macOS/Windows ne consomment pas encore ce crate.** Seul
+  Linux a un câblage réel (`ctypes`, voir plus haut). Android est prévu
+  ensuite (JNI, précédent déjà établi dans ce dépôt via `libphp.so`),
+  puis iOS/macOS (C-interop Swift), puis Windows (P/Invoke — premier
+  vrai moteur de rendu Windows, pas un remplacement).
+- **Même sur Linux, ce n'est pas le chemin par défaut** — Cairo reste
+  actif sans configuration ; Rust ne s'active qu'avec
+  `PHPNITRO_RUST_RENDER=1`, et retombe sur Cairo automatiquement en cas
+  d'échec. Basculer le défaut (ou supprimer le chemin Cairo) est une
+  décision distincte, délibérément non prise ici, qui attend une
+  validation interactive de l'utilisateur.
 - **`image`** est décodé (`ImageCommand`) mais jamais rasterisé — charger
   une image (réseau ou `data:` URI) est une responsabilité que ce crate
   n'a pas encore, contrairement au texte/aux formes.

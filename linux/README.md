@@ -63,6 +63,24 @@ linux/
 python3 -m unittest discover -s linux/tests -v
 ```
 
+## Rendu optionnel via le moteur Rust partagé (essai, pas le défaut)
+
+`rust_render.py` (liaisons `ctypes` vers `rust/phpnitro-render`, voir son
+propre README) peut remplacer `canvas.py`/Cairo derrière la variable
+d'environnement `PHPNITRO_RUST_RENDER=1` — **Cairo reste le chemin par
+défaut**, actif sans rien configurer. `linux/tests/test_rust_render_parity.py`
+compare les deux rendus pixel par pixel sur de vraies fixtures (tolérance
+de 2, pour l'anti-aliasing) ; en plus de ça, une vérification manuelle
+bout-en-bout contre un vrai `php -S` de ce monorepo a produit un rendu
+Rust correct de l'écran d'accueil réel (icônes, cartes, navigation, FAB)
+— pas seulement des fixtures isolées.
+
+Ce qui n'est PAS encore fait : basculer le défaut vers Rust, retirer le
+chemin Cairo, ou brancher le hit-testing Rust (`PhpNitroCanvasWidget`
+utilise toujours `DrawCommandPayload.action_at()` côté Python, pas
+`phpnitro_render_hit_test`) — décisions distinctes, volontairement non
+prises ici.
+
 ## Ce qui manque encore, dans l'ordre de priorité
 
 1. **Aucun test manuel/interactif réel** — rien n'a été cliqué par un humain sur un vrai écran. La CI confirme que l'app démarre et tient 5 secondes, pas que l'expérience est bonne.
