@@ -20,13 +20,19 @@ fn find_cc() -> Option<&'static str> {
     })
 }
 
-/// The directory holding this test's own compiled binary — its parent is
-/// `target/<profile>/`, where `cargo build`'s `crate-type = ["cdylib", ...]`
-/// already places `libphpnitro_render.so` as a side effect of building
-/// this same crate (confirmed: no separate build step needed).
+/// The directory holding this test's own compiled binary IS where
+/// `cargo test` places the cdylib too — both land in `target/<profile>/
+/// deps/`. This is a real, confirmed distinction from plain `cargo
+/// build`, which additionally hardlinks the lib target's primary
+/// artifact up to `target/<profile>/` itself; `cargo test`'s build of
+/// the same lib (needed only as a dependency of the test binaries) does
+/// not, so looking one directory too high here silently found nothing
+/// and broke this exact test in CI on a fresh checkout — caught by a
+/// real, reproducible `cargo test` failure, not assumed from reasoning
+/// about Cargo's behavior.
 fn target_profile_dir() -> PathBuf {
     let exe = std::env::current_exe().expect("current_exe");
-    exe.parent().expect("deps dir").parent().expect("profile dir").to_path_buf()
+    exe.parent().expect("deps dir").to_path_buf()
 }
 
 #[test]
