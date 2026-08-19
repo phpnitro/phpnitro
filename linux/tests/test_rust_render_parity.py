@@ -14,6 +14,7 @@ rust/phpnitro-render first, a genuinely separate build step from
 is correct.
 """
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -50,8 +51,6 @@ def _rust_pixel_rgba(frame: rust_render.RenderedFrame, x: int, y: int) -> tuple[
 
 
 def _render_cairo(fixture_json: str, size: tuple[int, int]) -> cairo.ImageSurface:
-    import json
-
     payload = decode_payload(json.loads(fixture_json))
     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, *size)
     ctx = cairo.Context(surface)
@@ -116,6 +115,25 @@ class RustCairoParityTests(unittest.TestCase):
         self._assert_pixels_match(
             "container_with_padding.json", size=(200, 80), sample_points=[(100, 40), (0, 0)],
         )
+
+    def test_hit_test_agrees_with_the_python_action_at(self):
+        # app.py's PhpNitroCanvasWidget._hit_test_via_rust() trusts a
+        # clean "nothing hit" from Rust as-is rather than silently
+        # re-trying draw_command.py's own action_at() — this is the
+        # automated version of the manual check that backed that design
+        # decision: every real hitRegion in a real fixture, tapped dead
+        # center, must resolve to the exact same action on both sides.
+        fixture_json = (FIXTURES_DIR / "button_with_icon.json").read_text()
+        payload = decode_payload(json.loads(fixture_json))
+        self.assertGreater(len(payload.hit_regions), 0, "fixture must have at least one hit region to be a real test")
+
+        for region in payload.hit_regions:
+            cx = region.x + region.width / 2
+            cy = region.y + region.height / 2
+            python_action = payload.action_at(cx, cy)
+            rust_hit = rust_render.hit_test(fixture_json, cx, cy, "{}")
+            rust_action = rust_hit.action if rust_hit is not None else None
+            self.assertEqual(python_action, rust_action, f"mismatch at ({cx}, {cy})")
 
 
 if __name__ == "__main__":
