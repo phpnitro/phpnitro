@@ -325,3 +325,35 @@ jobs:
         with:
           workspaces: rust/phpnitro-render
       - run: cargo test --locked --verbose
+
+  rust-render-android-jni:
+    name: Rust JNI bridge compiles for Android (aarch64, no Gradle)
+    # A fast, isolated signal deliberately separate from android-build's
+    # full `gradle :app:assembleDebug` below: this job only proves
+    # src/jni_bridge.rs's types line up against the real `jni` crate for
+    # a real Android target triple — nothing about Gradle, NDK linker
+    # configuration, or the Kotlin side. If this job is red, the problem
+    # is definitely in jni_bridge.rs itself, not the (much larger, much
+    # slower to iterate on) Android app build.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust/phpnitro-render
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/phpnitro-render
+      # GitHub's ubuntu-latest runner images are documented to bundle an
+      # Android SDK+NDK already (ANDROID_NDK_HOME set) — logged
+      # defensively rather than assumed, same "confirm before relying on
+      # it" discipline this project already used for Xcode scheme names.
+      # cargo-ndk (not a hand-written .cargo/config.toml linker path)
+      # discovers that NDK and wires the correct clang linker for the
+      # target itself — the standard tool for this, not reinvented here.
+      - run: echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME" && ls "$ANDROID_NDK_HOME"
+      - run: cargo install cargo-ndk --locked
+      - run: cargo ndk -t arm64-v8a build --release
