@@ -3,17 +3,21 @@
 //! involved, directly analogous to the `cairo.ImageSurface` approach Linux
 //! already uses for offscreen, display-server-free pixel tests.
 //!
-//! Text (`text`/`icon`, need real glyph shaping) and images (`image`,
-//! needs a byte source) are handled by later modules/commits — not yet
+//! Text (`text`/`icon`, need real glyph shaping — see `text.rs`) and
+//! images (`image`, needs a byte source) are handled elsewhere/not yet
 //! wired here. Nested containers (`clientPanel`/`hScroll`/`vScroll`) are
-//! deliberately NOT recursed into yet either: whether their `commands[]`
-//! carry absolute or panel-relative coordinates isn't confirmed against
-//! `Canvas.php` (only their `hitRegions[]` are documented as
-//! panel-relative) — guessing here would silently bake in a wrong
-//! coordinate convention, so it's left for a dedicated, verified commit.
+//! deliberately NOT recursed into for drawing yet either — confirmed via
+//! `hscroll_basic.json` and `HorizontalScroll.php`'s own source that
+//! their `commands[]` ARE panel-relative (not absolute), but painting
+//! them still needs a translated-canvas concept this module doesn't have
+//! yet; `hittest.rs` already handles their hit-testing correctly.
 
-use crate::protocol::{ArcCommand, CircleCommand, DrawCommand, LineCommand, RectCommand};
-use tiny_skia::{Color, FillRule, LineCap, Paint, Path, PathBuilder, Pixmap, Rect, Stroke, Transform};
+use crate::animate::{skeleton_sweep_width, skeleton_sweep_x, spinner_rotation_degrees, SPINNER_SWEEP_DEGREES};
+use crate::protocol::{ArcCommand, CircleCommand, DrawCommand, LineCommand, RectCommand, SkeletonCommand, SpinnerCommand};
+use tiny_skia::{
+    Color, FillRule, GradientStop, LineCap, LinearGradient, Mask, Paint, Path, PathBuilder, Pixmap, Point, Rect,
+    SpreadMode, Stroke, Transform,
+};
 
 /// Parses `#RRGGBB` or `#RRGGBBAA` (the only two forms `Canvas.php` emits)
 /// into a `tiny_skia::Color`. Falls back to opaque black on anything else
@@ -159,6 +163,93 @@ fn draw_line(pixmap: &mut Pixmap, line: &LineCommand) {
     pixmap.stroke_path(&path, &solid_paint(parse_color(&line.color)), &stroke, Transform::identity(), None);
 }
 
+/// `color.red()`/`green()`/`blue()` are already normalized `0.0..=1.0` —
+/// blending toward white (1.0) by `t` matches Android's
+/// `ColorUtils.blendARGB(baseColor, Color.WHITE, 0.5f)` for the skeleton
+/// shimmer's highlight color.
+fn blend_toward_white(color: Color, t: f32) -> Color {
+    let t = t.clamp(0.0, 1.0);
+    let lerp = |c: f32| c + (1.0 - c) * t;
+    Color::from_rgba(lerp(color.red()), lerp(color.green()), lerp(color.blue()), color.alpha())
+        .unwrap_or(color)
+}
+
+fn draw_spinner(pixmap: &mut Pixmap, spinner: &SpinnerCommand, elapsed_ms: u64) {
+    let (x, y, size, stroke_width) = (
+        spinner.x as f32,
+        spinner.y as f32,
+        spinner.size as f32,
+        spinner.stroke_width as f32,
+    );
+    let center = size / 2.0;
+    let radius = (center - stroke_width / 2.0).max(0.0);
+    let (cx, cy) = (x + center, y + center);
+    let stroke = stroke_of(stroke_width);
+
+    let mut pb = PathBuilder::new();
+    pb.push_circle(cx, cy, radius);
+    if let Some(track_path) = pb.finish() {
+        pixmap.stroke_path(&track_path, &solid_paint(parse_color(&spinner.track_color)), &stroke, Transform::identity(), None);
+    }
+
+    let rotation = spinner_rotation_degrees(elapsed_ms);
+    if let Some(sweep_path) = arc_path(cx, cy, radius, rotation, SPINNER_SWEEP_DEGREES) {
+        pixmap.stroke_path(&sweep_path, &solid_paint(parse_color(&spinner.color)), &stroke, Transform::identity(), None);
+    }
+}
+
+/// Base fill + a translucent band sweeping left-to-right on a loop,
+/// clipped to the rounded-rect's own shape via a `Mask` — matches
+/// `drawSkeletonCommand()`'s `canvas.clipRect(rect)` + gradient approach
+/// (the highlight is the base color blended toward white, not a flat
+/// white, for the same reason cited there: reads right in dark mode too).
+fn draw_skeleton(pixmap: &mut Pixmap, skeleton: &SkeletonCommand, elapsed_ms: u64) {
+    let (x, y, w, h) = (skeleton.x as f32, skeleton.y as f32, skeleton.width as f32, skeleton.height as f32);
+    let base_color = parse_color(&skeleton.color);
+    let Some(base_path) = rounded_rect_path(x, y, w, h, skeleton.radius as f32) else {
+        return;
+    };
+    pixmap.fill_path(&base_path, &solid_paint(base_color), FillRule::Winding, Transform::identity(), None);
+
+    let highlight = blend_toward_white(base_color, 0.5);
+    let transparent = Color::from_rgba(highlight.red(), highlight.green(), highlight.blue(), 0.0).unwrap_or(highlight);
+    // this.alpha = (this.alpha * alpha * 0.8f) — the 0.8 is the shimmer
+    // paint's own peak opacity (alpha here is always 1.0, a full frame).
+    let translucent = Color::from_rgba(highlight.red(), highlight.green(), highlight.blue(), highlight.alpha() * 0.8)
+        .unwrap_or(highlight);
+
+    let sweep_width = skeleton_sweep_width(w);
+    let sweep_x = skeleton_sweep_x(elapsed_ms, x, w);
+    let stops = vec![
+        GradientStop::new(0.0, transparent),
+        GradientStop::new(0.5, translucent),
+        GradientStop::new(1.0, transparent),
+    ];
+    let Some(shader) = LinearGradient::new(
+        Point::from_xy(sweep_x, y),
+        Point::from_xy(sweep_x + sweep_width, y),
+        stops,
+        SpreadMode::Pad,
+        Transform::identity(),
+    ) else {
+        return;
+    };
+
+    let Some(mut mask) = Mask::new(pixmap.width(), pixmap.height()) else {
+        return;
+    };
+    mask.fill_path(&base_path, FillRule::Winding, true, Transform::identity());
+
+    let mut paint = Paint {
+        shader,
+        ..Paint::default()
+    };
+    paint.anti_alias = true;
+    if let Some(rect_path) = rounded_rect_path(x, y, w, h, skeleton.radius as f32) {
+        pixmap.fill_path(&rect_path, &paint, FillRule::Winding, Transform::identity(), Some(&mask));
+    }
+}
+
 fn draw_arc(pixmap: &mut Pixmap, arc: &ArcCommand) {
     let Some(path) = arc_path(
         arc.cx as f32,
@@ -173,17 +264,21 @@ fn draw_arc(pixmap: &mut Pixmap, arc: &ArcCommand) {
     pixmap.stroke_path(&path, &solid_paint(parse_color(&arc.color)), &stroke, Transform::identity(), None);
 }
 
-/// Rasterizes every command this module already knows how to draw;
-/// anything else (text/icon/image/spinner/skeleton/clientPanel/hScroll/
-/// vScroll/slider/unknown) is silently skipped for now — each gets its
-/// own dedicated module and commit rather than a half-correct guess here.
-pub fn render_commands(pixmap: &mut Pixmap, commands: &[DrawCommand]) {
+/// Rasterizes every command this module already knows how to draw, at the
+/// given wall-clock `elapsed_ms` (feeds `spinner`/`skeleton`'s animation,
+/// see `animate.rs` — callers that never animate can pass 0). Anything
+/// else (text/icon/image/clientPanel/hScroll/vScroll/slider/unknown) is
+/// silently skipped for now — each gets its own dedicated module/commit
+/// rather than a half-correct guess here.
+pub fn render_commands(pixmap: &mut Pixmap, commands: &[DrawCommand], elapsed_ms: u64) {
     for command in commands {
         match command {
             DrawCommand::Rect(rect) => draw_rect(pixmap, rect),
             DrawCommand::Circle(circle) => draw_circle(pixmap, circle),
             DrawCommand::Line(line) => draw_line(pixmap, line),
             DrawCommand::Arc(arc) => draw_arc(pixmap, arc),
+            DrawCommand::Spinner(spinner) => draw_spinner(pixmap, spinner, elapsed_ms),
+            DrawCommand::Skeleton(skeleton) => draw_skeleton(pixmap, skeleton, elapsed_ms),
             DrawCommand::Custom(custom) => crate::charts::render_custom(pixmap, custom),
             _ => {}
         }
@@ -339,5 +434,71 @@ mod tests {
         // empty — proves this drew a quarter, not a full circle.
         let (_, _, _, a) = pixel_at(&pixmap, 5, 25);
         assert_eq!(a, 0, "opposite side of the sweep must be unpainted");
+    }
+
+    #[test]
+    fn spinner_paints_both_the_full_track_and_a_sweep_arc() {
+        let mut pixmap = Pixmap::new(40, 40).unwrap();
+        let spinner = SpinnerCommand {
+            x: 0.0,
+            y: 0.0,
+            size: 32.0,
+            color: "#111827".to_string(),
+            track_color: "#F9FAFB".to_string(),
+            stroke_width: 4.0,
+            tags: Default::default(),
+        };
+        draw_spinner(&mut pixmap, &spinner, 0);
+        // The track is a full circle — its left edge must be painted
+        // regardless of rotation.
+        let (_, _, _, a) = pixel_at(&pixmap, 2, 16);
+        assert_eq!(a, 255, "track circle should be painted all the way around");
+    }
+
+    #[test]
+    fn spinner_sweep_position_changes_with_elapsed_time() {
+        // Same command, two different elapsed_ms values — the sweep arc's
+        // start point (3 o'clock at t=0) should have moved away by a
+        // quarter period, proving elapsed_ms actually drives the rotation
+        // rather than being ignored.
+        let spinner = SpinnerCommand {
+            x: 0.0,
+            y: 0.0,
+            size: 32.0,
+            color: "#111827".to_string(),
+            track_color: "#F9FAFB".to_string(),
+            stroke_width: 4.0,
+            tags: Default::default(),
+        };
+        let mut at_zero = Pixmap::new(40, 40).unwrap();
+        draw_spinner(&mut at_zero, &spinner, 0);
+        let mut at_quarter_period = Pixmap::new(40, 40).unwrap();
+        draw_spinner(&mut at_quarter_period, &spinner, crate::animate::SPINNER_PERIOD_MS / 4);
+
+        // The full track circle paints every point on the ring regardless
+        // of rotation, so alpha alone can't tell the two frames apart —
+        // compare color instead: at the 3-o'clock point (cx+radius, cy),
+        // the darker sweep color should be on top at t=0 but not at
+        // t=quarter-period, where only the lighter track color remains.
+        let (r0, g0, b0, _) = pixel_at(&at_zero, 29, 16);
+        let (r1, g1, b1, _) = pixel_at(&at_quarter_period, 29, 16);
+        assert_ne!((r0, g0, b0), (r1, g1, b1), "sweep arc's 3-o'clock start should move over time");
+    }
+
+    #[test]
+    fn skeleton_paints_the_base_fill_and_stays_inside_the_rounded_rect() {
+        let mut pixmap = Pixmap::new(80, 20).unwrap();
+        let skeleton = SkeletonCommand {
+            x: 0.0,
+            y: 0.0,
+            width: 80.0,
+            height: 20.0,
+            color: "#E5E7EB".to_string(),
+            radius: 4.0,
+            tags: Default::default(),
+        };
+        draw_skeleton(&mut pixmap, &skeleton, 0);
+        let (_, _, _, a) = pixel_at(&pixmap, 40, 10);
+        assert_eq!(a, 255, "base fill should cover the box interior");
     }
 }

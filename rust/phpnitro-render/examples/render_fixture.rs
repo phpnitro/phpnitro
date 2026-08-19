@@ -24,7 +24,7 @@ fn main() {
     let envelope = decode_envelope(&json).unwrap_or_else(|e| panic!("decoding {path}: {e}"));
 
     let mut pixmap = Pixmap::new(width, height).expect("non-zero width/height");
-    render_commands(&mut pixmap, &envelope.commands);
+    render_commands(&mut pixmap, &envelope.commands, 0);
 
     let mut text_renderer = TextRenderer::new();
     for command in &envelope.commands {

@@ -60,7 +60,7 @@ fn flex_row_distribution_renders_the_two_expected_rects() {
     let json = fixture("flex_row_distribution.json");
     let envelope = decode_envelope(&json).unwrap();
     let mut pixmap = Pixmap::new(100, 40).unwrap();
-    render_commands(&mut pixmap, &envelope.commands);
+    render_commands(&mut pixmap, &envelope.commands, 0);
 
     let red_rect = pixmap.pixel(20, 20).unwrap();
     assert_eq!((red_rect.red(), red_rect.green(), red_rect.blue()), (239, 68, 68), "#EF4444");
@@ -81,7 +81,7 @@ fn circle_basic_renders_a_filled_circle() {
     assert!(matches!(envelope.commands[0], DrawCommand::Circle(_)));
 
     let mut pixmap = Pixmap::new(60, 60).unwrap();
-    render_commands(&mut pixmap, &envelope.commands);
+    render_commands(&mut pixmap, &envelope.commands, 0);
     let center = pixmap.pixel(30, 30).unwrap();
     assert_eq!((center.red(), center.green(), center.blue(), center.alpha()), (34, 197, 94, 255), "#22C55E");
     let corner = pixmap.pixel(0, 0).unwrap();
