@@ -1,0 +1,24 @@
+{
+    "commands": [
+        {
+            "type": "image",
+            "x": 0,
+            "y": 0,
+            "width": 80,
+            "height": 80,
+            "url": "https://example.com/photo.jpg",
+            "radius": 0
+        },
+        {
+            "type": "image",
+            "x": 80,
+            "y": 0,
+            "width": 80,
+            "height": 80,
+            "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+            "radius": 12
+        }
+    ],
+    "hitRegions": [],
+    "contentHeight": 0
+}

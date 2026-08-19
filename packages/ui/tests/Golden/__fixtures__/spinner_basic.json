@@ -1,0 +1,15 @@
+{
+    "commands": [
+        {
+            "type": "spinner",
+            "x": 0,
+            "y": 0,
+            "size": 32,
+            "color": "#111827",
+            "trackColor": "#F9FAFB",
+            "strokeWidth": 2.6666666666666665
+        }
+    ],
+    "hitRegions": [],
+    "contentHeight": 0
+}
