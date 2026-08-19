@@ -40,6 +40,21 @@ test "$(ls "$WORKDIR/demo-app/lib/pages"/*.php 2>/dev/null | wc -l)" -eq 1 || { 
 test -f "$WORKDIR/demo-app/lib/pages/NativeHomeScreen.php" || { echo "FAIL: lib/pages/NativeHomeScreen.php missing"; exit 1; }
 test -z "$(ls "$WORKDIR/demo-app/lib/backend/src/Controller"/*.php 2>/dev/null)" || { echo "FAIL: lib/backend/src/Controller/ should ship empty for new projects"; exit 1; }
 test ! -d "$WORKDIR/demo-app/assets/audio" || { echo "FAIL: assets/audio/ (demo-only) should not ship for new projects"; exit 1; }
+# linux/macos/windows are opt-in via --all (see below) — a plain `phpx new`
+# stays an Android + iOS project, not a 5-platform one nobody asked for.
+for dir in linux macos windows; do
+  test ! -d "$WORKDIR/demo-app/$dir" || { echo "FAIL: $dir/ should NOT be copied into a scaffold without --all"; exit 1; }
+done
+echo "OK"
+
+echo "== phpx new --all =="
+(cd "$WORKDIR" && php "$ROOT/bin/phpx" new demo-app-all --all)
+for dir in lib android ios linux macos windows assets public; do
+  test -d "$WORKDIR/demo-app-all/$dir" || { echo "FAIL: $dir/ missing from --all scaffold"; exit 1; }
+done
+test -f "$WORKDIR/demo-app-all/linux/phpnitro_desktop/app.py" || { echo "FAIL: linux/phpnitro_desktop/app.py missing from --all scaffold"; exit 1; }
+test -f "$WORKDIR/demo-app-all/macos/Package.swift" || { echo "FAIL: macos/Package.swift missing from --all scaffold"; exit 1; }
+test -f "$WORKDIR/demo-app-all/windows/PhpNitroDesktop.Protocol/PhpNitroDesktop.Protocol.csproj" || { echo "FAIL: windows/PhpNitroDesktop.Protocol/*.csproj missing from --all scaffold"; exit 1; }
 echo "OK"
 
 echo "== composer install (single root vendor) =="
