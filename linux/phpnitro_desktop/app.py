@@ -29,13 +29,14 @@ from .draw_command import DrawCommandPayload  # noqa: E402
 
 APP_ID = "com.phpnitro.desktop"
 
-# Phase 2 proof-of-concept switch (see rust/phpnitro-render/README.md):
-# the Cairo path above stays the default, untouched, always-available
-# renderer. Setting this opts into the new Rust core instead, per-widget,
-# falling back to Cairo automatically (with a printed reason) if the
-# compiled library isn't found or a given frame fails to render — never
-# a hard crash for trying this out.
-_RUST_RENDER_ENABLED = os.environ.get("PHPNITRO_RUST_RENDER") == "1"
+# The shared Rust engine (see rust/phpnitro-render/README.md) is now the
+# DEFAULT render path — real-machine-tested against a genuinely blank
+# phpx-new project (Cairo and Rust confirmed pixel-identical). Set
+# PHPNITRO_RUST_RENDER=0 to fall back to the original Cairo path (kept
+# fully intact, never removed); either way, a Rust failure (library
+# missing, a frame that fails to render) still falls back to Cairo
+# automatically with a printed reason, never a hard crash.
+_RUST_RENDER_ENABLED = os.environ.get("PHPNITRO_RUST_RENDER", "1") != "0"
 
 
 class PhpNitroCanvasWidget(Gtk.DrawingArea):
