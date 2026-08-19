@@ -175,9 +175,8 @@ fn draw_arc(pixmap: &mut Pixmap, arc: &ArcCommand) {
 
 /// Rasterizes every command this module already knows how to draw;
 /// anything else (text/icon/image/spinner/skeleton/clientPanel/hScroll/
-/// vScroll/slider/custom/unknown) is silently skipped for now — each gets
-/// its own dedicated module and commit rather than a half-correct guess
-/// here.
+/// vScroll/slider/unknown) is silently skipped for now — each gets its
+/// own dedicated module and commit rather than a half-correct guess here.
 pub fn render_commands(pixmap: &mut Pixmap, commands: &[DrawCommand]) {
     for command in commands {
         match command {
@@ -185,6 +184,7 @@ pub fn render_commands(pixmap: &mut Pixmap, commands: &[DrawCommand]) {
             DrawCommand::Circle(circle) => draw_circle(pixmap, circle),
             DrawCommand::Line(line) => draw_line(pixmap, line),
             DrawCommand::Arc(arc) => draw_arc(pixmap, arc),
+            DrawCommand::Custom(custom) => crate::charts::render_custom(pixmap, custom),
             _ => {}
         }
     }
