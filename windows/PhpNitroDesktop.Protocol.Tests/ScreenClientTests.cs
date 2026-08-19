@@ -99,6 +99,7 @@ public class ScreenClientIntegrationTests : IAsyncLifetime
 
         var success = Assert.IsType<FetchSuccess>(result);
         Assert.NotEmpty(success.Payload.Commands);
+        Assert.Contains("\"commands\"", success.RawJson);
     }
 
     [Fact]

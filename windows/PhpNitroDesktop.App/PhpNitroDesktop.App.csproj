@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The FIRST project in windows/ that needs net8.0-windows +
+    UseWindowsForms — every sibling project (Protocol, Render, and their
+    Tests) deliberately targets plain net8.0 so they stay buildable/
+    testable on ubuntu-latest (see their own csproj comments). A real
+    windowed app has no such option: System.Windows.Forms only exists on
+    Windows, so this project can only ever build on a real windows-latest
+    CI runner (or a dev machine with the Windows Desktop SDK workload
+    installed) — see .github/workflows/ci.yml's windows-desktop-app job.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>PhpNitroDesktop.App</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PhpNitroDesktop.Protocol\PhpNitroDesktop.Protocol.csproj" />
+    <ProjectReference Include="..\PhpNitroDesktop.Render\PhpNitroDesktop.Render.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -323,6 +323,12 @@ jobs:
       - run: xcodebuild -list
       - run: xcodebuild -scheme PhpNitroMacEngine -destination 'platform=macOS' build
       - run: xcodebuild -scheme RustMacRenderer -destination 'platform=macOS' build
+      # PhpNitroMacApp — the real, runnable NSApplication (Sources/PhpNitroMacApp/)
+      # that finally drives RustMacRenderer end to end on screen, not just
+      # in RustMacRendererTests' offscreen pixel checks. Build only, same
+      # honest limit as every other platform: no display server in CI to
+      # actually click a real window.
+      - run: xcodebuild -scheme PhpNitroMacApp -destination 'platform=macOS' build
       - run: xcodebuild -scheme PhpNitroMacEngine-Package -destination 'platform=macOS' test
 
   windows-desktop-protocol:
@@ -366,6 +372,33 @@ jobs:
           dotnet-version: '8.0.x'
       - run: dotnet test PhpNitroDesktop.Protocol.Tests --verbosity normal
       - run: dotnet test PhpNitroDesktop.Render.Tests --verbosity normal
+
+  windows-desktop-app:
+    name: Windows desktop app (WinForms, dotnet build)
+    # A REAL windows-latest runner — the first job in this whole file that
+    # needs one. PhpNitroDesktop.App is the first project in windows/ that
+    # isn't OS-agnostic: it targets net8.0-windows + UseWindowsForms, which
+    # can only ever build on an actual Windows machine (or this runner).
+    # Build only, not run — same honest limit every other platform's CI
+    # already has (no display server anywhere in CI to click a real
+    # window), so this proves the app compiles/links against the Rust
+    # engine's real Windows build, not that it visually renders correctly.
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/phpnitro-render
+      - run: cargo build --release --locked
+        working-directory: rust/phpnitro-render
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet build PhpNitroDesktop.App --configuration Release
 
   rust-render-core:
     name: Rust shared render core (cargo test, phpnitro-render)

@@ -33,19 +33,29 @@ Différence structurelle avec les deux autres : ici la liaison se fait **au mome
 
 Ceci n'a, comme le reste de ce port, **jamais tourné sur un vrai Mac** — écrit et relu à la main.
 
+## `PhpNitroMacApp` — la vraie app, Rust-only
+
+Troisième produit de ce package (`Sources/PhpNitroMacApp/`) — un exécutable SPM réel (`swift run PhpNitroMacApp <project_dir>`), pas juste des briques de bibliothèque. Délibérément une implémentation **séparée** de `MacScreenViewController`/`MacCanvasView` (Core Graphics), pas un interrupteur ajouté dessus :
+
+- **`RustScreenView.swift`** — le pendant Rust de `MacCanvasView` : peint directement via `RustRenderer.renderFrame()` (le buffer RGBA8 prémultiplié de tiny-skia se wrappe tel quel dans un `CGImage` via `CGImageAlphaInfo.premultipliedLast` — contrairement à GDI+ sur Windows, Core Graphics n'a pas besoin d'échange de canaux R/B) et route les clics via `rustHitTest()`. Ne connaît jamais `DrawCommandPayload` — travaille uniquement sur la chaîne JSON brute, puisque `RustRenderer`/`rustHitTest` la prennent directement.
+- **`RustScreenController.swift`** — fait son propre fetch HTTP minimal (au lieu de réutiliser `PhpNitroProtocol.ScreenClient`, qui ne renvoie que le `DrawCommandPayload` **décodé** — or `DrawCommandPayload` n'est que `Decodable`, pas `Encodable`, donc impossible de le re-sérialiser fidèlement pour Rust) — récupère le JSON brut, et réutilise tel quel `ScreenNavigation.reduce` (logique pure, aucun décodage impliqué).
+- **`AppDelegate.swift`/`main.swift`** — bootstrap `NSApplication` classique (`main.swift` de haut niveau, pas `@main`), possède un `MacPhpProcess` (démarré/arrêté avec l'app) et une `NSWindow` dont le `contentView` est celui du contrôleur ci-dessus.
+
+Zéro modification de `MacScreenViewController`/`MacCanvasView`/`ScreenClient` — le chemin Core Graphics déjà éprouvé reste intact, sans risque de régression.
+
 ## Vérification
 
 **Aucun Mac disponible pour écrire ni vérifier ce port** — même situation que le reste d'`ios/` jusqu'ici. Le job CI `macos-build` (`.github/workflows/ci.yml`, runner `macos-14`) :
 
-1. `cargo build --release` pour `rust/phpnitro-render` (nouveau, pour `RustMacRenderer`).
-2. `xcodebuild -list` — avec l'ajout du produit `RustMacRenderer`, ce package en a maintenant **deux**, donc (par analogie confirmée avec `ios/`, qui a 4 produits) Xcode est attendu générer un scheme agrégé `PhpNitroMacEngine-Package` en plus des schemes par cible — à confirmer par ce `-list`, pas juste supposé par analogie, exactement la discipline qui avait déjà détecté un mauvais nom de scheme la première fois que ce package n'avait qu'un seul produit.
+1. `cargo build --release` pour `rust/phpnitro-render`.
+2. `xcodebuild -list` — 3 produits maintenant (`PhpNitroMacEngine`, `RustMacRenderer`, `PhpNitroMacApp`), donc un scheme agrégé `PhpNitroMacEngine-Package` en plus des schemes par cible — confirmé par ce `-list`, pas supposé par analogie.
 3. `brew install php` (télécharge sur le réseau du runner CI, pas celui de la machine qui a écrit ce code).
-4. `xcodebuild -scheme PhpNitroMacEngine -destination 'platform=macOS' build` et `-scheme RustMacRenderer ... build` — chaque produit individuellement (schemes par cible, build seulement).
-5. `xcodebuild -scheme PhpNitroMacEngine-Package -destination 'platform=macOS' test` — le scheme agrégé, seul câblé pour l'action Test avec plusieurs produits : `MacRenderingSupportTests`/`MacPhpProcessTests` (existants) et `RustMacRendererTests` (nouveau, contre la vraie bibliothèque Rust compilée à l'étape 1 — rendu pixel réel, hit-test réel, sur les mêmes fixtures dorées que `rust/phpnitro-render` et les deux autres ports).
+4. `xcodebuild -scheme PhpNitroMacEngine ... build`, `-scheme RustMacRenderer ... build`, **`-scheme PhpNitroMacApp ... build`** (nouveau) — chaque produit individuellement, build seulement (pas d'exécution : aucun serveur d'affichage en CI pour cliquer une vraie fenêtre).
+5. `xcodebuild -scheme PhpNitroMacEngine-Package -destination 'platform=macOS' test` — le scheme agrégé : `MacRenderingSupportTests`/`MacPhpProcessTests`/`RustMacRendererTests` (rendu pixel réel, hit-test réel, mêmes fixtures dorées que `rust/phpnitro-render` et les deux autres ports).
 
 ## Ce qui manque encore, dans l'ordre de priorité
 
-1. **Rien n'a jamais tourné sur un vrai Mac** — ni compilé, ni cliqué, ni vu à l'écran.
-2. **Aucune app macOS réelle** — `MacScreenViewController`/`MacCanvasView`/`MacPhpProcess` sont des briques de bibliothèque ; un vrai `NSApplication`/`AppDelegate`/menu bar consommateur (l'équivalent macOS d'`ios/App/`) n'existe pas encore, et rien ne peint encore à l'écran via `RustMacRenderer` (seulement testé hors-écran pour l'instant).
-3. **`clientPanel`/`hScroll`/`vScroll`/`slider`** se décodent et se dessinent (rendu statique, comme sur iOS et Linux), sans interactivité côté client.
+1. **Rien n'a jamais tourné/cliqué sur un vrai Mac** — seule la compilation est vérifiée (CI), pas l'exécution interactive.
+2. **`RustScreenController` ne capture aucune entrée clavier** (`fieldValues`) — `ScreenNavigation.reduce` l'accepterait, mais rien ne le remonte encore.
+3. **`clientPanel`/`hScroll`/`vScroll`/`slider` côté Core Graphics** (`MacCanvasView`) se décodent et se dessinent (rendu statique), sans interactivité côté client ; côté Rust (`rust/phpnitro-render`), même limite — voir son propre README.
 4. **Pas de scan QR / mode PhpNitro Go** — contrairement à Linux (`--connect HOST:PORT` dans `phpnitro_desktop`), ce port n'a pas encore son propre écran de connexion.
