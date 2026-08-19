@@ -9,6 +9,7 @@ use std::os::raw::c_char;
 
 pub mod protocol;
 pub mod raster;
+pub mod text;
 
 /// Returns the crate's own version as a NUL-terminated C string, valid for
 /// the lifetime of the program (leaked once, not per-call).
