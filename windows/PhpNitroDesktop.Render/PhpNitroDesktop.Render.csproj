@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Plain net8.0, like ../PhpNitroDesktop.Protocol — P/Invoke itself is
+    fully cross-platform in .NET Core (DllImport resolves
+    "phpnitro_render" to libphpnitro_render.so/.dylib or
+    phpnitro_render.dll depending on the OS actually running it), so
+    nothing here is Windows-specific either. This project only calls into
+    rust/phpnitro-render's C ABI (include/phpnitro_render.h) — it never
+    recompiles or reimplements that logic.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>PhpNitroDesktop.Render</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+</Project>
