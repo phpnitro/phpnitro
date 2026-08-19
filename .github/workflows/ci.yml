@@ -286,6 +286,14 @@ jobs:
     # was attempted at all, mirroring ios/'s own PhpNitroProtocol). This
     # job running at all, on Linux, is real proof of that claim — not
     # just a comment saying so.
+    #
+    # PhpNitroDesktop.Render (P/Invoke bindings for rust/phpnitro-render's
+    # C ABI) is the same story one level deeper: .NET's DllImport
+    # resolution is itself cross-platform, so running its tests here
+    # against the Linux-built libphpnitro_render.so is real evidence the
+    # same C# code would resolve phpnitro_render.dll on an actual Windows
+    # machine too — not just an untested claim, the same rigor as the
+    # Protocol layer above.
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -299,10 +307,17 @@ jobs:
           coverage: none
       - run: composer install --no-interaction --prefer-dist
         working-directory: .
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/phpnitro-render
+      - run: cargo build --release --locked
+        working-directory: rust/phpnitro-render
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
       - run: dotnet test PhpNitroDesktop.Protocol.Tests --verbosity normal
+      - run: dotnet test PhpNitroDesktop.Render.Tests --verbosity normal
 
   rust-render-core:
     name: Rust shared render core (cargo test, phpnitro-render)
