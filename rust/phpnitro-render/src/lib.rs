@@ -44,6 +44,9 @@ pub mod protocol;
 pub mod raster;
 pub mod text;
 
+#[cfg(target_os = "android")]
+pub mod jni_bridge;
+
 use hittest::InteractionState;
 use protocol::DrawCommand;
 use text::TextRenderer;

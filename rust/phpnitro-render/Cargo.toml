@@ -16,4 +16,11 @@ tiny-skia = "0.11"
 cosmic-text = "0.12"
 fontdb = "0.16"
 
+# Only ever fetched/compiled when building FOR Android — every other
+# platform's build (host, iOS Simulator, this crate's own `cargo test`)
+# never touches this dependency at all, so it can't destabilize anything
+# already green. See src/jni_bridge.rs.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+
 [dev-dependencies]
