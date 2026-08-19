@@ -224,6 +224,12 @@ pub struct ClientPanelCommand {
     pub commands: Vec<DrawCommand>,
     #[serde(default)]
     pub hit_regions: Vec<HitRegion>,
+    /// `Canvas::tagFixed()` applies uniformly to every command this class
+    /// builds — including `clientPanel`/`hScroll`/`vScroll`/`slider`, not
+    /// just the plain geometric ones — confirmed by reading `Canvas.php`
+    /// directly rather than assumed.
+    #[serde(flatten)]
+    pub tags: CommandTags,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -238,6 +244,8 @@ pub struct HScrollCommand {
     pub commands: Vec<DrawCommand>,
     #[serde(default)]
     pub hit_regions: Vec<HitRegion>,
+    #[serde(flatten)]
+    pub tags: CommandTags,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -252,6 +260,8 @@ pub struct VScrollCommand {
     pub commands: Vec<DrawCommand>,
     #[serde(default)]
     pub hit_regions: Vec<HitRegion>,
+    #[serde(flatten)]
+    pub tags: CommandTags,
 }
 
 /// `value` is server-authored per frame but locally overridden while the
@@ -604,6 +614,22 @@ mod tests {
                 assert_eq!(rect.tags.reorder.as_deref(), Some("item-1"));
             }
             other => panic!("expected Rect, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn client_panel_can_also_carry_the_fixed_tag() {
+        // Canvas::tagFixed() applies to every command type, not just plain
+        // geometric ones — BottomSheet's own handle region is documented
+        // as always fixed, and it's a clientPanel underneath.
+        let json = r#"{
+            "type": "clientPanel", "key": "sheet", "index": 0, "initiallyActive": true,
+            "x": 0.0, "y": 0.0, "commands": [], "hitRegions": [], "fixed": true
+        }"#;
+        let command: DrawCommand = serde_json::from_str(json).unwrap();
+        match command {
+            DrawCommand::ClientPanel(panel) => assert_eq!(panel.tags.fixed, Some(true)),
+            other => panic!("expected ClientPanel, got {other:?}"),
         }
     }
 
