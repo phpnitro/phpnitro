@@ -170,9 +170,7 @@ public final class MacCanvasView: NSView {
     private func draw(_ command: TextCommand, in context: CGContext) {
         let color = command.color.flatMap(NSColor.init(hex:)) ?? .black
         let size = command.size ?? 16
-        let font = (command.bold ?? false)
-            ? NSFont.boldSystemFont(ofSize: size)
-            : NSFont.systemFont(ofSize: size)
+        let font = MacIconFont.robotoFont(size: size, bold: command.bold ?? false)
 
         let attributed = NSAttributedString(string: command.text, attributes: [.font: font, .foregroundColor: color])
 

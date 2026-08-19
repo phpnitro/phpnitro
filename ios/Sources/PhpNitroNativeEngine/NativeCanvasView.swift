@@ -186,7 +186,7 @@ public final class NativeCanvasView: UIView {
     private func draw(_ command: TextCommand, in context: CGContext) {
         let color = command.color.flatMap(UIColor.init(hex:)) ?? .black
         let size = command.size ?? 16
-        let font = (command.bold ?? false) ? UIFont.boldSystemFont(ofSize: size) : UIFont.systemFont(ofSize: size)
+        let font = IconFont.robotoFont(size: size, bold: command.bold ?? false)
 
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
         let attributed = NSAttributedString(string: command.text, attributes: attributes)

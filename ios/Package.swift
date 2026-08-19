@@ -97,7 +97,8 @@ let package = Package(
             // processing pipeline meant for things like asset catalogs.
             resources: [
                 .copy("Resources/MaterialIcons-Regular.ttf"),
-                .copy("Resources/FontAwesome-Solid.ttf")
+                .copy("Resources/FontAwesome-Solid.ttf"),
+                .copy("Resources/Roboto-Regular.ttf")
             ]
         ),
         .testTarget(
