@@ -21,22 +21,31 @@
 //! in it.
 
 use crate::protocol::{DrawCommand, Envelope};
+use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Default)]
+/// Deserializable so the FFI boundary can accept this as one JSON object
+/// (`{"scrollY":..,"activePanel":{...},"axisOffset":{...}}`) rather than
+/// requiring a platform shell to build it field-by-field through more FFI
+/// calls — an empty/absent JSON object decodes to `Self::default()`.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct InteractionState {
     /// The whole screen's vertical scroll offset — added to every
     /// non-`fixed` region's tap comparison, exactly like Android's
     /// `scrollY`.
+    #[serde(default)]
     pub scroll_y: f32,
     /// `clientPanel.key -> currently active panel index`. A key with no
     /// entry here falls back to whichever panel command declares
     /// `initiallyActive: true` — the exact same fallback
     /// `seedClientTabState()` uses on Android.
+    #[serde(default)]
     pub active_panel: HashMap<String, i64>,
     /// `hScroll`/`vScroll` `.key -> local drag offset` (same key space for
     /// both, since a screen using both would use distinct keys anyway).
+    #[serde(default)]
     pub axis_offset: HashMap<String, f32>,
 }
 
