@@ -84,13 +84,23 @@ let package = Package(
         // map only, the actual binary is linked in some other way" case
         // — the real linking happens via RustMacRenderer's own
         // linkerSettings below, not through this target at all.
+        //
+        // Named "...Mac", not plain "CPhpNitroRender" — this package
+        // depends on ../ios/ via a local path dependency (above), which
+        // also declares its own `.systemLibrary` target named
+        // "CPhpNitroRender" for RustNativeRenderer. SPM resolves the
+        // WHOLE graph of both packages together for a local path
+        // dependency, and two same-named targets across the graph is a
+        // real, confirmed CI failure: "xcodebuild: error: Could not
+        // resolve package dependencies: multiple targets named
+        // 'CPhpNitroRender' in: 'ios', 'macos'".
         .systemLibrary(
-            name: "CPhpNitroRender",
-            path: "Sources/CPhpNitroRender"
+            name: "CPhpNitroRenderMac",
+            path: "Sources/CPhpNitroRenderMac"
         ),
         .target(
             name: "RustMacRenderer",
-            dependencies: ["CPhpNitroRender"],
+            dependencies: ["CPhpNitroRenderMac"],
             path: "Sources/RustMacRenderer",
             linkerSettings: [
                 // -L/-l find the .dylib at LINK time; -rpath bakes an

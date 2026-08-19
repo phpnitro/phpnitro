@@ -1,9 +1,9 @@
-import CPhpNitroRender
+import CPhpNitroRenderMac
 import Foundation
 
 /// Swift wrapper around rust/phpnitro-render's C ABI
 /// (include/phpnitro_render.h, copied into
-/// Sources/CPhpNitroRender/include/ verbatim) — the macOS counterpart
+/// Sources/CPhpNitroRenderMac/ verbatim) — the macOS counterpart
 /// of linux/phpnitro_desktop/rust_render.py's ctypes bindings and
 /// windows/PhpNitroDesktop.Render/RustRenderer.cs's P/Invoke bindings.
 /// Every function name below matches phpnitro_render.h one-for-one.
