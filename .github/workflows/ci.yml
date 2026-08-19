@@ -291,3 +291,25 @@ jobs:
         with:
           dotnet-version: '8.0.x'
       - run: dotnet test PhpNitroDesktop.Protocol.Tests --verbosity normal
+
+  rust-render-core:
+    name: Rust shared render core (cargo test, phpnitro-render)
+    # rust/phpnitro-render is the future single rendering engine meant to
+    # replace the 4 separately-written native renderers (Android/iOS+macOS/
+    # Linux/Windows) — see rust/phpnitro-render/README.md. This job only
+    # exercises the crate itself (protocol decoding, rasterization, hit-
+    # testing, animation math) offscreen via tiny-skia's Pixmap, the same
+    # no-display-server approach linux/tests already uses with Cairo's
+    # ImageSurface — unlike the linux-desktop job below, this one needs no
+    # Xvfb at all, since nothing here ever opens a real window.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust/phpnitro-render
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/phpnitro-render
+      - run: cargo test --locked --verbose
