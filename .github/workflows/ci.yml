@@ -62,6 +62,24 @@ jobs:
       # jniLibs (libphp.so / libsqlite3.so, ~30MB) are committed as-is —
       # see android/README.md — so this is a real APK, native runtime included.
       - run: php bin/phpx bundle:android
+      # rust/phpnitro-render, cross-compiled for the same 2 ABIs libphp.so
+      # already ships (arm64-v8a/armeabi-v7a — no x86_64 device exists, so
+      # neither does this), placed directly into
+      # android/engine/src/main/jniLibs/<abi>/ where Gradle's own jniLibs
+      # packaging already looks (see android/engine/build.gradle.kts).
+      # Unlike libphp.so, this .so is never committed to git — it's cheap
+      # to rebuild fresh every CI run (a few Cargo crates, not a whole
+      # cross-compiled PHP interpreter), so there is no binary blob to
+      # keep in sync here.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/phpnitro-render
+      - run: cargo install cargo-ndk --locked
+      - run: cargo ndk -t arm64-v8a -t armeabi-v7a -o ../../android/engine/src/main/jniLibs build --release
+        working-directory: rust/phpnitro-render
       - uses: gradle/actions/setup-gradle@v4
       - run: cd android && gradle :app:assembleDebug
       - uses: actions/upload-artifact@v4

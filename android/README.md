@@ -46,3 +46,11 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ## Permissions et capacités device
 
 `MainActivity` demande les permissions caméra/micro/localisation et configure la `WebView` (`WebChromeClient.onPermissionRequest`, `onGeolocationPermissionsShowPrompt`, `setGeolocationEnabled`) pour que `Device\Vibrate`, `LocationButton`, `Device\Camera` et `Device\Microphone` fonctionnent réellement.
+
+## Le moteur de rendu Rust partagé : `RustRenderer.kt` — compile, jamais exécuté
+
+`engine/src/main/java/com/phpnitro/engine/RustRenderer.kt` appelle `rust/phpnitro-render/src/jni_bridge.rs` (un pont JNI dédié — convention d'appel différente de l'ABI C plate que Linux/Windows/macOS/iOS consomment directement via ctypes/P-Invoke/C-interop). Pendant Android de ces quatre autres ports, mais avec une vraie limite : **`android-e2e-test`, le seul job CI qui exécute du code sur un vrai émulateur, est désactivé** (limite de facturation GitHub — voir le commentaire dans `ci.yml`). Contrairement à Linux/Windows/macOS/iOS (chacun a eu une preuve d'exécution réelle via CI), rien ici n'a jamais été appelé par une vraie JVM.
+
+Conséquence assumée : **`RustRenderer` n'est PAS câblé dans `NativeCanvasView.kt`** — il reste une classe additive, du code mort du point de vue de l'app livrée, tant qu'il n'est pas génuinement vérifiable. Ce que le job CI `android-build` prouve réellement : `rust/phpnitro-render` cross-compile pour `arm64-v8a`/`armeabi-v7a` (via `cargo-ndk`, placé directement dans `jniLibs/<abi>/` — jamais commité, contrairement à `libphp.so`, puisque reconstruire ce `.so` en CI ne coûte que quelques crates, pas tout un interpréteur PHP cross-compilé) et que `RustRenderer.kt`/`jni_bridge.rs` s'accordent au niveau des types/symboles JNI (`gradle :app:assembleDebug` compile et lie tout ça) — pas qu'un seul appel fonctionne réellement une fois chargé.
+
+Piège JNI réel évité, documenté dans `RustRenderer.kt` lui-même : toutes les méthodes `external fun` sont déclarées **statiques** (`companion object`), pas des méthodes d'instance — parce que `jni_bridge.rs` prend un `JClass` (pas un `JObject`) comme second paramètre partout. Une méthode d'instance aurait fait passer un `jobject` (`this`) à cet emplacement à la place, un vrai décalage silencieux qu'aucun outil ici n'aurait détecté avant un vrai crash sur device.
