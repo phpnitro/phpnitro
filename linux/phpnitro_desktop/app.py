@@ -110,9 +110,33 @@ class PhpNitroCanvasWidget(Gtk.DrawingArea):
     def _on_click(self, _gesture, _n_press, x: float, y: float) -> None:
         if self.payload is None:
             return
-        action = self.payload.action_at(x, y)
+        if _RUST_RENDER_ENABLED and self.raw_json is not None:
+            action = self._hit_test_via_rust(x, y)
+        else:
+            action = self.payload.action_at(x, y)
         if action is not None and self.on_action is not None:
             self.on_action(action)
+
+    def _hit_test_via_rust(self, x: float, y: float) -> Optional[str]:
+        """Mirrors `_draw_via_rust`'s fallback contract: only falls back
+        to `action_at()` if Rust's hit-test call itself couldn't run at
+        all (library missing/import error) — a clean "nothing hit" from
+        Rust is trusted as-is, not silently re-tried against the Python
+        path, which has real, documented behavior gaps of its own
+        (reverse hit-region order instead of Android's real forward/
+        first-match order, no scroll-offset/`fixed` handling, no nested
+        clientPanel/hScroll/vScroll hit-testing at all) that this Rust
+        path is specifically meant to fix, not paper back over.
+        """
+        try:
+            import json
+
+            state_json = json.dumps({"activePanel": self.client_tab_state})
+            hit = rust_render.hit_test(self.raw_json, x, y, state_json)
+        except rust_render.RustRenderUnavailable as exc:
+            print(f"[phpnitro] PHPNITRO_RUST_RENDER=1 but hit-testing is unavailable, using Python: {exc}")
+            return self.payload.action_at(x, y)
+        return hit.action if hit is not None else None
 
     def _update_animation_timer(self) -> None:
         """Started/stopped on demand — same idea as

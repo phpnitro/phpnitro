@@ -66,20 +66,24 @@ python3 -m unittest discover -s linux/tests -v
 ## Rendu optionnel via le moteur Rust partagé (essai, pas le défaut)
 
 `rust_render.py` (liaisons `ctypes` vers `rust/phpnitro-render`, voir son
-propre README) peut remplacer `canvas.py`/Cairo derrière la variable
-d'environnement `PHPNITRO_RUST_RENDER=1` — **Cairo reste le chemin par
-défaut**, actif sans rien configurer. `linux/tests/test_rust_render_parity.py`
-compare les deux rendus pixel par pixel sur de vraies fixtures (tolérance
-de 2, pour l'anti-aliasing) ; en plus de ça, une vérification manuelle
-bout-en-bout contre un vrai `php -S` de ce monorepo a produit un rendu
-Rust correct de l'écran d'accueil réel (icônes, cartes, navigation, FAB)
-— pas seulement des fixtures isolées.
+propre README) peut remplacer `canvas.py`/Cairo **et**
+`DrawCommandPayload.action_at()` derrière la variable d'environnement
+`PHPNITRO_RUST_RENDER=1` — **Cairo/Python restent le chemin par défaut**,
+actifs sans rien configurer. `linux/tests/test_rust_render_parity.py`
+compare les deux côtés : rendu pixel par pixel sur de vraies fixtures
+(tolérance de 2, pour l'anti-aliasing) et hit-testing (les 13 vraies
+zones cliquables de l'écran d'accueil réel donnent exactement la même
+action des deux côtés, vérifié à la main puis figé en test automatisé).
+Une vérification manuelle bout-en-bout contre un vrai `php -S` de ce
+monorepo a aussi produit un rendu Rust correct de l'écran d'accueil réel
+(icônes, cartes, navigation, FAB) — pas seulement des fixtures isolées.
 
 Ce qui n'est PAS encore fait : basculer le défaut vers Rust, retirer le
-chemin Cairo, ou brancher le hit-testing Rust (`PhpNitroCanvasWidget`
-utilise toujours `DrawCommandPayload.action_at()` côté Python, pas
-`phpnitro_render_hit_test`) — décisions distinctes, volontairement non
-prises ici.
+chemin Cairo/Python — décisions distinctes, volontairement non prises
+ici. Le hit-testing Rust ne gère pas encore le décalage de scroll côté
+widget (`PhpNitroCanvasWidget` ne suit lui-même aucun état de scroll
+aujourd'hui, donc rien ne divergeait à câbler) — à revoir si un vrai
+scroll client-side arrive un jour sur ce target.
 
 ## Ce qui manque encore, dans l'ordre de priorité
 
