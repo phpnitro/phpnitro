@@ -20,7 +20,12 @@ namespace PhpNitroDesktop.Protocol;
 
 public abstract record ScreenFetchResult;
 
-public sealed record FetchSuccess(DrawCommandPayload Payload) : ScreenFetchResult;
+// RawJson alongside the decoded Payload — the Rust renderer takes the raw
+// envelope JSON directly (RustRenderer.RenderFrame/RustHitTester.HitTest),
+// not this class's own decoded object graph. Same addition
+// linux/phpnitro_desktop/screen_client.py's own FetchSuccess already
+// needed for the identical reason.
+public sealed record FetchSuccess(DrawCommandPayload Payload, string RawJson) : ScreenFetchResult;
 
 public sealed record FetchError(string Kind, string Message, int? Status = null) : ScreenFetchResult;
 
@@ -98,7 +103,7 @@ public sealed class ScreenClient
         try
         {
             var payload = DrawCommandParser.ParsePayload(body);
-            return new FetchSuccess(payload);
+            return new FetchSuccess(payload, body);
         }
         catch (Exception ex)
         {

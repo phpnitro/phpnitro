@@ -41,6 +41,7 @@ let package = Package(
     products: [
         .library(name: "PhpNitroMacEngine", targets: ["PhpNitroMacEngine"]),
         .library(name: "RustMacRenderer", targets: ["RustMacRenderer"]),
+        .executable(name: "PhpNitroMacApp", targets: ["PhpNitroMacApp"]),
     ],
     dependencies: [
         .package(path: "../ios"),
@@ -120,6 +121,25 @@ let package = Package(
             name: "RustMacRendererTests",
             dependencies: ["RustMacRenderer"],
             path: "Tests/RustMacRendererTests"
+        ),
+        // The real, runnable NSApplication `MacScreenViewController`/
+        // `MacCanvasView`'s own docblocks have been referencing since
+        // they were first written ("hosted in an NSViewController instead
+        // of a UIViewController so it can be dropped into any NSWindow").
+        // Deliberately Rust-only: `RustScreenView`/`RustScreenController`
+        // are a SEPARATE path from `PhpNitroMacEngine`'s Core Graphics one
+        // above, not a toggle bolted onto it — see RustScreenView.swift's
+        // own docblock for why. `swift build --product PhpNitroMacApp`/
+        // `swift run PhpNitroMacApp <project_dir>` is how a developer
+        // would actually launch this.
+        .executableTarget(
+            name: "PhpNitroMacApp",
+            dependencies: [
+                "PhpNitroMacEngine",
+                "RustMacRenderer",
+                .product(name: "PhpNitroProtocol", package: "ios"),
+            ],
+            path: "Sources/PhpNitroMacApp"
         ),
     ]
 )
