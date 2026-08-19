@@ -66,10 +66,14 @@ python3 -m unittest discover -s linux/tests -v
 ## Rendu optionnel via le moteur Rust partagé (essai, pas le défaut)
 
 `rust_render.py` (liaisons `ctypes` vers `rust/phpnitro-render`, voir son
-propre README) peut remplacer `canvas.py`/Cairo **et**
-`DrawCommandPayload.action_at()` derrière la variable d'environnement
-`PHPNITRO_RUST_RENDER=1` — **Cairo/Python restent le chemin par défaut**,
-actifs sans rien configurer. `linux/tests/test_rust_render_parity.py`
+propre README) remplace maintenant `canvas.py`/Cairo **et**
+`DrawCommandPayload.action_at()` **par défaut** — confirmé identique
+pixel par pixel sur un vrai projet `phpx new` vierge, sur la machine
+réelle de l'utilisateur. `PHPNITRO_RUST_RENDER=0` repasse sur le chemin
+Cairo/Python d'origine (conservé intact, jamais retiré) ; une bascule
+automatique vers Cairo reste aussi en place si la bibliothèque Rust est
+absente ou qu'une frame échoue à se rendre, quelle que soit la valeur de
+la variable. `linux/tests/test_rust_render_parity.py`
 compare les deux côtés : rendu pixel par pixel sur de vraies fixtures
 (tolérance de 2, pour l'anti-aliasing) et hit-testing (les 13 vraies
 zones cliquables de l'écran d'accueil réel donnent exactement la même
