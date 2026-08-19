@@ -7,6 +7,8 @@
 use std::ffi::CString;
 use std::os::raw::c_char;
 
+pub mod protocol;
+
 /// Returns the crate's own version as a NUL-terminated C string, valid for
 /// the lifetime of the program (leaked once, not per-call).
 #[no_mangle]
