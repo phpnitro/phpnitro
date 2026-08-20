@@ -47,6 +47,7 @@ use std::os::raw::c_char;
 pub mod animate;
 pub mod charts;
 pub mod hittest;
+pub mod image;
 pub mod protocol;
 pub mod raster;
 pub mod text;

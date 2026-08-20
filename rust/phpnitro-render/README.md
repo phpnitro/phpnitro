@@ -40,7 +40,8 @@ plus simples.
 | Module | Couvre | Vérifié par |
 |---|---|---|
 | `protocol.rs` | Décodage complet de l'enveloppe `toJson()` — tous les types de commande, `hitRegions`/`heroRegions`/`dismissRegions`/`reorderRegions`/`lottieRegions`/`sheetRegions`, `fixed`/`hero`/`dismiss`/`reorder` sur toute commande | Décodage des fixtures dorées de `packages/ui/tests/Golden/__fixtures__/` (dans `tests/golden_render.rs`), y compris `screen_widgets_forms.json` (170 Ko) sans un seul type inconnu, récursivement |
-| `raster.rs` | `rect` (coins arrondis, bordure, gradient linéaire, ombre portée par box blur maison), `circle`, `line`, `arc`, `spinner`, `skeleton`, `slider` (piste pilule + remplissage actif + pouce), `clientPanel`/`hScroll`/`vScroll` (peints via un calque tampon composité + masque de clip, récursif — texte/icônes imbriqués inclus) | Tests pixel réels (couleur exacte, clip de viewport, composition d'offsets imbriqués) + rendu visuel sur de vraies fixtures de production |
+| `raster.rs` | `rect` (coins arrondis, bordure, gradient linéaire, ombre portée par box blur maison), `circle`, `line`, `arc`, `spinner`, `skeleton`, `slider` (piste pilule + remplissage actif + pouce), `clientPanel`/`hScroll`/`vScroll` (peints via un calque tampon composité + masque de clip, récursif — texte/icônes imbriqués inclus), `image` (voir `image.rs`) — **et** l'état d'interaction live (`InteractionState`, même forme que `hittest.rs`) qui pilote la sélection de panneau, l'offset de scroll et la valeur du slider de ces 4 derniers | Tests pixel réels (couleur exacte, clip de viewport, composition d'offsets imbriqués, override par l'état live) + rendu visuel sur de vraies fixtures de production |
+| `image.rs` | `image` dont l'`url` est un `data:image/png;base64,...` inline — décodeur base64 maison (aucun crate `base64` en cache), rasterisé via `Pixmap::decode_png` (déjà lié par `tiny-skia`) | 7 tests unitaires (dont le payload réel de `image_network_and_data_uri.json`) + rendu pixel bout-en-bout sur cette même fixture |
 | `transition.rs` | Crossfade (220ms, `DecelerateInterpolator`) + hero/FLIP (280ms linéaire, 5 courbes : LINEAR/EASE_IN/EASE_IN_OUT/BOUNCE/ELASTIC + défaut EASE_OUT) entre deux enveloppes — port exact des constantes/formules de `NativeCanvasView.kt` (matrice translate→scale→translate, interpolation numérique + blend ARGB par commande, exclusion des tags hero en vol des deux passes ordinaires) | 11 tests unitaires (courbes, blend couleur, transform matriciel, offsets de transition par type) + 1 test FFI de bout en bout |
 | `text.rs` | `text`/`icon` via `cosmic-text`, 3 polices embarquées (`MaterialIcons-Regular.ttf`/`FontAwesome-Solid.ttf`/`Roboto-Regular.ttf`, copies vérifiées identiques par md5sum aux fichiers Android) | Tests "un vrai glyphe peint quelque chose" + rendu visuel |
 | `animate.rs` | Formules horloge murale spinner (période 1100ms/balayage 110°) et skeleton (période 1300ms/largeur 0.6×), constantes copiées depuis `NativeCanvasView.kt` | 7 tests, y compris "la rotation ne boucle jamais exactement à 360°" |
@@ -54,16 +55,11 @@ cache), puis en CI via le job `rust-render-core` sur chaque push.
 
 ## Ce qui est délibérément hors de portée pour l'instant
 
-- **`image`** est décodé (`ImageCommand`) mais jamais rasterisé — charger
-  une image (réseau ou `data:` URI) est une responsabilité que ce crate
-  n'a pas encore.
-- **Interactivité live** pour `clientPanel`/`hScroll`/`vScroll`/`slider` —
-  chacun peint son état "au repos" server-authored (le panneau
-  `initiallyActive`, un viewport non scrollé, la valeur serveur du
-  slider) ; changement d'onglet, glissement de scroll, drag du pouce ne
-  sont pas encore branchés sur le rendu (la même plomberie d'état
-  d'interaction que `hittest.rs` a déjà pour le hit-test doit encore
-  atteindre le chemin de rendu).
+- **`image` réseau (`https://`) et non-PNG** (`data:image/jpeg`, WebP...) —
+  seul `data:image/png;base64,...` inline est rasterisé (voir `image.rs`).
+  Un vrai fetch réseau et un décodeur JPEG/WebP demanderaient chacun un
+  crate que ce chantier n'a pas en cache hors-ligne ; une image `https://`
+  ou non-PNG ne peint donc toujours rien, silencieusement.
 - **`LottieRegion`** n'a aucun équivalent dessinable dans le protocole
   (c'est une vraie vue Lottie superposée) — restera hors du rasterizer
   quel que soit l'avancement de ce crate.
