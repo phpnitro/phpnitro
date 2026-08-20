@@ -48,6 +48,8 @@ data class HitResult(
     val bottom: Float,
 )
 
+data class SliderHitResult(val key: String, val action: String, val value: Float)
+
 class RustRenderer {
     private var handle: Long = 0
 
@@ -132,6 +134,22 @@ class RustRenderer {
             )
         }
 
+        /**
+         * A slider tap isn't expressible through hitTest()'s own
+         * hitRegions[] mechanism — the value depends on where within the
+         * slider you tapped, not a single precomputed action (see
+         * rust/phpnitro-render/src/hittest.rs's own doc comment).
+         */
+        fun sliderHitTest(envelopeJson: String, tapX: Float, tapY: Float, interactionStateJson: String? = null): SliderHitResult? {
+            val resultJson = nativeSliderHitTest(envelopeJson, tapX, tapY, interactionStateJson ?: "") ?: return null
+            val obj = JSONObject(resultJson)
+            return SliderHitResult(
+                key = obj.getString("key"),
+                action = obj.getString("action"),
+                value = obj.getDouble("value").toFloat(),
+            )
+        }
+
         private fun readLeInt32(bytes: ByteArray, offset: Int): Int =
             (bytes[offset].toInt() and 0xFF) or
                 ((bytes[offset + 1].toInt() and 0xFF) shl 8) or
@@ -152,6 +170,12 @@ class RustRenderer {
             interactionStateJson: String?,
         ): ByteArray?
         @JvmStatic private external fun nativeHitTest(
+            envelopeJson: String,
+            tapX: Float,
+            tapY: Float,
+            interactionStateJson: String,
+        ): String?
+        @JvmStatic private external fun nativeSliderHitTest(
             envelopeJson: String,
             tapX: Float,
             tapY: Float,

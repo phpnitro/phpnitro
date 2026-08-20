@@ -107,6 +107,18 @@ def _lib_handle() -> ctypes.CDLL:
             ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ctypes.c_float),
         ]
         lib.phpnitro_render_free_hit.argtypes = [ctypes.c_void_p]
+
+        lib.phpnitro_render_slider_hit_test.restype = ctypes.c_void_p
+        lib.phpnitro_render_slider_hit_test.argtypes = [
+            ctypes.c_char_p, ctypes.c_float, ctypes.c_float, ctypes.c_char_p,
+        ]
+        lib.phpnitro_render_slider_hit_key.restype = ctypes.c_char_p
+        lib.phpnitro_render_slider_hit_key.argtypes = [ctypes.c_void_p]
+        lib.phpnitro_render_slider_hit_action.restype = ctypes.c_char_p
+        lib.phpnitro_render_slider_hit_action.argtypes = [ctypes.c_void_p]
+        lib.phpnitro_render_slider_hit_value.restype = ctypes.c_float
+        lib.phpnitro_render_slider_hit_value.argtypes = [ctypes.c_void_p]
+        lib.phpnitro_render_free_slider_hit.argtypes = [ctypes.c_void_p]
         _lib = lib
     return _lib
 
@@ -251,3 +263,40 @@ def hit_test(
         )
     finally:
         lib.phpnitro_render_free_hit(hit)
+
+
+@dataclass
+class SliderHitResult:
+    key: str
+    action: str
+    value: float
+
+
+def slider_hit_test(
+    envelope_json: str, tap_x: float, tap_y: float, interaction_state_json: Optional[str] = None
+) -> Optional[SliderHitResult]:
+    """Finds the first `sliderRegions[]` entry a tap lands on — a plain
+    hitRegion action isn't expressible for a slider since the value
+    depends on where within it you tapped, not a single precomputed
+    action (see rust/phpnitro-render/src/hittest.rs's own doc comment).
+    `value` is the position-derived value that exact tap computes to, not
+    the region's server-authored resting value; `action` is what to
+    commit once the caller's own gesture model decides the drag/tap is
+    done (this module has no opinion on that timing).
+    """
+    lib = _lib_handle()
+    state_bytes = interaction_state_json.encode("utf-8") if interaction_state_json else None
+    hit = lib.phpnitro_render_slider_hit_test(envelope_json.encode("utf-8"), tap_x, tap_y, state_bytes)
+    if not hit:
+        return None
+    try:
+        key = lib.phpnitro_render_slider_hit_key(hit)
+        action = lib.phpnitro_render_slider_hit_action(hit)
+        value = lib.phpnitro_render_slider_hit_value(hit)
+        return SliderHitResult(
+            key=key.decode("utf-8") if key else "",
+            action=action.decode("utf-8") if action else "",
+            value=value,
+        )
+    finally:
+        lib.phpnitro_render_free_slider_hit(hit)

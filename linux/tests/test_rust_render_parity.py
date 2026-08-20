@@ -179,6 +179,31 @@ class RustCairoParityTests(unittest.TestCase):
         self.assertIsNotNone(live)
         self.assertEqual(_rust_pixel_rgba(live, 5, 5), (0, 0, 255, 255), "live activePanel state should override initiallyActive")
 
+    def test_slider_hit_test_computes_the_value_for_a_real_tap(self):
+        # A slider tap isn't expressible through hitRegions[] — the value
+        # depends on where within the track you tapped, not a single
+        # precomputed action (see rust/phpnitro-render/src/hittest.rs's
+        # own doc comment) — so this exercises rust_render.py's own
+        # slider_hit_test() against the real sliderRegions[] entry
+        # screen_widgets_forms.json ships.
+        fixture_json = (FIXTURES_DIR / "screen_widgets_forms.json").read_text()
+        envelope = json.loads(fixture_json)
+        regions = envelope["sliderRegions"]
+        self.assertEqual(len(regions), 1)
+        region = regions[0]
+        self.assertEqual(region["key"], "volume")
+
+        center_x = region["x"] + region["thumbSize"] / 2 + (region["width"] - region["thumbSize"]) / 2
+        center_y = region["y"] + region["height"] / 2
+        hit = rust_render.slider_hit_test(fixture_json, center_x, center_y)
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit.key, "volume")
+        self.assertEqual(hit.action, "toggle:volume")
+        self.assertAlmostEqual(hit.value, 0.5, places=2)
+
+        miss = rust_render.slider_hit_test(fixture_json, 99999.0, 99999.0)
+        self.assertIsNone(miss)
+
     def test_hit_test_agrees_with_the_python_action_at(self):
         # app.py's PhpNitroCanvasWidget._hit_test_via_rust() trusts a
         # clean "nothing hit" from Rust as-is rather than silently

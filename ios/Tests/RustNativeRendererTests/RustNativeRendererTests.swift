@@ -146,6 +146,25 @@ final class RustNativeRendererTests: XCTestCase {
         XCTAssertEqual(unwrapped.metaJSON, "null")
     }
 
+    func testSliderHitTestComputesTheValueForARealTap() throws {
+        // A slider tap isn't expressible through rustHitTest's own
+        // hitRegions[] mechanism — the value depends on where within the
+        // track you tapped (see
+        // rust/phpnitro-render/src/hittest.rs's own doc comment) — this
+        // exercises rustSliderHitTest against the real sliderRegions[]
+        // entry screen_widgets_forms.json ships.
+        let envelope = try Self.fixtureJSON("screen_widgets_forms.json")
+        // {"key":"volume","x":20,"y":592.5,"width":360,"height":44,
+        // "trackHeight":6,"thumbSize":22,"value":0.5,"action":"toggle:volume"}
+        // Dead center of the track: x=20+11..20+360-11, midpoint 200.
+        let hit = try XCTUnwrap(rustSliderHitTest(envelopeJSON: envelope, tapX: 200, tapY: 614.5))
+        XCTAssertEqual(hit.key, "volume")
+        XCTAssertEqual(hit.action, "toggle:volume")
+        XCTAssertEqual(hit.value, 0.5, accuracy: 0.01)
+
+        XCTAssertNil(rustSliderHitTest(envelopeJSON: envelope, tapX: 99999, tapY: 99999))
+    }
+
     func testHitTestOnEmptySpaceReturnsNilWithoutCrashing() {
         let envelope = #"{"commands":[],"hitRegions":[],"contentHeight":0}"#
         let hit = rustHitTest(envelopeJSON: envelope, tapX: 999, tapY: 999)
