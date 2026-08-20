@@ -98,7 +98,7 @@ public final class RustScreenController {
     }
 
     private func fetch(action: String?) {
-        lastFetchedSize = (view.bounds.width, view.bounds.height)
+        lastFetchedSize = (Double(view.bounds.width), Double(view.bounds.height))
         var components = URLComponents()
         components.scheme = "http"
         components.host = host
