@@ -10,30 +10,21 @@ JSON de commandes de dessin produit par `Engine\Native\Canvas::toJson()`
 exposé via une interface C (`include/phpnitro_render.h`).
 
 **Statut par plateforme** :
-- **Linux** — `PHPNITRO_RUST_RENDER` est passé du statut opt-in au statut
-  **par défaut** (`PHPNITRO_RUST_RENDER=0` repasse sur Cairo) après
-  confirmation pixel-par-pixel sur un vrai projet `phpx new` vierge, sur
-  la machine réelle de l'utilisateur.
+- **Linux** — `PHPNITRO_RUST_RENDER` est le chemin par défaut
+  (`PHPNITRO_RUST_RENDER=0` repasse sur Cairo), confirmé pixel-par-pixel
+  sur un vrai projet `phpx new` vierge, sur la machine réelle de
+  l'utilisateur.
 - **Windows** — Rust est le **seul** chemin de rendu (`windows/PhpNitroDesktop.App`,
   une vraie app WinForms) : ce port n'a jamais eu de moteur GDI+/Direct2D
   natif à remplacer.
-- **macOS** — un nouveau target exécutable SPM (`macos/Sources/PhpNitroMacApp`)
-  consomme Rust, délibérément **séparé** du chemin Core Graphics existant
+- **macOS** — un target exécutable SPM séparé (`macos/Sources/PhpNitroMacApp`)
+  consomme Rust, délibérément à côté du chemin Core Graphics existant
   (`MacCanvasView`/`MacScreenViewController`), qui reste le chemin de
-  production tel quel — aucun appareil réel n'a jamais exécuté le chemin Rust.
-- **iOS** — liaisons Swift/C existantes (`RustNativeRenderer`), vérifiées
-  uniquement par des tests hors-écran en CI — pas encore branché dans le
-  chemin de production (`NativeScreenViewController`/Core Graphics).
-- **Android** — pont JNI complet (`RustRenderer.kt`/`jni_bridge.rs`),
-  jamais appelé par une vraie JVM (aucune vérification sur device
-  possible ici, `android-e2e-test` désactivé) — délibérément **non
-  branché** dans le chemin de production (`NativeCanvasView.kt` reste le
-  moteur réel).
-
-La décision : Rust ne remplace un moteur de production que là où c'est
-réellement vérifié en conditions réelles (Linux, testé à la main ;
-Windows, qui n'a jamais eu d'alternative). Android/iOS/macOS gardent leur
-rendu natif tant qu'aucun test sur un vrai appareil n'est possible.
+  production tel quel.
+- **iOS/Android** — liaisons complètes (Swift/C-interop, JNI), vérifiées
+  uniquement par des tests hors-écran/compilation croisée en CI — pas
+  encore branchées dans le chemin de production natif de chaque
+  plateforme (aucun test sur un vrai appareil possible ici).
 
 ## Pourquoi ce chantier existe
 
@@ -49,12 +40,13 @@ plus simples.
 | Module | Couvre | Vérifié par |
 |---|---|---|
 | `protocol.rs` | Décodage complet de l'enveloppe `toJson()` — tous les types de commande, `hitRegions`/`heroRegions`/`dismissRegions`/`reorderRegions`/`lottieRegions`/`sheetRegions`, `fixed`/`hero`/`dismiss`/`reorder` sur toute commande | Décodage des fixtures dorées de `packages/ui/tests/Golden/__fixtures__/` (dans `tests/golden_render.rs`), y compris `screen_widgets_forms.json` (170 Ko) sans un seul type inconnu, récursivement |
-| `raster.rs` | `rect` (coins arrondis, bordure, **gradient linéaire, ombre portée par box blur maison**), `circle`, `line`, `arc`, `spinner`, `skeleton`, **`slider`** (piste pilule + remplissage actif + pouce), **`clientPanel`/`hScroll`/`vScroll`** (peints via un calque tampon composité + masque de clip, recursif — texte/icônes imbriqués inclus) | Tests pixel réels (couleur exacte, coin non peint hors du radius, clip de viewport, composition d'offsets imbriqués) + rendu visuel inspecté à l'œil sur de vraies fixtures de production |
+| `raster.rs` | `rect` (coins arrondis, bordure, gradient linéaire, ombre portée par box blur maison), `circle`, `line`, `arc`, `spinner`, `skeleton`, `slider` (piste pilule + remplissage actif + pouce), `clientPanel`/`hScroll`/`vScroll` (peints via un calque tampon composité + masque de clip, récursif — texte/icônes imbriqués inclus) | Tests pixel réels (couleur exacte, clip de viewport, composition d'offsets imbriqués) + rendu visuel sur de vraies fixtures de production |
+| `transition.rs` | Crossfade (220ms, `DecelerateInterpolator`) + hero/FLIP (280ms linéaire, 5 courbes : LINEAR/EASE_IN/EASE_IN_OUT/BOUNCE/ELASTIC + défaut EASE_OUT) entre deux enveloppes — port exact des constantes/formules de `NativeCanvasView.kt` (matrice translate→scale→translate, interpolation numérique + blend ARGB par commande, exclusion des tags hero en vol des deux passes ordinaires) | 11 tests unitaires (courbes, blend couleur, transform matriciel, offsets de transition par type) + 1 test FFI de bout en bout |
 | `text.rs` | `text`/`icon` via `cosmic-text`, 3 polices embarquées (`MaterialIcons-Regular.ttf`/`FontAwesome-Solid.ttf`/`Roboto-Regular.ttf`, copies vérifiées identiques par md5sum aux fichiers Android) | Tests "un vrai glyphe peint quelque chose" + rendu visuel |
 | `animate.rs` | Formules horloge murale spinner (période 1100ms/balayage 110°) et skeleton (période 1300ms/largeur 0.6×), constantes copiées depuis `NativeCanvasView.kt` | 7 tests, y compris "la rotation ne boucle jamais exactement à 360°" |
 | `hittest.rs` | Parcours `hitRegions` + `clientPanel`/`hScroll`/`vScroll` imbriqués, ordre premier-match-gagne confirmé en lisant le Kotlin directement | 12 tests, cas adverses inclus |
 | `charts.rs` | `custom:sparkline`/`barChart`/`pieChart` | 4 tests pixel + rendu visuel |
-| `lib.rs` (FFI) | `extern "C"`, ownership Rust-alloue/Rust-libère, `catch_unwind` sur tout point d'entrée | Tests Rust + `tests/ffi_smoke.c`, un vrai programme C compilé et lié contre la bibliothèque réellement produite par ce build |
+| `lib.rs` (FFI) | `extern "C"`, ownership Rust-alloue/Rust-libère, `catch_unwind` sur tout point d'entrée, transition crossfade/hero optionnelle (`previous_envelope_json`/`transition_elapsed_ms`, `NULL`/`0` = comportement inchangé) | Tests Rust + `tests/ffi_smoke.c`, un vrai programme C compilé et lié contre la bibliothèque réellement produite par ce build |
 | `jni_bridge.rs` | Pont JNI Android (`#[cfg(target_os = "android")]`) | Compilation croisée réelle en CI (`rust-render-android-jni`) — jamais exécuté par une JVM |
 
 Vérifié d'abord en local (`cargo test --offline`, dépendances déjà en
@@ -62,11 +54,6 @@ cache), puis en CI via le job `rust-render-core` sur chaque push.
 
 ## Ce qui est délibérément hors de portée pour l'instant
 
-- **Transitions crossfade/hero** — décodées (`Transition`/`HeroRegion`/`AutoNavigate`)
-  mais entièrement inertes : nécessiteraient une frame précédente + une
-  fraction de progression dans la surface FFI, plus une interpolation
-  numérique/couleur par commande (comme `drawInterpolated()` sur
-  Android). Seul Android a quelque chose d'équivalent aujourd'hui.
 - **`image`** est décodé (`ImageCommand`) mais jamais rasterisé — charger
   une image (réseau ou `data:` URI) est une responsabilité que ce crate
   n'a pas encore.
@@ -80,6 +67,11 @@ cache), puis en CI via le job `rust-render-core` sur chaque push.
 - **`LottieRegion`** n'a aucun équivalent dessinable dans le protocole
   (c'est une vraie vue Lottie superposée) — restera hors du rasterizer
   quel que soit l'avancement de ce crate.
+- **`AutoNavigate`/`Snackbar`** n'ont aucune implication de peinture sur
+  Android non plus (confirmé en lisant `NativeCanvasView.kt` — zéro
+  référence) : ce sont des effets de bord purs de la coquille applicative
+  (navigation programmée, overlay `TextView` animé), pas une
+  responsabilité de ce crate.
 
 ## Structure
 
@@ -90,7 +82,8 @@ rust/phpnitro-render/
     lib.rs        surface FFI (extern "C"), ownership + catch_unwind
     protocol.rs    décodage serde de l'enveloppe toJson()
     raster.rs      rendu tiny-skia (rect/circle/line/arc/spinner/skeleton/
-                   slider/clientPanel/hScroll/vScroll, recursif)
+                   slider/clientPanel/hScroll/vScroll, récursif)
+    transition.rs  crossfade + hero/FLIP entre deux enveloppes
     text.rs        rendu cosmic-text (text/icon) + les 3 polices embarquées
     animate.rs      formules horloge murale spinner/skeleton, pur calcul
     hittest.rs      parcours hitRegions imbriqué, état d'interaction en paramètre

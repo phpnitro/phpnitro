@@ -77,11 +77,25 @@ public final class RustRenderer {
     }
 
     /// Returns nil on failure (malformed JSON, zero width/height) — check
-    /// `RustRenderer.lastError` for why.
-    public func renderFrame(envelopeJSON: String, widthPx: UInt32, heightPx: UInt32, elapsedMs: UInt64 = 0) -> RenderedFrame? {
+    /// `RustRenderer.lastError` for why. `previousEnvelopeJSON`/
+    /// `transitionElapsedMs` drive a crossfade/hero transition between it
+    /// and `envelopeJSON` (see rust/phpnitro-render/src/transition.rs) —
+    /// omit both (the defaults) for a plain, untransitioned render.
+    public func renderFrame(
+        envelopeJSON: String, widthPx: UInt32, heightPx: UInt32, elapsedMs: UInt64 = 0,
+        previousEnvelopeJSON: String? = nil, transitionElapsedMs: UInt64 = 0
+    ) -> RenderedFrame? {
         guard let handle else { return nil }
-        let frame: OpaquePointer? = envelopeJSON.withCString { cString in
-            phpnitro_render_frame(handle, cString, widthPx, heightPx, elapsedMs)
+        let frame: OpaquePointer? = envelopeJSON.withCString { newCString in
+            // Nested withCString, not a flattened helper: the C string's
+            // pointer is only valid inside its own closure's scope, so the
+            // FFI call itself must happen while BOTH strings are still alive.
+            if let previousEnvelopeJSON {
+                return previousEnvelopeJSON.withCString { previousCString in
+                    phpnitro_render_frame(handle, newCString, previousCString, transitionElapsedMs, widthPx, heightPx, elapsedMs)
+                }
+            }
+            return phpnitro_render_frame(handle, newCString, nil, transitionElapsedMs, widthPx, heightPx, elapsedMs)
         }
         guard let frame else { return nil }
         defer { phpnitro_render_free_frame(frame) }

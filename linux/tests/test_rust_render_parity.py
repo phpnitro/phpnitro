@@ -116,6 +116,44 @@ class RustCairoParityTests(unittest.TestCase):
             "container_with_padding.json", size=(200, 80), sample_points=[(100, 40), (0, 0)],
         )
 
+    def test_render_frame_crossfades_between_two_envelopes(self):
+        # Not a Cairo/Rust parity check like the others above — Cairo has
+        # no crossfade/hero transition path at all (Phase 2 scope), so this
+        # exercises rust_render.py's own previous_envelope_json/
+        # transition_elapsed_ms plumbing directly (see
+        # rust/phpnitro-render/src/transition.rs), the same real FFI
+        # round-trip as every other test in this file, just against a
+        # hand-built envelope pair instead of a golden fixture.
+        old_envelope = json.dumps({
+            "commands": [{"type": "rect", "x": 0, "y": 0, "width": 20, "height": 20, "color": "#FF0000"}],
+            "hitRegions": [], "contentHeight": 20,
+        })
+        new_envelope = json.dumps({
+            "commands": [{"type": "rect", "x": 0, "y": 0, "width": 20, "height": 20, "color": "#0000FF"}],
+            "hitRegions": [], "contentHeight": 20,
+        })
+
+        # transition_elapsed_ms=0 -> the eased crossfade progress is still
+        # 0, i.e. only the OLD (red) envelope should be visible.
+        at_start = self.RUST_RENDERER.render_frame(
+            new_envelope, 20, 20, previous_envelope_json=old_envelope, transition_elapsed_ms=0,
+        )
+        self.assertIsNotNone(at_start)
+        self.assertEqual(_rust_pixel_rgba(at_start, 10, 10), (255, 0, 0, 255))
+
+        # Past the 220ms crossfade duration -> only the NEW (blue) envelope.
+        at_end = self.RUST_RENDERER.render_frame(
+            new_envelope, 20, 20, previous_envelope_json=old_envelope, transition_elapsed_ms=220,
+        )
+        self.assertIsNotNone(at_end)
+        self.assertEqual(_rust_pixel_rgba(at_end, 10, 10), (0, 0, 255, 255))
+
+        # No previous envelope at all -> same as every other call in this
+        # file, the plain untransitioned path.
+        plain = self.RUST_RENDERER.render_frame(new_envelope, 20, 20)
+        self.assertIsNotNone(plain)
+        self.assertEqual(_rust_pixel_rgba(plain, 10, 10), (0, 0, 255, 255))
+
     def test_hit_test_agrees_with_the_python_action_at(self):
         # app.py's PhpNitroCanvasWidget._hit_test_via_rust() trusts a
         # clean "nothing hit" from Rust as-is rather than silently

@@ -76,6 +76,40 @@ final class RustNativeRendererTests: XCTestCase {
         XCTAssertEqual(unwrapped.data[offset + 2], 0x27)
     }
 
+    func testRenderFrameCrossfadesBetweenTwoEnvelopes() throws {
+        // Not a Core Graphics/Rust parity check (NativeCanvasView.swift
+        // has no crossfade path at all) — exercises renderFrame's own
+        // optional previousEnvelopeJSON/transitionElapsedMs parameters
+        // directly (see rust/phpnitro-render/src/transition.rs).
+        let renderer = try RustRenderer()
+        let oldEnvelope = """
+            {"commands":[{"type":"rect","x":0,"y":0,"width":20,"height":20,"color":"#FF0000"}],
+             "hitRegions":[],"contentHeight":20}
+            """
+        let newEnvelope = """
+            {"commands":[{"type":"rect","x":0,"y":0,"width":20,"height":20,"color":"#0000FF"}],
+             "hitRegions":[],"contentHeight":20}
+            """
+
+        // transitionElapsedMs = 0 -> eased crossfade progress is still 0,
+        // i.e. only the OLD (red) envelope should be visible.
+        let atStart = try XCTUnwrap(renderer.renderFrame(
+            envelopeJSON: newEnvelope, widthPx: 20, heightPx: 20,
+            previousEnvelopeJSON: oldEnvelope, transitionElapsedMs: 0
+        ))
+        let offset = Int(10 * atStart.stride + 10 * 4)
+        XCTAssertEqual(atStart.data[offset], 255)
+        XCTAssertEqual(atStart.data[offset + 2], 0)
+
+        // Past the 220ms crossfade duration -> only the NEW (blue) envelope.
+        let atEnd = try XCTUnwrap(renderer.renderFrame(
+            envelopeJSON: newEnvelope, widthPx: 20, heightPx: 20,
+            previousEnvelopeJSON: oldEnvelope, transitionElapsedMs: 220
+        ))
+        XCTAssertEqual(atEnd.data[offset], 0)
+        XCTAssertEqual(atEnd.data[offset + 2], 255)
+    }
+
     func testHitTestFindsTheRealButtonActionAtItsCenter() throws {
         let envelope = try Self.fixtureJSON("button_with_icon.json")
         let hit = rustHitTest(envelopeJSON: envelope, tapX: 100, tapY: 27)

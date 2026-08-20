@@ -80,7 +80,8 @@ def _lib_handle() -> ctypes.CDLL:
 
         lib.phpnitro_render_frame.restype = ctypes.c_void_p
         lib.phpnitro_render_frame.argtypes = [
-            ctypes.c_void_p, ctypes.c_char_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint64,
+            ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint64,
+            ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint64,
         ]
         lib.phpnitro_render_frame_pixels.restype = ctypes.c_void_p
         lib.phpnitro_render_frame_pixels.argtypes = [ctypes.c_void_p]
@@ -158,15 +159,33 @@ class RustRenderer:
             raise RustRenderUnavailable("phpnitro_render_new() returned NULL")
 
     def render_frame(
-        self, envelope_json: str, width: int, height: int, elapsed_ms: int = 0
+        self,
+        envelope_json: str,
+        width: int,
+        height: int,
+        elapsed_ms: int = 0,
+        previous_envelope_json: Optional[str] = None,
+        transition_elapsed_ms: int = 0,
     ) -> Optional[RenderedFrame]:
         """Returns None on failure (malformed JSON, zero width/height) —
         check last_error() for why, same "None on a normal-ish failure,
         exception only when the library itself is unusable" split
         RustRenderUnavailable already draws.
+
+        previous_envelope_json/transition_elapsed_ms drive a crossfade/hero
+        transition between it and envelope_json (see
+        rust/phpnitro-render/src/transition.rs) — omit both (the defaults)
+        for a plain, untransitioned render.
         """
+        previous_bytes = previous_envelope_json.encode("utf-8") if previous_envelope_json is not None else None
         frame = self._lib.phpnitro_render_frame(
-            self._handle, envelope_json.encode("utf-8"), width, height, elapsed_ms,
+            self._handle,
+            envelope_json.encode("utf-8"),
+            previous_bytes,
+            transition_elapsed_ms,
+            width,
+            height,
+            elapsed_ms,
         )
         if not frame:
             return None

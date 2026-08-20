@@ -68,16 +68,28 @@ void phpnitro_render_free(PhpNitroRenderer *renderer);
 
 /* Rasterizes one envelope into a new (width_px x height_px) frame.
  *
+ * previous_envelope_json is optional (NULL = no transition, the common
+ * case — first render, or a same-screen refetch that never wants one).
+ * When non-NULL, it's blended with envelope_json into a crossfade/hero
+ * transition (see rust/phpnitro-render/src/transition.rs) driven by
+ * transition_elapsed_ms — wall-clock milliseconds since envelope_json
+ * became the active screen (a single shared clock for both the whole-
+ * screen crossfade and any flying hero subtrees, exactly mirroring
+ * Android's own fadeProgress/heroProgress). A malformed
+ * previous_envelope_json is treated the same as NULL, not a hard error.
+ *
  * elapsed_ms drives spinner/skeleton animation (wall-clock milliseconds
  * since any fixed, monotonic epoch the caller chooses — e.g. process
  * start). Pass 0 for a caller that never animates.
  *
- * Returns NULL on failure (malformed JSON, or width_px/height_px == 0)
- * — call phpnitro_render_last_error() to find out why. Free a non-NULL
- * result with phpnitro_render_free_frame(). */
+ * Returns NULL on failure (malformed envelope_json, or width_px/height_px
+ * == 0) — call phpnitro_render_last_error() to find out why. Free a
+ * non-NULL result with phpnitro_render_free_frame(). */
 PhpNitroFrame *phpnitro_render_frame(
     PhpNitroRenderer *renderer,
     const char *envelope_json,
+    const char *previous_envelope_json,
+    uint64_t transition_elapsed_ms,
     uint32_t width_px,
     uint32_t height_px,
     uint64_t elapsed_ms
