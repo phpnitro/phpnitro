@@ -39,6 +39,20 @@
 //! wants a transition at all) and every existing caller's behavior is
 //! unchanged, at zero extra cost (see `transition::render_transition`'s
 //! own early-return for that case).
+//!
+//! ## Slider hit-testing
+//!
+//! `phpnitro_render_slider_hit_test` is a separate entry point from
+//! `phpnitro_render_hit_test` — a slider tap isn't expressible as a
+//! single precomputed `hitRegions[]` action, since the value depends on
+//! where within the slider you tapped (see `hittest::slider_hit_test`'s
+//! own doc comment). No platform shell consumes this yet — the
+//! commit-on-release convention it needs (`packages/ui/src/Native/
+//! Slider.php` reuses Checkbox/Toggle's own `"toggle:"`/`fieldValues`
+//! mechanism) doesn't exist on every shell yet either — but the
+//! capability is complete and tested here, the same "ahead of every
+//! shell's own consumption" pattern this crate's crossfade/interaction-
+//! state support already established before Android/iOS wired into it.
 
 use std::cell::RefCell;
 use std::ffi::{CStr, CString};
@@ -374,6 +388,101 @@ pub unsafe extern "C" fn phpnitro_render_free_hit(hit: *mut PhpNitroHit) {
     }
 }
 
+/// Rust-owned slider hit-test result — see `hittest::SliderHit`'s own doc
+/// comment for what `action`/`value` mean and when a caller should commit
+/// them (this crate has no opinion on that timing).
+pub struct PhpNitroSliderHit {
+    key: CString,
+    action: CString,
+    value: f32,
+}
+
+/// Finds the first `sliderRegions[]` entry a tap at `(tap_x, tap_y)` lands
+/// on, returning its `key`/`action` plus the value that exact tap
+/// position computes to (see `hittest::slider_hit_test`'s own doc
+/// comment) — NOT the region's server-authored resting value. Returns
+/// null both on a genuine "nothing hit" and on a decode failure — call
+/// `phpnitro_render_last_error()` to tell them apart if that distinction
+/// matters.
+///
+/// # Safety
+/// `envelope_json` and `interaction_state_json` must each be null or
+/// point to a NUL-terminated UTF-8 string valid for the duration of this
+/// call.
+#[no_mangle]
+pub unsafe extern "C" fn phpnitro_render_slider_hit_test(
+    envelope_json: *const c_char,
+    tap_x: f32,
+    tap_y: f32,
+    interaction_state_json: *const c_char,
+) -> *mut PhpNitroSliderHit {
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(json) = borrow_str(envelope_json) else {
+            set_last_error("phpnitro_render_slider_hit_test: envelope_json is null or not valid UTF-8");
+            return None;
+        };
+        let envelope = match protocol::decode_envelope(json) {
+            Ok(envelope) => envelope,
+            Err(error) => {
+                set_last_error(format!("phpnitro_render_slider_hit_test: {error}"));
+                return None;
+            }
+        };
+        let state = interaction_state_from_json(borrow_str(interaction_state_json));
+
+        hittest::slider_hit_test(&envelope, tap_x, tap_y, &state).map(|hit| {
+            Box::into_raw(Box::new(PhpNitroSliderHit {
+                key: CString::new(hit.key).unwrap_or_default(),
+                action: CString::new(hit.action).unwrap_or_default(),
+                value: hit.value,
+            }))
+        })
+    }));
+
+    match outcome {
+        Ok(Some(hit)) => hit,
+        Ok(None) => std::ptr::null_mut(),
+        Err(_) => {
+            set_last_error("phpnitro_render_slider_hit_test: internal panic while hit-testing");
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// # Safety
+/// `hit` must be a live pointer from `phpnitro_render_slider_hit_test`.
+/// The returned pointer is borrowed — valid until
+/// `phpnitro_render_free_slider_hit` is called on the same `hit`.
+#[no_mangle]
+pub unsafe extern "C" fn phpnitro_render_slider_hit_key(hit: *const PhpNitroSliderHit) -> *const c_char {
+    hit.as_ref().map_or(std::ptr::null(), |hit| hit.key.as_ptr())
+}
+
+/// # Safety
+/// Same contract as `phpnitro_render_slider_hit_key`.
+#[no_mangle]
+pub unsafe extern "C" fn phpnitro_render_slider_hit_action(hit: *const PhpNitroSliderHit) -> *const c_char {
+    hit.as_ref().map_or(std::ptr::null(), |hit| hit.action.as_ptr())
+}
+
+/// # Safety
+/// Same contract as `phpnitro_render_slider_hit_key`. Returns 0.0 if
+/// `hit` is null.
+#[no_mangle]
+pub unsafe extern "C" fn phpnitro_render_slider_hit_value(hit: *const PhpNitroSliderHit) -> f32 {
+    hit.as_ref().map_or(0.0, |hit| hit.value)
+}
+
+/// # Safety
+/// `hit` must be a pointer previously returned by
+/// `phpnitro_render_slider_hit_test` and not already freed.
+#[no_mangle]
+pub unsafe extern "C" fn phpnitro_render_free_slider_hit(hit: *mut PhpNitroSliderHit) {
+    if !hit.is_null() {
+        drop(Box::from_raw(hit));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -519,6 +628,40 @@ mod tests {
         unsafe {
             let json = StdCString::new(r##"{"commands":[],"hitRegions":[],"contentHeight":0}"##).unwrap();
             let hit = phpnitro_render_hit_test(json.as_ptr(), 999.0, 999.0, std::ptr::null());
+            assert!(hit.is_null());
+        }
+    }
+
+    #[test]
+    fn slider_hit_test_round_trips_a_real_hit() {
+        unsafe {
+            // The exact sliderRegions[] entry from
+            // screen_widgets_forms.json's real fixture.
+            let json = StdCString::new(
+                r##"{"commands":[],"hitRegions":[],"contentHeight":0,
+                "sliderRegions":[{"key":"volume","x":20,"y":592.5,"width":360,"height":44,
+                "trackHeight":6,"thumbSize":22,"value":0.5,"action":"toggle:volume"}]}"##,
+            )
+            .unwrap();
+            // Track spans x=31..369 (thumbSize/2 inset each side) — tapping
+            // dead center (x=200) should compute value=0.5.
+            let hit = phpnitro_render_slider_hit_test(json.as_ptr(), 200.0, 610.0, std::ptr::null());
+            assert!(!hit.is_null());
+            let key = CStr::from_ptr(phpnitro_render_slider_hit_key(hit)).to_str().unwrap();
+            assert_eq!(key, "volume");
+            let action = CStr::from_ptr(phpnitro_render_slider_hit_action(hit)).to_str().unwrap();
+            assert_eq!(action, "toggle:volume");
+            let value = phpnitro_render_slider_hit_value(hit);
+            assert!((value - 0.5).abs() < 1e-6);
+            phpnitro_render_free_slider_hit(hit);
+        }
+    }
+
+    #[test]
+    fn slider_hit_test_outside_any_region_returns_null() {
+        unsafe {
+            let json = StdCString::new(r##"{"commands":[],"hitRegions":[],"contentHeight":0}"##).unwrap();
+            let hit = phpnitro_render_slider_hit_test(json.as_ptr(), 999.0, 999.0, std::ptr::null());
             assert!(hit.is_null());
         }
     }

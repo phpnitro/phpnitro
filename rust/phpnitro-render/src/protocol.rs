@@ -454,6 +454,35 @@ pub struct LottieRegion {
     pub autoplay: bool,
 }
 
+/// One entry in the envelope's top-level `sliderRegions[]` — confirmed
+/// against the real `screen_widgets_forms.json` golden fixture (`{"key":
+/// "volume", "x":20, "y":592.5, "width":360, "height":44,
+/// "trackHeight":6, "thumbSize":22, "value":0.5,
+/// "action":"toggle:volume"}`), not guessed at. Absolute coordinates
+/// already baked in server-side (same convention every other region type
+/// here uses) — `action` fires only on release/commit (see
+/// `packages/ui/src/Native/Slider.php`'s own docblock: it reuses
+/// Checkbox/Toggle's existing `"toggle:"` action, carrying the final
+/// value as `meta.next` — a caller-owned `fieldValues`-style concern this
+/// crate has no part in), while `value` is this slider's own
+/// server-authored resting value, the same fallback
+/// `SliderCommand.value`/`InteractionState.slider_value` already use.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SliderRegion {
+    pub key: String,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    pub track_height: f64,
+    pub thumb_size: f64,
+    pub value: f64,
+    pub action: String,
+    #[serde(flatten)]
+    pub tags: CommandTags,
+}
+
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SheetRegion {
@@ -510,12 +539,8 @@ pub struct Envelope {
     pub reorder_regions: Vec<ReorderRegion>,
     #[serde(default)]
     pub lottie_regions: Vec<LottieRegion>,
-    /// Exact field shape not yet confirmed against a real fixture (no
-    /// golden fixture exercises `slider` yet in a way that captures this
-    /// array) — kept as raw JSON rather than guessed at, revisit once a
-    /// slider fixture exists.
     #[serde(default)]
-    pub slider_regions: Vec<Value>,
+    pub slider_regions: Vec<SliderRegion>,
     #[serde(default)]
     pub sheet_regions: Vec<SheetRegion>,
     #[serde(default)]
