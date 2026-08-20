@@ -127,6 +127,19 @@ class DecodePayloadTests(unittest.TestCase):
         self.assertEqual(payload.action_at(150, 25), "navigate:settings")
         self.assertIsNone(payload.action_at(500, 500))
 
+    def test_region_at_returns_the_whole_region_not_just_the_action(self):
+        payload = decode_payload({
+            "commands": [],
+            "hitRegions": [{"x": 10, "y": 20, "width": 100, "height": 50, "action": "focus:name"}],
+            "contentHeight": 0,
+        })
+
+        region = payload.region_at(50, 40)
+        self.assertIsNotNone(region)
+        self.assertEqual(region.action, "focus:name")
+        self.assertEqual((region.x, region.y, region.width, region.height), (10, 20, 100, 50))
+        self.assertIsNone(payload.region_at(500, 500))
+
     def test_action_at_prefers_the_last_region_when_overlapping(self):
         payload = decode_payload({
             "commands": [],

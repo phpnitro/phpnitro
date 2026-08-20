@@ -19,13 +19,9 @@ public final class NativeScreenViewController: UIViewController {
 
     /// Mirrors NativeRenderPocActivity.kt's own `fieldValues` — a
     /// TextField's current text, or any other widget's own output slot,
-    /// sent on the next fetch. No widget writes to this yet (no TextField
-    /// overlay exists on iOS — see ios/README.md), so this is currently
-    /// only reachable via setFieldValue(_:forName:) for a future caller
-    /// (a TextField overlay, once one exists) to use — the wire protocol
-    /// is ready ahead of the widget that will drive it, same order icons
-    /// (IconFont.swift) and hit-testing (DrawCommandPayload.action(at:))
-    /// were built in.
+    /// sent on the next fetch. Written on every keystroke by
+    /// `NativeCanvasView`'s own text-input overlay (see `handle(action:
+    /// rect:)`'s `focus:` branch below) via `setFieldValue(_:forName:)`.
     private var fieldValues: [String: String] = [:]
 
     private let errorView = ScreenErrorView()
@@ -45,7 +41,8 @@ public final class NativeScreenViewController: UIViewController {
         view.backgroundColor = .white
 
         canvasView.translatesAutoresizingMaskIntoConstraints = false
-        canvasView.onAction = { [weak self] action in self?.handle(action: action) }
+        canvasView.onAction = { [weak self] action, rect in self?.handle(action: action, rect: rect) }
+        canvasView.onFieldValueChanged = { [weak self] name, value in self?.setFieldValue(value, forName: name) }
         view.addSubview(canvasView)
         NSLayoutConstraint.activate([
             canvasView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
@@ -74,7 +71,23 @@ public final class NativeScreenViewController: UIViewController {
         fieldValues[name] = value
     }
 
-    private func handle(action: String) {
+    private func handle(action: String, rect: CGRect) {
+        // focus: never reaches ScreenNavigation.reduce (no fetch at all,
+        // entirely client-side — same "not funneled through the generic
+        // reducer" treatment clientTab: gets) — matches
+        // NativeRenderPocActivity.kt's own onTap(), which branches on
+        // "focus:" before any of the actions that DO end in a refetch.
+        if action.hasPrefix("focus:") {
+            var rest = action.dropFirst("focus:".count)
+            let multiline = rest.hasPrefix("multiline:")
+            if multiline { rest = rest.dropFirst("multiline:".count) }
+            let secure = rest.hasPrefix("secure:")
+            if secure { rest = rest.dropFirst("secure:".count) }
+            let fieldName = String(rest)
+            canvasView.showTextInput(fieldName: fieldName, initialValue: fieldValues[fieldName] ?? "", rect: rect, multiline: multiline, secure: secure)
+            return
+        }
+
         switch ScreenNavigation.reduce(action: action, stack: screenStack) {
         case .clientTabOnly(let key, let index):
             canvasView.setClientTab(key, index: index)

@@ -308,10 +308,18 @@ public struct DrawCommandPayload: Decodable {
     /// NativeCanvasView.kt's own hit-testing intent (last-drawn wins),
     /// not a literal port of its implementation.
     public func action(at point: CGPoint) -> String? {
+        region(at: point)?.action
+    }
+
+    /// Same matching order/logic as `action(at:)` above, but returns the
+    /// whole matched `HitRegion` — a `focus:` action needs its rect to
+    /// position a text-input overlay (see `NativeScreenViewController.swift`'s
+    /// own `handle(action:rect:)`).
+    public func region(at point: CGPoint) -> HitRegion? {
         for region in hitRegions.reversed() {
             let rect = CGRect(x: region.x, y: region.y, width: region.width, height: region.height)
             if rect.contains(point) {
-                return region.action
+                return region
             }
         }
 

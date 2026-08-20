@@ -12,11 +12,17 @@ public final class MacScreenViewController: NSViewController {
     private var screenStack: [String]
     private let canvasView = MacCanvasView()
 
-    /// Mirrors NativeScreenViewController.swift's own fieldValues — see
-    /// that file's docblock for why this exists ahead of any widget
-    /// that can actually call it (no TextField overlay exists on this
-    /// platform yet either).
+    /// Mirrors NativeScreenViewController.swift's own fieldValues —
+    /// written on every keystroke by MacCanvasView's own text-input
+    /// overlay (see handle(action:rect:)'s focus: branch below).
     private var fieldValues: [String: String] = [:]
+
+    /// The size the CURRENT payload was actually fetched for — see
+    /// MacCanvasView.onResize's own doc comment. Marked BEFORE the
+    /// network result lands (see fetch(action:)), not after, so a second
+    /// onResize firing mid-flight doesn't launch a redundant fetch for
+    /// what's effectively the same resize.
+    private var lastFetchedSize: (width: CGFloat, height: CGFloat)?
 
     private let errorView = MacScreenErrorView()
 
@@ -38,7 +44,9 @@ public final class MacScreenViewController: NSViewController {
         super.viewDidLoad()
 
         canvasView.translatesAutoresizingMaskIntoConstraints = false
-        canvasView.onAction = { [weak self] action in self?.handle(action: action) }
+        canvasView.onAction = { [weak self] action, rect in self?.handle(action: action, rect: rect) }
+        canvasView.onResize = { [weak self] width, height in self?.handleResize(width: width, height: height) }
+        canvasView.onFieldValueChanged = { [weak self] name, value in self?.setFieldValue(value, forName: name) }
         view.addSubview(canvasView)
 
         errorView.translatesAutoresizingMaskIntoConstraints = false
@@ -65,7 +73,23 @@ public final class MacScreenViewController: NSViewController {
         fieldValues[name] = value
     }
 
-    private func handle(action: String) {
+    private func handle(action: String, rect: NSRect) {
+        // focus: never reaches ScreenNavigation.reduce (no fetch at all,
+        // entirely client-side — same "not funneled through the generic
+        // reducer" treatment clientTab: gets) — matches
+        // NativeRenderPocActivity.kt's own onTap(), which branches on
+        // "focus:" before any of the actions that DO end in a refetch.
+        if action.hasPrefix("focus:") {
+            var rest = action.dropFirst("focus:".count)
+            let multiline = rest.hasPrefix("multiline:")
+            if multiline { rest = rest.dropFirst("multiline:".count) }
+            let secure = rest.hasPrefix("secure:")
+            if secure { rest = rest.dropFirst("secure:".count) }
+            let fieldName = String(rest)
+            canvasView.showTextInput(fieldName: fieldName, initialValue: fieldValues[fieldName] ?? "", rect: rect, multiline: multiline, secure: secure)
+            return
+        }
+
         switch ScreenNavigation.reduce(action: action, stack: screenStack) {
         case .clientTabOnly(let key, let index):
             canvasView.setClientTab(key, index: index)
@@ -82,9 +106,20 @@ public final class MacScreenViewController: NSViewController {
         }
     }
 
+    /// `MacCanvasView.onResize` fires for EVERY frame-size change — this
+    /// decides whether it's actually a NEW size worth refetching for.
+    private func handleResize(width: CGFloat, height: CGFloat) {
+        if let last = lastFetchedSize, last.width == width, last.height == height {
+            return
+        }
+        guard width > 0, height > 0 else { return }
+        fetch(action: nil)
+    }
+
     private func fetch(action: String?) {
         let screen = screenStack.last ?? "home"
         let size = view.bounds.size
+        lastFetchedSize = (size.width, size.height)
         client.fetchScreen(screen, action: action, width: size.width, height: size.height, fieldValues: fieldValues) { [weak self] result in
             DispatchQueue.main.async {
                 switch result {

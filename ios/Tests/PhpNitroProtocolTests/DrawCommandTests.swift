@@ -112,6 +112,25 @@ final class DrawCommandTests: XCTestCase {
         XCTAssertNil(payload.action(at: CGPoint(x: 500, y: 500)))
     }
 
+    func testRegionAtPointReturnsTheWholeRegionNotJustTheAction() throws {
+        let json = """
+        {
+            "commands": [],
+            "hitRegions": [{"x":10,"y":20,"width":100,"height":50,"action":"focus:name"}],
+            "contentHeight": 0
+        }
+        """
+        let payload = try JSONDecoder().decode(DrawCommandPayload.self, from: Data(json.utf8))
+
+        let region = try XCTUnwrap(payload.region(at: CGPoint(x: 50, y: 40)))
+        XCTAssertEqual(region.action, "focus:name")
+        XCTAssertEqual(region.x, 10)
+        XCTAssertEqual(region.y, 20)
+        XCTAssertEqual(region.width, 100)
+        XCTAssertEqual(region.height, 50)
+        XCTAssertNil(payload.region(at: CGPoint(x: 500, y: 500)))
+    }
+
     func testActionAtPointPrefersTheLastRegionWhenOverlapping() throws {
         let json = """
         {

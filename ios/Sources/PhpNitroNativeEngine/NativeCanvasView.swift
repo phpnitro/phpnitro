@@ -32,7 +32,25 @@ public final class NativeCanvasView: UIView {
     /// wires this to actually act on the hitRegion's `action` string. No
     /// dispatch logic lives here — same separation `action(at:)` on
     /// DrawCommandPayload already keeps (geometry only, no side effects).
-    public var onAction: ((String) -> Void)?
+    /// `rect` is always the tapped region's own rect — unused for most
+    /// actions, but needed by the caller to position a `showTextInput`
+    /// overlay for a `focus:` action, mirroring
+    /// `NativeRenderPocActivity.kt`'s own `onAction?.invoke(action,
+    /// region.rect, meta)`, which always passes the rect too, not just
+    /// for `focus:` specifically.
+    public var onAction: ((_ action: String, _ rect: CGRect) -> Void)?
+
+    /// `(fieldName, value)` — fires on every keystroke in the active
+    /// text-input overlay (see `showTextInput`'s own doc comment).
+    public var onFieldValueChanged: ((String, String) -> Void)?
+
+    // TextField.php/PasswordField.php's "focus:" commit destination —
+    // one real UITextField/UITextView at a time, mirroring
+    // NativeRenderPocActivity.kt's own single-nullable-field
+    // activeEditText (never a map — a second focus: tap always replaces
+    // the first).
+    private var activeTextInput: UIView?
+    private var activeFieldName: String?
 
     /// Drives drawSpinnerCommand()/drawSkeletonCommand()'s own continuous
     /// redraw on Android (a ValueAnimator started/stopped based on
@@ -86,8 +104,71 @@ public final class NativeCanvasView: UIView {
 
     public func setPayload(_ payload: DrawCommandPayload) {
         self.payload = payload
+        // A new payload just replaced whatever the current overlay (if
+        // any) was positioned/typed against — NativeRenderPocActivity.kt
+        // only tears its own overlay down on navigate:/tab:/back/submit:,
+        // leaving it alone across other same-screen refetches (toggle:,
+        // etc); this port simplifies to "any new payload ends the
+        // current editing session", safer than trying to reposition a
+        // stale overlay against content it was never laid out for.
+        clearTextInput()
         updateAnimationState()
         setNeedsDisplay()
+    }
+
+    /// `focus:[multiline:][secure:]name` — ports
+    /// `NativeRenderPocActivity.kt`'s `showTextInput()`: one real
+    /// `UITextField`/`UITextView` positioned over the static rect+text
+    /// `TextField.php` already painted underneath (which stays in the
+    /// command list, just visually covered while focused), styled by
+    /// hand from `Tokens.php`'s own constants since none of this is sent
+    /// over the wire.
+    public func showTextInput(fieldName: String, initialValue: String, rect: CGRect, multiline: Bool, secure: Bool) {
+        clearTextInput()
+
+        let ink = UIColor(red: 0x11 / 255, green: 0x18 / 255, blue: 0x27 / 255, alpha: 1)
+        let border = UIColor(red: 0xE5 / 255, green: 0xE7 / 255, blue: 0xEB / 255, alpha: 1)
+
+        let textInput: UIView
+        if multiline {
+            let textView = UITextView(frame: rect)
+            textView.text = initialValue
+            textView.font = .systemFont(ofSize: 15)
+            textView.textColor = ink
+            textView.delegate = self
+            textInput = textView
+        } else {
+            let textField = UITextField(frame: rect)
+            textField.text = initialValue
+            textField.isSecureTextEntry = secure
+            textField.font = .systemFont(ofSize: 15)
+            textField.textColor = ink
+            textField.borderStyle = .none
+            textField.addTarget(self, action: #selector(textFieldChanged(_:)), for: .editingChanged)
+            textInput = textField
+        }
+        textInput.backgroundColor = .white
+        textInput.layer.borderColor = border.cgColor
+        textInput.layer.borderWidth = 1
+        textInput.layer.cornerRadius = 14
+
+        addSubview(textInput)
+        textInput.becomeFirstResponder()
+        activeTextInput = textInput
+        activeFieldName = fieldName
+    }
+
+    private func clearTextInput() {
+        guard let activeTextInput else { return }
+        activeTextInput.resignFirstResponder()
+        activeTextInput.removeFromSuperview()
+        self.activeTextInput = nil
+        activeFieldName = nil
+    }
+
+    @objc private func textFieldChanged(_ textField: UITextField) {
+        guard let activeFieldName else { return }
+        onFieldValueChanged?(activeFieldName, textField.text ?? "")
     }
 
     override public func draw(_ rect: CGRect) {
@@ -129,8 +210,9 @@ public final class NativeCanvasView: UIView {
     }
 
     @objc private func handleTap(_ recognizer: UITapGestureRecognizer) {
-        guard let payload, let action = payload.action(at: recognizer.location(in: self)) else { return }
-        onAction?(action)
+        guard let payload, let region = payload.region(at: recognizer.location(in: self)) else { return }
+        let rect = CGRect(x: region.x, y: region.y, width: region.width, height: region.height)
+        onAction?(region.action, rect)
     }
 
     // MARK: - Animation loop (spinner/skeleton only)
@@ -538,5 +620,18 @@ extension UIColor {
             blue: CGFloat(b) / 255,
             alpha: CGFloat(a) / 255
         )
+    }
+}
+
+extension NativeCanvasView: UITextViewDelegate {
+    /// Every keystroke, not just on blur/submit — mirrors
+    /// `NativeRenderPocActivity.kt`'s `TextWatcher.afterTextChanged()`
+    /// exactly; every platform here already sends field values on EVERY
+    /// fetch regardless of what triggered it (unlike Android's own
+    /// selective `includeFields` flag), so there's no separate "commit"
+    /// step to wire beyond keeping the caller's dictionary current.
+    public func textViewDidChange(_ textView: UITextView) {
+        guard let activeFieldName else { return }
+        onFieldValueChanged?(activeFieldName, textView.text ?? "")
     }
 }

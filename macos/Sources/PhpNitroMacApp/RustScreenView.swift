@@ -19,11 +19,25 @@ public final class RustScreenView: NSView {
     private let renderer: RustRenderer
     private var rawJSON: String?
 
-    /// `(action, metaJSON)` — `metaJSON` is the tapped hit region's own
-    /// meta (or, for a slider commit, a synthesized `{"next":"..."}`),
-    /// fed straight into `ScreenNavigation.reduce(...)`'s own `metaJson`
-    /// parameter by `RustScreenController`.
-    public var onAction: ((String, String?) -> Void)?
+    /// `(action, metaJSON, rect)` — `metaJSON` is the tapped hit region's
+    /// own meta (or, for a slider commit, a synthesized
+    /// `{"next":"..."}`), fed straight into `ScreenNavigation.reduce(...)`'s
+    /// own `metaJson` parameter by `RustScreenController`. `rect` is
+    /// always the tapped region's own rect — unused for most actions, but
+    /// needed by the controller to position a `showTextInput` overlay for
+    /// a `focus:` action, mirroring `NativeRenderPocActivity.kt`'s own
+    /// `onAction?.invoke(action, region.rect, meta)`, which always passes
+    /// the rect too, not just for `focus:` specifically.
+    public var onAction: ((_ action: String, _ metaJSON: String?, _ rect: NSRect) -> Void)?
+
+    /// `(fieldName, value)` — fires on every keystroke in the active
+    /// text-input overlay (see `showTextInput`'s own doc comment).
+    public var onFieldValueChanged: ((String, String) -> Void)?
+
+    /// Fires on every real frame-size change — a live window resize
+    /// included. `RustScreenController` decides whether that's actually
+    /// a NEW size worth refetching for (see its own `handleResize`).
+    public var onResize: ((CGFloat, CGFloat) -> Void)?
 
     // Interaction state this view owns entirely — mirrors
     // NativeCanvasView.kt's own clientTabState/hScrollOffsets/
@@ -60,6 +74,14 @@ public final class RustScreenView: NSView {
         let thumbSize: CGFloat
     }
 
+    // TextField.php/PasswordField.php's "focus:" commit destination —
+    // one real NSTextField/NSSecureTextField at a time, mirroring
+    // NativeRenderPocActivity.kt's own single-nullable-field
+    // activeEditText (never a map — a second focus: tap always replaces
+    // the first, see showTextInput's own doc comment).
+    private var activeTextField: NSTextField?
+    private var activeFieldName: String?
+
     public override var isFlipped: Bool { true }
 
     public init(frame frameRect: NSRect, renderer: RustRenderer) {
@@ -73,7 +95,58 @@ public final class RustScreenView: NSView {
 
     public func setEnvelope(rawJSON: String) {
         self.rawJSON = rawJSON
+        // A new payload just replaced whatever the current overlay (if
+        // any) was positioned/typed against — NativeRenderPocActivity.kt
+        // only tears its own overlay down on navigate:/tab:/back/submit:,
+        // leaving it alone across other same-screen refetches (toggle:,
+        // etc); this port simplifies to "any new payload ends the
+        // current editing session", safer than trying to reposition a
+        // stale overlay against content it was never laid out for.
+        clearTextInput()
         needsDisplay = true
+    }
+
+    /// `focus:[multiline:][secure:]name` — ports
+    /// `NativeRenderPocActivity.kt`'s `showTextInput()`: one real
+    /// `NSTextField`/`NSSecureTextField` positioned over the static
+    /// rect+text `TextField.php` already painted underneath (which stays
+    /// in the command list, just visually covered while focused), styled
+    /// by hand from `Tokens.php`'s own constants since none of this is
+    /// sent over the wire.
+    public func showTextInput(fieldName: String, initialValue: String, rect: NSRect, multiline: Bool, secure: Bool) {
+        clearTextInput()
+
+        let textField: NSTextField = secure ? NSSecureTextField(frame: rect) : NSTextField(frame: rect)
+        textField.stringValue = initialValue
+        textField.isBordered = true
+        textField.bezelStyle = .squareBezel
+        textField.backgroundColor = .white
+        textField.textColor = NSColor(srgbRed: 0x11 / 255, green: 0x18 / 255, blue: 0x27 / 255, alpha: 1)
+        textField.font = .systemFont(ofSize: 15)
+        textField.usesSingleLineMode = !multiline
+        textField.cell?.wraps = multiline
+        textField.cell?.isScrollable = !multiline
+        textField.delegate = self
+
+        addSubview(textField)
+        window?.makeFirstResponder(textField)
+        activeTextField = textField
+        activeFieldName = fieldName
+    }
+
+    private func clearTextInput() {
+        guard let activeTextField else { return }
+        activeTextField.removeFromSuperview()
+        self.activeTextField = nil
+        activeFieldName = nil
+    }
+
+    /// Fires on every real size change to this view's own frame —
+    /// programmatic ones too, not just a live window-border drag, but
+    /// `RustScreenController` only ever acts on a genuinely NEW size.
+    public override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        onResize?(newSize.width, newSize.height)
     }
 
     /// Called by `RustScreenController` in response to a real
@@ -217,7 +290,7 @@ public final class RustScreenView: NSView {
             // dragged value to its integer part (same bug
             // NativeCanvasView.kt's own Locale.US comment warns about).
             let formatted = String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), value)
-            onAction?(slider.action, "{\"next\":\"\(formatted)\"}")
+            onAction?(slider.action, "{\"next\":\"\(formatted)\"}", slider.rect)
             return
         }
 
@@ -237,7 +310,8 @@ public final class RustScreenView: NSView {
         guard let hit = rustHitTest(envelopeJSON: rawJSON, tapX: Float(point.x), tapY: Float(point.y), interactionStateJSON: interactionStateJSON()), !hit.action.isEmpty else {
             return
         }
-        onAction?(hit.action, hit.metaJSON)
+        let hitRect = NSRect(x: CGFloat(hit.left), y: CGFloat(hit.top), width: CGFloat(hit.right - hit.left), height: CGFloat(hit.bottom - hit.top))
+        onAction?(hit.action, hit.metaJSON, hitRect)
     }
 
     /// Inverse of `drawSliderCommand()`'s own `thumbCx` formula (see
@@ -269,5 +343,18 @@ public final class RustScreenView: NSView {
             shouldInterpolate: false,
             intent: .defaultIntent
         )
+    }
+}
+
+extension RustScreenView: NSTextFieldDelegate {
+    /// Every keystroke, not just on blur/submit — mirrors
+    /// `NativeRenderPocActivity.kt`'s `TextWatcher.afterTextChanged()`
+    /// exactly; every platform here already sends `fieldValues` on EVERY
+    /// fetch regardless of what triggered it (unlike Android's own
+    /// selective `includeFields` flag), so there's no separate "commit"
+    /// step to wire beyond keeping the controller's dictionary current.
+    public func controlTextDidChange(_ obj: Notification) {
+        guard let textField = obj.object as? NSTextField, let name = activeFieldName else { return }
+        onFieldValueChanged?(name, textField.stringValue)
     }
 }
