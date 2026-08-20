@@ -78,6 +78,13 @@ public final class NativeScreenViewController: UIViewController {
         switch ScreenNavigation.reduce(action: action, stack: screenStack) {
         case .clientTabOnly(let key, let index):
             canvasView.setClientTab(key, index: index)
+        case .fieldUpdate:
+            // Never produced here — this call site never passes
+            // `metaJson` to `reduce()` (NativeCanvasView.onAction carries
+            // no meta at all), so `toggle:` always falls through to the
+            // `.fetch` case below instead, unchanged from before this
+            // case existed. See ScreenNavigation.swift's own doc comment.
+            break
         case .fetch(let stack, let fetchAction):
             screenStack = stack
             fetch(action: fetchAction)

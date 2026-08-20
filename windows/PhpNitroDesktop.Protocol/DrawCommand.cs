@@ -64,6 +64,14 @@ public sealed record SkeletonCommand(
 
 public sealed record HitRegion(double X, double Y, double Width, double Height, string Action);
 
+// One entry of the envelope's own top-level sliderRegions[] — a slider
+// has no HitRegion of its own (the commit value depends on where within
+// the track you tapped, not a single precomputed action; see
+// rust/phpnitro-render/src/hittest.rs's own doc comment on
+// slider_hit_test). Absolute coordinates already baked in server-side,
+// same convention every other region type here uses.
+public sealed record SliderRegion(string Key, double X, double Y, double Width, double Height, double ThumbSize, string Action);
+
 public sealed record ClientPanelCommand(
     string Key, int Index, bool InitiallyActive, double X, double Y,
     IReadOnlyList<DrawCommand> Commands, IReadOnlyList<HitRegion> HitRegions
@@ -90,7 +98,8 @@ public sealed record UnknownCommand(string Type) : DrawCommand;
 // The envelope Canvas::toJson() wraps every render in. HitRegions is
 // always present (possibly empty), never omitted.
 public sealed record DrawCommandPayload(
-    IReadOnlyList<DrawCommand> Commands, IReadOnlyList<HitRegion> HitRegions, double ContentHeight
+    IReadOnlyList<DrawCommand> Commands, IReadOnlyList<HitRegion> HitRegions, double ContentHeight,
+    IReadOnlyList<SliderRegion> SliderRegions
 )
 {
     // Which hitRegion (if any) a click at (x, y) should fire — checked
@@ -250,10 +259,21 @@ public static class DrawCommandParser
         Action: element.GetProperty("action").GetString()!
     );
 
+    public static SliderRegion ParseSliderRegion(JsonElement element) => new(
+        Key: element.GetProperty("key").GetString()!,
+        X: element.GetProperty("x").GetDouble(),
+        Y: element.GetProperty("y").GetDouble(),
+        Width: element.GetProperty("width").GetDouble(),
+        Height: element.GetProperty("height").GetDouble(),
+        ThumbSize: element.GetProperty("thumbSize").GetDouble(),
+        Action: element.GetProperty("action").GetString()!
+    );
+
     public static DrawCommandPayload ParsePayload(JsonElement element) => new(
         Commands: ParseCommandList(element.GetProperty("commands")),
         HitRegions: ParseHitRegionList(element.GetProperty("hitRegions")),
-        ContentHeight: element.GetProperty("contentHeight").GetDouble()
+        ContentHeight: element.GetProperty("contentHeight").GetDouble(),
+        SliderRegions: element.TryGetProperty("sliderRegions", out var sliderRegionsElement) ? ParseSliderRegionList(sliderRegionsElement) : new List<SliderRegion>()
     );
 
     public static DrawCommandPayload ParsePayload(string json)
@@ -278,6 +298,16 @@ public static class DrawCommandParser
         foreach (var item in arrayElement.EnumerateArray())
         {
             list.Add(ParseHitRegion(item));
+        }
+        return list;
+    }
+
+    private static List<SliderRegion> ParseSliderRegionList(JsonElement arrayElement)
+    {
+        var list = new List<SliderRegion>();
+        foreach (var item in arrayElement.EnumerateArray())
+        {
+            list.Add(ParseSliderRegion(item));
         }
         return list;
     }

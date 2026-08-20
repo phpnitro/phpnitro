@@ -73,4 +73,45 @@ public class ScreenNavigationTests
         Assert.Equal(new[] { "home" }, fetch.Stack);
         Assert.Equal("counter:increment", fetch.Action);
     }
+
+    [Fact]
+    public void ToggleWithMetaExtractsTheNextValueAsALocalFieldUpdate()
+    {
+        var result = ScreenNavigation.Reduce("toggle:agree", new[] { "home" }, """{"next":"1"}""");
+
+        var fieldUpdate = Assert.IsType<FieldUpdate>(result);
+        Assert.Equal("agree", fieldUpdate.Key);
+        Assert.Equal("1", fieldUpdate.Value);
+    }
+
+    [Fact]
+    public void ToggleWithAnEmptyNextIsStillAFieldUpdate()
+    {
+        // An unchecked Checkbox's own "next" is the empty string, not
+        // absent — Checkbox.php's own docblock: 'next' => $checked ? ''
+        // : '1'.
+        var result = ScreenNavigation.Reduce("toggle:agree", new[] { "home" }, """{"next":""}""");
+
+        var fieldUpdate = Assert.IsType<FieldUpdate>(result);
+        Assert.Equal("agree", fieldUpdate.Key);
+        Assert.Equal("", fieldUpdate.Value);
+    }
+
+    [Fact]
+    public void ToggleWithNoMetaFallsBackToAPlainFetch()
+    {
+        var result = ScreenNavigation.Reduce("toggle:agree", new[] { "home" });
+
+        var fetch = Assert.IsType<Fetch>(result);
+        Assert.Equal("toggle:agree", fetch.Action);
+    }
+
+    [Fact]
+    public void ToggleWithMalformedMetaFallsBackToAPlainFetch()
+    {
+        var result = ScreenNavigation.Reduce("toggle:agree", new[] { "home" }, "not json");
+
+        var fetch = Assert.IsType<Fetch>(result);
+        Assert.Equal("toggle:agree", fetch.Action);
+    }
 }

@@ -43,4 +43,31 @@ final class ScreenNavigationTests: XCTestCase {
 
         XCTAssertEqual(result, .fetch(stack: ["home"], action: "counter:increment"))
     }
+
+    func testToggleWithMetaExtractsTheNextValueAsALocalFieldUpdate() {
+        let result = ScreenNavigation.reduce(action: "toggle:agree", stack: ["home"], metaJson: #"{"next":"1"}"#)
+
+        XCTAssertEqual(result, .fieldUpdate(key: "agree", value: "1"))
+    }
+
+    func testToggleWithAnEmptyNextIsStillAFieldUpdate() {
+        // An unchecked Checkbox's own "next" is the empty string, not
+        // absent — Checkbox.php's own docblock: `'next' => $checked ? ''
+        // : '1'`.
+        let result = ScreenNavigation.reduce(action: "toggle:agree", stack: ["home"], metaJson: #"{"next":""}"#)
+
+        XCTAssertEqual(result, .fieldUpdate(key: "agree", value: ""))
+    }
+
+    func testToggleWithNoMetaFallsBackToAPlainFetch() {
+        let result = ScreenNavigation.reduce(action: "toggle:agree", stack: ["home"])
+
+        XCTAssertEqual(result, .fetch(stack: ["home"], action: "toggle:agree"))
+    }
+
+    func testToggleWithMalformedMetaFallsBackToAPlainFetch() {
+        let result = ScreenNavigation.reduce(action: "toggle:agree", stack: ["home"], metaJson: "not json")
+
+        XCTAssertEqual(result, .fetch(stack: ["home"], action: "toggle:agree"))
+    }
 }

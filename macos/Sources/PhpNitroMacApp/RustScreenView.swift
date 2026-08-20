@@ -1,4 +1,6 @@
 import AppKit
+import Foundation
+import PhpNitroProtocol
 import RustMacRenderer
 
 /// The Rust-driven counterpart of `PhpNitroMacEngine`'s own `MacCanvasView`
@@ -6,7 +8,9 @@ import RustMacRenderer
 /// than adding a Rust toggle to `MacCanvasView` itself: this view works
 /// directly off the raw envelope JSON string (both `RustRenderer.renderFrame`
 /// and `rustHitTest` take that JSON directly, not a decoded Swift model),
-/// so it never needs `PhpNitroProtocol`'s `DrawCommandPayload` at all. This
+/// so it never needs `PhpNitroProtocol`'s `DrawCommandPayload` for
+/// RENDERING — it's only decoded here (read-only, never re-serialized)
+/// to find slider/scroll region geometry for gesture hit-testing. This
 /// keeps every already-working file in `PhpNitroMacEngine` completely
 /// untouched — zero regression risk to the existing, proven Core Graphics
 /// path — while still proving `RustMacRenderer` genuinely drives real,
@@ -15,15 +19,46 @@ public final class RustScreenView: NSView {
     private let renderer: RustRenderer
     private var rawJSON: String?
 
-    public var onAction: ((String) -> Void)?
+    /// `(action, metaJSON)` — `metaJSON` is the tapped hit region's own
+    /// meta (or, for a slider commit, a synthesized `{"next":"..."}`),
+    /// fed straight into `ScreenNavigation.reduce(...)`'s own `metaJson`
+    /// parameter by `RustScreenController`.
+    public var onAction: ((String, String?) -> Void)?
 
-    /// Caller-owned live interaction state (which `clientPanel` tab is
-    /// active, today — see `RustScreenController`'s own `activePanel`),
-    /// same JSON shape `rust/phpnitro-render/src/hittest.rs`'s
-    /// `InteractionState` decodes. `nil` renders/hit-tests every affected
-    /// command at its server-authored resting state, unchanged from this
-    /// property's absence before it existed.
-    public var interactionStateJSON: String?
+    // Interaction state this view owns entirely — mirrors
+    // NativeCanvasView.kt's own clientTabState/hScrollOffsets/
+    // vScrollOffsets/sliderValues. Only ever touched from outside via
+    // setClientTab(_:index:) below (called from RustScreenController's
+    // own .clientTabOnly handling) — same division of responsibility
+    // Android has between NativeCanvasView and NativeRenderPocActivity.
+    private var activePanel: [String: Int] = [:]
+    private var axisOffset: [String: Float] = [:]
+    private var sliderValue: [String: Float] = [:]
+
+    // Drag-gesture bookkeeping — mirrors NativeCanvasView.kt's own
+    // touchDownX/Y, lastTouchX/Y, pendingHScroll/VScroll, activeHScroll/
+    // VScroll, touchSlop, simplified to just the two gesture types this
+    // port implements (no dismiss/reorder/sheet-drag/pull-to-refresh).
+    private static let touchSlop: CGFloat = 4.0
+    private var mouseDownPoint: NSPoint = .zero
+    private var lastDragPoint: NSPoint = .zero
+    private var pendingScroll: ScrollTarget?
+    private var activeScroll: ScrollTarget?
+    private var activeSlider: SliderDrag?
+
+    private struct ScrollTarget {
+        let key: String
+        let isHorizontal: Bool
+        let rect: NSRect
+        let contentExtent: CGFloat
+    }
+
+    private struct SliderDrag {
+        let key: String
+        let action: String
+        let rect: NSRect
+        let thumbSize: CGFloat
+    }
 
     public override var isFlipped: Bool { true }
 
@@ -41,13 +76,33 @@ public final class RustScreenView: NSView {
         needsDisplay = true
     }
 
+    /// Called by `RustScreenController` in response to a real
+    /// `clientTab:key:index` action — the one piece of interaction state
+    /// this view doesn't discover through its own mouse events.
+    public func setClientTab(_ key: String, index: Int) {
+        activePanel[key] = index
+        needsDisplay = true
+    }
+
+    /// `{"activePanel":{...},"axisOffset":{...},"sliderValue":{...}}` —
+    /// the same shape `rust/phpnitro-render/src/hittest.rs`'s
+    /// `InteractionState` decodes. Built via `JSONSerialization` rather
+    /// than a `Codable` wrapper type — a passthrough dictionary doesn't
+    /// need one.
+    private func interactionStateJSON() -> String? {
+        guard let data = try? JSONSerialization.data(withJSONObject: [
+            "activePanel": activePanel, "axisOffset": axisOffset, "sliderValue": sliderValue,
+        ]) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
     public override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         context.setFillColor(NSColor.white.cgColor)
         context.fill(bounds)
 
         guard let rawJSON else { return }
-        guard let frame = renderer.renderFrame(envelopeJSON: rawJSON, widthPx: UInt32(bounds.width), heightPx: UInt32(bounds.height), interactionStateJSON: interactionStateJSON) else {
+        guard let frame = renderer.renderFrame(envelopeJSON: rawJSON, widthPx: UInt32(bounds.width), heightPx: UInt32(bounds.height), interactionStateJSON: interactionStateJSON()) else {
             return
         }
         guard let image = Self.cgImage(from: frame) else { return }
@@ -55,12 +110,143 @@ public final class RustScreenView: NSView {
     }
 
     public override func mouseDown(with event: NSEvent) {
+        pendingScroll = nil
+        activeScroll = nil
+        activeSlider = nil
+
         guard let rawJSON else { return }
         let point = convert(event.locationInWindow, from: nil)
-        guard let hit = rustHitTest(envelopeJSON: rawJSON, tapX: Float(point.x), tapY: Float(point.y), interactionStateJSON: interactionStateJSON), !hit.action.isEmpty else {
+        mouseDownPoint = point
+        lastDragPoint = point
+
+        // Read-only geometry lookup against the freshly-decoded command
+        // tree — never re-serialized back to Rust, just used to find
+        // which slider/scroll region this point falls within, exactly
+        // like NativeCanvasView.kt's own hitTestSlider()/hitTestHScroll()/
+        // hitTestVScroll() do against its own locally-parsed regions.
+        guard let payload = try? JSONDecoder().decode(DrawCommandPayload.self, from: Data(rawJSON.utf8)) else { return }
+
+        // Slider commits immediately on down, not after a decisive-move
+        // threshold like hScroll/vScroll — a slider's whole touch box IS
+        // the gesture, there's no "was this actually meant as a page
+        // scroll" ambiguity to resolve (see NativeCanvasView.kt's own
+        // comment on this exact point).
+        for region in payload.sliderRegions {
+            let rect = NSRect(x: CGFloat(region.x), y: CGFloat(region.y), width: CGFloat(region.width), height: CGFloat(region.height))
+            if rect.contains(point) {
+                activeSlider = SliderDrag(key: region.key, action: region.action, rect: rect, thumbSize: CGFloat(region.thumbSize))
+                sliderValue[region.key] = Self.sliderValueForTouch(rect: rect, thumbSize: CGFloat(region.thumbSize), touchX: point.x)
+                needsDisplay = true
+                return
+            }
+        }
+
+        // Only TOP-LEVEL hScroll/vScroll commands are considered — same
+        // limitation NativeCanvasView.kt's own region-parsing has (a flat
+        // scan over `commands`, no recursion into a nested clientPanel),
+        // not a gap introduced here.
+        for command in payload.commands {
+            switch command {
+            case .hScroll(let hScroll):
+                let rect = NSRect(x: CGFloat(hScroll.x), y: CGFloat(hScroll.y), width: CGFloat(hScroll.width), height: CGFloat(hScroll.height))
+                if rect.contains(point) {
+                    pendingScroll = ScrollTarget(key: hScroll.key, isHorizontal: true, rect: rect, contentExtent: CGFloat(hScroll.contentWidth))
+                    return
+                }
+            case .vScroll(let vScroll):
+                let rect = NSRect(x: CGFloat(vScroll.x), y: CGFloat(vScroll.y), width: CGFloat(vScroll.width), height: CGFloat(vScroll.height))
+                if rect.contains(point) {
+                    pendingScroll = ScrollTarget(key: vScroll.key, isHorizontal: false, rect: rect, contentExtent: CGFloat(vScroll.contentHeight))
+                    return
+                }
+            default:
+                continue
+            }
+        }
+    }
+
+    public override func mouseDragged(with event: NSEvent) {
+        guard rawJSON != nil else { return }
+        let point = convert(event.locationInWindow, from: nil)
+
+        if let slider = activeSlider {
+            sliderValue[slider.key] = Self.sliderValueForTouch(rect: slider.rect, thumbSize: slider.thumbSize, touchX: point.x)
+            needsDisplay = true
             return
         }
-        onAction?(hit.action)
+
+        let totalDeltaX = point.x - mouseDownPoint.x
+        let totalDeltaY = point.y - mouseDownPoint.y
+
+        if let pending = pendingScroll, activeScroll == nil {
+            if pending.isHorizontal && abs(totalDeltaX) > Self.touchSlop && abs(totalDeltaX) > abs(totalDeltaY) {
+                activeScroll = pending
+                pendingScroll = nil
+            } else if !pending.isHorizontal && abs(totalDeltaY) > Self.touchSlop {
+                activeScroll = pending
+                pendingScroll = nil
+            } else if pending.isHorizontal && abs(totalDeltaY) > Self.touchSlop && abs(totalDeltaY) > abs(totalDeltaX) {
+                // Decisive move was vertical over a pending HORIZONTAL
+                // target — this was never an hScroll gesture.
+                pendingScroll = nil
+            }
+        }
+
+        if let scroll = activeScroll {
+            let viewportExtent = scroll.isHorizontal ? scroll.rect.width : scroll.rect.height
+            let maxOffset = max(scroll.contentExtent - viewportExtent, 0)
+            let current = axisOffset[scroll.key] ?? 0
+            let delta = scroll.isHorizontal ? Float(lastDragPoint.x - point.x) : Float(lastDragPoint.y - point.y)
+            axisOffset[scroll.key] = min(max(current + delta, 0), Float(maxOffset))
+            lastDragPoint = point
+            needsDisplay = true
+        }
+    }
+
+    public override func mouseUp(with event: NSEvent) {
+        guard let rawJSON else { return }
+        let point = convert(event.locationInWindow, from: nil)
+
+        if let slider = activeSlider {
+            activeSlider = nil
+            let value = sliderValue[slider.key] ?? 0
+            // en_US_POSIX, not the current locale — a French/Belgian/
+            // etc. locale's decimal COMMA sent as a literal query-string
+            // value would have PHP's (float) cast stop parsing at the
+            // first non-digit character, silently truncating every
+            // dragged value to its integer part (same bug
+            // NativeCanvasView.kt's own Locale.US comment warns about).
+            let formatted = String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), value)
+            onAction?(slider.action, "{\"next\":\"\(formatted)\"}")
+            return
+        }
+
+        if activeScroll != nil {
+            // A real scroll drag happened this gesture — no tap fires,
+            // matching NativeCanvasView.kt's own ACTION_UP handling
+            // (activeHScroll/activeVScroll just get cleared, nothing else).
+            activeScroll = nil
+            pendingScroll = nil
+            return
+        }
+        pendingScroll = nil
+
+        // Never became a drag — a plain tap, hit-tested at the RELEASE
+        // position (mirrors NativeCanvasView.kt's own handleTap(event),
+        // called with the ACTION_UP event's coordinates).
+        guard let hit = rustHitTest(envelopeJSON: rawJSON, tapX: Float(point.x), tapY: Float(point.y), interactionStateJSON: interactionStateJSON()), !hit.action.isEmpty else {
+            return
+        }
+        onAction?(hit.action, hit.metaJSON)
+    }
+
+    /// Inverse of `drawSliderCommand()`'s own `thumbCx` formula (see
+    /// `rust/phpnitro-render/src/raster.rs`'s `draw_slider`) — mirrors
+    /// `NativeCanvasView.kt`'s own `sliderValueForTouch()` exactly.
+    private static func sliderValueForTouch(rect: NSRect, thumbSize: CGFloat, touchX: CGFloat) -> Float {
+        let trackWidth = max(rect.width - thumbSize, 1)
+        let value = (touchX - rect.minX - thumbSize / 2) / trackWidth
+        return Float(min(max(value, 0), 1))
     }
 
     /// tiny-skia's `RenderedFrame.data` is RGBA8, premultiplied alpha —

@@ -256,6 +256,22 @@ public struct HitRegion: Decodable {
     public let action: String
 }
 
+/// One entry of the envelope's own top-level `sliderRegions[]` — a
+/// slider has no `HitRegion` of its own (the commit value depends on
+/// where within the track you tapped, not a single precomputed action;
+/// see `rust/phpnitro-render/src/hittest.rs`'s own doc comment on
+/// `slider_hit_test`). Absolute coordinates already baked in
+/// server-side, same convention every other region type here uses.
+public struct SliderRegion: Decodable {
+    public let key: String
+    public let x: Double
+    public let y: Double
+    public let width: Double
+    public let height: Double
+    public let thumbSize: Double
+    public let action: String
+}
+
 /// The envelope Canvas::toJson() wraps every render in. `hitRegions` is
 /// always present (possibly empty), never omitted — Canvas::toJson()'s
 /// own array_filter() only strips null values, and an empty array isn't
@@ -266,6 +282,23 @@ public struct DrawCommandPayload: Decodable {
     public let commands: [DrawCommand]
     public let hitRegions: [HitRegion]
     public let contentHeight: Double
+    /// Unlike `hitRegions`, genuinely absent on most screens (only ones
+    /// using a `Slider` widget emit this array at all) — decoded via a
+    /// custom `init(from:)` below rather than auto-synthesis specifically
+    /// so a missing key defaults to `[]`, not a decode failure.
+    public let sliderRegions: [SliderRegion]
+
+    private enum CodingKeys: String, CodingKey {
+        case commands, hitRegions, contentHeight, sliderRegions
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        commands = try container.decode([DrawCommand].self, forKey: .commands)
+        hitRegions = try container.decode([HitRegion].self, forKey: .hitRegions)
+        contentHeight = try container.decode(Double.self, forKey: .contentHeight)
+        sliderRegions = try container.decodeIfPresent([SliderRegion].self, forKey: .sliderRegions) ?? []
+    }
 
     /// Which hitRegion (if any) a tap at $point should fire — checked in
     /// REVERSE declaration order, since a later region in the array was
