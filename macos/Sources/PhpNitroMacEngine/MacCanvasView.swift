@@ -1,5 +1,7 @@
 import AppKit
 import AVFoundation
+import CoreLocation
+import MapKit
 import PhpNitroProtocol
 
 /// The macOS counterpart of NativeCanvasView.swift (iOS) — replays a
@@ -54,6 +56,13 @@ public final class MacCanvasView: NSView {
     private var activeVideoPlayer: AVPlayer?
     private var activeVideoContainer: NSView?
 
+    // MapView.php's "map:open:<lat>:<lon>:<zoom>" commit destination —
+    // one real MKMapView at a time, mirroring
+    // NativeRenderPocActivity.kt's own single-nullable-field
+    // activeMapView. No API key needed (MapKit, like osmdroid), pan/zoom
+    // built in once added.
+    private var activeMapView: MKMapView?
+
     /// `key -> selected panel index`, seeded once from whichever panel
     /// has `initiallyActive == true` — mirrors NativeCanvasView.swift's
     /// own clientTabState exactly.
@@ -96,6 +105,7 @@ public final class MacCanvasView: NSView {
         // stale overlay against content it was never laid out for.
         clearTextInput()
         clearVideoOverlay()
+        clearMapOverlay()
         updateAnimationState()
         needsDisplay = true
     }
@@ -162,6 +172,36 @@ public final class MacCanvasView: NSView {
         activeVideoContainer?.removeFromSuperview()
         activeVideoPlayer = nil
         activeVideoContainer = nil
+    }
+
+    /// `map:open:<lat>:<lon>:<zoom>` (MapView.php) — ports
+    /// `NativeRenderPocActivity.kt`'s `showMapOverlay()`: a real,
+    /// pannable/zoomable `MKMapView` centered at (latitude, longitude)
+    /// positioned over the static "open map" box already painted
+    /// underneath. `zoom` follows the same web-mercator convention
+    /// osmdroid/Google Maps/Slippy map tile URLs already use (each level
+    /// halves the visible span) — no exact equivalent property on
+    /// `MKCoordinateSpan`, so this converts it by hand.
+    public func showMapOverlay(latitude: Double, longitude: Double, zoom: Int, rect: NSRect) {
+        clearMapOverlay()
+
+        let mapView = MKMapView(frame: rect)
+        let span = 360.0 / pow(2.0, Double(zoom))
+        mapView.setRegion(
+            MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
+                span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span)
+            ),
+            animated: false
+        )
+
+        addSubview(mapView)
+        activeMapView = mapView
+    }
+
+    private func clearMapOverlay() {
+        activeMapView?.removeFromSuperview()
+        activeMapView = nil
     }
 
     public override func setFrameSize(_ newSize: NSSize) {

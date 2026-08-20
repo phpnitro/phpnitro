@@ -1,6 +1,8 @@
 import AppKit
 import AVFoundation
+import CoreLocation
 import Foundation
+import MapKit
 import PhpNitroProtocol
 import RustMacRenderer
 
@@ -91,6 +93,13 @@ public final class RustScreenView: NSView {
     private var activeVideoPlayer: AVPlayer?
     private var activeVideoContainer: NSView?
 
+    // MapView.php's "map:open:<lat>:<lon>:<zoom>" commit destination —
+    // one real MKMapView at a time, mirroring
+    // NativeRenderPocActivity.kt's own single-nullable-field
+    // activeMapView. No API key needed (MapKit, like osmdroid), pan/zoom
+    // built in once added.
+    private var activeMapView: MKMapView?
+
     public override var isFlipped: Bool { true }
 
     public init(frame frameRect: NSRect, renderer: RustRenderer) {
@@ -113,6 +122,7 @@ public final class RustScreenView: NSView {
         // stale overlay against content it was never laid out for.
         clearTextInput()
         clearVideoOverlay()
+        clearMapOverlay()
         needsDisplay = true
     }
 
@@ -178,6 +188,36 @@ public final class RustScreenView: NSView {
         activeVideoContainer?.removeFromSuperview()
         activeVideoPlayer = nil
         activeVideoContainer = nil
+    }
+
+    /// `map:open:<lat>:<lon>:<zoom>` (MapView.php) — ports
+    /// `NativeRenderPocActivity.kt`'s `showMapOverlay()`: a real,
+    /// pannable/zoomable `MKMapView` centered at (latitude, longitude)
+    /// positioned over the static "open map" box already painted
+    /// underneath. `zoom` follows the same web-mercator convention
+    /// osmdroid/Google Maps/Slippy map tile URLs already use (each level
+    /// halves the visible span) — no exact equivalent property on
+    /// `MKCoordinateSpan`, so this converts it by hand.
+    public func showMapOverlay(latitude: Double, longitude: Double, zoom: Int, rect: NSRect) {
+        clearMapOverlay()
+
+        let mapView = MKMapView(frame: rect)
+        let span = 360.0 / pow(2.0, Double(zoom))
+        mapView.setRegion(
+            MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
+                span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span)
+            ),
+            animated: false
+        )
+
+        addSubview(mapView)
+        activeMapView = mapView
+    }
+
+    private func clearMapOverlay() {
+        activeMapView?.removeFromSuperview()
+        activeMapView = nil
     }
 
     /// Fires on every real size change to this view's own frame —
