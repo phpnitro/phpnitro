@@ -26,12 +26,22 @@ public final class RustScreenController {
     // fieldValues already has.
     private var fieldValues: [String: String] = [:]
 
+    // The size the CURRENT envelope was actually fetched for — a real
+    // window resize means PHP laid out for the wrong size until a fresh
+    // fetch catches up. Marked BEFORE the network result lands (see
+    // fetch(action:)), not after, so RustScreenView.onResize firing again
+    // mid-flight doesn't launch a second redundant fetch for what's
+    // effectively the same resize.
+    private var lastFetchedSize: (width: Double, height: Double)?
+
     public init(host: String, port: Int, initialScreen: String, renderer: RustRenderer, frame: NSRect) {
         self.host = host
         self.port = port
         self.stack = [initialScreen]
         self.view = RustScreenView(frame: frame, renderer: renderer)
-        view.onAction = { [weak self] action, metaJSON in self?.handle(action: action, metaJSON: metaJSON) }
+        view.onAction = { [weak self] action, metaJSON, rect in self?.handle(action: action, metaJSON: metaJSON, rect: rect) }
+        view.onResize = { [weak self] width, height in self?.handleResize(width: Double(width), height: Double(height)) }
+        view.onFieldValueChanged = { [weak self] name, value in self?.fieldValues[name] = value }
     }
 
     public var contentView: NSView { view }
@@ -42,7 +52,23 @@ public final class RustScreenController {
 
     private var currentScreen: String { stack.last ?? "home" }
 
-    private func handle(action: String, metaJSON: String?) {
+    private func handle(action: String, metaJSON: String?, rect: NSRect) {
+        // focus: never reaches ScreenNavigation.reduce (no fetch at all,
+        // entirely client-side — same "not funneled through the generic
+        // reducer" treatment clientTab: gets) — matches
+        // NativeRenderPocActivity.kt's own onTap(), which branches on
+        // "focus:" before any of the actions that DO end in a refetch.
+        if action.hasPrefix("focus:") {
+            var rest = action.dropFirst("focus:".count)
+            let multiline = rest.hasPrefix("multiline:")
+            if multiline { rest = rest.dropFirst("multiline:".count) }
+            let secure = rest.hasPrefix("secure:")
+            if secure { rest = rest.dropFirst("secure:".count) }
+            let fieldName = String(rest)
+            view.showTextInput(fieldName: fieldName, initialValue: fieldValues[fieldName] ?? "", rect: rect, multiline: multiline, secure: secure)
+            return
+        }
+
         switch ScreenNavigation.reduce(action: action, stack: stack, metaJson: metaJSON) {
         case .clientTabOnly(let key, let index):
             // Entirely local, no fetch at all — the view owns this state
@@ -59,7 +85,20 @@ public final class RustScreenController {
         }
     }
 
+    /// `RustScreenView.onResize` fires for EVERY frame-size change —
+    /// this decides whether it's actually a NEW size worth refetching
+    /// for (skips a spurious re-report of the size the view already has
+    /// an envelope for).
+    private func handleResize(width: Double, height: Double) {
+        if let last = lastFetchedSize, last.width == width, last.height == height {
+            return
+        }
+        guard width > 0, height > 0 else { return }
+        fetch(action: nil)
+    }
+
     private func fetch(action: String?) {
+        lastFetchedSize = (Double(view.bounds.width), Double(view.bounds.height))
         var components = URLComponents()
         components.scheme = "http"
         components.host = host

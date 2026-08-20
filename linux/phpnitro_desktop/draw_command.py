@@ -272,9 +272,17 @@ class DrawCommandPayload:
         painted later (visually on top). Mirrors
         DrawCommandPayload.action(at:) on iOS exactly.
         """
+        region = self.region_at(x, y)
+        return region.action if region is not None else None
+
+    def region_at(self, x: float, y: float) -> Optional[HitRegion]:
+        """Same matching order/logic as `action_at` above, but returns the
+        whole matched `HitRegion` — a `focus:` action needs its rect to
+        position a text-input overlay (see `app.py`'s own `show_text_input`).
+        """
         for region in reversed(self.hit_regions):
             if region.x <= x <= region.x + region.width and region.y <= y <= region.y + region.height:
-                return region.action
+                return region
         return None
 
 

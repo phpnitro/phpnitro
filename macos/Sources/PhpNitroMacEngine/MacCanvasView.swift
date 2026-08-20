@@ -22,7 +22,28 @@ import PhpNitroProtocol
 public final class MacCanvasView: NSView {
     private var payload: DrawCommandPayload?
 
-    public var onAction: ((String) -> Void)?
+    /// `(action, rect)` — `rect` is always the tapped region's own rect,
+    /// unused for most actions but needed by the caller to position a
+    /// `showTextInput` overlay for a `focus:` action.
+    public var onAction: ((_ action: String, _ rect: NSRect) -> Void)?
+
+    /// Fires on every real frame-size change — a live window resize
+    /// included (this view is pinned to its container's edges via Auto
+    /// Layout, so a window resize resolves into a real frame-size change
+    /// here, not just a visual stretch). `MacScreenViewController`
+    /// decides whether that's actually a NEW size worth refetching for.
+    public var onResize: ((CGFloat, CGFloat) -> Void)?
+
+    /// `(fieldName, value)` — fires on every keystroke in the active
+    /// text-input overlay (see `showTextInput`'s own doc comment).
+    public var onFieldValueChanged: ((String, String) -> Void)?
+
+    // TextField.php/PasswordField.php's "focus:" commit destination —
+    // one real NSTextField/NSSecureTextField at a time, mirroring
+    // NativeRenderPocActivity.kt's own single-nullable-field
+    // activeEditText (never a map).
+    private var activeTextField: NSTextField?
+    private var activeFieldName: String?
 
     /// `key -> selected panel index`, seeded once from whichever panel
     /// has `initiallyActive == true` — mirrors NativeCanvasView.swift's
@@ -57,8 +78,56 @@ public final class MacCanvasView: NSView {
 
     public func setPayload(_ payload: DrawCommandPayload) {
         self.payload = payload
+        // A new payload just replaced whatever the current overlay (if
+        // any) was positioned/typed against — NativeRenderPocActivity.kt
+        // only tears its own overlay down on navigate:/tab:/back/submit:,
+        // leaving it alone across other same-screen refetches (toggle:,
+        // etc); this port simplifies to "any new payload ends the
+        // current editing session", safer than trying to reposition a
+        // stale overlay against content it was never laid out for.
+        clearTextInput()
         updateAnimationState()
         needsDisplay = true
+    }
+
+    /// `focus:[multiline:][secure:]name` — ports
+    /// `NativeRenderPocActivity.kt`'s `showTextInput()`: one real
+    /// `NSTextField`/`NSSecureTextField` positioned over the static
+    /// rect+text `TextField.php` already painted underneath (which stays
+    /// in the command list, just visually covered while focused), styled
+    /// by hand from `Tokens.php`'s own constants since none of this is
+    /// sent over the wire.
+    public func showTextInput(fieldName: String, initialValue: String, rect: NSRect, multiline: Bool, secure: Bool) {
+        clearTextInput()
+
+        let textField: NSTextField = secure ? NSSecureTextField(frame: rect) : NSTextField(frame: rect)
+        textField.stringValue = initialValue
+        textField.isBordered = true
+        textField.bezelStyle = .squareBezel
+        textField.backgroundColor = .white
+        textField.textColor = NSColor(srgbRed: 0x11 / 255, green: 0x18 / 255, blue: 0x27 / 255, alpha: 1)
+        textField.font = .systemFont(ofSize: 15)
+        textField.usesSingleLineMode = !multiline
+        textField.cell?.wraps = multiline
+        textField.cell?.isScrollable = !multiline
+        textField.delegate = self
+
+        addSubview(textField)
+        window?.makeFirstResponder(textField)
+        activeTextField = textField
+        activeFieldName = fieldName
+    }
+
+    private func clearTextInput() {
+        guard let activeTextField else { return }
+        activeTextField.removeFromSuperview()
+        self.activeTextField = nil
+        activeFieldName = nil
+    }
+
+    public override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        onResize?(newSize.width, newSize.height)
     }
 
     public override func draw(_ dirtyRect: NSRect) {
@@ -101,8 +170,9 @@ public final class MacCanvasView: NSView {
     public override func mouseDown(with event: NSEvent) {
         guard let payload else { return }
         let point = convert(event.locationInWindow, from: nil)
-        if let action = payload.action(at: point) {
-            onAction?(action)
+        if let region = payload.region(at: point) {
+            let rect = NSRect(x: region.x, y: region.y, width: region.width, height: region.height)
+            onAction?(region.action, rect)
         }
     }
 
@@ -481,5 +551,18 @@ extension NSColor {
             blue: CGFloat(b) / 255,
             alpha: CGFloat(a) / 255
         )
+    }
+}
+
+extension MacCanvasView: NSTextFieldDelegate {
+    /// Every keystroke, not just on blur/submit — mirrors
+    /// `NativeRenderPocActivity.kt`'s `TextWatcher.afterTextChanged()`
+    /// exactly; every platform here already sends field values on EVERY
+    /// fetch regardless of what triggered it (unlike Android's own
+    /// selective `includeFields` flag), so there's no separate "commit"
+    /// step to wire beyond keeping the caller's dictionary current.
+    public func controlTextDidChange(_ obj: Notification) {
+        guard let textField = obj.object as? NSTextField, let name = activeFieldName else { return }
+        onFieldValueChanged?(name, textField.stringValue)
     }
 }

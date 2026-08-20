@@ -69,6 +69,22 @@ public sealed class ScreenForm : Form
     private Point _mouseDownPoint;
     private Point _lastDragPoint;
 
+    // The size the CURRENT _rawJson was actually fetched for — a real
+    // window resize (dragging the border) means PHP laid out for the
+    // wrong size until a fresh fetch catches up. Marked BEFORE the async
+    // result lands (see FetchAsync), not after, so ClientSizeChanged
+    // firing again mid-flight (the size settling a few pixels further
+    // while the previous request is still in the air) doesn't launch a
+    // second redundant fetch for what's effectively the same resize.
+    private Size _lastFetchedSize;
+
+    // A real TextField/PasswordField's own commit destination —
+    // Checkbox.php/Slider.php's "toggle:" and TextField.php's "focus:"
+    // both fill _fieldValues, just via different UI (see ShowTextInput's
+    // own doc comment for the exact wire convention this ports from
+    // NativeRenderPocActivity.kt's showTextInput()/TextWatcher).
+    private TextBox? _activeTextBox;
+
     private sealed record ScrollTarget(string Key, bool IsHorizontal, RectangleF Rect, double ContentExtent);
 
     private sealed record SliderDrag(string Key, string Action, RectangleF Rect, double ThumbSize);
@@ -85,6 +101,7 @@ public sealed class ScreenForm : Form
         DoubleBuffered = true;
 
         Load += (_, _) => _ = FetchAsync(action: null);
+        ClientSizeChanged += OnClientSizeChanged;
         MouseDown += OnMouseDown;
         MouseMove += OnMouseMove;
         MouseUp += OnMouseUp;
@@ -101,8 +118,18 @@ public sealed class ScreenForm : Form
     private string BuildInteractionStateJson() =>
         JsonSerializer.Serialize(new { activePanel = _activePanel, axisOffset = _axisOffset, sliderValue = _sliderValue });
 
+    private void OnClientSizeChanged(object? sender, EventArgs e)
+    {
+        if (ClientSize == _lastFetchedSize || ClientSize.Width <= 0 || ClientSize.Height <= 0)
+        {
+            return;
+        }
+        _ = FetchAsync(action: null);
+    }
+
     private async System.Threading.Tasks.Task FetchAsync(string? action)
     {
+        _lastFetchedSize = ClientSize;
         var result = await _client.FetchScreenAsync(CurrentScreen, action, ClientSize.Width, ClientSize.Height, _fieldValues)
             .ConfigureAwait(true);
 
@@ -110,12 +137,85 @@ public sealed class ScreenForm : Form
         {
             case FetchSuccess success:
                 _rawJson = success.RawJson;
+                // A new payload just replaced whatever ClearTextInput's
+                // caller last saw — NativeRenderPocActivity.kt only tears
+                // its own overlay down on navigate:/tab:/back/submit:,
+                // leaving it alone across other same-screen refetches
+                // (toggle:, etc); this port simplifies to "any new
+                // payload ends the current editing session", safer than
+                // trying to reposition a stale overlay against content it
+                // was never laid out for.
+                ClearTextInput();
                 Invalidate();
                 break;
             case FetchError error:
                 MessageBox.Show(this, $"{error.Kind}: {error.Message}", "PhpNitro", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 break;
         }
+    }
+
+    /// `focus:[multiline:][secure:]name` — TextField.php/PasswordField.php's
+    /// own hitRegion action convention (see Checkbox.php's docblock for
+    /// the sibling "toggle:" convention this mirrors). Ports
+    /// NativeRenderPocActivity.kt's showTextInput(): one real
+    /// System.Windows.Forms.TextBox at a time, positioned over the
+    /// static rect+text TextField.php already painted underneath (which
+    /// stays in the command list, just visually covered while focused),
+    /// styled by hand from Tokens.php's own constants since none of this
+    /// is sent over the wire (RADIUS_MD=14 has no direct WinForms
+    /// equivalent — BorderStyle.FixedSingle is the closest available
+    /// primitive, not a rounded rect).
+    private void ShowTextInput(string action, RectangleF rect)
+    {
+        var rest = action.Substring("focus:".Length);
+        var multiline = rest.StartsWith("multiline:", StringComparison.Ordinal);
+        if (multiline)
+        {
+            rest = rest.Substring("multiline:".Length);
+        }
+        var secure = rest.StartsWith("secure:", StringComparison.Ordinal);
+        if (secure)
+        {
+            rest = rest.Substring("secure:".Length);
+        }
+        var fieldName = rest;
+
+        ClearTextInput();
+
+        var textBox = new TextBox
+        {
+            Location = new Point((int)rect.X, (int)rect.Y),
+            Size = new Size((int)rect.Width, (int)rect.Height),
+            Text = _fieldValues.TryGetValue(fieldName, out var existing) ? existing : "",
+            Multiline = multiline,
+            UseSystemPasswordChar = secure,
+            BorderStyle = BorderStyle.FixedSingle,
+            Font = new Font(DefaultFont.FontFamily, 15f, GraphicsUnit.Pixel),
+            ForeColor = ColorTranslator.FromHtml("#111827"),
+        };
+        // Every keystroke, not just on blur/submit — mirrors
+        // NativeRenderPocActivity.kt's TextWatcher.afterTextChanged()
+        // exactly; every platform here already sends _fieldValues on
+        // EVERY fetch regardless of what triggered it (unlike Android's
+        // own selective includeFields flag), so there's no separate
+        // "commit" step to wire beyond keeping this dictionary current.
+        textBox.TextChanged += (_, _) => _fieldValues[fieldName] = textBox.Text;
+
+        Controls.Add(textBox);
+        textBox.Select(textBox.Text.Length, 0);
+        textBox.Focus();
+        _activeTextBox = textBox;
+    }
+
+    private void ClearTextInput()
+    {
+        if (_activeTextBox is null)
+        {
+            return;
+        }
+        Controls.Remove(_activeTextBox);
+        _activeTextBox.Dispose();
+        _activeTextBox = null;
     }
 
     private void OnMouseDown(object? sender, MouseEventArgs e)
@@ -277,6 +377,19 @@ public sealed class ScreenForm : Form
         {
             return;
         }
+
+        // focus: never reaches ScreenNavigation.Reduce (no fetch at all,
+        // entirely client-side — same "not funneled through the generic
+        // reducer" treatment clientTab: gets) — matches
+        // NativeRenderPocActivity.kt's own onTap(), which branches on
+        // "focus:" before any of the actions that DO end in a refetch.
+        if (hit.Action.StartsWith("focus:", StringComparison.Ordinal))
+        {
+            var rect = new RectangleF(hit.Left, hit.Top, hit.Right - hit.Left, hit.Bottom - hit.Top);
+            ShowTextInput(hit.Action, rect);
+            return;
+        }
+
         Commit(ScreenNavigation.Reduce(hit.Action, _stack, hit.MetaJson));
     }
 
