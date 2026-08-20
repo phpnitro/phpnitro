@@ -211,3 +211,26 @@ fn screen_widgets_forms_decodes_every_command_type_it_claims_to_cover() {
         "unrecognized command types in screen_widgets_forms.json: {unknown_types:?}"
     );
 }
+
+#[test]
+fn screen_widgets_forms_slider_region_decodes_and_hit_tests_for_real() {
+    // The real sliderRegions[] entry this fixture ships — decoded as a
+    // typed SliderRegion (not raw JSON, see protocol.rs's own history)
+    // and actually hit-tested, not just decoded.
+    use phpnitro_render::hittest::{slider_hit_test, InteractionState};
+
+    let json = fixture("screen_widgets_forms.json");
+    let envelope = decode_envelope(&json).unwrap();
+    assert_eq!(envelope.slider_regions.len(), 1);
+    let region = &envelope.slider_regions[0];
+    assert_eq!(region.key, "volume");
+    assert_eq!(region.action, "toggle:volume");
+
+    // Dead center of the track: x=20+11=31 .. x=20+360-11=369, midpoint 200.
+    let center_x = (region.x + region.thumb_size / 2.0 + (region.x + region.width - region.thumb_size / 2.0)) / 2.0;
+    let center_y = region.y + region.height / 2.0;
+    let hit = slider_hit_test(&envelope, center_x as f32, center_y as f32, &InteractionState::default()).unwrap();
+    assert_eq!(hit.key, "volume");
+    assert_eq!(hit.action, "toggle:volume");
+    assert!((hit.value - 0.5).abs() < 1e-3, "tapping the track's own midpoint should compute ~0.5, got {}", hit.value);
+}

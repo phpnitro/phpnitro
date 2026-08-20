@@ -144,6 +144,22 @@ internal static class NativeMethods
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern void phpnitro_render_free_hit(IntPtr hit);
 
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern IntPtr phpnitro_render_slider_hit_test(
+        byte[] envelopeJsonUtf8, float tapX, float tapY, byte[]? interactionStateJsonUtf8);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern IntPtr phpnitro_render_slider_hit_key(IntPtr hit);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern IntPtr phpnitro_render_slider_hit_action(IntPtr hit);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern float phpnitro_render_slider_hit_value(IntPtr hit);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void phpnitro_render_free_slider_hit(IntPtr hit);
+
     internal static byte[] Utf8WithNul(string value)
     {
         var byteCount = Encoding.UTF8.GetByteCount(value);
@@ -268,6 +284,38 @@ public static class RustHitTester
         finally
         {
             NativeMethods.phpnitro_render_free_hit(hit);
+        }
+    }
+}
+
+public sealed record SliderHitResult(string Key, string Action, float Value);
+
+/// A slider tap isn't expressible through RustHitTester.HitTest's own
+/// hitRegions[] mechanism — the value depends on where within the slider
+/// you tapped, not a single precomputed action (see
+/// rust/phpnitro-render/src/hittest.rs's own doc comment). Module-level
+/// for the same reason RustHitTester is: no loaded fonts needed either.
+public static class RustSliderHitTester
+{
+    public static SliderHitResult? SliderHitTest(string envelopeJson, float tapX, float tapY, string? interactionStateJson = null)
+    {
+        NativeMethods.EnsureResolverRegistered();
+        var stateBytes = interactionStateJson is null ? null : NativeMethods.Utf8WithNul(interactionStateJson);
+        var hit = NativeMethods.phpnitro_render_slider_hit_test(NativeMethods.Utf8WithNul(envelopeJson), tapX, tapY, stateBytes);
+        if (hit == IntPtr.Zero)
+        {
+            return null;
+        }
+        try
+        {
+            var key = Marshal.PtrToStringUTF8(NativeMethods.phpnitro_render_slider_hit_key(hit)) ?? "";
+            var action = Marshal.PtrToStringUTF8(NativeMethods.phpnitro_render_slider_hit_action(hit)) ?? "";
+            var value = NativeMethods.phpnitro_render_slider_hit_value(hit);
+            return new SliderHitResult(key, action, value);
+        }
+        finally
+        {
+            NativeMethods.phpnitro_render_free_slider_hit(hit);
         }
     }
 }
