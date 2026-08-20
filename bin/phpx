@@ -1877,20 +1877,41 @@ function cmdBuildAndroid(string $variant): void
 
     $sdkRoot = resolveOrInstallAndroidSdk();
     $gradleBin = resolveOrInstallGradle();
+    ensureLocalProperties($sdkRoot);
 
     cmdBundleAndroid();
 
     echo "Running gradle :app:assemble" . ucfirst($variant) . "...\n";
     passthruOrFail(sprintf(
-        '%s :app:assemble%s --console=plain --project-dir=%s -Dorg.gradle.project.android.sdk.dir=%s',
+        '%s :app:assemble%s --console=plain --project-dir=%s',
         escapeshellarg($gradleBin),
         ucfirst($variant),
         escapeshellarg(PHPX_ROOT . '/android'),
-        escapeshellarg($sdkRoot),
     ));
 
     $apkPath = "android/app/build/outputs/apk/{$variant}/app-{$variant}.apk";
     echo "Built: {$apkPath}\n";
+}
+
+/**
+ * Android Gradle Plugin only ever reads the SDK location from
+ * ANDROID_HOME/ANDROID_SDK_ROOT (if exported in the environment gradle
+ * itself runs in) or android/local.properties's own "sdk.dir" key —
+ * nothing else. A `-Dorg.gradle.project.android.sdk.dir=...` system
+ * property (what cmdBuildAndroid() used to pass instead) is never read
+ * by AGP; it silently did nothing, masked on any machine that already
+ * had ANDROID_HOME exported or a local.properties left over from a
+ * previous Android Studio open. Only writes the file if it doesn't
+ * already exist — never overwrites a developer's own local.properties,
+ * which can carry other machine-specific settings too.
+ */
+function ensureLocalProperties(string $sdkRoot): void
+{
+    $path = PHPX_ROOT . '/android/local.properties';
+    if (is_file($path)) {
+        return;
+    }
+    file_put_contents($path, "sdk.dir={$sdkRoot}\n");
 }
 
 /**
