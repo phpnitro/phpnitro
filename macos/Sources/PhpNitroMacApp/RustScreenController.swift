@@ -19,22 +19,19 @@ public final class RustScreenController {
     private var stack: [String]
     private let session = URLSession(configuration: .ephemeral)
 
-    // clientPanel.key -> currently active index — a .clientTabOnly action
-    // is "entirely local, no fetch at all" (ScreenNavigation.swift's own
-    // reasoning), so this is the only state that tracks it: updated on
-    // tap, pushed to `view.interactionStateJSON` (same shape
-    // rust/phpnitro-render/src/hittest.rs's InteractionState decodes),
-    // never cleared — a key absent here just falls back to whichever
-    // panel PHP marked initiallyActive, exactly like Android's own
-    // seedClientTabState() never clearing clientTabState either.
-    private var activePanel: [String: Int] = [:]
+    // Checkbox/Toggle/Slider's shared "toggle:" commit destination —
+    // mirrors NativeRenderPocActivity.kt's own fieldValues: sent as extra
+    // query params on every fetch, never cleared, same "server
+    // round-trips it back via the next render" contract every platform's
+    // fieldValues already has.
+    private var fieldValues: [String: String] = [:]
 
     public init(host: String, port: Int, initialScreen: String, renderer: RustRenderer, frame: NSRect) {
         self.host = host
         self.port = port
         self.stack = [initialScreen]
         self.view = RustScreenView(frame: frame, renderer: renderer)
-        view.onAction = { [weak self] action in self?.handle(action: action) }
+        view.onAction = { [weak self] action, metaJSON in self?.handle(action: action, metaJSON: metaJSON) }
     }
 
     public var contentView: NSView { view }
@@ -45,26 +42,21 @@ public final class RustScreenController {
 
     private var currentScreen: String { stack.last ?? "home" }
 
-    private func handle(action: String) {
-        switch ScreenNavigation.reduce(action: action, stack: stack) {
+    private func handle(action: String, metaJSON: String?) {
+        switch ScreenNavigation.reduce(action: action, stack: stack, metaJson: metaJSON) {
         case .clientTabOnly(let key, let index):
-            activePanel[key] = index
-            view.interactionStateJSON = interactionStateJSON()
-            view.needsDisplay = true
+            // Entirely local, no fetch at all — the view owns this state
+            // itself (see RustScreenView.setClientTab(_:index:)'s own
+            // doc comment), same division of responsibility Android has
+            // between NativeCanvasView and NativeRenderPocActivity.
+            view.setClientTab(key, index: index)
+        case .fieldUpdate(let key, let value):
+            fieldValues[key] = value
+            fetch(action: nil)
         case .fetch(let newStack, let fetchAction):
             stack = newStack
             fetch(action: fetchAction)
         }
-    }
-
-    /// `{"activePanel":{"key1":0,...}}` — the same shape
-    /// `rust/phpnitro-render/src/hittest.rs`'s `InteractionState` decodes
-    /// (`#[serde(rename_all = "camelCase")]`). Built via `JSONSerialization`
-    /// rather than a `Codable` wrapper type — a one-field passthrough
-    /// dictionary doesn't need one.
-    private func interactionStateJSON() -> String? {
-        guard let data = try? JSONSerialization.data(withJSONObject: ["activePanel": activePanel]) else { return nil }
-        return String(data: data, encoding: .utf8)
     }
 
     private func fetch(action: String?) {
@@ -80,6 +72,12 @@ public final class RustScreenController {
         ]
         if let action {
             items.append(URLQueryItem(name: "action", value: action))
+        }
+        // Sorted by name — an arbitrary but STABLE order, matching
+        // linux/phpnitro_desktop/screen_client.py's own build_url()
+        // convention, so the same fieldValues always produce the same URL.
+        for name in fieldValues.keys.sorted() {
+            items.append(URLQueryItem(name: name, value: fieldValues[name]))
         }
         components.queryItems = items
         guard let url = components.url else { return }

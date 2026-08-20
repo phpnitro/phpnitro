@@ -172,4 +172,31 @@ public class DrawCommandTests
         Assert.Equal("volume", slider.Key);
         Assert.Equal(0.4, slider.Value);
     }
+
+    // The real sliderRegions[] entry from
+    // packages/ui/tests/Golden/__fixtures__/screen_widgets_forms.json.
+    [Fact]
+    public void DecodesTopLevelSliderRegions()
+    {
+        var json = """
+        {"commands":[],"hitRegions":[],"contentHeight":0,
+         "sliderRegions":[{"key":"volume","x":20,"y":592.5,"width":360,"height":44,
+         "trackHeight":6,"thumbSize":22,"value":0.5,"action":"toggle:volume"}]}
+        """;
+        var payload = DrawCommandParser.ParsePayload(json);
+
+        Assert.Single(payload.SliderRegions);
+        Assert.Equal("volume", payload.SliderRegions[0].Key);
+        Assert.Equal("toggle:volume", payload.SliderRegions[0].Action);
+        Assert.Equal(22, payload.SliderRegions[0].ThumbSize);
+    }
+
+    [Fact]
+    public void DecodesWithNoSliderRegionsAtAll()
+    {
+        var json = """{"commands":[],"hitRegions":[],"contentHeight":0}""";
+        var payload = DrawCommandParser.ParsePayload(json);
+
+        Assert.Empty(payload.SliderRegions);
+    }
 }

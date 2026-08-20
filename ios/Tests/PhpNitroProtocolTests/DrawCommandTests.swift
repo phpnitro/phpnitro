@@ -230,4 +230,29 @@ final class DrawCommandTests: XCTestCase {
         XCTAssertEqual(slider.key, "volume")
         XCTAssertEqual(slider.value, 0.4)
     }
+
+    /// The real sliderRegions[] entry from
+    /// packages/ui/tests/Golden/__fixtures__/screen_widgets_forms.json.
+    func testDecodesTopLevelSliderRegions() throws {
+        let json = """
+        {"commands":[],"hitRegions":[],"contentHeight":0,
+         "sliderRegions":[{"key":"volume","x":20,"y":592.5,"width":360,"height":44,
+         "trackHeight":6,"thumbSize":22,"value":0.5,"action":"toggle:volume"}]}
+        """
+        let payload = try JSONDecoder().decode(DrawCommandPayload.self, from: Data(json.utf8))
+
+        XCTAssertEqual(payload.sliderRegions.count, 1)
+        XCTAssertEqual(payload.sliderRegions[0].key, "volume")
+        XCTAssertEqual(payload.sliderRegions[0].action, "toggle:volume")
+        XCTAssertEqual(payload.sliderRegions[0].thumbSize, 22)
+    }
+
+    func testDecodesWithNoSliderRegionsAtAll() throws {
+        let json = """
+        {"commands":[],"hitRegions":[],"contentHeight":0}
+        """
+        let payload = try JSONDecoder().decode(DrawCommandPayload.self, from: Data(json.utf8))
+
+        XCTAssertTrue(payload.sliderRegions.isEmpty)
+    }
 }
