@@ -88,6 +88,14 @@ public final class NativeScreenViewController: UIViewController {
             return
         }
 
+        // video:play:<url> (VideoPlayer.php) — same "entirely
+        // client-side, no fetch at all" treatment as focus: above.
+        if action.hasPrefix("video:play:") {
+            let url = String(action.dropFirst("video:play:".count))
+            canvasView.showVideoOverlay(url: url, rect: rect)
+            return
+        }
+
         switch ScreenNavigation.reduce(action: action, stack: screenStack) {
         case .clientTabOnly(let key, let index):
             canvasView.setClientTab(key, index: index)

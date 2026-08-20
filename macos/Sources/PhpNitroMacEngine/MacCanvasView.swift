@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import PhpNitroProtocol
 
 /// The macOS counterpart of NativeCanvasView.swift (iOS) — replays a
@@ -45,6 +46,14 @@ public final class MacCanvasView: NSView {
     private var activeTextField: NSTextField?
     private var activeFieldName: String?
 
+    // VideoPlayer.php's "video:play:<url>" commit destination — one real
+    // AVPlayer/AVPlayerLayer at a time, mirroring
+    // NativeRenderPocActivity.kt's own single-nullable-field
+    // activeVideoView. No transport bar (unlike Android's system-
+    // provided MediaController) — autoplay only.
+    private var activeVideoPlayer: AVPlayer?
+    private var activeVideoContainer: NSView?
+
     /// `key -> selected panel index`, seeded once from whichever panel
     /// has `initiallyActive == true` — mirrors NativeCanvasView.swift's
     /// own clientTabState exactly.
@@ -86,6 +95,7 @@ public final class MacCanvasView: NSView {
         // current editing session", safer than trying to reposition a
         // stale overlay against content it was never laid out for.
         clearTextInput()
+        clearVideoOverlay()
         updateAnimationState()
         needsDisplay = true
     }
@@ -123,6 +133,35 @@ public final class MacCanvasView: NSView {
         activeTextField.removeFromSuperview()
         self.activeTextField = nil
         activeFieldName = nil
+    }
+
+    /// `video:play:<url>` (VideoPlayer.php) — ports
+    /// `NativeRenderPocActivity.kt`'s `showVideoOverlay()`: a real
+    /// `AVPlayerLayer` positioned over the static "play" box already
+    /// painted underneath, autoplaying immediately.
+    public func showVideoOverlay(url: String, rect: NSRect) {
+        clearVideoOverlay()
+
+        guard let videoURL = URL(string: url) else { return }
+        let player = AVPlayer(url: videoURL)
+        let playerLayer = AVPlayerLayer(player: player)
+        playerLayer.videoGravity = .resizeAspect
+
+        let container = NSView(frame: rect)
+        container.wantsLayer = true
+        container.layer = playerLayer
+
+        addSubview(container)
+        player.play()
+        activeVideoPlayer = player
+        activeVideoContainer = container
+    }
+
+    private func clearVideoOverlay() {
+        activeVideoPlayer?.pause()
+        activeVideoContainer?.removeFromSuperview()
+        activeVideoPlayer = nil
+        activeVideoContainer = nil
     }
 
     public override func setFrameSize(_ newSize: NSSize) {

@@ -69,6 +69,14 @@ public final class RustScreenController {
             return
         }
 
+        // video:play:<url> (VideoPlayer.php) — same "entirely
+        // client-side, no fetch at all" treatment as focus: above.
+        if action.hasPrefix("video:play:") {
+            let url = String(action.dropFirst("video:play:".count))
+            view.showVideoOverlay(url: url, rect: rect)
+            return
+        }
+
         switch ScreenNavigation.reduce(action: action, stack: stack, metaJson: metaJSON) {
         case .clientTabOnly(let key, let index):
             // Entirely local, no fetch at all — the view owns this state

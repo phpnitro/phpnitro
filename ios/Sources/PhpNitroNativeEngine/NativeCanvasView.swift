@@ -1,3 +1,4 @@
+import AVFoundation
 import PhpNitroProtocol
 import QuartzCore
 import UIKit
@@ -9,13 +10,13 @@ import UIKit
 /// (docs/proposals/moteur-rendu-natif.md), just against UIKit/Core
 /// Graphics instead of android.graphics.Canvas.
 ///
-/// Deliberately NOT a 1:1 port of NativeCanvasView.kt's full feature set
-/// — no touch/hit-region dispatch, no scroll handling, no hero
-/// transitions, no overlay views (VideoPlayer/MapView/Lottie's own "no
-/// Canvas concept for this, overlay a real View" idiom). This proves the
-/// wire protocol renders correctly on iOS at all — everything
-/// interactive on top of that is real, separate follow-up work, not
-/// something to fake here.
+/// Not a 1:1 port of NativeCanvasView.kt's full feature set — no scroll
+/// handling, no hero transitions, no MapView/Lottie overlays. `focus:`
+/// (showTextInput) and `video:play:` (showVideoOverlay) below DO use the
+/// same "no Canvas concept for this, overlay a real View" idiom
+/// NativeRenderPocActivity.kt's own showTextInput()/showVideoOverlay()
+/// use — everything else interactive is real, separate follow-up work,
+/// not something to fake here.
 ///
 /// setPayload(_:) triggers `setNeedsDisplay()`; nothing here fetches
 /// draw commands from a server itself — same separation of concerns
@@ -51,6 +52,15 @@ public final class NativeCanvasView: UIView {
     // the first).
     private var activeTextInput: UIView?
     private var activeFieldName: String?
+
+    // VideoPlayer.php's "video:play:<url>" commit destination — one real
+    // AVPlayer/AVPlayerLayer at a time, mirroring
+    // NativeRenderPocActivity.kt's own single-nullable-field
+    // activeVideoView. No transport bar (unlike Android's system-
+    // provided MediaController) — autoplay only, a real, larger
+    // undertaking of its own, not attempted here.
+    private var activeVideoPlayer: AVPlayer?
+    private var activeVideoContainer: UIView?
 
     /// Drives drawSpinnerCommand()/drawSkeletonCommand()'s own continuous
     /// redraw on Android (a ValueAnimator started/stopped based on
@@ -112,6 +122,7 @@ public final class NativeCanvasView: UIView {
         // current editing session", safer than trying to reposition a
         // stale overlay against content it was never laid out for.
         clearTextInput()
+        clearVideoOverlay()
         updateAnimationState()
         setNeedsDisplay()
     }
@@ -164,6 +175,36 @@ public final class NativeCanvasView: UIView {
         activeTextInput.removeFromSuperview()
         self.activeTextInput = nil
         activeFieldName = nil
+    }
+
+    /// `video:play:<url>` (VideoPlayer.php) — ports
+    /// `NativeRenderPocActivity.kt`'s `showVideoOverlay()`: a real
+    /// `AVPlayerLayer` positioned over the static "play" box already
+    /// painted underneath, autoplaying immediately (mirrors `VideoView`'s
+    /// own `setOnPreparedListener { it.start() }`).
+    public func showVideoOverlay(url: String, rect: CGRect) {
+        clearVideoOverlay()
+
+        guard let videoURL = URL(string: url) else { return }
+        let player = AVPlayer(url: videoURL)
+        let playerLayer = AVPlayerLayer(player: player)
+        playerLayer.videoGravity = .resizeAspect
+
+        let container = UIView(frame: rect)
+        playerLayer.frame = container.bounds
+        container.layer.addSublayer(playerLayer)
+
+        addSubview(container)
+        player.play()
+        activeVideoPlayer = player
+        activeVideoContainer = container
+    }
+
+    private func clearVideoOverlay() {
+        activeVideoPlayer?.pause()
+        activeVideoContainer?.removeFromSuperview()
+        activeVideoPlayer = nil
+        activeVideoContainer = nil
     }
 
     @objc private func textFieldChanged(_ textField: UITextField) {
