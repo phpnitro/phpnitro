@@ -120,6 +120,26 @@ class HitRegion:
 
 
 @dataclass(frozen=True)
+class SliderRegion:
+    """One entry of the envelope's own top-level `sliderRegions[]` — a
+    slider has no `HitRegion` of its own (the commit value depends on
+    where within the track you tapped, not a single precomputed action;
+    see `rust/phpnitro-render/src/hittest.rs`'s own doc comment on
+    `slider_hit_test`). Absolute coordinates already baked in
+    server-side, same convention every other region type here uses.
+    Mirrors `SliderRegion` on iOS/Windows exactly.
+    """
+
+    key: str
+    x: float
+    y: float
+    width: float
+    height: float
+    thumb_size: float
+    action: str
+
+
+@dataclass(frozen=True)
 class ClientPanelCommand:
     key: str
     index: int
@@ -183,6 +203,13 @@ DrawCommand = Union[
 
 def _hit_region(data: dict) -> HitRegion:
     return HitRegion(x=data["x"], y=data["y"], width=data["width"], height=data["height"], action=data["action"])
+
+
+def _slider_region(data: dict) -> SliderRegion:
+    return SliderRegion(
+        key=data["key"], x=data["x"], y=data["y"], width=data["width"], height=data["height"],
+        thumb_size=data["thumbSize"], action=data["action"],
+    )
 
 
 def decode_command(data: dict) -> DrawCommand:
@@ -265,6 +292,11 @@ class DrawCommandPayload:
     commands: tuple[DrawCommand, ...]
     hit_regions: tuple[HitRegion, ...]
     content_height: float
+    # Unlike hit_regions, genuinely absent on most screens (only ones
+    # using a Slider widget emit this array at all) — defaults to ()
+    # rather than requiring every existing decode_payload call site to
+    # pass it. Mirrors DrawCommandPayload.sliderRegions on iOS/Windows.
+    slider_regions: tuple[SliderRegion, ...] = ()
 
     def action_at(self, x: float, y: float) -> Optional[str]:
         """Which hitRegion (if any) a click at (x, y) should fire —
@@ -291,4 +323,5 @@ def decode_payload(data: dict) -> DrawCommandPayload:
         commands=tuple(decode_command(c) for c in data["commands"]),
         hit_regions=tuple(_hit_region(h) for h in data["hitRegions"]),
         content_height=data["contentHeight"],
+        slider_regions=tuple(_slider_region(s) for s in data.get("sliderRegions") or []),
     )

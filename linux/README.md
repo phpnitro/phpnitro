@@ -38,23 +38,23 @@ linux/
                        (ctypes + FcConfigAppFontAddFile — fontconfig n'a pas de
                        binding GObject-Introspection)
     image_loader.py     cache + fetch réseau en thread pour la commande "image"
-    navigation.py       pile d'écrans (navigate:/tab:/back/clientTab:), fonction pure
+    navigation.py       pile d'écrans (navigate:/tab:/back/clientTab:/toggle:), fonction pure
     screen_client.py    fetch HTTP /native/layout-demo, miroir de ScreenClient.swift
     php_process.py      lance/arrête `php -S` en sous-processus
     app.py               assemblage GTK4 (PhpNitroCanvasWidget, ScreenWindow)
     __main__.py           point d'entrée CLI
     fonts/                copies de MaterialIcons-Regular.ttf/FontAwesome-Solid.ttf
-  tests/                 48 tests réels — voir plus bas
+  tests/                 82 tests réels — voir plus bas
 ```
 
 ## Ce qui a été vérifié, et comment
 
 **Aucun serveur d'affichage (X11/Wayland/Broadway) n'était disponible** dans l'environnement où ce port a été écrit — mais contrairement à ce que ça laisse penser, ça n'a bloqué presque rien :
 
-1. **Le décodage JSON** (`draw_command.py`) — 13 tests, zéro dépendance GTK, y compris la même fixture golden-file que `DrawCommandTests.swift` (iOS).
+1. **Le décodage JSON** (`draw_command.py`) — 16 tests, zéro dépendance GTK, y compris la même fixture golden-file que `DrawCommandTests.swift` (iOS).
 2. **Le rendu Cairo réel** (`canvas.py`) — rendu dans une `cairo.ImageSurface` **en mémoire**, qui ne nécessite AUCUN serveur d'affichage (contrairement à une vraie fenêtre GTK). 14 tests avec de **vraies assertions sur des pixels réellement peints** : couleur exacte au centre d'un rect, coin non peint d'un rect arrondi (le radius n'est pas juste ignoré), un glyphe d'icône qui peint vraiment quelque chose (pas une police non enregistrée qui tomberait en silence), position du pouce d'un slider selon la formule exacte, clip d'un `hScroll` qui coupe vraiment le contenu débordant. Un rendu complet de l'écran d'accueil RÉEL du framework (récupéré depuis un vrai serveur PHP) a aussi été exporté en PNG et inspecté visuellement une fois — premier rendu jamais produit de ce framework sur Linux.
 3. **Le client réseau** (`screen_client.py`, `php_process.py`) — testés contre un **vrai `php -S`** lancé sur ce monorepo, pas un mock HTTP. Un vrai bug (un jeton d'accès qui cassait toutes les requêtes) a été détecté et corrigé par ce test avant d'être commité.
-4. **Le widget GTK4 interactif** (`app.py`'s `PhpNitroCanvasWidget`) — découverte faite en testant : `Gtk.DrawingArea` + `Gtk.GestureClick` + `GLib.timeout_add` se construisent et s'exercent **sans aucun serveur d'affichage** (contrairement à `Gtk.ApplicationWindow`, confirmé échouer avec "Gtk couldn't be initialized" dans ce même environnement). 6 tests réels : timer d'animation démarré/arrêté à la demande, clic réel dispatché vers la bonne action.
+4. **Le widget GTK4 interactif** (`app.py`'s `PhpNitroCanvasWidget`) — découverte faite en testant : `Gtk.Overlay`/`Gtk.DrawingArea` + `Gtk.GestureDrag` + `GLib.timeout_add` se construisent et s'exercent **sans aucun serveur d'affichage** (contrairement à `Gtk.ApplicationWindow`, confirmé échouer avec "Gtk couldn't be initialized" dans ce même environnement). 26 tests réels : timer d'animation démarré/arrêté à la demande, tap réel dispatché vers la bonne action, saisie clavier via un vrai `Gtk.Entry`/`Gtk.TextView`, et le drag hScroll/vScroll/slider (seuil de slop, verrouillage d'axe, formule de valeur, clamp) simulé directement via les callbacks `drag-begin`/`drag-update`/`drag-end` de `Gtk.GestureDrag` — GTK ne demande aucun serveur d'affichage pour exercer la logique d'un contrôleur de geste, seulement pour en recevoir de VRAIS événements.
 5. **`ScreenWindow`/`Gtk.Application.run()`** (le reste d'`app.py`) — seule partie non vérifiable dans cet environnement précis, puisqu'elle construit un vrai `Gtk.ApplicationWindow`.
 
 **En CI (`.github/workflows/ci.yml`, job `linux-desktop`)**, `sudo apt-get` fonctionne, donc `xvfb-run` est installé. Découverte réelle, pas anticipée : lancer la suite `unittest` **sans aucun serveur d'affichage** (comme dans l'environnement d'écriture) a fait planter la CI avec un vrai *segmentation fault* pendant le test du timer d'animation — alors que la même suite tournait sans problème, plusieurs fois, dans l'environnement de développement local (lui aussi sans Xvfb, mais avec des versions de paquets GTK4/PyGObject différentes). Cause exacte non isolée davantage ; le correctif appliqué (`xvfb-run -a python3 -m unittest ...`, pas seulement pour le test de fenêtre final) donne à GTK un vrai affichage (virtuel) pour toute la suite — la configuration qu'un vrai desktop Linux a toujours, pas un contournement qui cache le problème.
@@ -84,16 +84,17 @@ monorepo a aussi produit un rendu Rust correct de l'écran d'accueil réel
 
 Ce qui n'est PAS encore fait : basculer le défaut vers Rust, retirer le
 chemin Cairo/Python — décisions distinctes, volontairement non prises
-ici. Le hit-testing Rust ne gère pas encore le décalage de scroll côté
-widget (`PhpNitroCanvasWidget` ne suit lui-même aucun état de scroll
-aujourd'hui, donc rien ne divergeait à câbler) — à revoir si un vrai
-scroll client-side arrive un jour sur ce target.
+ici. Le décalage de scroll côté widget (`axis_offset`, voir point 2 plus
+bas) est désormais transmis au rendu ET au hit-testing Rust via
+`interaction_state_json` — ce n'était pas le cas jusqu'ici puisque
+`PhpNitroCanvasWidget` ne suivait alors aucun état de scroll lui-même,
+rien ne divergeait encore à câbler.
 
 ## Ce qui manque encore, dans l'ordre de priorité
 
 1. **Aucun test manuel/interactif réel au-delà d'une vraie capture d'écran** — un compteur cliqué et incrémenté sur une vraie machine a été confirmé (voir plus haut), pas encore une session d'usage complète.
-2. **`clientPanel`/`hScroll`/`vScroll`/`slider`** se décodent et se dessinent, mais sans interactivité côté client sur CE port — pas de bascule d'onglet au tap, pas de drag de scroll/slider. Windows et macOS (voir leurs propres README) ont désormais cette interactivité complète côté moteur Rust (même `InteractionState` que `rust/phpnitro-render` expose déjà) ; ce port ne l'a pas encore branchée dans `app.py`/`rust_render.py` — un vrai gap resté ouvert, pas un choix.
+2. ~~`hScroll`/`vScroll`/`slider` sans interactivité côté client~~ — corrigé : `PhpNitroCanvasWidget` remplace son `Gtk.GestureClick` par un `Gtk.GestureDrag` (seuil de slop + verrouillage d'axe, formule identique à `ScreenForm.cs`(Windows)/`RustScreenView.swift`(macOS)) — `axis_offset`/`slider_value` vivent sur le widget, comme `client_tab_state` déjà, et sont désormais transmis au moteur Rust via un `interaction_state_json` unifié, pour le rendu ET le hit-test. Corrige au passage un vrai bug pré-existant : le changement d'onglet `clientTab:` ne se répercutait jamais visuellement côté rendu Rust avant ce correctif, cet état n'étant tout simplement jamais transmis à `render_frame` (seul le hit-test le recevait). `sliderRegions[]` (l'enveloppe top-level, distincte du `SliderCommand` du flux `commands` — un slider n'a pas de `HitRegion` propre, sa valeur dépendant d'où le drag tombe dans la piste) est désormais décodée dans `draw_command.py`. `toggle:`/`FieldUpdate` — jusque-là absent de ce port contrairement à Windows/macOS — porté dans `navigation.py` pour que le relâchement d'un slider commette sa valeur exactement comme un `Checkbox`/`Toggle` tapé le fait déjà. Corrigé aussi au passage : tout fetch qui n'était PAS déclenché par un redimensionnement (`navigate:`/`tab:`/`back`/`toggle:`) retombait sur la taille de construction fixe de GTK4 (390×844) au lieu de la dernière taille réellement connue — le même bug que celui déjà corrigé pour le tout premier redimensionnement, juste pas encore pour les fetches suivants.
 3. ~~Aucun overlay pour TextField~~ — corrigé : `focus:[multiline:][secure:]name` crée un vrai `Gtk.Entry`/`Gtk.TextView` positionné par-dessus le rect+text statique déjà peint dessous (`PhpNitroCanvasWidget.show_text_input`, via `Gtk.Overlay` — le widget est désormais un `Gtk.Overlay` enveloppant son propre `Gtk.DrawingArea` interne plutôt que d'en être un directement), chaque frappe met à jour `field_values` immédiatement. VideoPlayer/MapView restent sans overlay.
 4. **Pas de `lastHash`/dark mode/i18n/polling** — même périmètre volontairement restreint que `ScreenClient.swift` sur iOS.
 5. **Packaging** — aucun `.deb`/Flatpak/AppImage, `python3 -m phpnitro_desktop` est le seul point d'entrée pour l'instant.
-6. ~~macOS et Windows — pas commencées~~ — les deux ont depuis leur propre app réelle consommant le moteur Rust partagé (voir `windows/README.md`/`macos/README.md`), avec `--connect`, redimensionnement live, et l'interactivité live (onglets/scroll/slider) que ce port Linux n'a toujours pas branchée (point 2 ci-dessus) — Windows/macOS sont donc désormais en avance sur ce point précis, alors que ce port a été le premier à avoir `--connect`/le redimensionnement live.
+6. ~~macOS et Windows — pas commencées~~ — les deux ont depuis leur propre app réelle consommant le moteur Rust partagé (voir `windows/README.md`/`macos/README.md`), avec `--connect`, redimensionnement live, et (depuis le point 2 ci-dessus) la même interactivité live onglets/scroll/slider/texte — les trois ports Rust (Linux/Windows/macOS) sont désormais à parité sur ce socle précis, alors que ce port Linux a été le premier des trois à avoir `--connect`/le redimensionnement live.
