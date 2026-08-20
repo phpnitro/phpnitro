@@ -178,6 +178,45 @@ pub fn hit_test(envelope: &Envelope, tap_x: f32, tap_y: f32, state: &Interaction
     None
 }
 
+/// A tap landing inside a slider's own touch box — `value` is already the
+/// live position-derived value (the exact inverse of `raster.rs`'s own
+/// `draw_slider`'s `thumb_cx` formula), not the region's server-authored
+/// resting `value`. `action`/`key` are the region's own, unmodified — a
+/// caller commits `action` (with the final value as its own `meta.next`,
+/// e.g. `{"next": "0.819"}`) whenever ITS OWN gesture model decides the
+/// drag/tap is done; this crate has no opinion on when that is.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SliderHit {
+    pub key: String,
+    pub action: String,
+    pub value: f32,
+}
+
+/// Finds the first `sliderRegions[]` entry a tap at `(tap_x, tap_y)` lands
+/// on, mirroring `NativeCanvasView.kt`'s `hitTestSlider()` +
+/// `sliderValueForTouch()` exactly: a plain linear scan (first match
+/// wins, same as every other region type here), `tap_y` always shifted
+/// by `state.scroll_y` — unlike `hit_test()`'s own regions, a slider
+/// region carries no `fixed` tag to check, and (also matching Android)
+/// no `clientPanel`/`hScroll`/`vScroll` offset adjustment is applied
+/// either, since `sliderRegions[]` only ever gets this one whole-page
+/// scroll treatment on the one real-device-verified implementation this
+/// crate treats as the spec.
+pub fn slider_hit_test(envelope: &Envelope, tap_x: f32, tap_y: f32, state: &InteractionState) -> Option<SliderHit> {
+    let touch_y = tap_y + state.scroll_y;
+    for region in &envelope.slider_regions {
+        let (left, top, width, height) = (region.x as f32, region.y as f32, region.width as f32, region.height as f32);
+        if !rect_contains(left, top, width, height, tap_x, touch_y) {
+            continue;
+        }
+        let thumb_size = region.thumb_size as f32;
+        let track_width = (width - thumb_size).max(1.0);
+        let value = ((tap_x - left - thumb_size / 2.0) / track_width).clamp(0.0, 1.0);
+        return Some(SliderHit { key: region.key.clone(), action: region.action.clone(), value });
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -322,5 +361,54 @@ mod tests {
     fn no_match_anywhere_returns_none_not_a_panic() {
         let e = envelope(r#"{"commands":[],"hitRegions":[],"contentHeight":0}"#);
         assert!(hit_test(&e, 999.0, 999.0, &InteractionState::default()).is_none());
+    }
+
+    // The exact sliderRegions[] entry from packages/ui/tests/Golden/
+    // __fixtures__/screen_widgets_forms.json (real PHP output, not
+    // hand-authored): {"key":"volume","x":20,"y":592.5,"width":360,
+    // "height":44,"trackHeight":6,"thumbSize":22,"value":0.5,
+    // "action":"toggle:volume"}. track_width = 360 - 22 = 338.
+    const SLIDER_ENVELOPE: &str = r#"{"commands":[],"hitRegions":[],"contentHeight":0,
+        "sliderRegions":[{"key":"volume","x":20,"y":592.5,"width":360,"height":44,
+        "trackHeight":6,"thumbSize":22,"value":0.5,"action":"toggle:volume"}]}"#;
+
+    #[test]
+    fn slider_hit_test_at_the_tracks_own_start_computes_zero() {
+        let e = envelope(SLIDER_ENVELOPE);
+        let hit = slider_hit_test(&e, 31.0, 610.0, &InteractionState::default()).unwrap();
+        assert_eq!(hit.key, "volume");
+        assert_eq!(hit.action, "toggle:volume");
+        assert!((hit.value - 0.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn slider_hit_test_at_the_tracks_own_end_computes_one() {
+        let e = envelope(SLIDER_ENVELOPE);
+        let hit = slider_hit_test(&e, 369.0, 610.0, &InteractionState::default()).unwrap();
+        assert!((hit.value - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn slider_hit_test_at_the_tracks_own_midpoint_computes_one_half() {
+        let e = envelope(SLIDER_ENVELOPE);
+        let hit = slider_hit_test(&e, 200.0, 610.0, &InteractionState::default()).unwrap();
+        assert!((hit.value - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn slider_hit_test_outside_its_touch_box_returns_none() {
+        let e = envelope(SLIDER_ENVELOPE);
+        assert!(slider_hit_test(&e, 10.0, 610.0, &InteractionState::default()).is_none(), "left of the touch box");
+        assert!(slider_hit_test(&e, 200.0, 700.0, &InteractionState::default()).is_none(), "below the touch box");
+    }
+
+    #[test]
+    fn slider_hit_test_shifts_with_the_whole_page_scroll_offset() {
+        let e = envelope(SLIDER_ENVELOPE);
+        // The region sits at content-y=592.5..636.5; scrolled up 500px,
+        // its screen-space top becomes y=92.5.
+        let state = InteractionState { scroll_y: 500.0, ..Default::default() };
+        let hit = slider_hit_test(&e, 200.0, 100.0, &state).unwrap();
+        assert!((hit.value - 0.5).abs() < 1e-6);
     }
 }

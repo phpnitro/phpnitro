@@ -38,6 +38,9 @@ typedef struct PhpNitroFrame PhpNitroFrame;
 /* Opaque handle to one hit-test result. */
 typedef struct PhpNitroHit PhpNitroHit;
 
+/* Opaque handle to one slider hit-test result. */
+typedef struct PhpNitroSliderHit PhpNitroSliderHit;
+
 /* ---- Version / diagnostics --------------------------------------- */
 
 /* Returns this build's crate version (e.g. "0.1.0"), NUL-terminated,
@@ -170,6 +173,45 @@ void phpnitro_render_hit_rect(
 /* Frees a hit result created by phpnitro_render_hit_test(). Safe to call
  * with NULL (no-op). */
 void phpnitro_render_free_hit(PhpNitroHit *hit);
+
+/* ---- Slider hit-testing -----------------------------------------------
+ *
+ * A slider tap isn't expressible through phpnitro_render_hit_test()'s own
+ * hitRegions[] mechanism — the value depends on WHERE within the slider
+ * you tapped, not a single precomputed action. envelope_json's own
+ * top-level sliderRegions[] array (a real field Engine\Native\Canvas
+ * already emits, separate from hitRegions[]) is what this searches.
+ */
+
+/* Finds the first sliderRegions[] entry a tap at (tap_x, tap_y) lands on.
+ * Returns NULL both on a genuine "nothing hit" and on a decode failure —
+ * call phpnitro_render_last_error() to tell those apart if that
+ * distinction matters. Free a non-NULL result with
+ * phpnitro_render_free_slider_hit(). */
+PhpNitroSliderHit *phpnitro_render_slider_hit_test(
+    const char *envelope_json,
+    float tap_x,
+    float tap_y,
+    const char *interaction_state_json
+);
+
+/* The slider's own key (e.g. "volume"). Borrowed pointer, valid until
+ * phpnitro_render_free_slider_hit(hit). */
+const char *phpnitro_render_slider_hit_key(const PhpNitroSliderHit *hit);
+
+/* The action to commit once the caller's own gesture model decides the
+ * drag/tap is done (e.g. "toggle:volume") — this library has no opinion
+ * on timing; see this section's own docblock. Borrowed pointer, same
+ * lifetime as phpnitro_render_slider_hit_key() above. */
+const char *phpnitro_render_slider_hit_action(const PhpNitroSliderHit *hit);
+
+/* The value that exact tap position computes to (0..1) — NOT the
+ * region's server-authored resting value. Returns 0.0 if hit is NULL. */
+float phpnitro_render_slider_hit_value(const PhpNitroSliderHit *hit);
+
+/* Frees a slider hit result created by phpnitro_render_slider_hit_test().
+ * Safe to call with NULL (no-op). */
+void phpnitro_render_free_slider_hit(PhpNitroSliderHit *hit);
 
 #ifdef __cplusplus
 }

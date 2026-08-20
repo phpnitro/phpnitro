@@ -39,6 +39,12 @@ public struct HitResult {
     public let bottom: Float
 }
 
+public struct SliderHitResult {
+    public let key: String
+    public let action: String
+    public let value: Float
+}
+
 private func utf8OrEmpty(_ pointer: UnsafePointer<CChar>?) -> String {
     guard let pointer else { return "" }
     return String(cString: pointer)
@@ -151,4 +157,25 @@ public func rustHitTest(envelopeJSON: String, tapX: Float, tapY: Float, interact
     var left: Float = 0, top: Float = 0, right: Float = 0, bottom: Float = 0
     phpnitro_render_hit_rect(hit, &left, &top, &right, &bottom)
     return HitResult(action: action, metaJSON: metaJSON, left: left, top: top, right: right, bottom: bottom)
+}
+
+/// A slider tap isn't expressible through `rustHitTest`'s own
+/// `hitRegions[]` mechanism — the value depends on where within the
+/// slider you tapped, not a single precomputed action (see
+/// `rust/phpnitro-render/src/hittest.rs`'s own doc comment). Free
+/// function for the same reason `rustHitTest` is: no loaded fonts needed.
+public func rustSliderHitTest(envelopeJSON: String, tapX: Float, tapY: Float, interactionStateJSON: String? = nil) -> SliderHitResult? {
+    let stateJSON = interactionStateJSON ?? ""
+    let hit: OpaquePointer? = envelopeJSON.withCString { envelopeCString in
+        stateJSON.withCString { stateCString in
+            phpnitro_render_slider_hit_test(envelopeCString, tapX, tapY, stateCString)
+        }
+    }
+    guard let hit else { return nil }
+    defer { phpnitro_render_free_slider_hit(hit) }
+
+    let key = utf8OrEmpty(phpnitro_render_slider_hit_key(hit))
+    let action = utf8OrEmpty(phpnitro_render_slider_hit_action(hit))
+    let value = phpnitro_render_slider_hit_value(hit)
+    return SliderHitResult(key: key, action: action, value: value)
 }

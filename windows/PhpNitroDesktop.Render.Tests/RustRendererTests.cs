@@ -234,6 +234,43 @@ public class RustRendererTests
     }
 
     [Fact]
+    public void SliderHitTestComputesTheValueForARealTap()
+    {
+        // A slider tap isn't expressible through hitRegions[] — the value
+        // depends on where within the track you tapped (see
+        // rust/phpnitro-render/src/hittest.rs's own doc comment) — this
+        // exercises RustSliderHitTester against the real sliderRegions[]
+        // entry screen_widgets_forms.json ships.
+        try
+        {
+            RustRenderer.Version();
+        }
+        catch (DllNotFoundException)
+        {
+            return;
+        }
+
+        var fixturePath = FixturePath("screen_widgets_forms.json");
+        if (!File.Exists(fixturePath))
+        {
+            return;
+        }
+        var envelope = File.ReadAllText(fixturePath);
+
+        // {"key":"volume","x":20,"y":592.5,"width":360,"height":44,
+        // "trackHeight":6,"thumbSize":22,"value":0.5,"action":"toggle:volume"}
+        // Dead center of the track: x=20+11..20+360-11, midpoint 200; y=592.5+22.
+        var hit = RustSliderHitTester.SliderHitTest(envelope, 200f, 614.5f);
+        Assert.NotNull(hit);
+        Assert.Equal("volume", hit!.Key);
+        Assert.Equal("toggle:volume", hit.Action);
+        Assert.True(Math.Abs(hit.Value - 0.5f) < 0.01f, $"expected ~0.5, got {hit.Value}");
+
+        var miss = RustSliderHitTester.SliderHitTest(envelope, 99999f, 99999f);
+        Assert.Null(miss);
+    }
+
+    [Fact]
     public void HitTestOnEmptySpaceReturnsNullWithoutThrowing()
     {
         try

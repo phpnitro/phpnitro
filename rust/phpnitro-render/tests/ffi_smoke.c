@@ -50,6 +50,23 @@ int main(void) {
     PhpNitroHit *miss = phpnitro_render_hit_test(envelope, 999.0f, 999.0f, NULL);
     assert(miss == NULL);
 
+    /* Real sliderRegions[] entry from screen_widgets_forms.json's fixture. */
+    const char *slider_envelope =
+        "{\"commands\":[],\"hitRegions\":[],\"contentHeight\":0,"
+        "\"sliderRegions\":[{\"key\":\"volume\",\"x\":20,\"y\":592.5,\"width\":360,\"height\":44,"
+        "\"trackHeight\":6,\"thumbSize\":22,\"value\":0.5,\"action\":\"toggle:volume\"}]}";
+
+    PhpNitroSliderHit *slider_hit = phpnitro_render_slider_hit_test(slider_envelope, 200.0f, 610.0f, NULL);
+    assert(slider_hit != NULL);
+    assert(strcmp(phpnitro_render_slider_hit_key(slider_hit), "volume") == 0);
+    assert(strcmp(phpnitro_render_slider_hit_action(slider_hit), "toggle:volume") == 0);
+    float slider_value = phpnitro_render_slider_hit_value(slider_hit);
+    assert(slider_value > 0.499f && slider_value < 0.501f);
+    phpnitro_render_free_slider_hit(slider_hit);
+
+    PhpNitroSliderHit *slider_miss = phpnitro_render_slider_hit_test(slider_envelope, 999.0f, 999.0f, NULL);
+    assert(slider_miss == NULL);
+
     phpnitro_render_free(renderer);
 
     printf("ffi_smoke: OK\n");

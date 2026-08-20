@@ -27,7 +27,7 @@
 
 #![cfg(target_os = "android")]
 
-use crate::hittest::{hit_test, InteractionState};
+use crate::hittest::{hit_test, slider_hit_test, InteractionState};
 use crate::protocol::decode_envelope;
 use crate::text::TextRenderer;
 use crate::transition::render_transition;
@@ -201,6 +201,48 @@ pub extern "system" fn Java_com_phpnitro_engine_RustRenderer_nativeHitTest<'loca
         "action": hit.action,
         "metaJson": hit.meta.map(|meta| meta.to_string()).unwrap_or_else(|| "null".to_string()),
         "rect": [hit.rect.0, hit.rect.1, hit.rect.2, hit.rect.3],
+    })
+    .to_string();
+    new_jstring_or_null(&mut env, &result_json)
+}
+
+/// Returns a slider hit result as a JSON string (`{"key":...,"action":...,
+/// "value":...}`), or `null` for "nothing hit" — same
+/// re-parse-with-org.json.JSONObject contract `nativeHitTest` already
+/// uses, for the same reason (no brittle JNI constructor-descriptor
+/// tracking). `value` is the position-derived value that exact tap
+/// computes to, not the region's server-authored resting value — see
+/// `hittest::slider_hit_test`'s own doc comment for when a caller should
+/// commit `action`.
+#[no_mangle]
+pub extern "system" fn Java_com_phpnitro_engine_RustRenderer_nativeSliderHitTest<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    envelope_json: JString<'local>,
+    tap_x: jfloat,
+    tap_y: jfloat,
+    interaction_state_json: JString<'local>,
+) -> jstring {
+    let json = jstring_to_string(&mut env, &envelope_json);
+    let Ok(envelope) = decode_envelope(&json) else {
+        return std::ptr::null_mut();
+    };
+
+    let state_json = jstring_to_string(&mut env, &interaction_state_json);
+    let state: InteractionState = if state_json.trim().is_empty() {
+        InteractionState::default()
+    } else {
+        serde_json::from_str(&state_json).unwrap_or_default()
+    };
+
+    let Some(hit) = slider_hit_test(&envelope, tap_x, tap_y, &state) else {
+        return std::ptr::null_mut();
+    };
+
+    let result_json = serde_json::json!({
+        "key": hit.key,
+        "action": hit.action,
+        "value": hit.value,
     })
     .to_string();
     new_jstring_or_null(&mut env, &result_json)
