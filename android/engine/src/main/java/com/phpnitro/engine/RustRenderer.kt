@@ -26,14 +26,21 @@ import org.json.JSONObject
  *
  * # Honesty
  *
- * This has never been called by a real JVM — `android-e2e-test` (the
- * only CI job that runs code on a real emulator) is disabled (see
- * `.github/workflows/ci.yml`'s own comment on that job), so unlike every
- * other platform's Rust integration in this project's history, there is
- * no CI-executed proof this actually works at runtime, only that it
- * compiles/links. Not wired into `NativeCanvasView.kt`'s real rendering
- * path for exactly that reason — this class is additive, dead code from
- * the shipped app's point of view, until it can genuinely be verified.
+ * `android-e2e-test` (the only CI job that would run code on a real
+ * emulator) is still disabled (see `.github/workflows/ci.yml`'s own
+ * comment on that job), so there is still no CI-executed proof this
+ * works — but `renderFrame()`/`hitTest()` HAVE now been confirmed working
+ * on a real device by hand (Infinix X6532, Android 14,
+ * `RustRendererDeviceTest.kt` run via `./gradlew
+ * :app:connectedDebugAndroidTest`), the first time any of this ever ran
+ * on a real JVM. Two things had to be true first, neither of them
+ * automatic yet: `libphpnitro_render.so` has to actually exist under
+ * `android/engine/src/main/jniLibs/<abi>/` (never committed — see
+ * `bin/build-rust-android.sh`, which cross-compiles it locally the same
+ * way CI does), and a real device/emulator has to be connected via `adb`.
+ * Still NOT wired into `NativeCanvasView.kt`'s real rendering path — one
+ * passing smoke test proves the JNI bridge itself works, not that it's
+ * ready to replace the existing Kotlin/Canvas renderer for real screens.
  */
 class RustRenderUnavailableException(message: String) : Exception(message)
 
