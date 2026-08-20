@@ -11,6 +11,7 @@ Port C# de `PhpNitroProtocol` (iOS/macOS) / `draw_command.py`+`screen_client.py`
 - `DrawCommand.cs` — décodage du même JSON `Engine\Native\Canvas::toJson()` que les trois autres plateformes, via un parseur manuel (`DrawCommandParser.ParseCommand(JsonElement)`) plutôt qu'un `JsonConverter<T>` personnalisé — délibérément, pour rester aussi proche que possible du décodage champ-par-champ déjà fait (et vérifié) côté Python/Swift. Chaque appel utilise des arguments **nommés** (`X: ..., Y: ...`) précisément pour qu'une paire de `double` inversée soit une erreur de compilation, pas un bug silencieux.
 - `ScreenNavigation.cs` — `ScreenNavigation.Reduce(action, stack)`, port direct de `ScreenNavigation.swift`/`navigation.py`.
 - `ScreenClient.cs` — fetch HTTP via `HttpClient`, port direct de `ScreenClient.swift`/`screen_client.py`. `FetchSuccess` porte à la fois le `DrawCommandPayload` décodé ET le JSON brut (`RawJson`) — `RustRenderer`/`RustHitTester` prennent l'enveloppe JSON directement, pas l'objet C# décodé.
+- `HostPort.cs` — port direct de `HostPort.swift` (iOS)/`HostPort.kt` (Android) : parse `HOST:PORT` (schéma `http(s)://` et `/` final optionnels, port validé dans `1..65535`), utilisé par `PhpNitroDesktop.App`'s `--connect`.
 
 **Cible `net8.0` pur, pas `net8.0-windows`** — aucune API Windows nulle part dans ce projet, exactement comme `PhpNitroProtocol` n'a jamais importé UIKit. Vérifié en CI sur `ubuntu-latest` (job `windows-desktop-protocol`) — un vrai `dotnet test`, y compris un vrai `php -S` lancé contre ce monorepo, pas seulement une compilation.
 
@@ -26,13 +27,12 @@ Le pendant Windows de `linux/phpnitro_desktop/app.py`/`macos/Sources/PhpNitroMac
 
 - **`WindowsPhpProcess.cs`** — lance le `php` système en sous-processus (`System.Diagnostics.Process`, qui fonctionne sur Windows exactement comme `Foundation.Process` sur macOS ou `subprocess.Popen` sur Linux — pas de restriction de sandbox comme sur iOS), port direct de `php_process.py`/`MacPhpProcess.swift` (même recherche de port libre par bind-puis-release, même attente active jusqu'à ce que le port écoute).
 - **`ScreenForm.cs`** — un `System.Windows.Forms.Form` qui possède un `ScreenClient` + un `RustRenderer`, fetch l'écran initial au chargement, peint via `OnPaint` (le buffer RGBA8 prémultiplié de tiny-skia est converti en `Bitmap` `Format32bppPArgb` — même alpha prémultiplié, ordre de canaux BGRA au lieu de RGBA, donc un simple échange R/B suffit, pas de dé-prémultiplication), et route les clics (`OnMouseDown` → `RustHitTester.HitTest` → `ScreenNavigation.Reduce`) exactement comme les autres plateformes.
-- **`Program.cs`** — point d'entrée `PhpNitroDesktop.App <project_dir> [screen]`, mode local uniquement (pas encore de mode `--connect HOST:PORT`/PhpNitro Go).
+- **`Program.cs`** — point d'entrée `PhpNitroDesktop.App <project_dir> [screen]`, **ou** `PhpNitroDesktop.App --connect HOST:PORT [screen]` (mode PhpNitro Go, sans lancer de processus `php` local) — même convention que `linux/phpnitro_desktop/__main__.py`.
 
 **Cible `net8.0-windows` + `UseWindowsForms`** — le premier projet de ce dossier qui n'est PAS multiplateforme, puisque `System.Windows.Forms` n'existe que sur Windows. Vérifié par le nouveau job CI `windows-desktop-app`, sur un **vrai runner `windows-latest`** — compilation seulement (`dotnet build`), pas d'exécution : aucun environnement CI ici n'a de serveur d'affichage pour cliquer une vraie fenêtre, la même limite honnête que chaque autre plateforme de ce dépôt.
 
 ## Ce qui manque encore
 
 1. **Jamais lancé/cliqué sur une vraie machine Windows** — seule la compilation est vérifiée (CI), pas l'exécution interactive.
-2. **Pas de mode `--connect HOST:PORT`** (PhpNitro Go) — contrairement à Linux, ce shell ne peut pas encore pointer vers un serveur déjà lancé ailleurs sur le réseau.
-3. **Pas de saisie de champs de formulaire** (`fieldValues`) — `ScreenClient.FetchScreenAsync`/`ScreenNavigation.Reduce` l'acceptent déjà, mais `ScreenForm` ne capture aucune entrée utilisateur au clavier pour l'instant.
-4. **Pas de redimensionnement live** — la fenêtre a une taille fixe au démarrage (390×844, comme les autres plateformes) ; redimensionner ne redemande pas un nouvel écran à une nouvelle taille.
+2. **Pas de saisie de champs de formulaire** (`fieldValues`) — `ScreenClient.FetchScreenAsync`/`ScreenNavigation.Reduce` l'acceptent déjà, mais `ScreenForm` ne capture aucune entrée utilisateur au clavier pour l'instant.
+3. **Pas de redimensionnement live** — la fenêtre a une taille fixe au démarrage (390×844, comme les autres plateformes) ; redimensionner ne redemande pas un nouvel écran à une nouvelle taille.

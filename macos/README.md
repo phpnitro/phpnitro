@@ -39,7 +39,7 @@ Troisième produit de ce package (`Sources/PhpNitroMacApp/`) — un exécutable 
 
 - **`RustScreenView.swift`** — le pendant Rust de `MacCanvasView` : peint directement via `RustRenderer.renderFrame()` (le buffer RGBA8 prémultiplié de tiny-skia se wrappe tel quel dans un `CGImage` via `CGImageAlphaInfo.premultipliedLast` — contrairement à GDI+ sur Windows, Core Graphics n'a pas besoin d'échange de canaux R/B) et route les clics via `rustHitTest()`. Ne connaît jamais `DrawCommandPayload` — travaille uniquement sur la chaîne JSON brute, puisque `RustRenderer`/`rustHitTest` la prennent directement.
 - **`RustScreenController.swift`** — fait son propre fetch HTTP minimal (au lieu de réutiliser `PhpNitroProtocol.ScreenClient`, qui ne renvoie que le `DrawCommandPayload` **décodé** — or `DrawCommandPayload` n'est que `Decodable`, pas `Encodable`, donc impossible de le re-sérialiser fidèlement pour Rust) — récupère le JSON brut, et réutilise tel quel `ScreenNavigation.reduce` (logique pure, aucun décodage impliqué).
-- **`AppDelegate.swift`/`main.swift`** — bootstrap `NSApplication` classique (`main.swift` de haut niveau, pas `@main`), possède un `MacPhpProcess` (démarré/arrêté avec l'app) et une `NSWindow` dont le `contentView` est celui du contrôleur ci-dessus.
+- **`AppDelegate.swift`/`main.swift`** — bootstrap `NSApplication` classique (`main.swift` de haut niveau, pas `@main`), possède un `MacPhpProcess` (démarré/arrêté avec l'app) et une `NSWindow` dont le `contentView` est celui du contrôleur ci-dessus. Deux modes de lancement, comme `linux/phpnitro_desktop/__main__.py` : `PhpNitroMacApp <project_dir> [screen]` (spawn `php -S` local) ou `PhpNitroMacApp --connect HOST:PORT [screen]` (mode PhpNitro Go, aucun processus local) — `HostPort.swift` (`PhpNitroMacEngine`, port local de `ios/Sources/PhpNitroGo/HostPort.swift`) fait le parsing.
 
 Zéro modification de `MacScreenViewController`/`MacCanvasView`/`ScreenClient` — le chemin Core Graphics déjà éprouvé reste intact, sans risque de régression.
 
@@ -57,5 +57,5 @@ Zéro modification de `MacScreenViewController`/`MacCanvasView`/`ScreenClient` �
 
 1. **Rien n'a jamais tourné/cliqué sur un vrai Mac** — seule la compilation est vérifiée (CI), pas l'exécution interactive.
 2. **`RustScreenController` ne capture aucune entrée clavier** (`fieldValues`) — `ScreenNavigation.reduce` l'accepterait, mais rien ne le remonte encore.
-3. **`clientPanel`/`hScroll`/`vScroll`/`slider` côté Core Graphics** (`MacCanvasView`) se décodent et se dessinent (rendu statique), sans interactivité côté client ; côté Rust (`rust/phpnitro-render`), même limite — voir son propre README.
-4. **Pas de scan QR / mode PhpNitro Go** — contrairement à Linux (`--connect HOST:PORT` dans `phpnitro_desktop`), ce port n'a pas encore son propre écran de connexion.
+3. **`clientPanel`/`hScroll`/`vScroll`/`slider` côté Core Graphics** (`MacCanvasView`) se décodent et se dessinent (rendu statique), sans interactivité côté client — côté Rust (`rust/phpnitro-render`), cette limite est désormais levée (voir son propre README), mais le chemin Core Graphics de ce port reste tel quel, sans régression.
+4. **Pas de scan QR** — contrairement à `ios/`'s `PhpNitroGo` (UIKit, caméra), ce port n'a pas d'écran de connexion dédié ; `--connect HOST:PORT` en ligne de commande (ci-dessus) couvre le même besoin sans UI.
