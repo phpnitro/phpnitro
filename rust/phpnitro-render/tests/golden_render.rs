@@ -10,6 +10,7 @@
 //! PHP output actually produces, not just the hand-built JSON in
 //! `protocol.rs`'s own unit tests.
 
+use phpnitro_render::hittest::InteractionState;
 use phpnitro_render::protocol::decode_envelope;
 use phpnitro_render::raster::render_commands;
 use phpnitro_render::text::TextRenderer;
@@ -61,7 +62,7 @@ fn flex_row_distribution_renders_the_two_expected_rects() {
     let json = fixture("flex_row_distribution.json");
     let envelope = decode_envelope(&json).unwrap();
     let mut pixmap = Pixmap::new(100, 40).unwrap();
-    render_commands(&mut pixmap, &envelope.commands, 0, &mut TextRenderer::new());
+    render_commands(&mut pixmap, &envelope.commands, 0, &mut TextRenderer::new(), &InteractionState::default());
 
     let red_rect = pixmap.pixel(20, 20).unwrap();
     assert_eq!((red_rect.red(), red_rect.green(), red_rect.blue()), (239, 68, 68), "#EF4444");
@@ -82,7 +83,7 @@ fn circle_basic_renders_a_filled_circle() {
     assert!(matches!(envelope.commands[0], DrawCommand::Circle(_)));
 
     let mut pixmap = Pixmap::new(60, 60).unwrap();
-    render_commands(&mut pixmap, &envelope.commands, 0, &mut TextRenderer::new());
+    render_commands(&mut pixmap, &envelope.commands, 0, &mut TextRenderer::new(), &InteractionState::default());
     let center = pixmap.pixel(30, 30).unwrap();
     assert_eq!((center.red(), center.green(), center.blue(), center.alpha()), (34, 197, 94, 255), "#22C55E");
     let corner = pixmap.pixel(0, 0).unwrap();
@@ -106,6 +107,24 @@ fn image_network_and_data_uri_decodes_both_url_forms() {
         .collect();
     assert!(urls[0].starts_with("https://"));
     assert!(urls[1].starts_with("data:image/png;base64,"));
+}
+
+#[test]
+fn image_network_and_data_uri_renders_only_the_data_uri_image() {
+    // Real end-to-end proof, not just decoding: the https:// image (out
+    // of scope, see rust/phpnitro-render/src/image.rs) must silently
+    // paint nothing, while the inline data:image/png;base64,... image
+    // (at x=80..160) must actually rasterize.
+    let json = fixture("image_network_and_data_uri.json");
+    let envelope = decode_envelope(&json).unwrap();
+    let mut pixmap = Pixmap::new(160, 80).unwrap();
+    render_commands(&mut pixmap, &envelope.commands, 0, &mut TextRenderer::new(), &InteractionState::default());
+
+    let https_image = pixmap.pixel(40, 40).unwrap();
+    assert_eq!(https_image.alpha(), 0, "the https:// image is out of scope and must not paint");
+
+    let data_uri_image = pixmap.pixel(120, 40).unwrap();
+    assert_eq!(data_uri_image.alpha(), 255, "the inline data:image/png;base64,... image must rasterize");
 }
 
 #[test]

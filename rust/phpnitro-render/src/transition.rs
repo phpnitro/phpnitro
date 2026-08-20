@@ -16,6 +16,7 @@
 //! flights. Same scratch-layer-and-composite technique `raster.rs` already
 //! uses for `clientPanel`/`hScroll`/`vScroll`, extended to whole envelopes.
 
+use crate::hittest::InteractionState;
 use crate::protocol::{DrawCommand, Envelope, HeroRegion, Transition};
 use crate::raster::{parse_color, render_commands};
 use crate::text::TextRenderer;
@@ -228,14 +229,15 @@ fn transition_offsets(transition: Option<&Transition>, viewport_w: f32, viewport
 /// top-level command whose own `hero` tag is currently flying (mirrors
 /// `drawCommands()`'s `excludeHeroTags` check — flat, not recursive, since
 /// a `hero`-tagged command must live at the top level to fly at all).
-fn render_layer_excluding(width: u32, height: u32, commands: &[DrawCommand], elapsed_ms: u64, text_renderer: &mut TextRenderer, exclude: &[String]) -> Pixmap {
+#[allow(clippy::too_many_arguments)]
+fn render_layer_excluding(width: u32, height: u32, commands: &[DrawCommand], elapsed_ms: u64, text_renderer: &mut TextRenderer, exclude: &[String], state: &InteractionState) -> Pixmap {
     let mut layer = Pixmap::new(width, height).unwrap_or_else(|| Pixmap::new(1, 1).unwrap());
     let filtered: Vec<DrawCommand> = commands
         .iter()
         .filter(|c| c.hero_tag().is_none_or(|tag| !exclude.iter().any(|t| t == tag)))
         .cloned()
         .collect();
-    render_commands(&mut layer, &filtered, elapsed_ms, text_renderer);
+    render_commands(&mut layer, &filtered, elapsed_ms, text_renderer, state);
     layer
 }
 
@@ -248,6 +250,7 @@ fn draw_hero_flight(
     previous_commands: &[DrawCommand],
     new_commands: &[DrawCommand],
     text_renderer: &mut TextRenderer,
+    state: &InteractionState,
 ) {
     let eased = curve(new_region.curve.as_deref(), hero_linear_t);
 
@@ -278,7 +281,7 @@ fn draw_hero_flight(
         .collect();
     // Always drawn fully opaque — drawInterpolated() hardcodes alpha=1f in
     // every branch; only geometry/color animate during a flight, never opacity.
-    render_commands(&mut layer, &blended, 0, text_renderer);
+    render_commands(&mut layer, &blended, 0, text_renderer, state);
     pixmap.draw_pixmap(0, 0, layer.as_ref(), &PixmapPaint::default(), transform, None);
 }
 
@@ -293,6 +296,11 @@ fn draw_hero_flight(
 /// With no previous envelope, this degenerates to a plain
 /// `render_commands()` call — the common case (first render, or a
 /// same-screen refetch that never calls this at all) pays zero extra cost.
+/// `state` is the same caller-owned live interaction state `render_commands`
+/// takes — threaded through every pass (outgoing, incoming, each hero
+/// flight) so a live scroll/tab/slider state is honored no matter which
+/// envelope/pass is currently painting it.
+#[allow(clippy::too_many_arguments)]
 pub fn render_transition(
     pixmap: &mut Pixmap,
     new_envelope: &Envelope,
@@ -300,9 +308,10 @@ pub fn render_transition(
     transition_elapsed_ms: u64,
     animation_elapsed_ms: u64,
     text_renderer: &mut TextRenderer,
+    state: &InteractionState,
 ) {
     let Some(previous) = previous_envelope else {
-        render_commands(pixmap, &new_envelope.commands, animation_elapsed_ms, text_renderer);
+        render_commands(pixmap, &new_envelope.commands, animation_elapsed_ms, text_renderer, state);
         return;
     };
 
@@ -331,18 +340,18 @@ pub fn render_transition(
         transition_offsets(new_envelope.transition.as_ref(), viewport_w, viewport_h, fade_progress);
 
     if fade_progress < 1.0 {
-        let layer = render_layer_excluding(width, height, &previous.commands, animation_elapsed_ms, text_renderer, &flying_tags);
+        let layer = render_layer_excluding(width, height, &previous.commands, animation_elapsed_ms, text_renderer, &flying_tags, state);
         let paint = PixmapPaint { opacity: 1.0 - fade_progress, ..PixmapPaint::default() };
         pixmap.draw_pixmap(outgoing_x.round() as i32, outgoing_y.round() as i32, layer.as_ref(), &paint, Transform::identity(), None);
     }
     {
-        let layer = render_layer_excluding(width, height, &new_envelope.commands, animation_elapsed_ms, text_renderer, &flying_tags);
+        let layer = render_layer_excluding(width, height, &new_envelope.commands, animation_elapsed_ms, text_renderer, &flying_tags, state);
         let paint = PixmapPaint { opacity: fade_progress, ..PixmapPaint::default() };
         pixmap.draw_pixmap(incoming_x.round() as i32, incoming_y.round() as i32, layer.as_ref(), &paint, Transform::identity(), None);
     }
 
     for (old_region, new_region) in flights.values() {
-        draw_hero_flight(pixmap, old_region, new_region, hero_linear_t, &previous.commands, &new_envelope.commands, text_renderer);
+        draw_hero_flight(pixmap, old_region, new_region, hero_linear_t, &previous.commands, &new_envelope.commands, text_renderer, state);
     }
 }
 
@@ -386,7 +395,7 @@ mod tests {
             r##"{"commands":[{"type":"rect","x":0,"y":0,"width":40,"height":40,"color":"#FF0000"}],"hitRegions":[],"contentHeight":40}"##,
         );
         let mut text_renderer = TextRenderer::new();
-        render_transition(&mut pixmap, &new_envelope, None, 0, 0, &mut text_renderer);
+        render_transition(&mut pixmap, &new_envelope, None, 0, 0, &mut text_renderer, &InteractionState::default());
         let p = pixmap.pixel(20, 20).unwrap();
         assert_eq!((p.red(), p.green(), p.blue(), p.alpha()), (255, 0, 0, 255));
     }
@@ -403,7 +412,7 @@ mod tests {
         let mut text_renderer = TextRenderer::new();
         // transition_elapsed_ms = 0 -> fade_progress = decelerate(0) = 0,
         // i.e. still fully showing the OLD envelope.
-        render_transition(&mut pixmap, &new_envelope, Some(&old_envelope), 0, 0, &mut text_renderer);
+        render_transition(&mut pixmap, &new_envelope, Some(&old_envelope), 0, 0, &mut text_renderer, &InteractionState::default());
         let p = pixmap.pixel(20, 20).unwrap();
         assert_eq!((p.red(), p.green(), p.blue()), (255, 0, 0), "at t=0 only the outgoing envelope should be visible");
     }
@@ -418,7 +427,7 @@ mod tests {
             r##"{"commands":[{"type":"rect","x":0,"y":0,"width":40,"height":40,"color":"#0000FF"}],"hitRegions":[],"contentHeight":40}"##,
         );
         let mut text_renderer = TextRenderer::new();
-        render_transition(&mut pixmap, &new_envelope, Some(&old_envelope), 220, 0, &mut text_renderer);
+        render_transition(&mut pixmap, &new_envelope, Some(&old_envelope), 220, 0, &mut text_renderer, &InteractionState::default());
         let p = pixmap.pixel(20, 20).unwrap();
         assert_eq!((p.red(), p.green(), p.blue(), p.alpha()), (0, 0, 255, 255), "past the crossfade duration only the new envelope should show");
     }
@@ -486,7 +495,7 @@ mod tests {
             r##"{"commands":[{"type":"rect","x":0,"y":0,"width":20,"height":20,"color":"#0000FF","radius":0,"hero":"avatar"}],"hitRegions":[],"contentHeight":20}"##,
         );
         let mut text_renderer = TextRenderer::new();
-        draw_hero_flight(&mut pixmap, &old_region, &new_region, 0.5, &old_commands.commands, &new_commands.commands, &mut text_renderer);
+        draw_hero_flight(&mut pixmap, &old_region, &new_region, 0.5, &old_commands.commands, &new_commands.commands, &mut text_renderer, &InteractionState::default());
 
         let inside = pixmap.pixel(10, 10).unwrap();
         assert_eq!(inside.alpha(), 255, "the scaled-down 15x15 box should cover (10,10)");

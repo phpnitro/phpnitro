@@ -82,6 +82,12 @@ void phpnitro_render_free(PhpNitroRenderer *renderer);
  * since any fixed, monotonic epoch the caller chooses — e.g. process
  * start). Pass 0 for a caller that never animates.
  *
+ * interaction_state_json is the same optional shape phpnitro_render_hit_test()
+ * takes (see its own doc comment below) — a live clientPanel tab
+ * selection, hScroll/vScroll drag offset, or slider drag value overrides
+ * that command's server-authored resting state for exactly the keys
+ * present. NULL/"{}"/malformed all mean "no live interactivity to apply".
+ *
  * Returns NULL on failure (malformed envelope_json, or width_px/height_px
  * == 0) — call phpnitro_render_last_error() to find out why. Free a
  * non-NULL result with phpnitro_render_free_frame(). */
@@ -92,7 +98,8 @@ PhpNitroFrame *phpnitro_render_frame(
     uint64_t transition_elapsed_ms,
     uint32_t width_px,
     uint32_t height_px,
-    uint64_t elapsed_ms
+    uint64_t elapsed_ms,
+    const char *interaction_state_json
 );
 
 /* Raw RGBA8 pixel buffer for `frame` — row-major, premultiplied alpha,
@@ -115,11 +122,14 @@ void phpnitro_render_free_frame(PhpNitroFrame *frame);
 /* ---- Hit-testing -----------------------------------------------------
  *
  * interaction_state_json is an optional JSON object describing
- * caller-owned interaction state this crate has no memory of itself:
+ * caller-owned interaction state this crate has no memory of itself —
+ * consumed by both phpnitro_render_hit_test() below AND
+ * phpnitro_render_frame() above:
  *   {
- *     "scrollY": 0.0,                    // the whole screen's vertical scroll
- *     "activePanel": { "tabsKey": 1 },   // clientPanel.key -> active index
- *     "axisOffset": { "railKey": 40.0 }  // hScroll/vScroll.key -> local drag offset
+ *     "scrollY": 0.0,                     // the whole screen's vertical scroll
+ *     "activePanel": { "tabsKey": 1 },    // clientPanel.key -> active index
+ *     "axisOffset": { "railKey": 40.0 },  // hScroll/vScroll.key -> local drag offset
+ *     "sliderValue": { "volKey": 0.75 }   // slider.key -> live drag value (0..1)
  *   }
  * Every field is optional; NULL or "{}" means "no interactivity yet".
  */

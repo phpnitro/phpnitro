@@ -7,13 +7,23 @@
 //! `Pixmap` layer (their own `commands[]` are already panel-relative —
 //! confirmed via `hscroll_basic.json`/`HorizontalScroll.php` — so they
 //! paint into that layer completely unmodified) composited onto the real
-//! destination at the container's own `(x, y)` via `draw_pixmap`, with a
-//! `Mask`-based viewport clip for the two scrollable variants. `image`
-//! (needs a byte source) is still handled elsewhere/not wired here.
+//! destination via `draw_pixmap`, with a `Mask`-based viewport clip for
+//! the two scrollable variants. The composite position is the
+//! container's own authored `(x, y)`, shifted by the caller's live
+//! `InteractionState` for `hScroll`/`vScroll` (a clamped drag offset) and
+//! `clientPanel` (which of its sibling panels is currently active) —
+//! `render_commands`'s own `state` parameter, passed through every
+//! recursive call. `image` only paints for an inline
+//! `data:image/png;base64,...` `url` (see `image.rs`'s own doc comment
+//! for the deliberate `https://`/JPEG gap) — every other command type
+//! this crate doesn't recognize is still silently skipped.
 
 use crate::animate::{skeleton_sweep_width, skeleton_sweep_x, spinner_rotation_degrees, SPINNER_SWEEP_DEGREES};
+use crate::hittest::{is_client_panel_active, InteractionState};
+use crate::image::decode_data_uri_png;
 use crate::protocol::{
-    ArcCommand, CircleCommand, DrawCommand, LineCommand, RectCommand, SkeletonCommand, SliderCommand, SpinnerCommand,
+    ArcCommand, CircleCommand, DrawCommand, ImageCommand, LineCommand, RectCommand, SkeletonCommand, SliderCommand,
+    SpinnerCommand,
 };
 use crate::text::TextRenderer;
 use tiny_skia::{
@@ -254,15 +264,15 @@ fn box_blur_alpha(pixmap: &mut Pixmap, radius: u32) {
 /// a pill-shaped track (radius = trackHeight/2) spanning the full width,
 /// a same-shaped "active" fill from the track's start to the thumb's
 /// center, then a filled thumb circle with a thin 1.5px stroke on top in
-/// `activeColor`. `value` is read straight off the wire — no client-side
-/// drag override yet (that needs the same interaction-state plumbing
-/// `hittest.rs` already has for hit-testing, not yet threaded into the
-/// render path), so a slider always paints at its server-authored value.
-fn draw_slider(pixmap: &mut Pixmap, slider: &SliderCommand) {
+/// `activeColor`. `value` falls back to the server-authored wire value;
+/// `state.slider_value.get(&slider.key)` overrides it while a caller has
+/// live drag state to report — same "local value present -> overrides
+/// server value" contract `NativeCanvasView.kt`'s `sliderValues` map uses.
+fn draw_slider(pixmap: &mut Pixmap, slider: &SliderCommand, state: &InteractionState) {
     let (x, y, width, height) = (slider.x as f32, slider.y as f32, slider.width as f32, slider.height as f32);
     let track_height = slider.track_height as f32;
     let thumb_size = slider.thumb_size as f32;
-    let value = (slider.value as f32).clamp(0.0, 1.0);
+    let value = state.slider_value.get(&slider.key).copied().unwrap_or(slider.value as f32).clamp(0.0, 1.0);
 
     let track_y = y + (height - track_height) / 2.0;
     let thumb_cx = x + thumb_size / 2.0 + (width - thumb_size) * value;
@@ -441,9 +451,21 @@ fn draw_arc(pixmap: &mut Pixmap, arc: &ArcCommand) {
 /// `text`/`icon` (needs `text_renderer`'s loaded fonts, see `text.rs`) and,
 /// recursively, everything nested inside `clientPanel`/`hScroll`/`vScroll`
 /// — at the given wall-clock `elapsed_ms` (feeds `spinner`/`skeleton`'s
-/// animation; callers that never animate can pass 0). `image`/`unknown`
-/// are still silently skipped — no byte source is wired up for images yet.
-pub fn render_commands(pixmap: &mut Pixmap, commands: &[DrawCommand], elapsed_ms: u64, text_renderer: &mut TextRenderer) {
+/// animation; callers that never animate can pass 0). `state` carries
+/// caller-owned live interaction state (which `clientPanel` tab is active,
+/// each `hScroll`/`vScroll`'s drag offset, each `slider`'s drag value) —
+/// pass `&InteractionState::default()` for a caller with no live state to
+/// report, which paints every one of those at its server-authored resting
+/// state, identical to this function's behavior before this parameter
+/// existed. `image`/`unknown` are still silently skipped — no byte source
+/// is wired up for images yet.
+pub fn render_commands(
+    pixmap: &mut Pixmap,
+    commands: &[DrawCommand],
+    elapsed_ms: u64,
+    text_renderer: &mut TextRenderer,
+    state: &InteractionState,
+) {
     for command in commands {
         match command {
             DrawCommand::Rect(rect) => draw_rect(pixmap, rect),
@@ -452,16 +474,51 @@ pub fn render_commands(pixmap: &mut Pixmap, commands: &[DrawCommand], elapsed_ms
             DrawCommand::Arc(arc) => draw_arc(pixmap, arc),
             DrawCommand::Spinner(spinner) => draw_spinner(pixmap, spinner, elapsed_ms),
             DrawCommand::Skeleton(skeleton) => draw_skeleton(pixmap, skeleton, elapsed_ms),
-            DrawCommand::Slider(slider) => draw_slider(pixmap, slider),
+            DrawCommand::Slider(slider) => draw_slider(pixmap, slider, state),
             DrawCommand::Custom(custom) => crate::charts::render_custom(pixmap, custom),
             DrawCommand::Text(text) => text_renderer.render_text(pixmap, text),
             DrawCommand::Icon(icon) => text_renderer.render_icon(pixmap, icon),
-            DrawCommand::ClientPanel(panel) => draw_client_panel(pixmap, panel, elapsed_ms, text_renderer),
-            DrawCommand::HScroll(scroll) => draw_hscroll(pixmap, scroll, elapsed_ms, text_renderer),
-            DrawCommand::VScroll(scroll) => draw_vscroll(pixmap, scroll, elapsed_ms, text_renderer),
+            DrawCommand::ClientPanel(panel) => draw_client_panel(pixmap, panel, elapsed_ms, text_renderer, state),
+            DrawCommand::HScroll(scroll) => draw_hscroll(pixmap, scroll, elapsed_ms, text_renderer, state),
+            DrawCommand::VScroll(scroll) => draw_vscroll(pixmap, scroll, elapsed_ms, text_renderer, state),
+            DrawCommand::Image(image) => draw_image(pixmap, image),
             _ => {}
         }
     }
+}
+
+/// Only paints for an inline `data:image/png;base64,...` `url` (see
+/// `image.rs`'s own doc comment for why `https://`/JPEG are a deliberate
+/// gap, not an oversight) — silently no-ops on anything else, same as
+/// this command already did before this function existed. The decoded
+/// PNG's own intrinsic size is scaled to the command's authored
+/// `(width, height)` via a `Transform::from_scale().post_translate()`,
+/// the exact same composition `transition.rs::draw_hero_flight` already
+/// uses for "someone else's rect, mapped into mine". `radius` clips via
+/// the same `Mask`-based technique `draw_scrollable` already uses.
+fn draw_image(pixmap: &mut Pixmap, image: &ImageCommand) {
+    let Some(png_bytes) = decode_data_uri_png(&image.url) else { return };
+    let Ok(decoded) = Pixmap::decode_png(&png_bytes) else { return };
+    if decoded.width() == 0 || decoded.height() == 0 {
+        return;
+    }
+
+    let (x, y, width, height) = (image.x as f32, image.y as f32, image.width as f32, image.height as f32);
+    if width <= 0.0 || height <= 0.0 {
+        return;
+    }
+
+    let scale_x = width / decoded.width() as f32;
+    let scale_y = height / decoded.height() as f32;
+    let transform = Transform::from_scale(scale_x, scale_y).post_translate(x, y);
+
+    let clip = rounded_rect_path(x, y, width, height, image.radius as f32).and_then(|path| {
+        let mut mask = Mask::new(pixmap.width(), pixmap.height())?;
+        mask.fill_path(&path, FillRule::Winding, true, Transform::identity());
+        Some(mask)
+    });
+
+    pixmap.draw_pixmap(0, 0, decoded.as_ref(), &PixmapPaint::default(), transform, clip.as_ref());
 }
 
 /// `clientPanel`'s own `commands[]` are already panel-relative (confirmed
@@ -471,40 +528,56 @@ pub fn render_commands(pixmap: &mut Pixmap, commands: &[DrawCommand], elapsed_ms
 /// onto the real destination at `(x, y)` via `draw_pixmap`, which is
 /// exactly equivalent to `canvas.translate(x, y)` without needing to
 /// thread a transform through every draw_* helper in this module.
-/// Mirrors NativeCanvasView.kt's `drawClientPanelCommand()`: only the
-/// panel PHP marked `initiallyActive` paints — there's no live client-side
-/// tab-switch state reaching this render call yet (that needs the same
-/// interaction-state plumbing `hittest.rs` already has for hit-testing,
-/// not yet threaded into the render path), so a freshly rendered frame
-/// always shows whichever panel the server considers the resting/default
-/// one, same "server-authored value until a real interaction overrides
-/// it" scoping already used for `slider`'s `value`. No clip — Android's
-/// own version doesn't clip a clientPanel either, only translates.
-fn draw_client_panel(pixmap: &mut Pixmap, panel: &crate::protocol::ClientPanelCommand, elapsed_ms: u64, text_renderer: &mut TextRenderer) {
-    if !panel.initially_active {
+/// Mirrors `NativeCanvasView.kt`'s `drawClientPanelCommand()`: the panel
+/// whose `key`/`index` match `state.active_panel` paints (falling back to
+/// `initiallyActive` when the caller has no live state for that key,
+/// exactly like `seedClientTabState()`) — the same correlation
+/// `hittest.rs::is_client_panel_active()` already implements for
+/// hit-testing, reused here so it exists in exactly one place. No clip —
+/// Android's own version doesn't clip a clientPanel either, only translates.
+fn draw_client_panel(
+    pixmap: &mut Pixmap,
+    panel: &crate::protocol::ClientPanelCommand,
+    elapsed_ms: u64,
+    text_renderer: &mut TextRenderer,
+    state: &InteractionState,
+) {
+    if !is_client_panel_active(state, &panel.key, panel.index, panel.initially_active) {
         return;
     }
     let Some(mut layer) = Pixmap::new(pixmap.width(), pixmap.height()) else { return };
-    render_commands(&mut layer, &panel.commands, elapsed_ms, text_renderer);
+    render_commands(&mut layer, &panel.commands, elapsed_ms, text_renderer, state);
     pixmap.draw_pixmap(panel.x as i32, panel.y as i32, layer.as_ref(), &PixmapPaint::default(), Transform::identity(), None);
+}
+
+/// Mirrors `drawHScrollCommand()`: the viewport clip (Android's
+/// `canvas.clipRect(x, y, x+w, y+h)`) always stays at the container's own
+/// authored position, but the composited content shifts left by
+/// `state.axis_offset[key]` (clamped to `[0, contentWidth - width]`,
+/// re-derived here rather than trusting a pre-clamped caller value — same
+/// discipline Android's own `onTouchEvent` re-derives `maxOffset` on every
+/// touch-move rather than trusting a stale bound).
+fn draw_hscroll(pixmap: &mut Pixmap, scroll: &crate::protocol::HScrollCommand, elapsed_ms: u64, text_renderer: &mut TextRenderer, state: &InteractionState) {
+    let max_offset = (scroll.content_width - scroll.width).max(0.0) as f32;
+    let offset = state.axis_offset.get(&scroll.key).copied().unwrap_or(0.0).clamp(0.0, max_offset);
+    draw_scrollable(pixmap, scroll.x, scroll.y, scroll.width, scroll.height, offset as f64, 0.0, &scroll.commands, elapsed_ms, text_renderer, state);
+}
+
+/// Same as `draw_hscroll`, vertical axis — mirrors `drawVScrollCommand()`.
+fn draw_vscroll(pixmap: &mut Pixmap, scroll: &crate::protocol::VScrollCommand, elapsed_ms: u64, text_renderer: &mut TextRenderer, state: &InteractionState) {
+    let max_offset = (scroll.content_height - scroll.height).max(0.0) as f32;
+    let offset = state.axis_offset.get(&scroll.key).copied().unwrap_or(0.0).clamp(0.0, max_offset);
+    draw_scrollable(pixmap, scroll.x, scroll.y, scroll.width, scroll.height, 0.0, offset as f64, &scroll.commands, elapsed_ms, text_renderer, state);
 }
 
 /// Same scratch-layer-and-composite technique as `draw_client_panel`, plus
 /// a viewport clip (Android's `canvas.clipRect(x, y, x+w, y+h)`) built via
 /// `Mask::fill_path` and passed to `draw_pixmap`'s own clip parameter —
 /// clips the WHOLE composited layer in one step, rather than needing each
-/// nested primitive to know about the clip individually. No live drag
-/// offset yet (same deferred-interactivity scoping as `clientPanel`
-/// above and `slider`'s `value`) — always composited at the container's
-/// own authored `(x, y)`, i.e. scrolled all the way to its start.
-fn draw_hscroll(pixmap: &mut Pixmap, scroll: &crate::protocol::HScrollCommand, elapsed_ms: u64, text_renderer: &mut TextRenderer) {
-    draw_scrollable(pixmap, scroll.x, scroll.y, scroll.width, scroll.height, &scroll.commands, elapsed_ms, text_renderer);
-}
-
-fn draw_vscroll(pixmap: &mut Pixmap, scroll: &crate::protocol::VScrollCommand, elapsed_ms: u64, text_renderer: &mut TextRenderer) {
-    draw_scrollable(pixmap, scroll.x, scroll.y, scroll.width, scroll.height, &scroll.commands, elapsed_ms, text_renderer);
-}
-
+/// nested primitive to know about the clip individually. The clip stays
+/// at the container's own `(x, y, width, height)`; only the composite
+/// position shifts by `(offset_x, offset_y)`, exactly like
+/// `canvas.translate(x - offsetX, y)`/`canvas.translate(x, y - offsetY)`.
 #[allow(clippy::too_many_arguments)]
 fn draw_scrollable(
     pixmap: &mut Pixmap,
@@ -512,12 +585,15 @@ fn draw_scrollable(
     y: f64,
     width: f64,
     height: f64,
+    offset_x: f64,
+    offset_y: f64,
     commands: &[DrawCommand],
     elapsed_ms: u64,
     text_renderer: &mut TextRenderer,
+    state: &InteractionState,
 ) {
     let Some(mut layer) = Pixmap::new(pixmap.width(), pixmap.height()) else { return };
-    render_commands(&mut layer, commands, elapsed_ms, text_renderer);
+    render_commands(&mut layer, commands, elapsed_ms, text_renderer, state);
 
     let clip = rounded_rect_path(x as f32, y as f32, width.max(0.0) as f32, height.max(0.0) as f32, 0.0).and_then(|path| {
         let mut mask = Mask::new(pixmap.width(), pixmap.height())?;
@@ -525,7 +601,9 @@ fn draw_scrollable(
         Some(mask)
     });
 
-    pixmap.draw_pixmap(x as i32, y as i32, layer.as_ref(), &PixmapPaint::default(), Transform::identity(), clip.as_ref());
+    let composite_x = (x - offset_x) as i32;
+    let composite_y = (y - offset_y) as i32;
+    pixmap.draw_pixmap(composite_x, composite_y, layer.as_ref(), &PixmapPaint::default(), Transform::identity(), clip.as_ref());
 }
 
 #[cfg(test)]
@@ -717,7 +795,7 @@ mod tests {
     #[test]
     fn slider_at_zero_paints_the_thumb_at_the_track_start() {
         let mut pixmap = Pixmap::new(120, 40).unwrap();
-        draw_slider(&mut pixmap, &slider(0.0));
+        draw_slider(&mut pixmap, &slider(0.0), &InteractionState::default());
         // thumbCx = x + thumbSize/2 = 10 + 8 = 18.
         let (_, _, _, a) = pixel_at(&pixmap, 18, 20);
         assert_eq!(a, 255, "thumb should be fully painted at its own center when value=0");
@@ -729,7 +807,7 @@ mod tests {
     #[test]
     fn slider_at_one_moves_the_thumb_to_the_track_end() {
         let mut pixmap = Pixmap::new(120, 40).unwrap();
-        draw_slider(&mut pixmap, &slider(1.0));
+        draw_slider(&mut pixmap, &slider(1.0), &InteractionState::default());
         // thumbCx = x + thumbSize/2 + (width - thumbSize) * 1 = 10 + 8 + 84 = 102.
         let (_, _, _, a) = pixel_at(&pixmap, 102, 20);
         assert_eq!(a, 255, "thumb should be fully painted at its own center when value=1");
@@ -742,9 +820,9 @@ mod tests {
     #[test]
     fn slider_active_fill_grows_with_value() {
         let mut low = Pixmap::new(120, 40).unwrap();
-        draw_slider(&mut low, &slider(0.1));
+        draw_slider(&mut low, &slider(0.1), &InteractionState::default());
         let mut high = Pixmap::new(120, 40).unwrap();
-        draw_slider(&mut high, &slider(0.9));
+        draw_slider(&mut high, &slider(0.9), &InteractionState::default());
         // A point 3/4 of the way across the track is covered by the
         // active fill at value=0.9 but not at value=0.1.
         let probe_x = 85;
@@ -949,7 +1027,7 @@ mod tests {
             hit_regions: vec![],
             tags: Default::default(),
         });
-        render_commands(&mut pixmap, &[active, inactive], 0, &mut TextRenderer::new());
+        render_commands(&mut pixmap, &[active, inactive], 0, &mut TextRenderer::new(), &InteractionState::default());
 
         let (r, g, b, a) = pixel_at(&pixmap, 45, 55);
         assert_eq!((r, g, b, a), (255, 0, 0, 255), "active panel's child rect should be translated to (30+10, 40+10)");
@@ -974,7 +1052,7 @@ mod tests {
             hit_regions: vec![],
             tags: Default::default(),
         });
-        render_commands(&mut pixmap, &[scroll], 0, &mut TextRenderer::new());
+        render_commands(&mut pixmap, &[scroll], 0, &mut TextRenderer::new(), &InteractionState::default());
 
         let (_, _, _, inside) = pixel_at(&pixmap, 20, 15);
         assert_eq!(inside, 255, "content inside the viewport must paint");
@@ -996,7 +1074,7 @@ mod tests {
             hit_regions: vec![],
             tags: Default::default(),
         });
-        render_commands(&mut pixmap, &[scroll], 0, &mut TextRenderer::new());
+        render_commands(&mut pixmap, &[scroll], 0, &mut TextRenderer::new(), &InteractionState::default());
 
         let (_, _, _, inside) = pixel_at(&pixmap, 15, 20);
         assert_eq!(inside, 255, "content inside the viewport must paint");
@@ -1028,10 +1106,159 @@ mod tests {
             hit_regions: vec![],
             tags: Default::default(),
         });
-        render_commands(&mut pixmap, &[panel], 0, &mut TextRenderer::new());
+        render_commands(&mut pixmap, &[panel], 0, &mut TextRenderer::new(), &InteractionState::default());
 
         // Absolute position: panel (20,20) + hscroll (5,5) + rect (2,2) = (27,27).
         let (_, _, _, a) = pixel_at(&pixmap, 30, 30);
         assert_eq!(a, 255, "nested container offsets must compose additively");
+    }
+
+    #[test]
+    fn live_active_panel_state_overrides_initially_active() {
+        let mut pixmap = Pixmap::new(100, 100).unwrap();
+        let active = DrawCommand::ClientPanel(ClientPanelCommand {
+            key: "tabs1".to_string(),
+            index: 0,
+            initially_active: true,
+            x: 0.0,
+            y: 0.0,
+            commands: vec![rect_at(0.0, 0.0, 20.0, 20.0, "#FF0000")],
+            hit_regions: vec![],
+            tags: Default::default(),
+        });
+        let inactive = DrawCommand::ClientPanel(ClientPanelCommand {
+            key: "tabs1".to_string(),
+            index: 1,
+            initially_active: false,
+            x: 0.0,
+            y: 0.0,
+            commands: vec![rect_at(0.0, 0.0, 20.0, 20.0, "#0000FF")],
+            hit_regions: vec![],
+            tags: Default::default(),
+        });
+        let mut state = InteractionState::default();
+        state.active_panel.insert("tabs1".to_string(), 1);
+        render_commands(&mut pixmap, &[active, inactive], 0, &mut TextRenderer::new(), &state);
+
+        let (r, g, b, _) = pixel_at(&pixmap, 10, 10);
+        assert_eq!((r, g, b), (0, 0, 255), "live state selecting index 1 should paint the second panel instead of the initially-active one");
+    }
+
+    #[test]
+    fn live_hscroll_offset_shifts_the_composited_content_left() {
+        let mut pixmap = Pixmap::new(100, 100).unwrap();
+        let scroll = DrawCommand::HScroll(HScrollCommand {
+            key: "row1".to_string(),
+            x: 10.0,
+            y: 10.0,
+            width: 30.0,
+            height: 20.0,
+            content_width: 60.0,
+            commands: vec![rect_at(0.0, 0.0, 10.0, 20.0, "#22C55E")],
+            hit_regions: vec![],
+            tags: Default::default(),
+        });
+        let mut state = InteractionState::default();
+        // Dragged 20px right of the start, and clamped well under maxOffset (30).
+        state.axis_offset.insert("row1".to_string(), 20.0);
+        render_commands(&mut pixmap, &[scroll], 0, &mut TextRenderer::new(), &state);
+
+        // Content authored at local x=0..10 now composites at 10 - 20 = -10..0,
+        // fully scrolled out of the viewport's left edge.
+        let (_, _, _, at_origin) = pixel_at(&pixmap, 15, 15);
+        assert_eq!(at_origin, 0, "scrolling right should shift content out of view near the viewport's original left edge");
+    }
+
+    #[test]
+    fn live_hscroll_offset_is_clamped_to_the_max_scrollable_distance() {
+        let mut pixmap = Pixmap::new(100, 100).unwrap();
+        let scroll = DrawCommand::HScroll(HScrollCommand {
+            key: "row1".to_string(),
+            x: 10.0,
+            y: 10.0,
+            width: 30.0,
+            height: 20.0,
+            content_width: 60.0,
+            commands: vec![rect_at(50.0, 0.0, 10.0, 20.0, "#22C55E")],
+            hit_regions: vec![],
+            tags: Default::default(),
+        });
+        let mut state = InteractionState::default();
+        // Way past maxOffset (60 - 30 = 30) — must clamp to 30, not 1000.
+        state.axis_offset.insert("row1".to_string(), 1000.0);
+        render_commands(&mut pixmap, &[scroll], 0, &mut TextRenderer::new(), &state);
+
+        // Clamped offset 30: content at local x=50..60 composites at
+        // 10 + 50 - 30 = 30..40, landing inside the viewport (10..40).
+        let (_, _, _, inside) = pixel_at(&pixmap, 35, 15);
+        assert_eq!(inside, 255, "an out-of-range offset must clamp to the max scrollable distance, not scroll past the content's own end");
+    }
+
+    #[test]
+    fn live_slider_value_overrides_the_server_authored_value() {
+        let mut pixmap = Pixmap::new(200, 40).unwrap();
+        let slider = DrawCommand::Slider(SliderCommand {
+            key: "vol".to_string(),
+            x: 0.0,
+            y: 0.0,
+            width: 180.0,
+            height: 20.0,
+            track_height: 4.0,
+            thumb_size: 16.0,
+            value: 0.0,
+            track_color: "#E5E7EB".to_string(),
+            active_color: "#3B82F6".to_string(),
+            thumb_color: "#3B82F6".to_string(),
+            tags: Default::default(),
+        });
+        let mut state = InteractionState::default();
+        state.slider_value.insert("vol".to_string(), 1.0);
+        render_commands(&mut pixmap, &[slider], 0, &mut TextRenderer::new(), &state);
+
+        // With value overridden to 1.0 the thumb should land near the
+        // track's own far end, not near its authored (0.0) start.
+        let (_, _, _, near_end) = pixel_at(&pixmap, 175, 10);
+        assert_eq!(near_end, 255, "live slider_value should move the thumb toward the track's far end, overriding the server-authored value of 0.0");
+    }
+
+    #[test]
+    fn image_renders_the_real_golden_fixtures_inline_data_uri_png() {
+        // The exact data URI in packages/ui/tests/Golden/__fixtures__/
+        // image_network_and_data_uri.json (a real 1x1 PNG PHP's own
+        // base64_encode() produced) scaled up to fill an 80x80 box.
+        let mut pixmap = Pixmap::new(100, 100).unwrap();
+        let image = DrawCommand::Image(ImageCommand {
+            x: 10.0,
+            y: 10.0,
+            width: 80.0,
+            height: 80.0,
+            url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=".to_string(),
+            radius: 0.0,
+            tags: Default::default(),
+        });
+        render_commands(&mut pixmap, &[image], 0, &mut TextRenderer::new(), &InteractionState::default());
+
+        let (_, _, _, inside) = pixel_at(&pixmap, 50, 50);
+        assert_eq!(inside, 255, "the decoded 1x1 PNG scaled to 80x80 should paint fully opaque across the whole box");
+        let (_, _, _, outside) = pixel_at(&pixmap, 5, 5);
+        assert_eq!(outside, 0, "outside the image's own authored box must stay unpainted");
+    }
+
+    #[test]
+    fn image_with_an_unsupported_url_scheme_silently_paints_nothing() {
+        let mut pixmap = Pixmap::new(40, 40).unwrap();
+        let image = DrawCommand::Image(ImageCommand {
+            x: 0.0,
+            y: 0.0,
+            width: 40.0,
+            height: 40.0,
+            url: "https://example.com/photo.jpg".to_string(),
+            radius: 0.0,
+            tags: Default::default(),
+        });
+        render_commands(&mut pixmap, &[image], 0, &mut TextRenderer::new(), &InteractionState::default());
+
+        let (_, _, _, a) = pixel_at(&pixmap, 20, 20);
+        assert_eq!(a, 0, "an https:// image URL is out of scope for now and must silently no-op, not panic");
     }
 }

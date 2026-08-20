@@ -81,21 +81,34 @@ public final class RustRenderer {
     /// `transitionElapsedMs` drive a crossfade/hero transition between it
     /// and `envelopeJSON` (see rust/phpnitro-render/src/transition.rs) —
     /// omit both (the defaults) for a plain, untransitioned render.
+    /// `interactionStateJSON` is the same shape `rustHitTest` already takes
+    /// (activePanel/axisOffset/sliderValue) — omit it (the default) to
+    /// paint every clientPanel/hScroll/vScroll/slider at its
+    /// server-authored resting state.
     public func renderFrame(
         envelopeJSON: String, widthPx: UInt32, heightPx: UInt32, elapsedMs: UInt64 = 0,
-        previousEnvelopeJSON: String? = nil, transitionElapsedMs: UInt64 = 0
+        previousEnvelopeJSON: String? = nil, transitionElapsedMs: UInt64 = 0,
+        interactionStateJSON: String? = nil
     ) -> RenderedFrame? {
         guard let handle else { return nil }
-        let frame: OpaquePointer? = envelopeJSON.withCString { newCString in
-            // Nested withCString, not a flattened helper: the C string's
-            // pointer is only valid inside its own closure's scope, so the
-            // FFI call itself must happen while BOTH strings are still alive.
-            if let previousEnvelopeJSON {
-                return previousEnvelopeJSON.withCString { previousCString in
-                    phpnitro_render_frame(handle, newCString, previousCString, transitionElapsedMs, widthPx, heightPx, elapsedMs)
+        // Three optional/required C strings, each only valid inside its own
+        // withCString closure scope — nested rather than flattened so the
+        // FFI call itself happens while all of them are still alive.
+        func callWithPrevious(_ newCString: UnsafePointer<CChar>, _ previousCString: UnsafePointer<CChar>?) -> OpaquePointer? {
+            if let interactionStateJSON {
+                return interactionStateJSON.withCString { stateCString in
+                    phpnitro_render_frame(handle, newCString, previousCString, transitionElapsedMs, widthPx, heightPx, elapsedMs, stateCString)
                 }
             }
-            return phpnitro_render_frame(handle, newCString, nil, transitionElapsedMs, widthPx, heightPx, elapsedMs)
+            return phpnitro_render_frame(handle, newCString, previousCString, transitionElapsedMs, widthPx, heightPx, elapsedMs, nil)
+        }
+        let frame: OpaquePointer? = envelopeJSON.withCString { newCString in
+            if let previousEnvelopeJSON {
+                return previousEnvelopeJSON.withCString { previousCString in
+                    callWithPrevious(newCString, previousCString)
+                }
+            }
+            return callWithPrevious(newCString, nil)
         }
         guard let frame else { return nil }
         defer { phpnitro_render_free_frame(frame) }

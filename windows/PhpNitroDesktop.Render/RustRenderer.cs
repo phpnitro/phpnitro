@@ -110,7 +110,7 @@ internal static class NativeMethods
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern IntPtr phpnitro_render_frame(
         IntPtr renderer, byte[] envelopeJsonUtf8, byte[]? previousEnvelopeJsonUtf8, ulong transitionElapsedMs,
-        uint widthPx, uint heightPx, ulong elapsedMs);
+        uint widthPx, uint heightPx, ulong elapsedMs, byte[]? interactionStateJsonUtf8);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern IntPtr phpnitro_render_frame_pixels(IntPtr frame);
@@ -195,15 +195,20 @@ public sealed class RustRenderer : IDisposable
     /// check LastError() for why. previousEnvelopeJson/transitionElapsedMs
     /// drive a crossfade/hero transition between it and envelopeJson (see
     /// rust/phpnitro-render/src/transition.rs) — omit both (the defaults)
-    /// for a plain, untransitioned render.
+    /// for a plain, untransitioned render. interactionStateJson is the same
+    /// shape HitTest() already takes (activePanel/axisOffset/sliderValue) —
+    /// omit it (the default) to paint every clientPanel/hScroll/vScroll/
+    /// slider at its server-authored resting state.
     public RenderedFrame? RenderFrame(
         string envelopeJson, uint widthPx, uint heightPx, ulong elapsedMs = 0,
-        string? previousEnvelopeJson = null, ulong transitionElapsedMs = 0)
+        string? previousEnvelopeJson = null, ulong transitionElapsedMs = 0,
+        string? interactionStateJson = null)
     {
         var previousBytes = previousEnvelopeJson is null ? null : NativeMethods.Utf8WithNul(previousEnvelopeJson);
+        var stateBytes = interactionStateJson is null ? null : NativeMethods.Utf8WithNul(interactionStateJson);
         var frame = NativeMethods.phpnitro_render_frame(
             _handle, NativeMethods.Utf8WithNul(envelopeJson), previousBytes, transitionElapsedMs,
-            widthPx, heightPx, elapsedMs);
+            widthPx, heightPx, elapsedMs, stateBytes);
         if (frame == IntPtr.Zero)
         {
             return null;

@@ -47,6 +47,23 @@ pub struct InteractionState {
     /// both, since a screen using both would use distinct keys anyway).
     #[serde(default)]
     pub axis_offset: HashMap<String, f32>,
+    /// `slider.key -> live drag value (0..1)`, overriding
+    /// `SliderCommand.value` while the user is actively dragging the
+    /// thumb — kept as its own map rather than folded into `axis_offset`,
+    /// which is a content-space distance, not a normalized fraction.
+    #[serde(default)]
+    pub slider_value: HashMap<String, f32>,
+}
+
+/// `clientPanel.key`/`.index` vs. live state — a key with no entry falls
+/// back to `initiallyActive`, the same fallback `seedClientTabState()`
+/// uses on Android. Shared between hit-testing and painting so this
+/// correlation exists in exactly one place, not re-derived per caller.
+pub fn is_client_panel_active(state: &InteractionState, key: &str, index: i64, initially_active: bool) -> bool {
+    match state.active_panel.get(key) {
+        Some(active_index) => *active_index == index,
+        None => initially_active,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -90,11 +107,7 @@ pub fn hit_test(envelope: &Envelope, tap_x: f32, tap_y: f32, state: &Interaction
 
     for command in &envelope.commands {
         if let DrawCommand::ClientPanel(panel) = command {
-            let is_active = match state.active_panel.get(&panel.key) {
-                Some(active_index) => *active_index == panel.index,
-                None => panel.initially_active,
-            };
-            if !is_active {
+            if !is_client_panel_active(state, &panel.key, panel.index, panel.initially_active) {
                 continue;
             }
             let touch_y = touch_y_for(panel.tags.fixed, tap_y, state.scroll_y);

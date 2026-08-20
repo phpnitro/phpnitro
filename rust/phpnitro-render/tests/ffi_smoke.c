@@ -21,7 +21,7 @@ int main(void) {
         "{\"type\":\"rect\",\"x\":0,\"y\":0,\"width\":10,\"height\":10,\"color\":\"#FF0000\",\"radius\":0}"
         "],\"hitRegions\":[{\"x\":0,\"y\":0,\"width\":10,\"height\":10,\"action\":\"tap:me\"}],\"contentHeight\":10}";
 
-    PhpNitroFrame *frame = phpnitro_render_frame(renderer, envelope, NULL, 0, 20, 20, 0);
+    PhpNitroFrame *frame = phpnitro_render_frame(renderer, envelope, NULL, 0, 20, 20, 0, NULL);
     assert(frame != NULL);
     assert(phpnitro_render_frame_width(frame) == 20);
     assert(phpnitro_render_frame_height(frame) == 20);
@@ -31,7 +31,7 @@ int main(void) {
     phpnitro_render_free_frame(frame);
 
     /* Malformed JSON must fail cleanly, not crash. */
-    PhpNitroFrame *bad = phpnitro_render_frame(renderer, "{not json", NULL, 0, 10, 10, 0);
+    PhpNitroFrame *bad = phpnitro_render_frame(renderer, "{not json", NULL, 0, 10, 10, 0, NULL);
     assert(bad == NULL);
     const char *error = phpnitro_render_last_error();
     assert(error != NULL);
