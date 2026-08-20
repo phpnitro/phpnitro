@@ -110,6 +110,34 @@ final class RustNativeRendererTests: XCTestCase {
         XCTAssertEqual(atEnd.data[offset + 2], 255)
     }
 
+    func testRenderFrameHonorsALiveInteractionState() throws {
+        // Exercises renderFrame's own optional interactionStateJSON
+        // parameter directly (see rust/phpnitro-render/src/raster.rs's
+        // clientPanel handling) — a live tab selection must reach the
+        // paint path, not just hit-testing.
+        let renderer = try RustRenderer()
+        let envelope = """
+            {"commands":[
+                {"type":"clientPanel","key":"tabs1","index":0,"initiallyActive":true,"x":0,"y":0,
+                 "commands":[{"type":"rect","x":0,"y":0,"width":10,"height":10,"color":"#FF0000"}]},
+                {"type":"clientPanel","key":"tabs1","index":1,"initiallyActive":false,"x":0,"y":0,
+                 "commands":[{"type":"rect","x":0,"y":0,"width":10,"height":10,"color":"#0000FF"}]}
+            ],"hitRegions":[],"contentHeight":10}
+            """
+
+        let resting = try XCTUnwrap(renderer.renderFrame(envelopeJSON: envelope, widthPx: 20, heightPx: 20))
+        let offset = Int(5 * resting.stride + 5 * 4)
+        XCTAssertEqual(resting.data[offset], 255)
+        XCTAssertEqual(resting.data[offset + 2], 0)
+
+        let live = try XCTUnwrap(renderer.renderFrame(
+            envelopeJSON: envelope, widthPx: 20, heightPx: 20,
+            interactionStateJSON: #"{"activePanel":{"tabs1":1}}"#
+        ))
+        XCTAssertEqual(live.data[offset], 0)
+        XCTAssertEqual(live.data[offset + 2], 255)
+    }
+
     func testHitTestFindsTheRealButtonActionAtItsCenter() throws {
         let envelope = try Self.fixtureJSON("button_with_icon.json")
         let hit = rustHitTest(envelopeJSON: envelope, tapX: 100, tapY: 27)

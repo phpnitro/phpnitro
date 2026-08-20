@@ -81,7 +81,7 @@ def _lib_handle() -> ctypes.CDLL:
         lib.phpnitro_render_frame.restype = ctypes.c_void_p
         lib.phpnitro_render_frame.argtypes = [
             ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint64,
-            ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint64,
+            ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint64, ctypes.c_char_p,
         ]
         lib.phpnitro_render_frame_pixels.restype = ctypes.c_void_p
         lib.phpnitro_render_frame_pixels.argtypes = [ctypes.c_void_p]
@@ -166,6 +166,7 @@ class RustRenderer:
         elapsed_ms: int = 0,
         previous_envelope_json: Optional[str] = None,
         transition_elapsed_ms: int = 0,
+        interaction_state_json: Optional[str] = None,
     ) -> Optional[RenderedFrame]:
         """Returns None on failure (malformed JSON, zero width/height) —
         check last_error() for why, same "None on a normal-ish failure,
@@ -176,8 +177,14 @@ class RustRenderer:
         transition between it and envelope_json (see
         rust/phpnitro-render/src/transition.rs) — omit both (the defaults)
         for a plain, untransitioned render.
+
+        interaction_state_json is the same shape hit_test() already takes
+        (activePanel/axisOffset/sliderValue) — omit it (the default) to
+        paint every clientPanel/hScroll/vScroll/slider at its
+        server-authored resting state.
         """
         previous_bytes = previous_envelope_json.encode("utf-8") if previous_envelope_json is not None else None
+        state_bytes = interaction_state_json.encode("utf-8") if interaction_state_json is not None else None
         frame = self._lib.phpnitro_render_frame(
             self._handle,
             envelope_json.encode("utf-8"),
@@ -186,6 +193,7 @@ class RustRenderer:
             width,
             height,
             elapsed_ms,
+            state_bytes,
         )
         if not frame:
             return None

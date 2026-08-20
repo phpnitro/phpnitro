@@ -154,6 +154,31 @@ class RustCairoParityTests(unittest.TestCase):
         self.assertIsNotNone(plain)
         self.assertEqual(_rust_pixel_rgba(plain, 10, 10), (0, 0, 255, 255))
 
+    def test_render_frame_honors_a_live_interaction_state(self):
+        # rust_render.py's own interaction_state_json plumbing (see
+        # rust/phpnitro-render/src/raster.rs's clientPanel/hScroll/vScroll/
+        # slider handling) — a real FFI round-trip proving a live tab
+        # selection actually reaches the paint path, not just hit-testing.
+        envelope = json.dumps({
+            "commands": [
+                {"type": "clientPanel", "key": "tabs1", "index": 0, "initiallyActive": True, "x": 0, "y": 0,
+                 "commands": [{"type": "rect", "x": 0, "y": 0, "width": 10, "height": 10, "color": "#FF0000"}]},
+                {"type": "clientPanel", "key": "tabs1", "index": 1, "initiallyActive": False, "x": 0, "y": 0,
+                 "commands": [{"type": "rect", "x": 0, "y": 0, "width": 10, "height": 10, "color": "#0000FF"}]},
+            ],
+            "hitRegions": [], "contentHeight": 10,
+        })
+
+        resting = self.RUST_RENDERER.render_frame(envelope, 20, 20)
+        self.assertIsNotNone(resting)
+        self.assertEqual(_rust_pixel_rgba(resting, 5, 5), (255, 0, 0, 255), "with no live state, the initiallyActive panel should paint")
+
+        live = self.RUST_RENDERER.render_frame(
+            envelope, 20, 20, interaction_state_json=json.dumps({"activePanel": {"tabs1": 1}}),
+        )
+        self.assertIsNotNone(live)
+        self.assertEqual(_rust_pixel_rgba(live, 5, 5), (0, 0, 255, 255), "live activePanel state should override initiallyActive")
+
     def test_hit_test_agrees_with_the_python_action_at(self):
         # app.py's PhpNitroCanvasWidget._hit_test_via_rust() trusts a
         # clean "nothing hit" from Rust as-is rather than silently

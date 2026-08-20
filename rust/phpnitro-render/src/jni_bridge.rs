@@ -103,6 +103,9 @@ pub extern "system" fn Java_com_phpnitro_engine_RustRenderer_nativeFree<'local>(
 /// `PhpNitroFrame` handle), since JNI round-trips are comparatively
 /// expensive and Kotlin has no raw-pointer type to hold an opaque frame
 /// handle across several follow-up calls the way C/Swift/C# do.
+/// `interaction_state_json` is the same shape `nativeHitTest` already
+/// takes — a null/empty/malformed value paints every `clientPanel`/
+/// `hScroll`/`vScroll`/`slider` at its server-authored resting state.
 #[no_mangle]
 pub extern "system" fn Java_com_phpnitro_engine_RustRenderer_nativeRenderFrame<'local>(
     mut env: JNIEnv<'local>,
@@ -114,6 +117,7 @@ pub extern "system" fn Java_com_phpnitro_engine_RustRenderer_nativeRenderFrame<'
     width_px: jint,
     height_px: jint,
     elapsed_ms: jlong,
+    interaction_state_json: JString<'local>,
 ) -> jbyteArray {
     if handle == 0 || width_px <= 0 || height_px <= 0 {
         return std::ptr::null_mut();
@@ -126,6 +130,12 @@ pub extern "system" fn Java_com_phpnitro_engine_RustRenderer_nativeRenderFrame<'
     };
     let previous_envelope = jstring_to_optional_string(&mut env, &previous_envelope_json)
         .and_then(|json| decode_envelope(&json).ok());
+    let state_json = jstring_to_optional_string(&mut env, &interaction_state_json).unwrap_or_default();
+    let state: InteractionState = if state_json.trim().is_empty() {
+        InteractionState::default()
+    } else {
+        serde_json::from_str(&state_json).unwrap_or_default()
+    };
     let Some(mut pixmap) = Pixmap::new(width_px as u32, height_px as u32) else {
         return std::ptr::null_mut();
     };
@@ -137,6 +147,7 @@ pub extern "system" fn Java_com_phpnitro_engine_RustRenderer_nativeRenderFrame<'
         transition_elapsed_ms as u64,
         elapsed_ms as u64,
         &mut renderer.text_renderer,
+        &state,
     );
 
     let width = pixmap.width();
