@@ -11,9 +11,11 @@ written in — see linux/README.md).
 
 from __future__ import annotations
 
+import json
 import os
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -26,9 +28,43 @@ from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
 from . import image_loader, navigation, php_process, rust_render, screen_client  # noqa: E402
 from .canvas import RenderState, needs_animation, render_payload  # noqa: E402
-from .draw_command import DrawCommandPayload  # noqa: E402
+from .draw_command import DrawCommandPayload, HScrollCommand, VScrollCommand  # noqa: E402
 
 APP_ID = "com.phpnitro.desktop"
+
+# Mirrors NativeCanvasView.kt's own touchSlop (ViewConfiguration's
+# scaledTouchSlop, ~8dp) — a plain constant here since GTK has no
+# per-device touch-slop concept of its own to query, same choice
+# ScreenForm.cs (Windows)/RustScreenView.swift (macOS) already made.
+_TOUCH_SLOP = 4.0
+
+
+@dataclass(frozen=True)
+class _ScrollTarget:
+    key: str
+    is_horizontal: bool
+    rect: tuple[float, float, float, float]  # x, y, width, height
+    content_extent: float
+
+
+@dataclass(frozen=True)
+class _SliderDrag:
+    key: str
+    action: str
+    rect: tuple[float, float, float, float]  # x, y, width, height
+    thumb_size: float
+
+
+def _slider_value_for_touch(rect: tuple[float, float, float, float], thumb_size: float, touch_x: float) -> float:
+    """Inverse of draw_slider()'s own thumbCx formula
+    (rust/phpnitro-render/src/raster.rs) — mirrors
+    ScreenForm.cs/RustScreenView.swift's own SliderValueForTouch exactly.
+    """
+    x, _y, width, _height = rect
+    track_width = max(width - thumb_size, 1.0)
+    value = (touch_x - x - thumb_size / 2.0) / track_width
+    return min(max(value, 0.0), 1.0)
+
 
 # The shared Rust engine (see rust/phpnitro-render/README.md) is now the
 # DEFAULT render path — real-machine-tested against a genuinely blank
@@ -85,7 +121,19 @@ class PhpNitroCanvasWidget(Gtk.Overlay):
         self.payload: Optional[DrawCommandPayload] = None
         self.raw_json: Optional[str] = None
         self.client_tab_state: dict[str, int] = {}
-        self.on_action = None  # Optional[Callable[[str, tuple[float, float, float, float]], None]]
+        # hScroll/vScroll.key -> local drag offset, mirrors
+        # NativeCanvasView.kt's own hScrollOffsets/vScrollOffsets —
+        # accumulated raw (raster.rs's own draw_hscroll/draw_vscroll
+        # clamp to [0, contentExtent - viewportExtent] on every render),
+        # so this side never needs to know contentWidth/contentHeight to
+        # stay in range.
+        self.axis_offset: dict[str, float] = {}
+        # slider.key -> live drag value (0..1), mirrors
+        # NativeCanvasView.kt's own sliderValues — overrides
+        # SliderCommand.value while dragging; committed via on_action
+        # only on drag-end.
+        self.slider_value: dict[str, float] = {}
+        self.on_action = None  # Optional[Callable[[str, Optional[str], tuple[float, float, float, float]], None]]
         # Called with (width, height) whenever _on_draw observes a size
         # different from the one the current payload was fetched for —
         # GTK4 hands this widget its real, live-allocated size on every
@@ -104,13 +152,40 @@ class PhpNitroCanvasWidget(Gtk.Overlay):
         self._rust_render_start = time.monotonic()
         self._active_text_input: Optional[Gtk.Widget] = None
 
+        # hScroll/vScroll's own "was this decisive move actually meant as
+        # this axis's scroll" ambiguity — a candidate target found on
+        # drag-begin, promoted to _active_scroll only once _TOUCH_SLOP is
+        # cleared in the matching axis (see _on_drag_update). A slider
+        # has no such ambiguity: its whole touch box IS the gesture, so
+        # it commits directly to _active_slider on drag-begin.
+        self._pending_scroll: Optional[_ScrollTarget] = None
+        self._active_scroll: Optional[_ScrollTarget] = None
+        self._active_slider: Optional[_SliderDrag] = None
+        # The point drag-begin fired at — GestureDrag's own
+        # drag-update/drag-end signals hand back an OFFSET relative to
+        # this point, not absolute coordinates, so this is what recovers
+        # the current absolute point (start + offset) each event.
+        self._drag_start: tuple[float, float] = (0.0, 0.0)
+        # GestureDrag's own signals hand back offsets RELATIVE TO THE
+        # DRAG START, not deltas since the previous event — _last_offset
+        # lets _on_drag_update recover a per-event delta the same way
+        # ScreenForm.cs's own _lastDragPoint does (delta = last - current).
+        self._last_offset: tuple[float, float] = (0.0, 0.0)
+
         self._drawing_area = Gtk.DrawingArea()
         self._drawing_area.set_draw_func(self._on_draw)
         self.set_child(self._drawing_area)
 
-        click = Gtk.GestureClick.new()
-        click.connect("pressed", self._on_click)
-        self._drawing_area.add_controller(click)
+        # A single Gtk.GestureDrag handles both a plain tap (drag-end
+        # fires with an ~(0, 0) offset) and a real hScroll/vScroll/slider
+        # drag — same "one mouse-down/move/up trio for both" design
+        # ScreenForm.cs (Windows)/RustScreenView.swift (macOS) already
+        # use, rather than a separate click gesture alongside a drag one.
+        drag = Gtk.GestureDrag.new()
+        drag.connect("drag-begin", self._on_drag_begin)
+        drag.connect("drag-update", self._on_drag_update)
+        drag.connect("drag-end", self._on_drag_end)
+        self._drawing_area.add_controller(drag)
 
         image_loader.on_image_loaded = self._drawing_area.queue_draw
 
@@ -255,7 +330,9 @@ class PhpNitroCanvasWidget(Gtk.Overlay):
                 return False
 
         elapsed_ms = int((time.monotonic() - self._rust_render_start) * 1000)
-        frame = self._rust_renderer.render_frame(self.raw_json, width, height, elapsed_ms)
+        frame = self._rust_renderer.render_frame(
+            self.raw_json, width, height, elapsed_ms, interaction_state_json=self._interaction_state_json(),
+        )
         if frame is None:
             print(f"[phpnitro] Rust render_frame failed, using Cairo for this frame: {rust_render.last_error()}")
             return False
@@ -266,18 +343,141 @@ class PhpNitroCanvasWidget(Gtk.Overlay):
         ctx.paint()
         return True
 
-    def _on_click(self, _gesture, _n_press, x: float, y: float) -> None:
+    def _interaction_state_json(self) -> str:
+        """{"activePanel":{...},"axisOffset":{...},"sliderValue":{...}} —
+        the same shape rust/phpnitro-render/src/hittest.rs's
+        InteractionState decodes, and ScreenForm.cs/RustScreenView.swift's
+        own BuildInteractionStateJson()/buildInteractionStateJSON()
+        build. Rebuilt fresh each call rather than cached — this state
+        changes far less often than frames render, but this stays
+        correct without a dirty flag to remember to clear.
+        """
+        return json.dumps({
+            "activePanel": self.client_tab_state,
+            "axisOffset": self.axis_offset,
+            "sliderValue": self.slider_value,
+        })
+
+    def _on_drag_begin(self, _gesture, start_x: float, start_y: float) -> None:
+        self._pending_scroll = None
+        self._active_scroll = None
+        self._active_slider = None
+        self._drag_start = (start_x, start_y)
+        self._last_offset = (0.0, 0.0)
+
         if self.payload is None:
             return
-        if _RUST_RENDER_ENABLED and self.raw_json is not None:
-            hit = self._hit_test_via_rust(x, y)
-        else:
-            region = self.payload.region_at(x, y)
-            hit = (region.action, (region.x, region.y, region.x + region.width, region.y + region.height)) if region is not None else None
-        if hit is not None and self.on_action is not None:
-            self.on_action(hit[0], hit[1])
 
-    def _hit_test_via_rust(self, x: float, y: float) -> Optional[tuple[str, tuple[float, float, float, float]]]:
+        # Slider commits immediately on down, not after a decisive-move
+        # threshold like hScroll/vScroll — a slider's whole touch box IS
+        # the gesture, there's no "was this actually meant as a page
+        # scroll" ambiguity to resolve (see NativeCanvasView.kt's own
+        # comment on this exact point).
+        for region in self.payload.slider_regions:
+            rect = (region.x, region.y, region.width, region.height)
+            if region.x <= start_x <= region.x + region.width and region.y <= start_y <= region.y + region.height:
+                self._active_slider = _SliderDrag(region.key, region.action, rect, region.thumb_size)
+                self.slider_value[region.key] = _slider_value_for_touch(rect, region.thumb_size, start_x)
+                self.queue_draw()
+                return
+
+        # Only TOP-LEVEL hScroll/vScroll commands are considered — same
+        # limitation NativeCanvasView.kt's own parseHScrollRegions()/
+        # parseVScrollRegions() have (a flat scan over `commands`, no
+        # recursion into a nested clientPanel), not a gap introduced here.
+        for command in self.payload.commands:
+            if isinstance(command, HScrollCommand):
+                if command.x <= start_x <= command.x + command.width and command.y <= start_y <= command.y + command.height:
+                    rect = (command.x, command.y, command.width, command.height)
+                    self._pending_scroll = _ScrollTarget(command.key, True, rect, command.content_width)
+                    return
+            elif isinstance(command, VScrollCommand):
+                if command.x <= start_x <= command.x + command.width and command.y <= start_y <= command.y + command.height:
+                    rect = (command.x, command.y, command.width, command.height)
+                    self._pending_scroll = _ScrollTarget(command.key, False, rect, command.content_height)
+                    return
+
+    def _on_drag_update(self, _gesture, offset_x: float, offset_y: float) -> None:
+        if self.payload is None:
+            return
+
+        if self._active_slider is not None:
+            current_x = self._drag_start[0] + offset_x
+            self.slider_value[self._active_slider.key] = _slider_value_for_touch(
+                self._active_slider.rect, self._active_slider.thumb_size, current_x,
+            )
+            self.queue_draw()
+            return
+
+        if self._pending_scroll is not None and self._active_scroll is None:
+            target = self._pending_scroll
+            if target.is_horizontal and abs(offset_x) > _TOUCH_SLOP and abs(offset_x) > abs(offset_y):
+                self._active_scroll = target
+                self._pending_scroll = None
+            elif not target.is_horizontal and abs(offset_y) > _TOUCH_SLOP:
+                self._active_scroll = target
+                self._pending_scroll = None
+            elif target.is_horizontal and abs(offset_y) > _TOUCH_SLOP and abs(offset_y) > abs(offset_x):
+                # Decisive move was vertical over a pending HORIZONTAL
+                # target — this was never an hScroll gesture.
+                self._pending_scroll = None
+
+        if self._active_scroll is not None:
+            rect = self._active_scroll.rect
+            viewport_extent = rect[2] if self._active_scroll.is_horizontal else rect[3]
+            max_offset = max(self._active_scroll.content_extent - viewport_extent, 0.0)
+            key = self._active_scroll.key
+            current = self.axis_offset.get(key, 0.0)
+            last_offset_x, last_offset_y = self._last_offset
+            delta = (last_offset_x - offset_x) if self._active_scroll.is_horizontal else (last_offset_y - offset_y)
+            self.axis_offset[key] = min(max(current + delta, 0.0), max_offset)
+            self._last_offset = (offset_x, offset_y)
+            self.queue_draw()
+
+    def _on_drag_end(self, _gesture, offset_x: float, offset_y: float) -> None:
+        if self.payload is None:
+            return
+
+        if self._active_slider is not None:
+            slider = self._active_slider
+            self._active_slider = None
+            value = self.slider_value.get(slider.key, 0.0)
+            # Locale-independent formatting (Python's ".3f" mini-language
+            # always uses a period, never the current locale's decimal
+            # separator) — a French/Belgian/etc. locale's decimal COMMA
+            # sent as a literal query-string value would have PHP's
+            # (float) cast stop parsing at the first non-digit character,
+            # silently truncating every dragged value to its integer part
+            # (same bug NativeCanvasView.kt's own Locale.US comment warns
+            # about).
+            meta_json = json.dumps({"next": f"{value:.3f}"})
+            if self.on_action is not None:
+                self.on_action(slider.action, meta_json, slider.rect)
+            return
+
+        if self._active_scroll is not None:
+            # A real scroll drag happened this gesture — no tap fires,
+            # matching NativeCanvasView.kt's own ACTION_UP handling
+            # (activeHScroll/activeVScroll just get cleared, nothing
+            # else).
+            self._active_scroll = None
+            self._pending_scroll = None
+            return
+        self._pending_scroll = None
+
+        # Never became a drag — a plain tap, hit-tested at the RELEASE
+        # position (mirrors NativeCanvasView.kt's own handleTap(event),
+        # called with the ACTION_UP event's coordinates).
+        tap_x, tap_y = self._drag_start[0] + offset_x, self._drag_start[1] + offset_y
+        if _RUST_RENDER_ENABLED and self.raw_json is not None:
+            hit = self._hit_test_via_rust(tap_x, tap_y)
+        else:
+            region = self.payload.region_at(tap_x, tap_y)
+            hit = (region.action, None, (region.x, region.y, region.x + region.width, region.y + region.height)) if region is not None else None
+        if hit is not None and self.on_action is not None:
+            self.on_action(hit[0], hit[1], hit[2])
+
+    def _hit_test_via_rust(self, x: float, y: float) -> Optional[tuple[str, Optional[str], tuple[float, float, float, float]]]:
         """Mirrors `_draw_via_rust`'s fallback contract: only falls back
         to `region_at()` if Rust's hit-test call itself couldn't run at
         all (library missing/import error) — a clean "nothing hit" from
@@ -287,19 +487,20 @@ class PhpNitroCanvasWidget(Gtk.Overlay):
         first-match order, no scroll-offset/`fixed` handling, no nested
         clientPanel/hScroll/vScroll hit-testing at all) that this Rust
         path is specifically meant to fix, not paper back over. Returns
-        (action, (left, top, right, bottom)) — the rect a `focus:` action
-        needs to position its text-input overlay.
+        (action, meta_json, (left, top, right, bottom)) — meta_json is
+        the tapped region's own "meta" object (needed for a `toggle:`
+        Checkbox/Toggle commit), None on the Python fallback path since
+        HitRegion there carries no meta of its own; the rect is what a
+        `focus:` action needs to position its text-input overlay.
         """
         try:
-            import json
-
-            state_json = json.dumps({"activePanel": self.client_tab_state})
+            state_json = self._interaction_state_json()
             hit = rust_render.hit_test(self.raw_json, x, y, state_json)
         except rust_render.RustRenderUnavailable as exc:
             print(f"[phpnitro] PHPNITRO_RUST_RENDER=1 but hit-testing is unavailable, using Python: {exc}")
             region = self.payload.region_at(x, y)
-            return (region.action, (region.x, region.y, region.x + region.width, region.y + region.height)) if region is not None else None
-        return (hit.action, hit.rect) if hit is not None else None
+            return (region.action, None, (region.x, region.y, region.x + region.width, region.y + region.height)) if region is not None else None
+        return (hit.action, hit.meta_json, hit.rect) if hit is not None else None
 
     def _update_animation_timer(self) -> None:
         """Started/stopped on demand — same idea as
@@ -339,6 +540,14 @@ class ScreenWindow(Gtk.ApplicationWindow):
         self.port = port
         self.stack: tuple[str, ...] = (screen,)
         self.field_values: dict[str, str] = {}
+        # The last width/height an actual fetch went out for — None
+        # before the very first fetch (the only case get_default_size()'s
+        # fixed 390x844 CONSTRUCTION default is the right fallback; see
+        # _fetch's own docblock). Without this, every navigate:/tab:/
+        # back/toggle: fetch after a real resize would silently revert
+        # to that fixed default instead of the size the window actually
+        # is now — a real bug, not a hypothetical one.
+        self._last_known_size: Optional[tuple[int, int]] = None
 
         self.canvas = PhpNitroCanvasWidget()
         self.canvas.on_action = self._handle_action
@@ -357,7 +566,7 @@ class ScreenWindow(Gtk.ApplicationWindow):
         """
         self.field_values[name] = value
 
-    def _handle_action(self, action: str, rect: tuple[float, float, float, float]) -> None:
+    def _handle_action(self, action: str, meta_json: Optional[str], rect: tuple[float, float, float, float]) -> None:
         # focus: never reaches navigation.reduce (no fetch at all,
         # entirely client-side — same "not funneled through the generic
         # reducer" treatment clientTab: gets) — matches
@@ -375,9 +584,20 @@ class ScreenWindow(Gtk.ApplicationWindow):
             self.canvas.show_text_input(field_name, self.field_values.get(field_name, ""), rect, multiline, secure)
             return
 
-        result = navigation.reduce(action, self.stack)
+        result = navigation.reduce(action, self.stack, meta_json)
         if isinstance(result, navigation.ClientTabOnly):
             self.canvas.set_client_tab(result.key, result.index)
+            return
+        if isinstance(result, navigation.FieldUpdate):
+            # Checkbox/Toggle/Slider's shared "toggle:" commit
+            # destination — a local field_values[name] = value update
+            # followed by a same-screen refetch, mirroring
+            # NativeRenderPocActivity.kt's own generic "toggle:" handler
+            # exactly. field_values is sent on EVERY fetch already (see
+            # _fetch), so there's no separate "commit" step beyond
+            # keeping this dict current.
+            self.field_values[result.key] = result.value
+            self._fetch(action=None)
             return
 
         self.stack = result.stack
@@ -395,13 +615,15 @@ class ScreenWindow(Gtk.ApplicationWindow):
         screen = self.stack[-1] if self.stack else "home"
         # get_default_size() only ever returns the fixed CONSTRUCTION
         # default (390x844) on this platform, never the window's actual
-        # current size — fine as a one-time bootstrap value before the
-        # canvas has been allocated any real size at all, but every fetch
-        # after that (including the very first _handle_resize once the
-        # window is actually shown) passes the canvas's own live size
-        # instead. See PhpNitroCanvasWidget.on_resize's own docblock.
+        # current size — only used as a one-time bootstrap value before
+        # ANY real size is known yet (self._last_known_size is still
+        # None); every fetch after that (a real resize, or a plain
+        # navigate:/tab:/back/toggle: with no explicit size of its own)
+        # reuses the last size a fetch actually went out for instead. See
+        # PhpNitroCanvasWidget.on_resize's own docblock.
         if width is None or height is None:
-            width, height = self.get_default_size()
+            width, height = self._last_known_size or self.get_default_size()
+        self._last_known_size = (width, height)
         # Marked BEFORE the async result lands, not after — otherwise
         # every draw frame while this fetch is still in flight would see
         # the same size mismatch and fire another one.

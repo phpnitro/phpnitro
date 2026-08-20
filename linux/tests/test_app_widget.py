@@ -11,6 +11,7 @@ ScreenWindow itself (app.py) is not, and stays unverified beyond
 import/construction until run against a real display.
 """
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -65,10 +66,13 @@ class PhpNitroCanvasWidgetTests(unittest.TestCase):
         self.widget.set_payload(payload)
 
         fired = []
-        self.widget.on_action = lambda action, rect: fired.append((action, rect))
-        self.widget._on_click(None, 1, 5.0, 5.0)
+        self.widget.on_action = lambda action, meta_json, rect: fired.append((action, meta_json, rect))
+        # A tap is a drag whose end offset is (0, 0) — GestureDrag itself
+        # fires both signals even for a click that never actually moved.
+        self.widget._on_drag_begin(None, 5.0, 5.0)
+        self.widget._on_drag_end(None, 0.0, 0.0)
 
-        self.assertEqual(fired, [("navigate:settings", (0.0, 0.0, 20.0, 20.0))])
+        self.assertEqual(fired, [("navigate:settings", None, (0.0, 0.0, 20.0, 20.0))])
 
     def test_click_outside_every_hit_region_fires_nothing(self):
         payload = decode_payload({
@@ -79,8 +83,9 @@ class PhpNitroCanvasWidgetTests(unittest.TestCase):
         self.widget.set_payload(payload)
 
         fired = []
-        self.widget.on_action = lambda action, rect: fired.append((action, rect))
-        self.widget._on_click(None, 1, 500.0, 500.0)
+        self.widget.on_action = lambda action, meta_json, rect: fired.append((action, meta_json, rect))
+        self.widget._on_drag_begin(None, 500.0, 500.0)
+        self.widget._on_drag_end(None, 0.0, 0.0)
 
         self.assertEqual(fired, [])
 
@@ -198,6 +203,139 @@ class PhpNitroCanvasWidgetTests(unittest.TestCase):
         self.widget.set_payload(payload)
 
         self.assertIsNone(self.widget._active_text_input)
+
+    def test_interaction_state_json_includes_active_panel_axis_offset_and_slider_value(self):
+        self.widget.set_client_tab("tabs1", 1)
+        self.widget.axis_offset["chips"] = 42.0
+        self.widget.slider_value["volume"] = 0.75
+
+        state = json.loads(self.widget._interaction_state_json())
+
+        self.assertEqual(state, {
+            "activePanel": {"tabs1": 1},
+            "axisOffset": {"chips": 42.0},
+            "sliderValue": {"volume": 0.75},
+        })
+
+    def _slider_payload(self):
+        return decode_payload({
+            "commands": [], "hitRegions": [], "contentHeight": 0,
+            "sliderRegions": [{
+                "key": "volume", "x": 20, "y": 0, "width": 360, "height": 44,
+                "trackHeight": 6, "thumbSize": 22, "value": 0.5, "action": "toggle:volume",
+            }],
+        })
+
+    def test_dragging_inside_a_slider_region_updates_its_value_live(self):
+        self.widget.set_payload(self._slider_payload())
+
+        self.widget._on_drag_begin(None, 30.0, 20.0)
+        self.assertIn("volume", self.widget.slider_value)
+
+        self.widget._on_drag_update(None, 100.0, 0.0)
+
+        # (touch_x - x - thumb_size/2) / (width - thumb_size), touch_x = 30 + 100
+        self.assertAlmostEqual(self.widget.slider_value["volume"], (130 - 20 - 11) / (360 - 22), places=6)
+
+    def test_releasing_a_slider_drag_commits_the_value_via_on_action(self):
+        self.widget.set_payload(self._slider_payload())
+        fired = []
+        self.widget.on_action = lambda action, meta_json, rect: fired.append((action, meta_json, rect))
+
+        self.widget._on_drag_begin(None, 30.0, 20.0)
+        self.widget._on_drag_update(None, 100.0, 0.0)
+        self.widget._on_drag_end(None, 100.0, 0.0)
+
+        self.assertEqual(len(fired), 1)
+        action, meta_json, rect = fired[0]
+        self.assertEqual(action, "toggle:volume")
+        self.assertEqual(json.loads(meta_json), {"next": "0.293"})
+
+    def test_slider_drag_clamps_to_the_0_to_1_range(self):
+        self.widget.set_payload(self._slider_payload())
+
+        self.widget._on_drag_begin(None, 30.0, 20.0)
+        self.widget._on_drag_update(None, -1000.0, 0.0)
+        self.assertEqual(self.widget.slider_value["volume"], 0.0)
+
+        self.widget._on_drag_update(None, 1000.0, 0.0)
+        self.assertEqual(self.widget.slider_value["volume"], 1.0)
+
+    def _hscroll_payload(self):
+        return decode_payload({
+            "commands": [{
+                "type": "hScroll", "key": "chips", "x": 0, "y": 0, "width": 100, "height": 50,
+                "contentWidth": 300, "commands": [], "hitRegions": [],
+            }],
+            "hitRegions": [], "contentHeight": 0,
+        })
+
+    def test_hscroll_drag_under_touch_slop_does_not_scroll_yet(self):
+        self.widget.set_payload(self._hscroll_payload())
+
+        self.widget._on_drag_begin(None, 50.0, 25.0)
+        self.widget._on_drag_update(None, -2.0, 0.0)
+
+        self.assertEqual(self.widget.axis_offset, {})
+
+    def test_hscroll_drag_past_touch_slop_accumulates_axis_offset(self):
+        self.widget.set_payload(self._hscroll_payload())
+
+        self.widget._on_drag_begin(None, 50.0, 25.0)
+        self.widget._on_drag_update(None, -10.0, 0.0)
+        self.assertEqual(self.widget.axis_offset["chips"], 10.0)
+
+        self.widget._on_drag_update(None, -20.0, 0.0)
+        self.assertEqual(self.widget.axis_offset["chips"], 20.0)
+
+    def test_hscroll_drag_clamps_to_the_max_content_offset(self):
+        self.widget.set_payload(self._hscroll_payload())
+
+        self.widget._on_drag_begin(None, 50.0, 25.0)
+        self.widget._on_drag_update(None, -10000.0, 0.0)
+
+        # content_width(300) - width(100)
+        self.assertEqual(self.widget.axis_offset["chips"], 200.0)
+
+    def test_releasing_an_hscroll_drag_fires_no_action(self):
+        self.widget.set_payload(self._hscroll_payload())
+        fired = []
+        self.widget.on_action = lambda action, meta_json, rect: fired.append((action, meta_json, rect))
+
+        self.widget._on_drag_begin(None, 50.0, 25.0)
+        self.widget._on_drag_update(None, -10.0, 0.0)
+        self.widget._on_drag_end(None, -10.0, 0.0)
+
+        self.assertEqual(fired, [])
+
+    def test_hscroll_drag_that_never_clears_touch_slop_falls_back_to_a_plain_tap(self):
+        payload = decode_payload({
+            "commands": [{
+                "type": "hScroll", "key": "chips", "x": 0, "y": 0, "width": 100, "height": 50,
+                "contentWidth": 300, "commands": [], "hitRegions": [],
+            }],
+            "hitRegions": [{"x": 0, "y": 0, "width": 100, "height": 50, "action": "navigate:chips"}],
+            "contentHeight": 0,
+        })
+        self.widget.set_payload(payload)
+        fired = []
+        self.widget.on_action = lambda action, meta_json, rect: fired.append((action, meta_json, rect))
+
+        self.widget._on_drag_begin(None, 50.0, 25.0)
+        self.widget._on_drag_update(None, -1.0, 0.0)
+        self.widget._on_drag_end(None, -1.0, 0.0)
+
+        self.assertEqual(fired, [("navigate:chips", None, (0.0, 0.0, 100.0, 50.0))])
+
+    def test_a_decisive_vertical_move_cancels_a_pending_horizontal_scroll(self):
+        self.widget.set_payload(self._hscroll_payload())
+
+        self.widget._on_drag_begin(None, 50.0, 25.0)
+        self.widget._on_drag_update(None, 1.0, 20.0)
+
+        self.assertEqual(self.widget.axis_offset, {})
+        self.assertIsNone(self.widget._active_scroll)
+        self.assertIsNone(self.widget._pending_scroll)
 
 
 if __name__ == "__main__":

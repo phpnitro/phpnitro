@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from phpnitro_desktop.navigation import ClientTabOnly, Fetch, reduce
+from phpnitro_desktop.navigation import ClientTabOnly, Fetch, FieldUpdate, reduce
 
 
 class NavigationTests(unittest.TestCase):
@@ -42,6 +42,26 @@ class NavigationTests(unittest.TestCase):
         result = reduce("counter:increment", ("home",))
 
         self.assertEqual(result, Fetch(stack=("home",), action="counter:increment"))
+
+    def test_toggle_with_meta_extracts_the_next_value_as_a_local_field_update(self):
+        result = reduce("toggle:agree", ("home",), '{"next":"1"}')
+
+        self.assertEqual(result, FieldUpdate(key="agree", value="1"))
+
+    def test_toggle_with_an_empty_next_is_still_a_field_update(self):
+        result = reduce("toggle:agree", ("home",), '{"next":""}')
+
+        self.assertEqual(result, FieldUpdate(key="agree", value=""))
+
+    def test_toggle_with_no_meta_falls_back_to_a_plain_fetch(self):
+        result = reduce("toggle:agree", ("home",))
+
+        self.assertEqual(result, Fetch(stack=("home",), action="toggle:agree"))
+
+    def test_toggle_with_malformed_meta_falls_back_to_a_plain_fetch(self):
+        result = reduce("toggle:agree", ("home",), "not json")
+
+        self.assertEqual(result, Fetch(stack=("home",), action="toggle:agree"))
 
 
 if __name__ == "__main__":
