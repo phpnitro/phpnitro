@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Windows.Forms;
 using PhpNitroDesktop.Protocol;
 using PhpNitroDesktop.Render;
@@ -27,6 +28,16 @@ public sealed class ScreenForm : Form
     private List<string> _stack;
     private string? _rawJson;
 
+    // clientPanel.key -> currently active index — a clientTab: action is
+    // "entirely local, no fetch at all" (ScreenNavigation.cs's own
+    // comment), so this is the only state that tracks it: updated on tap,
+    // fed into RenderFrame/HitTest as interactionStateJson (same shape
+    // rust/phpnitro-render/src/hittest.rs's InteractionState decodes),
+    // never cleared — a key absent here just falls back to whichever
+    // panel PHP marked initiallyActive, exactly like Android's own
+    // seedClientTabState() never clearing clientTabState either.
+    private readonly Dictionary<string, int> _activePanel = new();
+
     public ScreenForm(string host, int port, string initialScreen)
     {
         _client = new ScreenClient(host, port);
@@ -44,6 +55,14 @@ public sealed class ScreenForm : Form
     }
 
     private string CurrentScreen => _stack.Count > 0 ? _stack[^1] : "home";
+
+    // {"activePanel":{"key1":0,...}} — the same shape
+    // rust/phpnitro-render/src/hittest.rs's InteractionState decodes
+    // (#[serde(rename_all = "camelCase")]). Rebuilt fresh each call
+    // rather than cached — _activePanel changes far less often than
+    // frames render, but this stays correct without a dirty flag to
+    // forget to clear.
+    private string BuildInteractionStateJson() => JsonSerializer.Serialize(new { activePanel = _activePanel });
 
     private async System.Threading.Tasks.Task FetchAsync(string? action)
     {
@@ -69,7 +88,7 @@ public sealed class ScreenForm : Form
             return;
         }
 
-        var hit = RustHitTester.HitTest(_rawJson, e.X, e.Y);
+        var hit = RustHitTester.HitTest(_rawJson, e.X, e.Y, BuildInteractionStateJson());
         if (hit is null || string.IsNullOrEmpty(hit.Action))
         {
             return;
@@ -78,11 +97,9 @@ public sealed class ScreenForm : Form
         var navigation = ScreenNavigation.Reduce(hit.Action, _stack);
         switch (navigation)
         {
-            case ClientTabOnly:
-                // No client-side tab-switch state kept in this minimal
-                // shell yet — same "not yet interactive" scoping the
-                // Rust engine's own clientPanel painting currently has
-                // (see rust/phpnitro-render/src/raster.rs).
+            case ClientTabOnly clientTab:
+                _activePanel[clientTab.Key] = clientTab.Index;
+                Invalidate();
                 break;
             case Fetch fetch:
                 _stack = new List<string>(fetch.Stack);
@@ -101,7 +118,7 @@ public sealed class ScreenForm : Form
             return;
         }
 
-        var frame = _renderer.RenderFrame(_rawJson, (uint)ClientSize.Width, (uint)ClientSize.Height);
+        var frame = _renderer.RenderFrame(_rawJson, (uint)ClientSize.Width, (uint)ClientSize.Height, interactionStateJson: BuildInteractionStateJson());
         if (frame is null)
         {
             return;
