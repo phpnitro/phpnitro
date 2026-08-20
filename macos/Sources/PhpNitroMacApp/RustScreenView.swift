@@ -17,6 +17,14 @@ public final class RustScreenView: NSView {
 
     public var onAction: ((String) -> Void)?
 
+    /// Caller-owned live interaction state (which `clientPanel` tab is
+    /// active, today — see `RustScreenController`'s own `activePanel`),
+    /// same JSON shape `rust/phpnitro-render/src/hittest.rs`'s
+    /// `InteractionState` decodes. `nil` renders/hit-tests every affected
+    /// command at its server-authored resting state, unchanged from this
+    /// property's absence before it existed.
+    public var interactionStateJSON: String?
+
     public override var isFlipped: Bool { true }
 
     public init(frame frameRect: NSRect, renderer: RustRenderer) {
@@ -39,7 +47,7 @@ public final class RustScreenView: NSView {
         context.fill(bounds)
 
         guard let rawJSON else { return }
-        guard let frame = renderer.renderFrame(envelopeJSON: rawJSON, widthPx: UInt32(bounds.width), heightPx: UInt32(bounds.height)) else {
+        guard let frame = renderer.renderFrame(envelopeJSON: rawJSON, widthPx: UInt32(bounds.width), heightPx: UInt32(bounds.height), interactionStateJSON: interactionStateJSON) else {
             return
         }
         guard let image = Self.cgImage(from: frame) else { return }
@@ -49,7 +57,7 @@ public final class RustScreenView: NSView {
     public override func mouseDown(with event: NSEvent) {
         guard let rawJSON else { return }
         let point = convert(event.locationInWindow, from: nil)
-        guard let hit = rustHitTest(envelopeJSON: rawJSON, tapX: Float(point.x), tapY: Float(point.y)), !hit.action.isEmpty else {
+        guard let hit = rustHitTest(envelopeJSON: rawJSON, tapX: Float(point.x), tapY: Float(point.y), interactionStateJSON: interactionStateJSON), !hit.action.isEmpty else {
             return
         }
         onAction?(hit.action)
