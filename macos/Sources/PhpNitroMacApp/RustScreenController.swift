@@ -77,6 +77,19 @@ public final class RustScreenController {
             return
         }
 
+        // map:open:<lat>:<lon>:<zoom> (MapView.php) — same "entirely
+        // client-side, no fetch at all" treatment as focus: above.
+        // Fallback values mirror NativeRenderPocActivity.kt's own
+        // showMapOverlay dispatch exactly (Paris, zoom 14).
+        if action.hasPrefix("map:open:") {
+            let parts = action.dropFirst("map:open:".count).components(separatedBy: ":")
+            let latitude = Double(parts.count > 0 ? parts[0] : "") ?? 48.8566
+            let longitude = Double(parts.count > 1 ? parts[1] : "") ?? 2.3522
+            let zoom = Int(parts.count > 2 ? parts[2] : "") ?? 14
+            view.showMapOverlay(latitude: latitude, longitude: longitude, zoom: zoom, rect: rect)
+            return
+        }
+
         switch ScreenNavigation.reduce(action: action, stack: stack, metaJson: metaJSON) {
         case .clientTabOnly(let key, let index):
             // Entirely local, no fetch at all — the view owns this state

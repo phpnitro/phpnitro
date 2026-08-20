@@ -1,4 +1,6 @@
 import AVFoundation
+import CoreLocation
+import MapKit
 import PhpNitroProtocol
 import QuartzCore
 import UIKit
@@ -11,12 +13,13 @@ import UIKit
 /// Graphics instead of android.graphics.Canvas.
 ///
 /// Not a 1:1 port of NativeCanvasView.kt's full feature set — no scroll
-/// handling, no hero transitions, no MapView/Lottie overlays. `focus:`
-/// (showTextInput) and `video:play:` (showVideoOverlay) below DO use the
-/// same "no Canvas concept for this, overlay a real View" idiom
-/// NativeRenderPocActivity.kt's own showTextInput()/showVideoOverlay()
-/// use — everything else interactive is real, separate follow-up work,
-/// not something to fake here.
+/// handling, no hero transitions, no Lottie overlay. `focus:`
+/// (showTextInput), `video:play:` (showVideoOverlay), and `map:open:`
+/// (showMapOverlay) below DO use the same "no Canvas concept for this,
+/// overlay a real View" idiom NativeRenderPocActivity.kt's own
+/// showTextInput()/showVideoOverlay()/showMapOverlay() use — everything
+/// else interactive is real, separate follow-up work, not something to
+/// fake here.
 ///
 /// setPayload(_:) triggers `setNeedsDisplay()`; nothing here fetches
 /// draw commands from a server itself — same separation of concerns
@@ -61,6 +64,13 @@ public final class NativeCanvasView: UIView {
     // undertaking of its own, not attempted here.
     private var activeVideoPlayer: AVPlayer?
     private var activeVideoContainer: UIView?
+
+    // MapView.php's "map:open:<lat>:<lon>:<zoom>" commit destination —
+    // one real MKMapView at a time, mirroring
+    // NativeRenderPocActivity.kt's own single-nullable-field
+    // activeMapView. No API key needed (MapKit, like osmdroid), pan/zoom
+    // built in once added — no extra gesture wiring here either.
+    private var activeMapView: MKMapView?
 
     /// Drives drawSpinnerCommand()/drawSkeletonCommand()'s own continuous
     /// redraw on Android (a ValueAnimator started/stopped based on
@@ -123,6 +133,7 @@ public final class NativeCanvasView: UIView {
         // stale overlay against content it was never laid out for.
         clearTextInput()
         clearVideoOverlay()
+        clearMapOverlay()
         updateAnimationState()
         setNeedsDisplay()
     }
@@ -205,6 +216,36 @@ public final class NativeCanvasView: UIView {
         activeVideoContainer?.removeFromSuperview()
         activeVideoPlayer = nil
         activeVideoContainer = nil
+    }
+
+    /// `map:open:<lat>:<lon>:<zoom>` (MapView.php) — ports
+    /// `NativeRenderPocActivity.kt`'s `showMapOverlay()`: a real,
+    /// pannable/zoomable `MKMapView` centered at (latitude, longitude)
+    /// positioned over the static "open map" box already painted
+    /// underneath. `zoom` follows the same web-mercator convention
+    /// osmdroid/Google Maps/`Slippy map` tile URLs already use (each
+    /// level halves the visible span) — no exact equivalent property on
+    /// `MKCoordinateSpan`, so this converts it by hand.
+    public func showMapOverlay(latitude: Double, longitude: Double, zoom: Int, rect: CGRect) {
+        clearMapOverlay()
+
+        let mapView = MKMapView(frame: rect)
+        let span = 360.0 / pow(2.0, Double(zoom))
+        mapView.setRegion(
+            MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
+                span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span)
+            ),
+            animated: false
+        )
+
+        addSubview(mapView)
+        activeMapView = mapView
+    }
+
+    private func clearMapOverlay() {
+        activeMapView?.removeFromSuperview()
+        activeMapView = nil
     }
 
     @objc private func textFieldChanged(_ textField: UITextField) {
