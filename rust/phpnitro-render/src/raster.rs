@@ -13,13 +13,17 @@
 //! `InteractionState` for `hScroll`/`vScroll` (a clamped drag offset) and
 //! `clientPanel` (which of its sibling panels is currently active) —
 //! `render_commands`'s own `state` parameter, passed through every
-//! recursive call. `image` (needs a byte source) is still handled
-//! elsewhere/not wired here.
+//! recursive call. `image` only paints for an inline
+//! `data:image/png;base64,...` `url` (see `image.rs`'s own doc comment
+//! for the deliberate `https://`/JPEG gap) — every other command type
+//! this crate doesn't recognize is still silently skipped.
 
 use crate::animate::{skeleton_sweep_width, skeleton_sweep_x, spinner_rotation_degrees, SPINNER_SWEEP_DEGREES};
 use crate::hittest::{is_client_panel_active, InteractionState};
+use crate::image::decode_data_uri_png;
 use crate::protocol::{
-    ArcCommand, CircleCommand, DrawCommand, LineCommand, RectCommand, SkeletonCommand, SliderCommand, SpinnerCommand,
+    ArcCommand, CircleCommand, DrawCommand, ImageCommand, LineCommand, RectCommand, SkeletonCommand, SliderCommand,
+    SpinnerCommand,
 };
 use crate::text::TextRenderer;
 use tiny_skia::{
@@ -477,9 +481,44 @@ pub fn render_commands(
             DrawCommand::ClientPanel(panel) => draw_client_panel(pixmap, panel, elapsed_ms, text_renderer, state),
             DrawCommand::HScroll(scroll) => draw_hscroll(pixmap, scroll, elapsed_ms, text_renderer, state),
             DrawCommand::VScroll(scroll) => draw_vscroll(pixmap, scroll, elapsed_ms, text_renderer, state),
+            DrawCommand::Image(image) => draw_image(pixmap, image),
             _ => {}
         }
     }
+}
+
+/// Only paints for an inline `data:image/png;base64,...` `url` (see
+/// `image.rs`'s own doc comment for why `https://`/JPEG are a deliberate
+/// gap, not an oversight) — silently no-ops on anything else, same as
+/// this command already did before this function existed. The decoded
+/// PNG's own intrinsic size is scaled to the command's authored
+/// `(width, height)` via a `Transform::from_scale().post_translate()`,
+/// the exact same composition `transition.rs::draw_hero_flight` already
+/// uses for "someone else's rect, mapped into mine". `radius` clips via
+/// the same `Mask`-based technique `draw_scrollable` already uses.
+fn draw_image(pixmap: &mut Pixmap, image: &ImageCommand) {
+    let Some(png_bytes) = decode_data_uri_png(&image.url) else { return };
+    let Ok(decoded) = Pixmap::decode_png(&png_bytes) else { return };
+    if decoded.width() == 0 || decoded.height() == 0 {
+        return;
+    }
+
+    let (x, y, width, height) = (image.x as f32, image.y as f32, image.width as f32, image.height as f32);
+    if width <= 0.0 || height <= 0.0 {
+        return;
+    }
+
+    let scale_x = width / decoded.width() as f32;
+    let scale_y = height / decoded.height() as f32;
+    let transform = Transform::from_scale(scale_x, scale_y).post_translate(x, y);
+
+    let clip = rounded_rect_path(x, y, width, height, image.radius as f32).and_then(|path| {
+        let mut mask = Mask::new(pixmap.width(), pixmap.height())?;
+        mask.fill_path(&path, FillRule::Winding, true, Transform::identity());
+        Some(mask)
+    });
+
+    pixmap.draw_pixmap(0, 0, decoded.as_ref(), &PixmapPaint::default(), transform, clip.as_ref());
 }
 
 /// `clientPanel`'s own `commands[]` are already panel-relative (confirmed
@@ -1180,5 +1219,46 @@ mod tests {
         // track's own far end, not near its authored (0.0) start.
         let (_, _, _, near_end) = pixel_at(&pixmap, 175, 10);
         assert_eq!(near_end, 255, "live slider_value should move the thumb toward the track's far end, overriding the server-authored value of 0.0");
+    }
+
+    #[test]
+    fn image_renders_the_real_golden_fixtures_inline_data_uri_png() {
+        // The exact data URI in packages/ui/tests/Golden/__fixtures__/
+        // image_network_and_data_uri.json (a real 1x1 PNG PHP's own
+        // base64_encode() produced) scaled up to fill an 80x80 box.
+        let mut pixmap = Pixmap::new(100, 100).unwrap();
+        let image = DrawCommand::Image(ImageCommand {
+            x: 10.0,
+            y: 10.0,
+            width: 80.0,
+            height: 80.0,
+            url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=".to_string(),
+            radius: 0.0,
+            tags: Default::default(),
+        });
+        render_commands(&mut pixmap, &[image], 0, &mut TextRenderer::new(), &InteractionState::default());
+
+        let (_, _, _, inside) = pixel_at(&pixmap, 50, 50);
+        assert_eq!(inside, 255, "the decoded 1x1 PNG scaled to 80x80 should paint fully opaque across the whole box");
+        let (_, _, _, outside) = pixel_at(&pixmap, 5, 5);
+        assert_eq!(outside, 0, "outside the image's own authored box must stay unpainted");
+    }
+
+    #[test]
+    fn image_with_an_unsupported_url_scheme_silently_paints_nothing() {
+        let mut pixmap = Pixmap::new(40, 40).unwrap();
+        let image = DrawCommand::Image(ImageCommand {
+            x: 0.0,
+            y: 0.0,
+            width: 40.0,
+            height: 40.0,
+            url: "https://example.com/photo.jpg".to_string(),
+            radius: 0.0,
+            tags: Default::default(),
+        });
+        render_commands(&mut pixmap, &[image], 0, &mut TextRenderer::new(), &InteractionState::default());
+
+        let (_, _, _, a) = pixel_at(&pixmap, 20, 20);
+        assert_eq!(a, 0, "an https:// image URL is out of scope for now and must silently no-op, not panic");
     }
 }

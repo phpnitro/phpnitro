@@ -110,6 +110,24 @@ fn image_network_and_data_uri_decodes_both_url_forms() {
 }
 
 #[test]
+fn image_network_and_data_uri_renders_only_the_data_uri_image() {
+    // Real end-to-end proof, not just decoding: the https:// image (out
+    // of scope, see rust/phpnitro-render/src/image.rs) must silently
+    // paint nothing, while the inline data:image/png;base64,... image
+    // (at x=80..160) must actually rasterize.
+    let json = fixture("image_network_and_data_uri.json");
+    let envelope = decode_envelope(&json).unwrap();
+    let mut pixmap = Pixmap::new(160, 80).unwrap();
+    render_commands(&mut pixmap, &envelope.commands, 0, &mut TextRenderer::new(), &InteractionState::default());
+
+    let https_image = pixmap.pixel(40, 40).unwrap();
+    assert_eq!(https_image.alpha(), 0, "the https:// image is out of scope and must not paint");
+
+    let data_uri_image = pixmap.pixel(120, 40).unwrap();
+    assert_eq!(data_uri_image.alpha(), 255, "the inline data:image/png;base64,... image must rasterize");
+}
+
+#[test]
 fn spinner_basic_decodes_with_no_rotation_field_on_the_wire() {
     use phpnitro_render::protocol::DrawCommand;
 
