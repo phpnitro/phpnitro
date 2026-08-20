@@ -172,6 +172,41 @@ public class RustRendererTests
     }
 
     [Fact]
+    public void RenderFrameHonorsALiveInteractionState()
+    {
+        // Exercises RenderFrame's own optional interactionStateJson
+        // parameter directly (see rust/phpnitro-render/src/raster.rs's
+        // clientPanel handling) — a live tab selection must reach the
+        // paint path, not just hit-testing.
+        if (!TryCreateRenderer(out var renderer))
+        {
+            return;
+        }
+        using (renderer)
+        {
+            const string envelope = """
+                {"commands":[
+                    {"type":"clientPanel","key":"tabs1","index":0,"initiallyActive":true,"x":0,"y":0,
+                     "commands":[{"type":"rect","x":0,"y":0,"width":10,"height":10,"color":"#FF0000"}]},
+                    {"type":"clientPanel","key":"tabs1","index":1,"initiallyActive":false,"x":0,"y":0,
+                     "commands":[{"type":"rect","x":0,"y":0,"width":10,"height":10,"color":"#0000FF"}]}
+                ],"hitRegions":[],"contentHeight":10}
+                """;
+
+            var resting = renderer!.RenderFrame(envelope, 20, 20);
+            Assert.NotNull(resting);
+            var offset = (int)(5 * resting!.Stride + 5 * 4);
+            Assert.Equal(255, resting.Data[offset]);
+            Assert.Equal(0, resting.Data[offset + 2]);
+
+            var live = renderer.RenderFrame(envelope, 20, 20, interactionStateJson: "{\"activePanel\":{\"tabs1\":1}}");
+            Assert.NotNull(live);
+            Assert.Equal(0, live!.Data[offset]);
+            Assert.Equal(255, live.Data[offset + 2]);
+        }
+    }
+
+    [Fact]
     public void HitTestFindsTheRealButtonActionAtItsCenter()
     {
         try

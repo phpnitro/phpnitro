@@ -7,6 +7,7 @@
 //!
 //! Usage: `cargo run --example render_fixture -- <fixture.json> [width] [height] [out.png]`
 
+use phpnitro_render::hittest::InteractionState;
 use phpnitro_render::protocol::decode_envelope;
 use phpnitro_render::raster::render_commands;
 use phpnitro_render::text::TextRenderer;
@@ -24,7 +25,7 @@ fn main() {
     let envelope = decode_envelope(&json).unwrap_or_else(|e| panic!("decoding {path}: {e}"));
 
     let mut pixmap = Pixmap::new(width, height).expect("non-zero width/height");
-    render_commands(&mut pixmap, &envelope.commands, 0, &mut TextRenderer::new());
+    render_commands(&mut pixmap, &envelope.commands, 0, &mut TextRenderer::new(), &InteractionState::default());
 
     pixmap.save_png(&out).unwrap_or_else(|e| panic!("saving {out}: {e}"));
     println!("saved {out}");

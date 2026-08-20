@@ -64,7 +64,10 @@ class RustRenderer {
      * transition between it and `envelopeJson` (see
      * rust/phpnitro-render/src/transition.rs) — omit both (the defaults)
      * for a plain, untransitioned render, the same zero-extra-cost path
-     * every existing caller already takes.
+     * every existing caller already takes. `interactionStateJson` is the
+     * same shape `hitTest()` already takes (activePanel/axisOffset/
+     * sliderValue) — omit it (the default) to paint every clientPanel/
+     * hScroll/vScroll/slider at its server-authored resting state.
      */
     fun renderFrame(
         envelopeJson: String,
@@ -73,8 +76,9 @@ class RustRenderer {
         elapsedMs: Long = 0,
         previousEnvelopeJson: String? = null,
         transitionElapsedMs: Long = 0,
+        interactionStateJson: String? = null,
     ): RenderedFrame? {
-        val packed = nativeRenderFrame(handle, envelopeJson, previousEnvelopeJson, transitionElapsedMs, widthPx, heightPx, elapsedMs) ?: return null
+        val packed = nativeRenderFrame(handle, envelopeJson, previousEnvelopeJson, transitionElapsedMs, widthPx, heightPx, elapsedMs, interactionStateJson) ?: return null
         // [width:i32 LE][height:i32 LE][stride:i32 LE][premultiplied RGBA8 pixels...]
         // — see jni_bridge.rs's own nativeRenderFrame doc comment for why
         // this is one packed ByteArray instead of separate accessors.
@@ -145,6 +149,7 @@ class RustRenderer {
             widthPx: Int,
             heightPx: Int,
             elapsedMs: Long,
+            interactionStateJson: String?,
         ): ByteArray?
         @JvmStatic private external fun nativeHitTest(
             envelopeJson: String,
