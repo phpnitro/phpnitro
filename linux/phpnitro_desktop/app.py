@@ -24,7 +24,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
-from gi.repository import Gdk, GLib, Gtk  # noqa: E402
+from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from . import image_loader, navigation, php_process, rust_render, screen_client  # noqa: E402
 from .canvas import RenderState, needs_animation, render_payload  # noqa: E402
@@ -151,6 +151,7 @@ class PhpNitroCanvasWidget(Gtk.Overlay):
         self._rust_renderer: Optional[rust_render.RustRenderer] = None
         self._rust_render_start = time.monotonic()
         self._active_text_input: Optional[Gtk.Widget] = None
+        self._active_video_overlay: Optional[Gtk.Widget] = None
 
         # hScroll/vScroll's own "was this decisive move actually meant as
         # this axis's scroll" ambiguity — a candidate target found on
@@ -203,6 +204,7 @@ class PhpNitroCanvasWidget(Gtk.Overlay):
         # editing session", safer than repositioning a stale overlay
         # against content it was never laid out for.
         self.clear_text_input()
+        self.clear_video_overlay()
         self._update_animation_timer()
         self.queue_draw()
 
@@ -265,6 +267,41 @@ class PhpNitroCanvasWidget(Gtk.Overlay):
             return
         self.remove_overlay(self._active_text_input)
         self._active_text_input = None
+
+    def show_video_overlay(self, url: str, rect: tuple[float, float, float, float]) -> None:
+        """`video:play:<url>` (VideoPlayer.php) — ports
+        `NativeRenderPocActivity.kt`'s `showVideoOverlay()`: a real
+        `Gtk.Video` positioned over the static "play" box already painted
+        underneath, autoplaying immediately (mirrors `VideoView`'s own
+        `setOnPreparedListener { it.start() }`). `Gio.File.new_for_uri()`
+        accepts both a remote `https://` URL and a local `file://` one
+        uniformly, unlike Android's own manual asset/URL distinction. No
+        transport bar (unlike Android's system-provided
+        `MediaController`) — a real, larger undertaking of its own, not
+        attempted here.
+        """
+        self.clear_video_overlay()
+
+        left, top, right, bottom = rect
+        width, height = right - left, bottom - top
+
+        video = Gtk.Video()
+        video.set_autoplay(True)
+        video.set_file(Gio.File.new_for_uri(url))
+        video.set_size_request(max(int(width), 1), max(int(height), 1))
+        video.set_halign(Gtk.Align.START)
+        video.set_valign(Gtk.Align.START)
+        video.set_margin_start(int(left))
+        video.set_margin_top(int(top))
+
+        self.add_overlay(video)
+        self._active_video_overlay = video
+
+    def clear_video_overlay(self) -> None:
+        if self._active_video_overlay is None:
+            return
+        self.remove_overlay(self._active_video_overlay)
+        self._active_video_overlay = None
 
     def _emit_field_value_changed(self, field_name: str, value: str) -> None:
         # Every keystroke, not just on blur/submit — mirrors
@@ -582,6 +619,12 @@ class ScreenWindow(Gtk.ApplicationWindow):
                 rest = rest[len("secure:"):]
             field_name = rest
             self.canvas.show_text_input(field_name, self.field_values.get(field_name, ""), rect, multiline, secure)
+            return
+
+        # video:play:<url> (VideoPlayer.php) — same "entirely client-side,
+        # no fetch at all" treatment as focus: above.
+        if action.startswith("video:play:"):
+            self.canvas.show_video_overlay(action[len("video:play:"):], rect)
             return
 
         result = navigation.reduce(action, self.stack, meta_json)

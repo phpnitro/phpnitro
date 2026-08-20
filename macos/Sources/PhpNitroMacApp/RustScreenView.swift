@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import Foundation
 import PhpNitroProtocol
 import RustMacRenderer
@@ -82,6 +83,14 @@ public final class RustScreenView: NSView {
     private var activeTextField: NSTextField?
     private var activeFieldName: String?
 
+    // VideoPlayer.php's "video:play:<url>" commit destination — one real
+    // AVPlayer/AVPlayerLayer at a time, mirroring
+    // NativeRenderPocActivity.kt's own single-nullable-field
+    // activeVideoView. No transport bar (unlike Android's system-
+    // provided MediaController) — autoplay only.
+    private var activeVideoPlayer: AVPlayer?
+    private var activeVideoContainer: NSView?
+
     public override var isFlipped: Bool { true }
 
     public init(frame frameRect: NSRect, renderer: RustRenderer) {
@@ -103,6 +112,7 @@ public final class RustScreenView: NSView {
         // current editing session", safer than trying to reposition a
         // stale overlay against content it was never laid out for.
         clearTextInput()
+        clearVideoOverlay()
         needsDisplay = true
     }
 
@@ -139,6 +149,35 @@ public final class RustScreenView: NSView {
         activeTextField.removeFromSuperview()
         self.activeTextField = nil
         activeFieldName = nil
+    }
+
+    /// `video:play:<url>` (VideoPlayer.php) — ports
+    /// `NativeRenderPocActivity.kt`'s `showVideoOverlay()`: a real
+    /// `AVPlayerLayer` positioned over the static "play" box already
+    /// painted underneath, autoplaying immediately.
+    public func showVideoOverlay(url: String, rect: NSRect) {
+        clearVideoOverlay()
+
+        guard let videoURL = URL(string: url) else { return }
+        let player = AVPlayer(url: videoURL)
+        let playerLayer = AVPlayerLayer(player: player)
+        playerLayer.videoGravity = .resizeAspect
+
+        let container = NSView(frame: rect)
+        container.wantsLayer = true
+        container.layer = playerLayer
+
+        addSubview(container)
+        player.play()
+        activeVideoPlayer = player
+        activeVideoContainer = container
+    }
+
+    private func clearVideoOverlay() {
+        activeVideoPlayer?.pause()
+        activeVideoContainer?.removeFromSuperview()
+        activeVideoPlayer = nil
+        activeVideoContainer = nil
     }
 
     /// Fires on every real size change to this view's own frame —

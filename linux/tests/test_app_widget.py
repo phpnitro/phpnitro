@@ -327,6 +327,43 @@ class PhpNitroCanvasWidgetTests(unittest.TestCase):
 
         self.assertEqual(fired, [("navigate:chips", None, (0.0, 0.0, 100.0, 50.0))])
 
+    def test_show_video_overlay_creates_an_autoplaying_video_widget(self):
+        from gi.repository import Gtk
+
+        self.widget.show_video_overlay("https://example.com/clip.mp4", (10.0, 20.0, 210.0, 140.0))
+
+        video = self.widget._active_video_overlay
+        self.assertIsInstance(video, Gtk.Video)
+        self.assertTrue(video.get_autoplay())
+        self.assertEqual(video.get_file().get_uri(), "https://example.com/clip.mp4")
+
+    def test_a_second_video_overlay_replaces_the_first(self):
+        self.widget.show_video_overlay("https://example.com/a.mp4", (0.0, 0.0, 100.0, 100.0))
+        first = self.widget._active_video_overlay
+
+        self.widget.show_video_overlay("https://example.com/b.mp4", (0.0, 0.0, 100.0, 100.0))
+        second = self.widget._active_video_overlay
+
+        self.assertIsNot(first, second)
+        self.assertIsNone(first.get_parent(), "the first overlay must be removed, not left behind")
+
+    def test_clear_video_overlay_removes_the_overlay(self):
+        self.widget.show_video_overlay("https://example.com/a.mp4", (0.0, 0.0, 100.0, 100.0))
+        video = self.widget._active_video_overlay
+
+        self.widget.clear_video_overlay()
+
+        self.assertIsNone(self.widget._active_video_overlay)
+        self.assertIsNone(video.get_parent())
+
+    def test_set_payload_clears_any_active_video_overlay(self):
+        self.widget.show_video_overlay("https://example.com/a.mp4", (0.0, 0.0, 100.0, 100.0))
+        payload = decode_payload({"commands": [], "hitRegions": [], "contentHeight": 0})
+
+        self.widget.set_payload(payload)
+
+        self.assertIsNone(self.widget._active_video_overlay)
+
     def test_a_decisive_vertical_move_cancels_a_pending_horizontal_scroll(self):
         self.widget.set_payload(self._hscroll_payload())
 
