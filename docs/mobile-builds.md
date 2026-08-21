@@ -7,13 +7,11 @@ L'app Android embarque un **vrai PHP cross-compilé** (via le NDK, `armeabi-v7a`
 Un vrai splash screen natif (Android 12+ SplashScreen API) reste affiché jusqu'à ce que le serveur PHP ait démarré et que la page ait fini de charger.
 
 ```bash
-php bin/phpx bundle:android   # copie public/ + lib/ + packages/ + composer.json (vendor --no-dev) + .env
-cd android
-gradle :app:assembleDebug     # ou via Android Studio
+php bin/phpx build:android   # bundle: + gradle :app:assembleDebug, en une commande
 # → android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Prérequis build : Android SDK (compileSdk 35), **Gradle ≥ 8.9** (pas de wrapper commité — utilise le Gradle de ton système ou Android Studio), JDK 17. Pour régénérer les binaires PHP toi-même, voir `android/README.md`.
+Aucun prérequis à installer à la main : `build:android` détecte JDK 17+/Gradle ≥ 8.9/le SDK Android (compileSdk 35) déjà présents, et télécharge tout seul ce qui manque (JDK Temurin, Gradle, SDK command-line tools — mis en cache dans `~/.local/share/phpnitro-tools/`, jamais re-téléchargé une fois fait). `php bin/phpx doctor` liste l'état de chaque outil sans rien installer, si tu veux juste vérifier avant de lancer une vraie build. Pour régénérer les binaires PHP toi-même, voir `android/README.md`.
 
 Installation sur téléphone : `adb install -r app-debug.apk`, ou transfère le fichier et autorise l'installation de sources inconnues. APK signé en debug (parfait pour tester, pas pour le Play Store — il faudra une clé de release).
 

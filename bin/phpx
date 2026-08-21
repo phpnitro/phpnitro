@@ -1860,10 +1860,11 @@ function latestMtime(array $dirs): int
 }
 
 /**
- * Buildozer-style one-command build: bundle + assemble, auto-installing
- * Gradle (into ~/.phpx/tools, cached across projects/runs) if none of the
- * required version is already on PATH — closes the exact gap this project
- * hit firsthand (manually locating/installing the SDK, downloading a
+ * Buildozer-style one-command build: bundle + assemble, auto-installing a
+ * JDK/Gradle (into ~/.local/share/phpnitro-tools, cached across
+ * projects/runs — see resolveOrInstallJava()/resolveOrInstallGradle())
+ * if neither is already on PATH — closes the exact gap this project hit
+ * firsthand (manually locating/installing the SDK, downloading a
  * compatible Gradle, wiring ANDROID_HOME/JAVA_HOME by hand). Also
  * auto-installs the Android SDK itself (platform-tools + the exact
  * platform/build-tools this project targets) if none is found, accepting

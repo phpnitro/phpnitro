@@ -3,50 +3,53 @@
 ## Prérequis
 
 - PHP ≥ 8.1 avec Composer
-- Pour builder l'APK Android : Android SDK (compileSdk 35), Gradle ≥ 8.9, JDK 17 — voir [docs/mobile-builds.md](mobile-builds.md)
+- Pour builder l'APK Android : rien à installer à la main — `phpx build:android` détecte/télécharge tout seul le SDK (compileSdk 35), Gradle ≥ 8.9 et un JDK 17 si besoin. Voir [docs/mobile-builds.md](mobile-builds.md).
 
 ## Structure d'un projet
 
 ```
 mon-app/
-  composer.json  UN SEUL, à la racine — un seul vendor/ pour tout le projet
+  composer.json  UN SEUL, à la racine — un seul vendor/ pour tout le projet ;
+                 phpnitro/ui (le moteur natif) y est déclaré comme une
+                 vraie dépendance Packagist, pas copié — database/
+                 firebase/countries/... restent des `composer require`
+                 séparés, opt-in, pas ajoutés par défaut
   public/        front controller (index.php, router.php) — le point d'entrée HTTP,
                   y compris /native/layout-demo (le moteur de rendu natif)
   lib/
-    pages/     tes écrans natifs (packages/ui/src/Native/Widget) — vide au
-               départ, dispatchés par nom depuis public/index.php
+    pages/     tes écrans natifs (Engine\Native\Widget, fourni par
+               phpnitro/ui via Composer) — vide au départ, dispatchés
+               par nom depuis public/index.php
     backend/   pure librairie "façon Symfony" (Controller / Entity / Repository / Service)
-  packages/
-    ui/src/Native/   le moteur de rendu natif (Container, Flex,
-                     Button, Canvas...) — packages/ui/src lui-même ne
-                     garde que Color et NativeDrawCommand, plus de widgets Tailwind/HTML
-    database/src/   connexion base de données — phpnitro/database
-    ... (firebase, countries, preferences, format)
-  android/   app Android — NativeRenderPocActivity peint sur un vrai Canvas
-             (Skia), zéro WebView dans le rendu — vérifiée sur device réel
+  android/
+    app/       app Android — NativeRenderPocActivity peint sur un vrai Canvas
+               (Skia), zéro WebView dans le rendu — vérifiée sur device réel ;
+               dépend de com.github.phpnitro:android-engine via JitPack
+               (pas de code moteur copié ici, juste la coquille app)
   ios/       pont natif Swift complet — non compilé (pas de Mac disponible)
-  assets/    images, polices, audio du framework — copiés automatiquement dans public/assets
+  assets/    images, polices, audio du projet — copiés automatiquement dans public/assets
   .env       config partagée par tout le projet
-  bin/       phpx (CLI)
 ```
 
-Comme un projet Flutter (`android/`, `ios/`, `lib/`), sauf que `lib/` se scinde en `pages/` (présentation) et `backend/` (logique). Un seul `composer.json`/`vendor/` pour tout le projet — son autoload PSR-4 mappe directement chaque `packages/*/src`, `lib/pages/app` et `lib/backend/src`.
+Comme un projet Flutter (`android/`, `ios/`, `lib/`), sauf que `lib/` se scinde en `pages/` (présentation) et `backend/` (logique). Un seul `composer.json`/`vendor/` pour tout le projet — son autoload PSR-4 mappe directement `lib/pages/app` et `lib/backend/src`, plus le namespace `Engine\*` fourni par `phpnitro/ui` (Packagist). Pas de `bin/` ni de `packages/` dans un projet scaffoldé : `phpx` s'installe une seule fois, globalement (voir [docs/cli.md](cli.md)), pas par projet.
 
 `public/index.php` délègue toute route `/api/*` à `Backend\Kernel` **dans le même processus PHP** — pas un deuxième serveur à lancer.
 
-**Linux / macOS / Windows** : pas implémentés — chaque plateforme desktop demanderait sa propre coquille native (GTK+WebKit, Cocoa+WKWebView, WebView2).
+**Linux / macOS / Windows** : pré-alpha, disponibles via `phpx new --all` — chaque plateforme desktop a sa propre coquille native (GTK4+Cairo, Core Graphics+AppKit, WinForms+Rust), voir leurs README respectifs pour l'état réel de chacune.
 
 ## Démarrer un nouveau projet
 
 ```bash
-php bin/phpx new mon-app
+curl -fsSL https://github.com/phpnitro/phpnitro/releases/latest/download/phpx.phar -o /usr/local/bin/phpx && chmod +x /usr/local/bin/phpx   # une seule fois
+
+phpx new mon-app
 cd mon-app
 composer install
-bin/phpx make:page Home /
-bin/phpx serve
+phpx make:page Home /
+phpx serve
 ```
 
-`phpx new` copie `lib/`, `packages/`, `public/`, `android/` (binaires PHP inclus), `ios/`, `assets/`, `bin/`, `.env`, `composer.json` et `package.json` depuis ce dépôt vers l'emplacement de ton choix — ton nouveau projet n'est pas imbriqué dans le framework. `lib/pages/app/` arrive **vide** : `make:page Home /` crée ta première page et la route racine.
+`phpx new` copie `lib/`, `public/`, `android/app/` (pas `android/engine/` — une dépendance JitPack à la place), `ios/`, `assets/`, `.env`, `phpnitro.yml`, et écrit un `composer.json` déclarant `phpnitro/ui` comme dépendance Packagist (pas copié) — ton nouveau projet n'est pas imbriqué dans le framework. `lib/pages/app/` arrive **vide** : `make:page Home /` crée ta première page et la route racine.
 
 ## Écrire un écran
 
