@@ -66,7 +66,14 @@ class LottieRenderTests(unittest.TestCase):
         self.assertEqual(animation.width, 50)
         self.assertEqual(animation.height, 50)
         self.assertEqual(animation.total_frames, 10)
-        self.assertAlmostEqual(animation.duration_seconds, 1.0, places=2)
+        self.assertEqual(animation.framerate, 10.0)
+        # Confirmed via real CI execution, not the naive total_frames/
+        # framerate this originally assumed: librlottie reports
+        # duration as (total_frames - 1) / framerate — see
+        # frame_at()'s own docblock on lottie_render.py for why frame
+        # timing is derived from framerate directly instead, sidestepping
+        # this quirk rather than depending on it.
+        self.assertAlmostEqual(animation.duration_seconds, 0.9, places=2)
 
     def test_renders_the_expected_pixel_for_a_plain_red_rect(self):
         animation = self._load_or_skip()

@@ -138,16 +138,28 @@ class LottieAnimation:
         tick count, drives the frame" principle
         Animated.php/`drawInterpolated()` already use for Hero/implicit
         animations.
+
+        Deliberately derived from `framerate` directly, NOT from
+        `duration_seconds` — confirmed via real CI execution (the first
+        thing that ever actually ran this) that librlottie's own
+        `lottie_animation_get_duration()` returns `(total_frames - 1) /
+        framerate`, not `total_frames / framerate` as this file
+        originally assumed from memory: a 10-frame/10fps fixture
+        reported 0.9s, not 1.0s. That off-by-one, divided back out
+        through `duration_seconds` here, desynced the very first frame
+        of every loop. `elapsed_seconds * framerate` sidesteps the
+        question of which convention `duration_seconds` follows
+        entirely — it only needs `framerate`, whose meaning isn't
+        ambiguous.
         """
-        if self.total_frames <= 0 or self.duration_seconds <= 0:
+        if self.total_frames <= 0 or self.framerate <= 0:
             return 0
-        progress = elapsed_seconds / self.duration_seconds
+        frame = int(elapsed_seconds * self.framerate)
         if loop:
-            progress %= 1.0
+            frame %= self.total_frames
         else:
-            progress = min(progress, 1.0)
-        frame = int(progress * self.total_frames)
-        return min(frame, self.total_frames - 1)
+            frame = min(frame, self.total_frames - 1)
+        return frame
 
     def render(self, frame_num: int, width: int, height: int) -> bytes:
         """Renders one frame into a freshly allocated premultiplied
