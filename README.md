@@ -63,8 +63,6 @@ if ($action === 'increment') {
 
 Prérequis : PHP ≥ 8.1 + Composer. (Android SDK + Gradle ≥ 8.9 + JDK seulement pour builder l'APK — `phpx build:android` les installe tout seul si besoin, voir [docs/mobile-builds.md](docs/mobile-builds.md).)
 
-*(Le `curl` ci-dessous suppose qu'un tag de version a déjà été publié — voir [docs/cli.md](docs/cli.md#installation-en-une-commande) si ce n'est pas encore le cas.)*
-
 ```bash
 curl -fsSL https://github.com/phpnitro/phpnitro/releases/latest/download/phpx.phar -o /usr/local/bin/phpx
 chmod +x /usr/local/bin/phpx
