@@ -325,14 +325,17 @@ class PhpNitroCanvasWidget(Gtk.Overlay):
         key needed (OpenStreetMap tiles via libshumate, same "no API key"
         property osmdroid/MapKit already have on Android/iOS/macOS).
 
-        Unlike every other overlay in this file, this one has never been
-        exercised locally at all — `Shumate` isn't GTK4 core (unlike
-        `Gtk.Video`) and isn't installed in the environment this was
-        written in, confirmed via `gi.require_version`/`apt-cache policy`.
-        `Shumate is None` (import genuinely unavailable) and any
-        exception during construction both degrade to "no overlay shown,
-        printed to stderr" rather than a crash — the same fail-soft
-        contract `_draw_via_rust` already has for a missing Rust library.
+        Unlike every other overlay in this file, `Shumate` isn't GTK4
+        core (unlike `Gtk.Video`) and isn't installed in the environment
+        this was written in (confirmed via `apt-cache policy`), so this
+        was written and reviewed by hand rather than exercised locally —
+        confirmed correct since via CI (`gir1.2-shumate-1.0` added to
+        ci.yml; `test_show_map_overlay_constructs_a_real_widget_when_shumate_is_available`
+        runs for real there and passes). `Shumate is None` (import
+        genuinely unavailable) and any exception during construction
+        still degrade to "no overlay shown, printed to stderr" rather
+        than a crash — the same fail-soft contract `_draw_via_rust`
+        already has for a missing Rust library.
         """
         self.clear_map_overlay()
 

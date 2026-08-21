@@ -365,15 +365,18 @@ class PhpNitroCanvasWidgetTests(unittest.TestCase):
         self.assertIsNone(self.widget._active_video_overlay)
 
     def test_show_map_overlay_degrades_to_nothing_without_crashing_when_shumate_is_unavailable(self):
-        # Real state in this environment (confirmed: gir1.2-shumate-1.0
-        # isn't installed) — this is the one branch of show_map_overlay
-        # actually exercised anywhere so far; the Shumate-available branch
-        # has never run, here or in CI, see its own docstring.
+        # Forces the "library absent" branch via a real patch rather than
+        # relying on the ambient environment actually lacking libshumate —
+        # CI now has gir1.2-shumate-1.0 installed (see
+        # test_show_map_overlay_constructs_a_real_widget_when_shumate_is_available),
+        # so this behavior has to be tested in isolation from whatever's
+        # really on the machine running it, local dev box or CI alike.
+        from unittest import mock
+
         from phpnitro_desktop import app as app_module
 
-        self.assertIsNone(app_module.Shumate, "this test assumes libshumate genuinely isn't importable here")
-
-        self.widget.show_map_overlay(48.8566, 2.3522, 14, (0.0, 0.0, 100.0, 100.0))
+        with mock.patch.object(app_module, "Shumate", None):
+            self.widget.show_map_overlay(48.8566, 2.3522, 14, (0.0, 0.0, 100.0, 100.0))
 
         self.assertIsNone(self.widget._active_map_overlay)
 
