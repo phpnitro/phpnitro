@@ -45,3 +45,11 @@ composer.lock
 /linux/**/__pycache__/
 /linux/.pytest_cache/
 /rust/**/target/
+
+# snapcraft's own build directories (snap/snapcraft.yaml) — build
+# artifacts, not source; *.snap itself is a build output too.
+/parts/
+/stage/
+/prime/
+/.craft/
+*.snap
