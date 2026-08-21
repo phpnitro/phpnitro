@@ -80,6 +80,17 @@
             </intent-filter>
         </activity>
 
+        <!-- adb-only proof of concept — see RustRenderPocActivity.kt's own
+             docblock for why this is a separate activity/file rather than
+             a change to NativeCanvasView.kt or NativeRenderPocActivity
+             above. No intent-filter beyond the implicit default: this is
+             never a consuming app's launcher, only ever reached via
+             `adb shell am start -n <package>/com.phpnitro.engine.RustRenderPocActivity`. -->
+        <activity
+            android:name=".RustRenderPocActivity"
+            android:theme="@style/Theme.App.Starting"
+            android:exported="true" />
+
         <receiver android:name=".AlarmReceiver" android:exported="false" />
         <receiver android:name=".GeofenceReceiver" android:exported="false" />
         <!-- `phpx dev:push`'s trigger — non-exported, but `adb shell am
