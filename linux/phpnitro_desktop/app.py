@@ -39,9 +39,9 @@ try:
 except (ValueError, ImportError):
     Shumate = None  # type: ignore[assignment]
 
-from . import image_loader, navigation, php_process, rust_render, screen_client  # noqa: E402
+from . import image_loader, lottie_loader, navigation, php_process, rust_render, screen_client  # noqa: E402
 from .canvas import RenderState, needs_animation, render_payload  # noqa: E402
-from .draw_command import DrawCommandPayload, HScrollCommand, VScrollCommand  # noqa: E402
+from .draw_command import DrawCommandPayload, HScrollCommand, LottieRegion, VScrollCommand  # noqa: E402
 
 APP_ID = "com.phpnitro.desktop"
 
@@ -166,6 +166,14 @@ class PhpNitroCanvasWidget(Gtk.Overlay):
         self._active_text_input: Optional[Gtk.Widget] = None
         self._active_video_overlay: Optional[Gtk.Widget] = None
         self._active_map_overlay: Optional[Gtk.Widget] = None
+        # key -> (drawing area, url, start_time) — unlike the three
+        # overlays above (one-shot, action-triggered, always torn down
+        # on a new payload), reconciled by key on every set_payload()
+        # instead: a Lottie animation keeps playing/looping across
+        # taps/scrolls, so a key that persists across fetches must keep
+        # its own start_time, not restart at frame 0. See
+        # _reconcile_lottie_overlays().
+        self._lottie_overlays: dict[str, tuple[Gtk.Widget, str, float]] = {}
 
         # hScroll/vScroll's own "was this decisive move actually meant as
         # this axis's scroll" ambiguity — a candidate target found on
@@ -203,6 +211,7 @@ class PhpNitroCanvasWidget(Gtk.Overlay):
         self._drawing_area.add_controller(drag)
 
         image_loader.on_image_loaded = self._drawing_area.queue_draw
+        lottie_loader.on_lottie_loaded = self._queue_draw_all_lottie_overlays
 
     def queue_draw(self) -> None:
         self._drawing_area.queue_draw()
@@ -220,6 +229,7 @@ class PhpNitroCanvasWidget(Gtk.Overlay):
         self.clear_text_input()
         self.clear_video_overlay()
         self.clear_map_overlay()
+        self._reconcile_lottie_overlays(payload.lottie_regions)
         self._update_animation_timer()
         self.queue_draw()
 
@@ -372,6 +382,77 @@ class PhpNitroCanvasWidget(Gtk.Overlay):
             return
         self.remove_overlay(self._active_map_overlay)
         self._active_map_overlay = None
+
+    def _reconcile_lottie_overlays(self, regions: tuple[LottieRegion, ...]) -> None:
+        """Diffs the envelope's own top-level `lottieRegions[]` by `key`
+        against whatever's already showing, instead of tearing every
+        Lottie overlay down and recreating it on every fetch like the
+        three one-shot overlays above — see `Lottie.php`'s own
+        docblock: the whole point is a continuously looping animation
+        that survives across taps/scrolls, so a `key` that persists
+        across fetches keeps its existing `LottieAnimation`/start_time,
+        it only gets repositioned in case its rect moved.
+        """
+        new_by_key = {region.key: region for region in regions}
+
+        for key in list(self._lottie_overlays.keys()):
+            if key not in new_by_key:
+                widget, _url, _start = self._lottie_overlays.pop(key)
+                self.remove_overlay(widget)
+
+        for key, region in new_by_key.items():
+            existing = self._lottie_overlays.get(key)
+            if existing is not None and existing[1] == region.url:
+                widget, url, start_time = existing
+                self._position_overlay(widget, region)
+                continue
+
+            if existing is not None:
+                old_widget, _url, _start = existing
+                self.remove_overlay(old_widget)
+
+            lottie_loader.load(region.url)
+            start_time = time.monotonic()
+            drawing_area = Gtk.DrawingArea()
+            drawing_area.set_draw_func(self._make_lottie_draw_func(region.url, region.loop, start_time))
+            self._position_overlay(drawing_area, region)
+            self.add_overlay(drawing_area)
+            self._lottie_overlays[key] = (drawing_area, region.url, start_time)
+
+    @staticmethod
+    def _position_overlay(widget: Gtk.Widget, region: LottieRegion) -> None:
+        widget.set_size_request(max(int(region.width), 1), max(int(region.height), 1))
+        widget.set_halign(Gtk.Align.START)
+        widget.set_valign(Gtk.Align.START)
+        widget.set_margin_start(int(region.x))
+        widget.set_margin_top(int(region.y))
+
+    @staticmethod
+    def _make_lottie_draw_func(url: str, loop: bool, start_time: float):
+        """A fresh closure per overlay, capturing this one region's own
+        url/loop/start_time — `Gtk.DrawingArea.set_draw_func()` takes a
+        single `(area, cr, width, height)` callback with no extra
+        userdata slot, so the closure itself is what keeps each
+        overlay's own animation independent of any other overlay
+        sharing the same `LottieAnimation` from lottie_loader's cache.
+        """
+
+        def draw_func(_area, ctx, width, height) -> None:
+            animation = lottie_loader.get(url)
+            if animation is None or width <= 0 or height <= 0:
+                return
+            elapsed = time.monotonic() - start_time
+            frame_num = animation.frame_at(elapsed, loop)
+            pixels = bytearray(animation.render(frame_num, width, height))
+            surface = cairo.ImageSurface.create_for_data(pixels, cairo.FORMAT_ARGB32, width, height, width * 4)
+            ctx.set_source_surface(surface, 0, 0)
+            ctx.paint()
+
+        return draw_func
+
+    def _queue_draw_all_lottie_overlays(self) -> None:
+        for widget, _url, _start in self._lottie_overlays.values():
+            widget.queue_draw()
 
     def _emit_field_value_changed(self, field_name: str, value: str) -> None:
         # Every keystroke, not just on blur/submit — mirrors
@@ -625,6 +706,12 @@ class PhpNitroCanvasWidget(Gtk.Overlay):
 
     def _tick(self) -> bool:
         self.queue_draw()
+        # Each Lottie overlay is its own Gtk.DrawingArea (a sibling of
+        # _drawing_area inside this Gtk.Overlay, not a child of it) —
+        # queuing a redraw on the main drawing area does not propagate
+        # to them, so this single shared timer drives all of them
+        # explicitly instead of each owning a separate GLib timer.
+        self._queue_draw_all_lottie_overlays()
         return True  # GLib.SOURCE_CONTINUE — keep the timer running.
 
 
@@ -795,6 +882,7 @@ def run_local(project_dir: Path, screen: str = "home") -> int:
     """The ":app"-equivalent entry point — starts a real PHP subprocess
     against `project_dir` and opens a window pointed at it.
     """
+    lottie_loader.PROJECT_DIR = project_dir
     process = php_process.PhpProcess(project_dir)
     port = process.start()
 

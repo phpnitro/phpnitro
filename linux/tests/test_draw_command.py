@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from phpnitro_desktop.draw_command import (
-    ArcCommand, ClientPanelCommand, HScrollCommand, IconCommand, RectCommand,
+    ArcCommand, ClientPanelCommand, HScrollCommand, IconCommand, LottieRegion, RectCommand,
     SkeletonCommand, SliderCommand, SliderRegion, SpinnerCommand, TextCommand,
     UnknownCommand, VScrollCommand, decode_command, decode_payload,
 )
@@ -132,6 +132,28 @@ class DecodePayloadTests(unittest.TestCase):
         self.assertEqual(len(payload.slider_regions), 1)
         self.assertEqual(payload.slider_regions[0], SliderRegion(
             key="volume", x=20, y=592.5, width=360, height=44, thumb_size=22, action="toggle:volume",
+        ))
+
+    def test_decodes_with_no_lottie_regions_at_all(self):
+        payload = decode_payload({"commands": [], "hitRegions": [], "contentHeight": 0})
+
+        self.assertEqual(payload.lottie_regions, ())
+
+    # The real lottieRegions[] entry Canvas::lottieRegion() emits for a
+    # Lottie widget (see packages/ui/src/Native/Lottie.php).
+    def test_decodes_top_level_lottie_regions(self):
+        payload = decode_payload({
+            "commands": [], "hitRegions": [], "contentHeight": 0,
+            "lottieRegions": [{
+                "key": "loading", "x": 10, "y": 20, "width": 100, "height": 100,
+                "url": "loading.json", "loop": True, "autoplay": True,
+            }],
+        })
+
+        self.assertEqual(len(payload.lottie_regions), 1)
+        self.assertEqual(payload.lottie_regions[0], LottieRegion(
+            key="loading", x=10, y=20, width=100, height=100,
+            url="loading.json", loop=True, autoplay=True,
         ))
 
     def test_action_at_hits_the_containing_region(self):
