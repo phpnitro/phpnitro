@@ -93,8 +93,13 @@ def needs_animation(payload: DrawCommandPayload) -> bool:
     started-only-when-needed idea as NativeCanvasView.kt's
     updateSpinnerAnimator()/updateSkeletonAnimator(), checked
     recursively since a spinner/skeleton could be nested inside a
-    clientPanel/hScroll/vScroll.
+    clientPanel/hScroll/vScroll. A non-empty lottie_regions also needs
+    the timer running — see PhpNitroCanvasWidget._tick() in app.py,
+    which redraws every active Lottie overlay on the same tick as the
+    main canvas rather than each owning a separate GLib timer.
     """
+    if payload.lottie_regions:
+        return True
 
     def command_needs_it(command: DrawCommand) -> bool:
         if isinstance(command, (SpinnerCommand, SkeletonCommand)):

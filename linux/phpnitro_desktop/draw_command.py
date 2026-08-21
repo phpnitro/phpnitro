@@ -140,6 +140,27 @@ class SliderRegion:
 
 
 @dataclass(frozen=True)
+class LottieRegion:
+    """One entry of the envelope's own top-level `lottieRegions[]` — a
+    Lottie animation has no `HitRegion`/draw command of its own, same
+    reasoning as `SliderRegion`: a continuously-looping animation has no
+    equivalent in a pipeline where PHP computes one still frame per
+    request, so `Canvas::lottieRegion()` describes where to overlay a
+    real animation widget instead of asking this renderer to draw one
+    itself. Mirrors `Lottie.php`'s own constructor args exactly.
+    """
+
+    key: str
+    x: float
+    y: float
+    width: float
+    height: float
+    url: str
+    loop: bool
+    autoplay: bool
+
+
+@dataclass(frozen=True)
 class ClientPanelCommand:
     key: str
     index: int
@@ -209,6 +230,13 @@ def _slider_region(data: dict) -> SliderRegion:
     return SliderRegion(
         key=data["key"], x=data["x"], y=data["y"], width=data["width"], height=data["height"],
         thumb_size=data["thumbSize"], action=data["action"],
+    )
+
+
+def _lottie_region(data: dict) -> LottieRegion:
+    return LottieRegion(
+        key=data["key"], x=data["x"], y=data["y"], width=data["width"], height=data["height"],
+        url=data["url"], loop=data["loop"], autoplay=data["autoplay"],
     )
 
 
@@ -297,6 +325,9 @@ class DrawCommandPayload:
     # rather than requiring every existing decode_payload call site to
     # pass it. Mirrors DrawCommandPayload.sliderRegions on iOS/Windows.
     slider_regions: tuple[SliderRegion, ...] = ()
+    # Same "genuinely absent on most screens" story as slider_regions —
+    # only present when a screen actually uses Lottie.
+    lottie_regions: tuple[LottieRegion, ...] = ()
 
     def action_at(self, x: float, y: float) -> Optional[str]:
         """Which hitRegion (if any) a click at (x, y) should fire —
@@ -324,4 +355,5 @@ def decode_payload(data: dict) -> DrawCommandPayload:
         hit_regions=tuple(_hit_region(h) for h in data["hitRegions"]),
         content_height=data["contentHeight"],
         slider_regions=tuple(_slider_region(s) for s in data.get("sliderRegions") or []),
+        lottie_regions=tuple(_lottie_region(l) for l in data.get("lottieRegions") or []),
     )

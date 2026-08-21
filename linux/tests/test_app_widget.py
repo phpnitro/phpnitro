@@ -406,6 +406,62 @@ class PhpNitroCanvasWidgetTests(unittest.TestCase):
 
         self.assertIsNone(self.widget._active_map_overlay)
 
+    def _lottie_payload(self, key="anim", url="a.json"):
+        return decode_payload({
+            "commands": [], "hitRegions": [], "contentHeight": 0,
+            "lottieRegions": [{
+                "key": key, "x": 10, "y": 20, "width": 100, "height": 100,
+                "url": url, "loop": True, "autoplay": True,
+            }],
+        })
+
+    def test_reconcile_lottie_overlays_creates_and_then_removes_by_key(self):
+        self.widget.set_payload(self._lottie_payload(key="anim"))
+        self.assertIn("anim", self.widget._lottie_overlays)
+
+        empty_payload = decode_payload({"commands": [], "hitRegions": [], "contentHeight": 0})
+        self.widget.set_payload(empty_payload)
+
+        self.assertEqual(self.widget._lottie_overlays, {})
+
+    def test_reconcile_lottie_overlays_keeps_the_same_widget_and_start_time_across_fetches(self):
+        # The whole point of Lottie.php's design (see its own docblock):
+        # the animation keeps playing/looping across taps/scrolls, so a
+        # `key` that survives two fetches must NOT restart from frame 0
+        # — this is what proves _reconcile_lottie_overlays() diffs by
+        # key instead of tearing every overlay down like the one-shot
+        # text/video/map overlays above.
+        self.widget.set_payload(self._lottie_payload(key="anim", url="a.json"))
+        widget, url, start_time = self.widget._lottie_overlays["anim"]
+
+        self.widget.set_payload(self._lottie_payload(key="anim", url="a.json"))
+        widget_again, url_again, start_time_again = self.widget._lottie_overlays["anim"]
+
+        self.assertIs(widget, widget_again)
+        self.assertEqual(start_time, start_time_again)
+
+    def test_reconcile_lottie_overlays_recreates_when_the_url_changes_for_the_same_key(self):
+        self.widget.set_payload(self._lottie_payload(key="anim", url="a.json"))
+        widget, _url, _start = self.widget._lottie_overlays["anim"]
+
+        self.widget.set_payload(self._lottie_payload(key="anim", url="b.json"))
+        widget_again, url_again, _start_again = self.widget._lottie_overlays["anim"]
+
+        self.assertIsNot(widget, widget_again)
+        self.assertEqual(url_again, "b.json")
+
+    def test_set_payload_with_a_lottie_region_does_not_crash_when_librlottie_is_unavailable(self):
+        # _reconcile_lottie_overlays() always constructs the overlay
+        # Gtk.DrawingArea itself regardless of whether librlottie ever
+        # loads successfully — only its draw_func (called later, by a
+        # real draw, not exercised in this display-less suite) checks
+        # lottie_loader.get() and no-ops if the animation never
+        # finished loading. This just confirms set_payload/reconcile
+        # themselves never depend on the library being present.
+        self.widget.set_payload(self._lottie_payload())
+
+        self.assertEqual(len(self.widget._lottie_overlays), 1)
+
     def test_a_decisive_vertical_move_cancels_a_pending_horizontal_scroll(self):
         self.widget.set_payload(self._hscroll_payload())
 
