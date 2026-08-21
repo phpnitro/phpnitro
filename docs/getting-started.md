@@ -39,6 +39,8 @@ Comme un projet Flutter (`android/`, `ios/`, `lib/`), sauf que `lib/` se scinde 
 
 ## Démarrer un nouveau projet
 
+*(Suppose un tag de version déjà publié — sinon, clone le repo et utilise `php bin/phpx` directement, voir [docs/cli.md](cli.md#installation-en-une-commande).)*
+
 ```bash
 curl -fsSL https://github.com/phpnitro/phpnitro/releases/latest/download/phpx.phar -o /usr/local/bin/phpx && chmod +x /usr/local/bin/phpx   # une seule fois
 

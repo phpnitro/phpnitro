@@ -95,3 +95,5 @@ phpx new mon-app   # fonctionne depuis n'importe quel dossier, à partir de main
 ## Installation en une commande
 
 Chaque tag de version (`.github/workflows/release.yml`) compile `phpx.phar` (via `humbug/box`, téléchargé côté CI, jamais côté poste de dev) et le publie comme artefact de la Release GitHub correspondante — pas de compilation locale nécessaire pour un utilisateur final, la même expérience qu'un `flutter`/`composer.phar` téléchargé une fois. `php box.phar compile` (ci-dessus) reste la façon de le compiler soi-même pour du développement local de `phpx` lui-même.
+
+**Tant qu'aucun tag `v*` n'a encore été poussé**, cette URL de release n'existe pas encore (404) — le workflow ne publie rien tout seul, il attend un vrai tag. En attendant le premier tag, la seule façon d'utiliser `phpx` est de cloner ce monorepo et d'appeler `php bin/phpx <commande>` directement depuis sa racine (voir [CONTRIBUTING.md](../CONTRIBUTING.md)).
