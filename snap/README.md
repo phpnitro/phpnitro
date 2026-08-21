@@ -5,20 +5,29 @@ tout ce que `phpx run` a besoin pour lancer le desktop Linux d'un
 projet scaffoldé (`--all`) sans rien à installer soi-même : Python 3,
 PyGObject/GTK4, Cairo, libshumate (MapView).
 
-## Pourquoi `confinement: classic`
+## Pourquoi `confinement: strict` (et pas `classic`)
 
-`phpx` écrit des projets n'importe où sur le disque (pas seulement
-`$HOME`), ouvre des ports réseau (`serve`), parle à `adb` sur USB
-(`dev:push`/`run`), et pour la cible Linux de `run`, ouvre une vraie
-fenêtre GTK4 — plus de surface que les interfaces `strict` habituelles
-(`home`/`network`/`raw-usb`) ne couvrent proprement ensemble sans
-multiplier les plugs et les frictions d'auto-connexion.
+Une première version utilisait `classic` (accès disque/réseau/USB non
+restreint) — abandonnée après avoir réellement tenté de publier :
+`classic` nécessite systématiquement une revue manuelle de Canonical
+avant de pouvoir sortir sur un canal réel du Snap Store, peu importe
+qui publie (`snapcraft upload --release=stable` réussit à téléverser
+la révision, mais reste bloqué en "will need manual review" tant que
+cette revue n'a pas eu lieu). Pas quelque chose que ce dépôt ou moi
+pouvons accélérer, et pas nécessaire : chaque besoin réel de `phpx`
+correspond à une interface `strict` standard, listée avec sa raison
+dans `snapcraft.yaml`'s propre commentaire (`home`, `network`+
+`network-bind`, `desktop`/`desktop-legacy`/`wayland`/`x11`/`opengl`
+pour la fenêtre GTK4, `raw-usb` pour `adb`).
 
-**Conséquence réelle** : le confinement `classic` nécessite une revue
-manuelle de Canonical avant de pouvoir publier sur un canal stable du
-Snap Store (`snapcraft upload --release=stable` peut réussir à
-téléverser une révision, mais sa publication effective reste soumise à
-cette revue) — pas quelque chose que ce dépôt ou moi pouvons accélérer.
+**Restriction réelle acceptée en échange** : `phpx new`/`serve`/`run`
+ne peuvent plus scaffolder/servir un projet que sous `$HOME` — plus de
+chemin arbitraire ailleurs sur le disque, ce que `classic` permettait.
+Couvre l'usage normal (`cd ~/projects && phpx new mon-app`).
+
+**Friction résiduelle** : `raw-usb` (pour `adb`) ne se connecte pas
+automatiquement à l'installation — `sudo snap connect phpx:raw-usb`
+une fois, avant que `dev:push`/`run`'s cible Android fonctionnent.
 
 ## Ce qui manque : librlottie (animations Lottie)
 
@@ -53,11 +62,18 @@ MapView/VideoPlayer/tout le reste restant intacts.
 
 ```bash
 snapcraft --destructive-mode   # pas de LXD/multipass configuré ici — build direct sur l'hôte
-sudo snap install --dangerous --classic ./phpx_0.1.0_amd64.snap
+sudo snap install --dangerous ./phpx_0.1.0_amd64.snap
+sudo snap connect phpx:raw-usb   # une fois, pour dev:push/run sur Android
 ```
 
-Sans `sudo` disponible, `unsquashfs -d out/ phpx_0.1.0_amd64.snap` +
-simuler les variables d'environnement que snapd fournirait
-normalement (`SNAP`, `SNAP_ARCH`) reste la seule façon de vérifier le
-contenu réel du paquet — voir l'historique de ce fichier pour le détail
-exact des variables utilisées.
+**Limite honnête** : sans `sudo` disponible dans l'environnement où ce
+fichier a été écrit, `unsquashfs -d out/ phpx_0.1.0_amd64.snap` +
+simuler les variables d'environnement que snapd fournirait normalement
+(`SNAP`, `SNAP_ARCH`) a permis de vérifier le CONTENU du paquet (les
+bons binaires présents, le script wrapper qui résout les bons chemins,
+`phpx run` ouvrant réellement une fenêtre) — mais pas le sandbox
+`strict` lui-même (apparmor/seccomp), qui ne s'active que via un vrai
+`snap install`. Si `phpx new`/`run` échouent avec une erreur de
+permission une fois installé pour de vrai, c'est le premier endroit à
+vérifier — un plug manquant dans `snapcraft.yaml`'s `apps.phpx.plugs`,
+pas un bug du framework lui-même.

@@ -23,19 +23,47 @@ source-code: https://github.com/phpnitro/phpnitro
 website: https://github.com/phpnitro/phpnitro
 
 grade: stable
-confinement: classic
-# classic, pas strict : phpx écrit des projets n'importe où sur le
-# disque (pas seulement $HOME), ouvre des ports réseau (`serve`),
-# parle à adb sur USB (`dev:push`/`run`), et pour `run`'s cible Linux,
-# ouvre une vraie fenêtre GTK4 — plus de surface que les interfaces
-# `strict` habituelles (home/network/raw-usb) ne couvrent proprement
-# ensemble. Nécessite une revue manuelle de Canonical pour publier sur
-# le Snap Store (pas fait ici — voir snap/README.md) ; sans effet sur
-# un test local (`snap install --dangerous --classic`).
+confinement: strict
+# strict, pas classic : classic force une revue manuelle de Canonical
+# avant toute publication réelle (confirmé en pratique — voir
+# l'historique de ce fichier), peu importe qui publie. Sous strict,
+# chaque besoin réel de phpx correspond à une interface standard :
+# - `home` : phpx new/serve/run écrivent/lisent dans le projet — donc
+#   RESTRICTION RÉELLE assumée : uniquement un projet scaffoldé sous
+#   $HOME, plus jamais un chemin arbitraire ailleurs sur le disque (ce
+#   que classic permettait). La quasi-totalité d'un usage normal
+#   (`cd ~/projects && phpx new mon-app`) tient déjà dans $HOME.
+# - `network`/`network-bind` : `phpx serve`/`php -S` écoute un port
+#   local, les fetches HTTP de `phpx run` sont sortants.
+# - `desktop`/`desktop-legacy`/`wayland`/`x11`/`opengl` : la vraie
+#   fenêtre GTK4 que `phpx run`'s cible Linux ouvre.
+# - `raw-usb` : adb (`dev:push`/`run`'s cible Android) parle au device
+#   par USB. Contrairement aux interfaces ci-dessus, `raw-usb` ne se
+#   connecte PAS automatiquement à l'installation — un
+#   `sudo snap connect phpx:raw-usb` est nécessaire une fois avant que
+#   ces deux commandes marchent, la seule vraie friction restante.
+#
+# Contrainte de vérification honnête : contrairement à classic (aucun
+# sandbox, testable en extrayant juste le .snap), le VRAI comportement
+# sous strict (apparmor/seccomp) ne peut être confirmé que par un vrai
+# `snap install` — pas de sudo disponible dans l'environnement où ce
+# fichier a été écrit. Le contenu du paquet (mêmes binaires PHP/
+# Python3/GTK4, même script wrapper) a été revérifié, pas le sandbox
+# runtime lui-même.
 
 apps:
   phpx:
     command: bin/phpx-wrapper
+    plugs:
+      - home
+      - network
+      - network-bind
+      - desktop
+      - desktop-legacy
+      - wayland
+      - x11
+      - opengl
+      - raw-usb
 
 parts:
   phpx-phar:
