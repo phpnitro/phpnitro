@@ -2,7 +2,7 @@
 
 ## Android — vérifié de bout en bout sur device réel
 
-L'app Android embarque un **vrai PHP cross-compilé** (via le NDK, `armeabi-v7a` et `arm64-v8a` déjà fournis dans `android/app/src/main/jniLibs/` — **aucun Docker ni compilation requise** pour builder l'app). Au lancement, `PhpServer.kt` copie l'app PHP vers `filesDir`, démarre le binaire embarqué sur un port choisi dynamiquement, et la WebView s'y connecte : **PHP tourne réellement sur le téléphone**, pas sur un serveur distant.
+L'app Android embarque un **vrai PHP cross-compilé** (via le NDK, `armeabi-v7a` et `arm64-v8a` déjà fournis dans `android/engine/src/main/jniLibs/` — **aucun Docker ni compilation requise** pour builder l'app). Au lancement, `PhpServer.kt` copie l'app PHP vers `filesDir`, démarre le binaire embarqué sur un port choisi dynamiquement, et la WebView s'y connecte : **PHP tourne réellement sur le téléphone**, pas sur un serveur distant.
 
 Un vrai splash screen natif (Android 12+ SplashScreen API) reste affiché jusqu'à ce que le serveur PHP ait démarré et que la page ait fini de charger.
 
@@ -39,14 +39,23 @@ Tant que ce fichier n'est pas hébergé avec la bonne empreinte, ce lien ne sera
 
 `APP_DEBUG` (dans `.env`) est copié tel quel dans le bundle Android — mets-le à `true` pendant que tu développes pour voir la classe/message/fichier/trace complète de toute erreur directement dans l'app, pas juste "Erreur interne". Repasse-le à `false` avant une vraie release.
 
-## iOS — pont natif écrit, jamais compilé
+## iOS — deux chantiers séparés, jamais compilés sur un vrai Mac
 
-`ios/` contient une `WKWebView` (Swift) équivalent à la coquille Android, avec un vrai pont natif (`WebAppInterface.swift`) qui expose `window.iOSNative` avec exactement les mêmes méthodes que `window.AndroidNative` — aucun widget/service n'a besoin d'un chemin spécifique iOS.
+`ios/` est un vrai Swift Package avec deux cibles indépendantes :
 
-**Rien de tout ça n'est compilé ni testé** — pas de Mac/Xcode disponible pendant son développement. Le PHP embarqué sur le device n'existe pas non plus : la bonne architecture (SAPI embed de PHP, lié statiquement, servi via `WKURLSchemeHandler`) est documentée en détail dans `ios/App/PhpEmbedBridge.swift` (squelette avec `TODO` explicites), mais aucun binaire PHP pour iOS n'a été cross-compilé.
+- **`PhpNitroNativeEngine`** — la contrepartie iOS du moteur de rendu PRINCIPAL (`android/engine`'s `NativeCanvasView.kt`), pas un repli WebView : décode le même JSON `Canvas::toJson()` et le rejoue avec Core Graphics, avec de vrais tests unitaires qui tournent réellement en CI (`xcodebuild ... test` sur `macos-14`) — icônes, images, `spinner`/`skeleton`, `clientPanel`/`hScroll`/`vScroll`/`slider`, hit-testing, une vraie boucle de fetch réseau/pile d'écrans, et des overlays réels pour `focus:`/`video:play:`/`map:open:` (`UITextField`/`UITextView`, `AVPlayerLayer`, `MKMapView`). **Jamais ouvert dans Xcode ni lancé sur un simulateur/device réel** — seule la CI (compilation + tests unitaires) le vérifie.
+- **`PhpNitroWebViewBridge`** — le repli `WKWebView` historique, équivalent de `MainActivity.kt`/`WebAppInterface.kt` côté Android (`window.iOSNative`, mêmes méthodes que `window.AndroidNative`). Compile en CI mais n'a jamais tourné sur un simulateur/device.
 
-Voir `ios/README.md` pour l'état exact, capacité par capacité, et l'ordre recommandé des prochaines étapes (compiler et tester le pont déjà écrit d'abord, contre un PHP hébergé sur le réseau, avant de toucher au SAPI embed).
+Le PHP embarqué sur device n'existe pour aucun des deux chemins : la bonne architecture (SAPI embed de PHP, lié statiquement, servi via `WKURLSchemeHandler`) est documentée en détail dans `PhpEmbedBridge.swift` (squelette avec `TODO` explicites), mais aucun binaire PHP pour iOS n'a été cross-compilé — nécessite un Mac/Xcode, indisponible pendant tout ce développement.
+
+Voir `ios/README.md` pour l'état exact, capacité par capacité, et l'ordre recommandé des prochaines étapes.
 
 ## Linux / macOS / Windows
 
-Pas implémentés — chaque plateforme desktop demanderait sa propre coquille native (GTK+WebKit, Cocoa+WKWebView, WebView2), un chantier à part entière.
+Les trois existent réellement, chacun avec sa propre coquille native consommant soit un moteur de rendu Rust partagé (`rust/phpnitro-render/`) soit un rendu natif dédié — voir chaque README pour le détail à jour :
+
+- **[Linux](../linux/README.md)** — le plus abouti et le plus vérifié : GTK4/Cairo, plus de 80 tests réels tournant réellement en CI (rendu pixel par pixel, hit-testing, drag hScroll/vScroll/slider, overlays TextField/VideoPlayer), moteur Rust en rendu par défaut.
+- **[macOS](../macos/README.md)** — deux chemins (Core Graphics historique, app Rust dédiée), compile et teste unitairement en CI (`macos-14`) mais jamais lancé sur un vrai Mac.
+- **[Windows](../windows/README.md)** — le moteur Rust partagé est l'unique chemin de rendu (pas de GDI+/Direct2D écrit spécifiquement) ; compile en CI (dont un vrai runner `windows-latest` pour l'app WinForms) mais jamais lancé sur une vraie machine Windows.
+
+Aucun des trois n'a de packaging livrable à un utilisateur final (`.deb`/AppImage, `.app` signé, installeur MSI) ni de runtime PHP portable embarqué — chacun lance le `php` déjà installé sur la machine, comme `bin/phpx serve` le fait déjà pour le dev local.

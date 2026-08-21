@@ -45,11 +45,13 @@ curl -fsSL https://github.com/phpnitro/phpnitro/releases/latest/download/phpx.ph
 phpx new mon-app
 cd mon-app
 composer install
-phpx make:page Home /
+phpx make:page Home
 phpx serve
 ```
 
-`phpx new` copie `lib/`, `public/`, `android/app/` (pas `android/engine/` — une dépendance JitPack à la place), `ios/`, `assets/`, `.env`, `phpnitro.yml`, et écrit un `composer.json` déclarant `phpnitro/ui` comme dépendance Packagist (pas copié) — ton nouveau projet n'est pas imbriqué dans le framework. `lib/pages/app/` arrive **vide** : `make:page Home /` crée ta première page et la route racine.
+`serve` affiche un QR code pour **PhpNitro Go** (`android/go/`, une app compagnon sans code de projet) — le scanner ouvre l'écran natif réel sur un vrai device/émulateur. PhpNitro Go n'est pas encore publié nulle part ; en attendant, `curl http://127.0.0.1:8090/native/layout-demo?screen=home` renvoie directement le JSON de commandes de dessin, pour vérifier que le pipeline tourne sans rendu visuel.
+
+`phpx new` copie `lib/`, `public/`, `android/app/` (pas `android/engine/` — une dépendance JitPack à la place), `ios/`, `assets/`, `.env`, `phpnitro.yml`, et écrit un `composer.json` déclarant `phpnitro/ui` comme dépendance Packagist (pas copié) — ton nouveau projet n'est pas imbriqué dans le framework. `lib/pages/app/` arrive avec un seul écran minimal (`NativeHomeScreen.php`, juste pour ne pas planter sur la toute première requête) : `make:page Home` crée ta vraie première page (`HomePage.php`) et la remplace — `home` est un cas spécial câblé en dur (route API `/api` au lieu de `/api/home`), pas un second argument à passer.
 
 ## Écrire un écran
 

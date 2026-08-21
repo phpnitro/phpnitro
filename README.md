@@ -70,11 +70,11 @@ chmod +x /usr/local/bin/phpx
 phpx new mon-app
 cd mon-app
 composer install
-phpx make:page Home /
+phpx make:page Home
 phpx serve
 ```
 
-Ouvre `http://127.0.0.1:8090/`. C'est tout — pas de build step, pas de simulateur requis pour développer l'UI. (`phpx` s'installe une seule fois, pas par projet — voir [docs/cli.md](docs/cli.md) pour l'installation en une commande et le détail de chaque commande.)
+`serve` affiche un QR code — scanné depuis **PhpNitro Go** (`android/go/` dans ce monorepo, une petite app compagnon qui n'a besoin d'aucun code de projet), ça ouvre ton écran natif réel sur un vrai device/émulateur, sans build ni simulateur pour développer l'UI. Honnêteté : PhpNitro Go n'est pas encore publié nulle part (ni Play Store, ni JitPack) — il faut le builder toi-même depuis ce monorepo pour l'instant (`cd android && gradle :go:assembleDebug`). Sans device sous la main, `curl http://127.0.0.1:8090/native/layout-demo?screen=home` renvoie directement le JSON de commandes de dessin — utile pour vérifier que le pipeline tourne, pas pour voir un rendu visuel. (`phpx` s'installe une seule fois, pas par projet — voir [docs/cli.md](docs/cli.md) pour l'installation en une commande et le détail de chaque commande.)
 
 ## Documentation
 
