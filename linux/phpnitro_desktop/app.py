@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import threading
 import time
 from dataclasses import dataclass
@@ -897,6 +898,20 @@ def run_local(project_dir: Path, screen: str = "home") -> int:
 
     app.connect("activate", on_activate)
     app.connect("shutdown", on_shutdown)
+
+    # Without this, a SIGTERM/SIGINT delivered directly to this process
+    # (e.g. `phpx run`'s own Ctrl+C handling, or any external kill) —
+    # rather than a normal window-close — bypasses Gtk.Application's
+    # own "shutdown" signal entirely, leaving the php -S subprocess
+    # orphaned. Confirmed by actually killing a real `phpx run` this
+    # way: the python3 process died immediately (Python's own default
+    # SIGTERM behavior) but the php -S it had spawned kept running with
+    # nothing left able to reach it. app.quit() routes through the
+    # same normal shutdown path on_shutdown already handles, rather
+    # than duplicating process.stop() here.
+    signal.signal(signal.SIGTERM, lambda *_args: app.quit())
+    signal.signal(signal.SIGINT, lambda *_args: app.quit())
+
     return app.run(None)
 
 
