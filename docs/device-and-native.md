@@ -74,6 +74,6 @@ $online = deviceBridge.isOnline()  // Kotlin, ConnectivityManager réel
 
 ## Ce qui n'existe pas encore
 
-- **Boîtes de dialogue génériques** — `AlertButton`/`ConfirmButton` (voir [docs/widgets.md](widgets.md)) couvrent alert/confirm ; pas encore de bottom sheet natif ni de dialogue à formulaire.
+- **Dialogue à formulaire** — `AlertButton`/`ConfirmButton` (voir [docs/widgets.md](widgets.md)) couvrent alert/confirm ; pas encore de dialogue générique portant son propre formulaire. ~~Bottom sheet natif~~ — existe réellement : `BottomSheet` (`packages/ui/src/Native/BottomSheet.php`) est un panneau modal ancré en bas, scrim tap-outside-to-dismiss, ouverture/fermeture animées (glissement), et une vraie poignée de drag continu pour le fermer à la main — voir la section "Le mécanisme générique derrière ça" de [docs/architecture.md](architecture.md).
 
 ~~Rapport d'erreurs~~ / ~~Deep linking~~ — les deux existent réellement côté natif, pas encore documentés ailleurs dans ce fichier : `CrashReporter.kt` (`android/engine`) est installé au démarrage (`MainActivity`/`NativeRenderPocActivity`), journalise les erreurs PHP (`logPhpError()`) et permet de partager un rapport (`report_crash`) ; le schéma `phpnitro://` route déjà vers un `screen=` natif via `deepLinkScreenToken()` (voir la section Deep Links de [docs/architecture.md](architecture.md)).
