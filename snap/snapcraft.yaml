@@ -1,18 +1,28 @@
 name: phpx
+title: phpx
 base: core24
 version: '0.1.0'
+license: MIT
+contact: awademeronaldoo@gmail.com
 summary: CLI pour PhpNitro, le framework PHP pour apps mobiles/desktop natives
 description: |
   Installe `phpx` avec son propre PHP embarqué, plus tout ce que
   `phpx run` a besoin pour lancer le desktop Linux d'un projet scaffoldé
   (`--all`) sans rien à installer soi-même : Python 3, PyGObject/GTK4,
-  Cairo, libshumate (MapView), librlottie (animations Lottie).
+  Cairo, libshumate (MapView). Les animations Lottie ne fonctionnent
+  pas dans ce snap (librlottie0-1 vit dans le dépôt Ubuntu Pro/ESM sur
+  ce base — voir snap/README.md) ; le reste du framework n'en dépend
+  pas.
 
   `phpx new mon-app`, `phpx serve`, `phpx run`... fonctionnent
   directement après `snap install phpx`, comme le SDK Flutter après son
   propre téléchargement.
 
-grade: devel
+issues: https://github.com/phpnitro/phpnitro/issues
+source-code: https://github.com/phpnitro/phpnitro
+website: https://github.com/phpnitro/phpnitro
+
+grade: stable
 confinement: classic
 # classic, pas strict : phpx écrit des projets n'importe où sur le
 # disque (pas seulement $HOME), ouvre des ports réseau (`serve`),
