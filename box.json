@@ -11,7 +11,8 @@
         "ios",
         "assets",
         "public",
-        "vendor"
+        "vendor",
+        "bin"
     ],
     "files": [
         ".env",
