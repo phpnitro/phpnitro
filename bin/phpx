@@ -1875,6 +1875,16 @@ function cmdBuildAndroid(string $variant): void
         phpxFail("unknown build variant: {$variant} (expected debug or release)");
     }
 
+    // Must happen BEFORE resolveOrInstallGradle() — that function's own
+    // "is a compatible gradle already on PATH" check runs `gradle
+    // --version`, which needs a working `java` on PATH to even launch,
+    // let alone the real build further down.
+    $javaHome = resolveOrInstallJava();
+    if ($javaHome !== '') {
+        putenv("JAVA_HOME={$javaHome}");
+        putenv('PATH=' . $javaHome . '/bin:' . getenv('PATH'));
+    }
+
     $sdkRoot = resolveOrInstallAndroidSdk();
     $gradleBin = resolveOrInstallGradle();
     ensureLocalProperties($sdkRoot);
@@ -2041,6 +2051,104 @@ function resolveOrInstallGradle(): string
 }
 
 /**
+ * Same "already on PATH and new enough? use it. Otherwise download a
+ * pinned, cached copy" shape as resolveOrInstallGradle()/
+ * resolveOrInstallAndroidSdk() — the last piece of the Android toolchain
+ * that still needed installing by hand. Returns '' when the system
+ * `java` already satisfies the minimum version (no JAVA_HOME override
+ * needed, gradle will find it on PATH as-is), or the JDK's home
+ * directory when a fresh one was downloaded/reused from cache — the
+ * caller is expected to `putenv('JAVA_HOME=...')` and prepend
+ * "{home}/bin" to PATH in that case, BEFORE calling
+ * resolveOrInstallGradle() (which itself needs a working `java` on PATH
+ * just to run `gradle --version`).
+ *
+ * Eclipse Temurin (the OpenJDK build GitHub Actions' own setup-java
+ * action defaults to) via adoptium.net's stable "latest binary for this
+ * major version" redirect endpoint — no manual version-number tracking
+ * needed the way Gradle's own pinned-version URL requires.
+ *
+ * Honesty: the "already have a compatible java" early-return path is
+ * exercised every time doctor/build:android run anywhere Java 17+ is
+ * already present (which is everywhere this project's own CI runs,
+ * since actions/setup-java always provides one first) — but the actual
+ * download-and-extract branch below has never been exercised anywhere,
+ * CI included, only reviewed by hand against Adoptium's documented
+ * archive layout. Written deliberately the same shape as
+ * resolveOrInstallGradle()/resolveOrInstallAndroidSdk() (which HAVE run
+ * for real) to keep the risk as low as reasonably possible, not because
+ * it's been proven to work yet.
+ */
+function resolveOrInstallJava(): string
+{
+    $minMajor = 17;
+
+    $existing = trim((string) shell_exec('command -v java 2>/dev/null'));
+    if ($existing !== '') {
+        $versionOutput = (string) shell_exec('java -version 2>&1');
+        if (preg_match('/version "(\d+)/', $versionOutput, $m) && (int) $m[1] >= $minMajor) {
+            return '';
+        }
+    }
+
+    $dataHome = getenv('XDG_DATA_HOME') ?: (getenv('HOME') . '/.local/share');
+    $toolsDir = "{$dataHome}/phpnitro-tools";
+    $jdkRoot = "{$toolsDir}/jdk-{$minMajor}";
+    // macOS Temurin archives are a "bundle" (bin/java lives under
+    // Contents/Home/, not at the top level) — Linux archives aren't.
+    // Probing for the real layout rather than branching on PHP_OS_FAMILY
+    // means a corrupt/unexpected archive fails loudly instead of
+    // returning a JAVA_HOME with no java in it.
+    $jdkHome = is_file("{$jdkRoot}/Contents/Home/bin/java") ? "{$jdkRoot}/Contents/Home" : $jdkRoot;
+    if (is_file("{$jdkHome}/bin/java")) {
+        return $jdkHome;
+    }
+
+    $os = match (PHP_OS_FAMILY) {
+        'Darwin' => 'mac',
+        'Windows' => 'windows',
+        default => 'linux',
+    };
+    $machine = trim((string) shell_exec('uname -m 2>/dev/null'));
+    $arch = match ($machine) {
+        'x86_64', 'AMD64' => 'x64',
+        'aarch64', 'arm64' => 'aarch64',
+        default => phpxFail("unsupported architecture for an auto-installed JDK: '{$machine}' — install a JDK {$minMajor}+ yourself and make sure `java` is on PATH"),
+    };
+
+    echo "No compatible Java found (need >= {$minMajor}) — downloading a Temurin JDK into {$toolsDir} (one-time)...\n";
+    mkdir($toolsDir, 0777, true);
+    $archivePath = "{$toolsDir}/jdk-{$minMajor}.tar.gz";
+    passthruOrFail(sprintf(
+        'curl -L --retry 5 --retry-delay 3 -o %s %s',
+        escapeshellarg($archivePath),
+        escapeshellarg("https://api.adoptium.net/v3/binary/latest/{$minMajor}/ga/{$os}/{$arch}/jdk/hotspot/normal/eclipse"),
+    ));
+    $extractedDir = "{$toolsDir}/jdk-{$minMajor}-extracted";
+    mkdir($extractedDir, 0777, true);
+    passthruOrFail('tar -xzf ' . escapeshellarg($archivePath) . ' -C ' . escapeshellarg($extractedDir));
+    unlink($archivePath);
+
+    // The archive's own single top-level folder is named after the exact
+    // patch version Adoptium resolved "latest" to (e.g. jdk-17.0.9+9) —
+    // renamed to the version-agnostic $jdkRoot so callers never need to
+    // know that exact string.
+    $entries = array_values(array_diff(scandir($extractedDir), ['.', '..']));
+    if (count($entries) !== 1 || !is_dir("{$extractedDir}/{$entries[0]}")) {
+        phpxFail("JDK download succeeded but {$extractedDir} doesn't have the expected single top-level folder — corrupt archive?");
+    }
+    rename("{$extractedDir}/{$entries[0]}", $jdkRoot);
+    rmdir($extractedDir);
+
+    $jdkHome = is_file("{$jdkRoot}/Contents/Home/bin/java") ? "{$jdkRoot}/Contents/Home" : $jdkRoot;
+    if (!is_file("{$jdkHome}/bin/java")) {
+        phpxFail("JDK download succeeded but no bin/java found under {$jdkRoot} — corrupt archive or unexpected layout?");
+    }
+
+    return $jdkHome;
+}
+
+/**
  * One line of `phpx doctor` output — mirrors `flutter doctor`'s [✓]/[✗]
  * format. $required means phpx itself is broken without it (php, composer);
  * a failing non-required check only means one specific command
@@ -2078,7 +2186,7 @@ function cmdDoctor(): void
 
     echo "\nAndroid toolchain (only needed for build:android / dev:push)\n";
     $java = trim((string) shell_exec('command -v java 2>/dev/null'));
-    doctorCheck('Java (JDK)', $java !== '', $java !== '' ? $java : 'not found on PATH', required: false);
+    doctorCheck('Java (JDK)', $java !== '', $java !== '' ? $java : 'not found — build:android downloads a Temurin JDK automatically on first use', required: false);
 
     $gradle = trim((string) shell_exec('command -v gradle 2>/dev/null'));
     if ($gradle === '') {

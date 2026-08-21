@@ -16,7 +16,7 @@ php -l chemin/vers/fichier.php               # vérification syntaxique rapide
 vendor/bin/phpstan analyse packages lib      # analyse statique
 ```
 
-Un `bin/phpx serve` local + `curl` sur `/native/layout-demo?screen=...` reste le moyen le plus sûr de valider un changement touchant au moteur de rendu natif (`packages/ui/src/Native/`, `lib/pages/Native*Screen.php`). Pour tout ce qui touche au pont natif Android (`NativeDeviceBridge.kt`, `NativeCanvasView.kt`, permissions, capteurs...), il n'y a pas de substitut à un `./gradlew assembleDebug` réel (voire un test sur device via `adb`) — les tests PHPUnit ne couvrent que la génération des commandes de dessin côté PHP, jamais le code Kotlin lui-même.
+Un `bin/phpx serve` local + `curl` sur `/native/layout-demo?screen=...` reste le moyen le plus sûr de valider un changement touchant au moteur de rendu natif (`packages/ui/src/Native/`, `lib/pages/Native*Screen.php`). Pour tout ce qui touche au pont natif Android (`NativeDeviceBridge.kt`, `NativeCanvasView.kt`, permissions, capteurs...), il n'y a pas de substitut à un `php bin/phpx build:android` réel — pas de `gradlew` commité dans ce repo, `phpx` installe Java/Gradle/le SDK Android tout seul si besoin (voir `docs/cli.md`) — (voire un test sur device via `adb`) ; les tests PHPUnit ne couvrent que la génération des commandes de dessin côté PHP, jamais le code Kotlin lui-même.
 
 ```bash
 cd android && gradle :app:connectedDebugAndroidTest   # tests E2E réels sur device/émulateur connecté

@@ -1,0 +1,45 @@
+name: Release phpx.phar
+
+# Triggered by a version tag push (v1.2.3-style) — dormant otherwise, so
+# adding this workflow does NOT publish anything on its own. Compiles a
+# real global phpx.phar (see docs/cli.md's "Installation en une
+# commande") and attaches it to the GitHub Release for that tag, so a
+# brand-new user gets a one-command install ("curl ... -o
+# /usr/local/bin/phpx") instead of having to clone this whole monorepo
+# and compile it themselves — the same experience `flutter`/Composer's
+# own `composer.phar` already give.
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release-phar:
+    name: Build and publish phpx.phar
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, pdo_sqlite, phar
+          coverage: none
+      # --no-dev: phpunit/phpstan have no reason to ride along inside a
+      # phar meant for END USERS building apps, not for developing this
+      # framework itself — see box.json's own "vendor" entry, which
+      # bundles whatever composer install actually produced.
+      - run: composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+      # humbug/box isn't a Composer dependency of this project (it's a
+      # build-time tool, not something app code ever imports) — fetched
+      # directly from its own GitHub Releases rather than pinned to an
+      # exact version number here, the same "always resolves, never
+      # silently stale" tradeoff docs/cli.md's own phpx.phar install
+      # command makes for this project's OWN releases.
+      - run: curl -Ls -o box.phar https://github.com/box-project/box/releases/latest/download/box.phar
+      - run: chmod +x box.phar
+      - run: php -d phar.readonly=0 box.phar compile
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: phpx.phar
