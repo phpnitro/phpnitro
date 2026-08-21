@@ -1,0 +1,50 @@
+name: Ouvrir une PR pour une branche (manuel)
+
+# Outil ponctuel : `gh` a disparu de la machine qui poussait ces
+# branches en cours de session autonome, sans qu'aucun jeton API/gh
+# local ne soit récupérable sans contourner une restriction (installer
+# via le réseau pendant du travail autonome ; fouiller le trousseau de
+# secrets système) — voir les commentaires de session correspondants.
+# Ce workflow n'a besoin d'aucun des deux : GITHUB_TOKEN, injecté
+# automatiquement par GitHub Actions à chaque exécution, a déjà la
+# permission d'ouvrir une PR sur CE dépôt (voir `permissions:`
+# ci-dessous) — l'appel API se fait depuis l'infrastructure de GitHub,
+# pas depuis une machine locale.
+#
+# Se déclenche uniquement à la main (`workflow_dispatch`, jamais sur un
+# push) — un simple outil, pas un changement de convention pour les
+# futures branches. Utilisation : onglet Actions -> ce workflow ->
+# "Run workflow" -> choisir CETTE branche (ci/manual-pr-helper) comme
+# source dans le premier menu -> renseigner le nom de la branche cible
+# dans le champ `branch` -> Run. Le titre/corps de la PR reprennent le
+# dernier message de commit de cette branche, pour ne pas avoir à le
+# retaper.
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branche à ouvrir en PR vers main (doit déjà être poussée sur origin)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  open-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ouvre la PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ inputs.branch }}
+        run: |
+          set -euo pipefail
+          git fetch origin "$BRANCH"
+          TITLE="$(git log "origin/$BRANCH" -1 --pretty=%s)"
+          BODY="$(git log "origin/$BRANCH" -1 --pretty=%b)"
+          gh pr create --base main --head "$BRANCH" --title "$TITLE" --body "$BODY"
