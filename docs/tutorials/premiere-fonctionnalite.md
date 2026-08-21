@@ -1,5 +1,7 @@
 # Tutoriel : construire une fonctionnalité complète (liste de tâches)
 
+> **Périmé** : ce tutoriel décrit une architecture antérieure (classes `Screen`, `Engine\Router` par chemins HTTP, formulaires POST classiques) qui n'existe plus dans le framework actuel — vérifié : aucune de ces classes n'existe dans `packages/ui/src/`. Le modèle réel (écrans = classes avec `build(float, float): Widget`, actions = chaînes préfixées reconnues côté client, `?screen=`/`Engine\Native\Router`) est documenté dans [docs/getting-started.md](../getting-started.md) et [docs/architecture.md](../architecture.md). Ce fichier n'est réécrit pour l'instant — pas encore fait, gardé ici pour référence historique seulement, ne pas suivre ses exemples tels quels.
+
 Ce tutoriel construit une petite liste de tâches — ajout, complétion, suppression — pour couvrir en une fois tout le modèle mental de PhpNitro : état, actions, formulaires, redirection. Suppose un projet déjà créé (`phpx new`, voir [démarrage rapide](../getting-started.md)).
 
 ## 1. Créer la page

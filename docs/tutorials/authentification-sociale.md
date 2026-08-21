@@ -1,5 +1,7 @@
 # Tutoriel : ajouter "Se connecter avec Google"
 
+> **Périmé** : vérifié dans `packages/socialauth/src/OAuthProvider.php` — Google est désormais géré par le SDK natif Android (pas par le flux OAuth2 Authorization Code web décrit ci-dessous, qui reste réel pour Microsoft/GitHub/Facebook/Slack/X/Apple). Ce tutoriel utilise aussi une architecture antérieure (classes `Screen`, formulaires POST classiques) qui n'existe plus — voir [docs/getting-started.md](../getting-started.md) pour le modèle actuel. Pas encore réécrit, gardé pour référence historique seulement.
+
 Ce tutoriel câble un vrai bouton Google Sign-In, de bout en bout. Il illustre aussi un principe de conception central à `Engine\SocialAuth\` (et à tous les services device — voir [Capacités device & natif](../device-and-native.md)) : **il n'y a pas de widget "Google Sign-In Button" prêt à l'emploi**. C'est un choix délibéré, pas un oubli — l'utilisateur décide à quoi ressemble son bouton, le service se contente de fournir l'action à déclencher.
 
 ## 1. Obtenir un client ID Google
