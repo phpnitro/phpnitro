@@ -16,8 +16,6 @@
     "files": [
         ".env",
         "composer.json",
-        "package.json",
-        "package-lock.json",
         "phpnitro.yml"
     ],
     "blacklist": [
