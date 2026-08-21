@@ -53,7 +53,7 @@ if ($action === 'increment') {
 
 ## Ce que ça donne concrètement
 
-- **~50 widgets natifs** — mise en page (`Flex`, `Stack`, `Wrap`...), formulaires (dialogues Android réels), texte riche multi-styles, animations implicites (`Animated`/`Hero`, FLIP réel), listes virtualisées (`LazyList`) — [référence complète](docs/widgets.md).
+- **~80 widgets natifs** — mise en page (`Flex`, `Stack`, `Wrap`...), formulaires (dialogues Android réels), texte riche multi-styles, animations implicites (`Animated`/`Hero`, FLIP réel), listes virtualisées (`LazyList`) — [référence complète](docs/widgets.md).
 - **~30 capacités device réellement natives** — caméra, biométrie, NFC, géofencing, achat intégré, impression PDF, traduction sur l'appareil (ML Kit) — pas de simulation WebView, du vrai code Kotlin appelé directement. [Détails](docs/device-and-native.md).
 - **Un geste vraiment continu** — `Dismissible` (glisser pour supprimer) suit le doigt à 100% côté client, zéro requête réseau par frame, PHP ne voit que le résultat final.
 - **Backend unifié** — Symfony HttpFoundation + Doctrine DBAL, dans le même processus, zéro configuration réseau supplémentaire.
@@ -81,7 +81,7 @@ phpx serve
 | Guide | Contenu |
 |---|---|
 | [Démarrage & architecture](docs/getting-started.md) | Structure d'un projet, écrire un écran, navigation, formulaires |
-| [Widgets](docs/widgets.md) | Référence complète des ~50 widgets natifs, texte riche, animations, gestes |
+| [Widgets](docs/widgets.md) | Référence complète des ~80 widgets natifs, texte riche, animations, gestes |
 | [Capacités device & natif](docs/device-and-native.md) | Caméra, biométrie, notifications, partage, impression, accessibilité |
 | [CLI (`phpx`)](docs/cli.md) | Toutes les commandes, `phpnitro.yml`, packaging `.phar` |
 | [Builds mobiles](docs/mobile-builds.md) | APK Android (PHP embarqué), état iOS |
