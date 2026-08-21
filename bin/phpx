@@ -6,9 +6,14 @@
  *
  * Commands:
  *   phpx make:page <Name>              Generate a Page + a paired backend Controller (auto-discovered, no route to register)
+ *   phpx make:auth                    Scaffold Login/Register/ForgotPassword/ResetPassword + paired Controllers
  *   phpx make:entity <Name>           Generate an Entity + a paired Repository
+ *   phpx make:migration <name>        Generate a timestamped database migration
+ *   phpx migrate                      Apply pending migrations
+ *   phpx migrate:rollback             Roll back the last batch of migrations
+ *   phpx migrate:status               List applied/pending migrations
  *   phpx serve [port]                 Serve public/ (defaults to 8090)
- *   phpx new <directory>              Scaffold a new project: android/ ios/ lib/ packages/ public/ assets/ bin/
+ *   phpx new <directory> [--all]      Scaffold a new project: android/ ios/ lib/ public/ assets/ (+linux/macos/windows with --all)
  *   phpx bundle:android               Copy public/ + lib/ + packages/ + .env into the Android app
  *   phpx build:android [debug|release] Bundle + gradle assemble, auto-installing Gradle if needed
  *   phpx dev:push [--watch]           Push PHP straight to a connected device's running app, no rebuild/reinstall
@@ -100,6 +105,7 @@ function printPhpxUsage(): void
 
     $commands = [
         'make:page <Name>' => 'Génère une Page + un Controller backend associé',
+        'make:auth' => 'Scaffold Login/Register/ForgotPassword/ResetPassword + Controllers associés',
         'make:entity <Name>' => 'Génère une Entity + un Repository associé',
         'make:migration <name>' => 'Génère une migration de base de données',
         'migrate' => 'Applique les migrations en attente',
@@ -1795,8 +1801,8 @@ function stageForDevPush(): string
  */
 function cmdDevPush(bool $watch): void
 {
-    if (trim((string) shell_exec('command -v adb 2>/dev/null')) === '') {
-        phpxFail('adb not found on PATH — connect a device via Android Studio/platform-tools first.');
+    if (resolveAdb() === '') {
+        phpxFail('adb not found on PATH or under the Android SDK\'s platform-tools/ — connect a device via Android Studio/platform-tools first.');
     }
 
     $pkg = readApplicationId();
@@ -1940,13 +1946,67 @@ function ensureLocalProperties(string $sdkRoot): void
  * context — this is the same license a developer would otherwise accept by
  * hand in Android Studio's SDK Manager once.
  */
-function resolveOrInstallAndroidSdk(): string
+/**
+ * The "usual places" ANDROID_HOME/ANDROID_SDK_ROOT/~/Android/Sdk/
+ * ~/Library/Android/sdk check, factored out since resolveOrInstallAndroidSdk()
+ * (the "install if missing" path), doctor (the "just report" path), and
+ * resolveAdb() (adb specifically lives under platform-tools/ inside
+ * whatever this returns) all need the exact same answer to "is there
+ * already an SDK on this machine, and where". Returns null, never
+ * installs anything — that's resolveOrInstallAndroidSdk()'s job.
+ */
+function findExistingAndroidSdk(): ?string
 {
     $sdkRoot = $_ENV['ANDROID_HOME'] ?? $_ENV['ANDROID_SDK_ROOT'] ?? null;
     foreach ([$sdkRoot, getenv('HOME') . '/Android/Sdk', getenv('HOME') . '/Library/Android/sdk'] as $candidate) {
         if ($candidate !== null && is_dir($candidate)) {
             return $candidate;
         }
+    }
+
+    return null;
+}
+
+/**
+ * `adb` ships inside the Android SDK's own platform-tools/ — a fresh
+ * SDK install (Android Studio, or resolveOrInstallAndroidSdk() itself)
+ * doesn't always also add that directory to the shell's PATH, which is
+ * exactly the "doctor says the SDK is there but adb isn't on PATH"
+ * situation this project hit firsthand. Checks PATH first (respects
+ * whatever the user already has), falls back to the resolved SDK's own
+ * platform-tools/adb, and — only in that fallback case — exports that
+ * directory onto PATH for the REST of this process, so every later
+ * `passthruOrFail('adb ...')` call in the same command also finds it,
+ * not just this one lookup. Returns '' if adb is genuinely nowhere to
+ * be found.
+ */
+function resolveAdb(): string
+{
+    $onPath = trim((string) shell_exec('command -v adb 2>/dev/null'));
+    if ($onPath !== '') {
+        return $onPath;
+    }
+
+    $sdkRoot = findExistingAndroidSdk();
+    if ($sdkRoot === null) {
+        return '';
+    }
+    $platformTools = "{$sdkRoot}/platform-tools";
+    $adb = "{$platformTools}/adb";
+    if (!is_file($adb)) {
+        return '';
+    }
+
+    putenv('PATH=' . $platformTools . ':' . getenv('PATH'));
+
+    return $adb;
+}
+
+function resolveOrInstallAndroidSdk(): string
+{
+    $existing = findExistingAndroidSdk();
+    if ($existing !== null) {
+        return $existing;
     }
 
     $buildGradle = file_get_contents(PHPX_ROOT . '/android/app/build.gradle.kts');
@@ -2197,18 +2257,11 @@ function cmdDoctor(): void
     }
     doctorCheck('Gradle', $gradle !== '', $gradle !== '' ? $gradle : 'not found — build:android downloads it automatically on first use', required: false);
 
-    $sdkRoot = $_ENV['ANDROID_HOME'] ?? $_ENV['ANDROID_SDK_ROOT'] ?? null;
-    foreach ([$sdkRoot, getenv('HOME') . '/Android/Sdk', getenv('HOME') . '/Library/Android/sdk'] as $candidate) {
-        if ($candidate !== null && is_dir($candidate)) {
-            $sdkRoot = $candidate;
-            break;
-        }
-    }
-    $sdkFound = $sdkRoot !== null && is_dir($sdkRoot);
-    doctorCheck('Android SDK', $sdkFound, $sdkFound ? $sdkRoot : 'not found — build:android downloads platform-tools automatically on first use', required: false);
+    $sdkRoot = findExistingAndroidSdk();
+    doctorCheck('Android SDK', $sdkRoot !== null, $sdkRoot ?? 'not found — build:android downloads platform-tools automatically on first use', required: false);
 
-    $adb = trim((string) shell_exec('command -v adb 2>/dev/null'));
-    doctorCheck('adb', $adb !== '', $adb !== '' ? $adb : 'not found on PATH — only needed for dev:push against a real device', required: false);
+    $adb = resolveAdb();
+    doctorCheck('adb', $adb !== '', $adb !== '' ? $adb : 'not found on PATH or under the SDK\'s platform-tools/ — only needed for dev:push against a real device', required: false);
 
     // Only checked if an android/ dir exists in the current project —
     // doctor also runs fine from a directory that isn't a scaffolded
