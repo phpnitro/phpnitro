@@ -75,4 +75,15 @@ php box.phar compile   # génère phpx.phar (~53 Mo, artefact de build, pas comm
 php phpx.phar new mon-app
 ```
 
-`phpx.phar` fonctionne aujourd'hui surtout comme "un seul fichier à copier" plutôt qu'un vrai binaire global façon `flutter`/`composer` : `bin/phpx` reste conçu pour être co-localisé avec le projet sur lequel il opère (`PHPX_ROOT` sert à la fois de racine de gabarit pour `new` et de racine de projet courant pour toutes les autres commandes). Un vrai binaire installable une fois et appelable depuis n'importe quel dossier demanderait de séparer ces deux usages (`getcwd()` pour tout sauf `new`) — identifié, pas encore fait (voir la roadmap, item #13).
+`phpx.phar` est un vrai binaire global, installable une fois et appelable depuis n'importe quel dossier — `PHPX_TOOL_ROOT` (où vit le script/le `.phar` lui-même, utilisé UNIQUEMENT par `cmdNew()` pour retrouver ses gabarits `lib/`/`android/`/`ios/`/`assets/`/`public/`/`vendor/`, tous bundlés dans l'archive via `box.json`) et `PHPX_ROOT` (`getcwd()`, le projet courant, pour absolument toutes les autres commandes) sont deux constantes séparées depuis le début de ce fichier — confirmé en construisant un `.phar` minimal et en l'exécutant depuis un dossier totalement différent : `dirname(__DIR__)` résout bien vers la racine virtuelle de l'archive (`phar://...`), pas vers le dossier d'où la commande est lancée.
+
+```bash
+# installation globale, une fois — voir "Installation en une commande" plus bas
+curl -fsSL https://github.com/phpnitro/phpnitro/releases/latest/download/phpx.phar -o /usr/local/bin/phpx
+chmod +x /usr/local/bin/phpx
+phpx new mon-app   # fonctionne depuis n'importe quel dossier, à partir de maintenant
+```
+
+## Installation en une commande
+
+Chaque tag de version (`.github/workflows/release.yml`) compile `phpx.phar` (via `humbug/box`, téléchargé côté CI, jamais côté poste de dev) et le publie comme artefact de la Release GitHub correspondante — pas de compilation locale nécessaire pour un utilisateur final, la même expérience qu'un `flutter`/`composer.phar` téléchargé une fois. `php box.phar compile` (ci-dessus) reste la façon de le compiler soi-même pour du développement local de `phpx` lui-même.

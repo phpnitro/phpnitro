@@ -61,17 +61,20 @@ if ($action === 'increment') {
 
 ## Démarrage rapide
 
-Prérequis : PHP ≥ 8.1 + Composer. (Android SDK + Gradle ≥ 8.9 seulement pour builder l'APK — voir [docs/mobile-builds.md](docs/mobile-builds.md).)
+Prérequis : PHP ≥ 8.1 + Composer. (Android SDK + Gradle ≥ 8.9 + JDK seulement pour builder l'APK — `phpx build:android` les installe tout seul si besoin, voir [docs/mobile-builds.md](docs/mobile-builds.md).)
 
 ```bash
-php bin/phpx new mon-app
+curl -fsSL https://github.com/phpnitro/phpnitro/releases/latest/download/phpx.phar -o /usr/local/bin/phpx
+chmod +x /usr/local/bin/phpx
+
+phpx new mon-app
 cd mon-app
 composer install
-bin/phpx make:page Home /
-bin/phpx serve
+phpx make:page Home /
+phpx serve
 ```
 
-Ouvre `http://127.0.0.1:8090/`. C'est tout — pas de build step, pas de simulateur requis pour développer l'UI.
+Ouvre `http://127.0.0.1:8090/`. C'est tout — pas de build step, pas de simulateur requis pour développer l'UI. (`phpx` s'installe une seule fois, pas par projet — voir [docs/cli.md](docs/cli.md) pour l'installation en une commande et le détail de chaque commande.)
 
 ## Documentation
 
