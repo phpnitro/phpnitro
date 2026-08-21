@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is informal while the project is pre-1.0 (see `phpnitro.yml`'s `version`).
 
+> **Périmé au-delà de ce point.** Le contenu ci-dessous (`Engine\AnimatedContainer`,
+> `phpx:beforeSwap` dans `nav.js`, des widgets comme `Dropdown`/`LocationButton`/
+> `IconButton`/`Stepper`...) date d'avant le passage complet au rendu natif
+> (Canvas/Kotlin/Core Graphics/Rust, plus aucune WebView dans le chemin
+> principal — voir [docs/architecture.md](docs/architecture.md)) et n'a jamais
+> été mis à jour depuis. Tout ce qui a suivi — le moteur de rendu natif
+> lui-même, les ports Android/iOS/Linux/macOS/Windows, le moteur Rust partagé,
+> la CLI `phpx`, la première release `.phar` publiée — n'y figure pas. Pour
+> l'état réel du projet : `git log`, les README par plateforme
+> (`android/`, `ios/`, `linux/`, `macos/`, `windows/README.md`), et
+> [docs/architecture.md](docs/architecture.md). Reconstruire ce fichier
+> proprement depuis l'historique complet est un vrai chantier, pas encore
+> attaqué — gardé ici en l'état plutôt que supprimé, pour ne pas perdre la
+> trace de ce qu'il documente correctement (tout ce qui précède le pivot).
+
 ## Unreleased
 
 ### Added
