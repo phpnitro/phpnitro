@@ -13,6 +13,7 @@ php bin/phpx new mon-app            # scaffold un nouveau projet complet
 php bin/phpx bundle:android         # copie public/ + lib/ + packages/ + .env dans l'app Android (PHP minifié)
 php bin/phpx build:android [debug|release]  # bundle: + gradle assemble, JDK/Gradle/SDK auto-installés si besoin
 php bin/phpx dev:push [--watch]     # pousse le PHP sur un device connecté, sans rebuild/reinstall
+php bin/phpx run                    # détecte une cible dispo (device Android, desktop Linux) et lance dessus
 php bin/phpx payments               # liste les gateways déclarés dans phpnitro.yml et leur statut dans .env
 php bin/phpx maps                   # idem pour les fournisseurs de carte
 php bin/phpx icon                   # régénère l'icône Android depuis phpnitro.yml's `icon`
@@ -24,6 +25,17 @@ php bin/phpx doctor                 # vérifie que la machine est prête (PHP, C
 `make:page` génère la classe et l'ajoute automatiquement au routeur (`public/index.php`), **et** génère un Controller pairé dans `lib/backend/src/Controller/`, câblé dans `Backend\Kernel` — façon Symfony, sans attributs de routage. `make:entity` fait la même chose côté données.
 
 `make:page` ne prend qu'un seul argument (le nom) — la route native (`?screen=...`) est toujours le kebab-case de ce nom (`HomePage` → `home`, `AboutPage` → `about`), sans exception. Côté Controller/API, `home` spécifiquement route vers `/api` tout court (pas `/api/home`) — le seul cas spécial, câblé en dur dans `cmdMakePage()`, pas un second argument à passer toi-même.
+
+## `phpx run` — l'équivalent `flutter run`
+
+Détecte automatiquement une cible de lancement et démarre dessus, sans avoir à se souvenir de la bonne combinaison de commandes :
+
+- **Un device/émulateur Android connecté** (`adb devices` en montre au moins un) — build + installe automatiquement si l'app n'est pas déjà présente, lance via `monkey -c android.intent.category.LAUNCHER` (résout le lanceur réellement actif, y compris si le mécanisme d'icône dynamique du projet en a changé), puis reste actif à surveiller `lib/pages`, `lib/backend/src`, `packages/*/src` — chaque sauvegarde repousse le PHP direct sur le device (même mécanisme que `dev:push --watch`).
+- **Le desktop Linux de la machine courante**, si le projet a été scaffoldé avec `phpx new --all` (dossier `linux/` présent). Aucune étape de "watch" nécessaire ici — `python3 -m phpnitro_desktop` lance `php -S` directement contre `public/` du projet, donc un fichier PHP édité est déjà pris en compte à la requête suivante.
+
+Si plusieurs cibles sont disponibles en même temps, `phpx run` affiche une liste numérotée et demande laquelle choisir. macOS et Windows ne sont pas encore branchés à `run` — ni l'un ni l'autre n'a jamais tourné une seule fois sur sa propre plateforme (voir leur README.md respectif), donc deviner leur commande de lancement exacte n'aurait rien apporté de fiable.
+
+**Vérifié pour de vrai** : lancé contre un vrai affichage — la toute première fois qu'une fenêtre de ce port Linux s'est réellement ouverte (voir `linux/README.md`). Le nettoyage des processus enfants (`python3`, et le `php -S` que lui-même lance) sur Ctrl+C/kill a aussi été testé en tuant un vrai `phpx run` en cours — un premier essai laissait les deux orphelins (`proc_open()` ne cascade aucun signal, et `pcntl_signal()` ne se déclenche jamais tant que PHP reste bloqué dans l'appel bloquant `proc_close()`) ; corrigé avec une boucle de sondage `proc_get_status()` côté `phpx` et un vrai gestionnaire `signal.signal(SIGTERM/SIGINT, ...)` côté `phpnitro_desktop` (qui route vers `app.quit()`, le même chemin qu'une fermeture de fenêtre normale).
 
 ## `phpnitro.yml` — le manifeste de l'app
 

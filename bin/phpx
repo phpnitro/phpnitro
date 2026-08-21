@@ -17,6 +17,7 @@
  *   phpx bundle:android               Copy public/ + lib/ + packages/ + .env into the Android app
  *   phpx build:android [debug|release] Bundle + gradle assemble, auto-installing Gradle if needed
  *   phpx dev:push [--watch]           Push PHP straight to a connected device's running app, no rebuild/reinstall
+ *   phpx run                          Auto-detect an available target (Android device, Linux desktop) and launch on it
  *   phpx payments                     List phpnitro.yml's declared payment gateways and their .env status
  *   phpx maps                         List phpnitro.yml's declared map providers and their .env status
  *   phpx icon                         Regenerate the Android launcher icon from phpnitro.yml's `icon`
@@ -116,6 +117,7 @@ function printPhpxUsage(): void
         'bundle:android' => "Copie public/ + lib/ + packages/ + .env dans l'app Android",
         'build:android [debug|release]' => 'bundle:android + gradle assemble (installe Gradle si besoin)',
         'dev:push [--watch]' => "Pousse le PHP directement sur un device connecté, sans rebuild",
+        'run' => "Détecte une cible disponible (device Android, desktop Linux) et lance dessus",
         'payments' => 'Liste les moyens de paiement déclarés dans phpnitro.yml',
         'maps' => 'Liste les fournisseurs de carte déclarés dans phpnitro.yml',
         'icon' => "Régénère l'icône Android depuis phpnitro.yml",
@@ -1866,6 +1868,187 @@ function latestMtime(array $dirs): int
 }
 
 /**
+ * `flutter run`'s "find a device, launch on it" idea — detects every
+ * target this machine could plausibly run the CURRENT project on right
+ * now, launches directly if there's exactly one, otherwise asks. Two
+ * targets for now: an Android device/emulator reachable over adb, and
+ * this OS's own desktop shell (Linux only for the moment — see
+ * detectRunTargets()'s own comment on why macOS/Windows aren't offered
+ * here yet even when their folders exist).
+ */
+function cmdRun(): void
+{
+    $targets = detectRunTargets();
+    if ($targets === []) {
+        phpxFail(
+            "aucune cible de lancement détectée.\n" .
+            "  - Android : connecte un device ou lance un émulateur (adb devices doit en montrer au moins un), puis relance.\n" .
+            "  - Linux desktop : ce projet doit avoir été scaffoldé avec `phpx new --all` (dossier linux/ présent) et tourner sur une machine Linux avec un affichage réel.\n" .
+            "macOS/Windows desktop ne sont pas encore branchés à `run` — aucun des deux n'a jamais tourné une seule fois sur cette plateforme, voir leur propre README.md."
+        );
+    }
+
+    $target = count($targets) === 1 ? $targets[0] : promptForRunTarget($targets);
+
+    match ($target['type']) {
+        'android' => runOnAndroid(),
+        'linux' => runOnLinuxDesktop(),
+    };
+}
+
+/**
+ * Only offers what's actually been run for real at least once — Android
+ * (production use, real-device tests all session) and Linux desktop (99
+ * real tests, GTK4 confirmed constructible/exercisable without a
+ * display, but the actual window has never been opened on a real
+ * screen). macOS has never compiled on a real Mac; Windows has never
+ * been launched interactively even once (CI only ever runs `dotnet
+ * build`, never the app) — deliberately NOT offered here yet rather
+ * than guessing a launch command for a target nobody has verified even
+ * starts.
+ */
+function detectRunTargets(): array
+{
+    $targets = [];
+
+    if (resolveAdb() !== '' && hasConnectedAndroidDevice()) {
+        $targets[] = ['type' => 'android', 'label' => 'Android (device/émulateur connecté)'];
+    }
+
+    if (PHP_OS_FAMILY === 'Linux' && is_dir(PHPX_ROOT . '/linux')) {
+        $targets[] = ['type' => 'linux', 'label' => 'Linux desktop (' . PHPX_ROOT . '/linux)'];
+    }
+
+    return $targets;
+}
+
+function hasConnectedAndroidDevice(): bool
+{
+    $output = shell_exec('adb devices 2>/dev/null');
+    if ($output === null) {
+        return false;
+    }
+    foreach (explode("\n", trim($output)) as $line) {
+        if (preg_match('/\tdevice$/', trim($line)) === 1) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function promptForRunTarget(array $targets): array
+{
+    echo "Plusieurs cibles disponibles :\n";
+    foreach ($targets as $index => $target) {
+        echo '  [' . ($index + 1) . "] {$target['label']}\n";
+    }
+    echo 'Choix (1-' . count($targets) . ') : ';
+    $choice = (int) trim((string) fgets(STDIN));
+    if ($choice < 1 || $choice > count($targets)) {
+        phpxFail('choix invalide.');
+    }
+
+    return $targets[$choice - 1];
+}
+
+/**
+ * build:android + install only when the app isn't already on the
+ * device — same "don't redo expensive work that's still valid" spirit
+ * as stageForDevPush()'s own composer-install skip. Launches via
+ * `monkey -c android.intent.category.LAUNCHER` rather than a hardcoded
+ * activity/alias name — this project's own dynamic-icon mechanism
+ * (AndroidManifest.xml's DynamicIconDefault/DynamicIconAlt) means
+ * whichever alias is CURRENTLY enabled is the real launch target, not
+ * necessarily the one this scaffold shipped with; `monkey` resolves
+ * that live, the exact same way tapping the home-screen icon would.
+ * Ends in cmdDevPush(true) — once launched, this never returns on its
+ * own (Ctrl+C to stop), same as `flutter run` staying attached for hot
+ * reload.
+ */
+function runOnAndroid(): void
+{
+    $pkg = readApplicationId();
+    if (!isAndroidAppInstalled($pkg)) {
+        echo "App non installée sur le device — build + installation (phpx build:android)...\n";
+        cmdBuildAndroid('debug');
+        $apk = PHPX_ROOT . '/android/app/build/outputs/apk/debug/app-debug.apk';
+        passthruOrFail('adb install -r ' . escapeshellarg($apk));
+    }
+
+    echo "Lancement...\n";
+    passthruOrFail('adb shell monkey -p ' . escapeshellarg($pkg) . ' -c android.intent.category.LAUNCHER 1 > /dev/null');
+
+    cmdDevPush(true);
+}
+
+function isAndroidAppInstalled(string $pkg): bool
+{
+    $output = shell_exec('adb shell pm list packages ' . escapeshellarg($pkg) . ' 2>/dev/null');
+
+    return $output !== null && str_contains($output, "package:{$pkg}");
+}
+
+/**
+ * No push/watch step needed here unlike Android — php_process.py spawns
+ * `php -S` directly against THIS project's own public/ on the SAME
+ * machine, so an edited PHP file already takes effect on the very next
+ * request with zero extra step; Android only needs one because its
+ * copy of the PHP files lives on a physically separate device. Runs in
+ * the foreground (inherits this process's stdin/stdout/stderr) exactly
+ * like a normal `python3 -m phpnitro_desktop` invocation would.
+ *
+ * Ctrl+C (or any external kill) has to explicitly proc_terminate() the
+ * child — confirmed by actually killing a real `phpx run` process
+ * mid-launch: proc_open() does NOT cascade a signal to what it started,
+ * so without this the python3 process (and the `php -S` IT spawns in
+ * turn) survive as orphans, GTK window and all, with no way left to
+ * reach them from this terminal.
+ *
+ * Deliberately NOT a blocking `proc_close($process)` — confirmed by
+ * the same real kill test that a signal delivered while PHP is stuck
+ * inside proc_close()'s own C-level waitpid() never reaches the
+ * pcntl_signal() handler at all (`pcntl_async_signals(true)` only
+ * dispatches once control actually returns to the Zend VM, which
+ * blocking inside a single C call never does): a `proc_get_status()`
+ * poll loop keeps control in PHP userland between iterations instead,
+ * which is what actually lets the handler run.
+ */
+function runOnLinuxDesktop(): void
+{
+    if (shell_exec('command -v python3 2>/dev/null') === null) {
+        phpxFail('python3 introuvable sur PATH — requis pour le desktop Linux (voir linux/README.md).');
+    }
+
+    echo "Lancement du desktop Linux (Ctrl+C pour arrêter)...\n";
+    $process = proc_open(
+        ['python3', '-m', 'phpnitro_desktop', PHPX_ROOT],
+        [0 => STDIN, 1 => STDOUT, 2 => STDERR],
+        $pipes,
+        PHPX_ROOT . '/linux',
+    );
+    if ($process === false) {
+        phpxFail('impossible de lancer python3 -m phpnitro_desktop.');
+    }
+
+    if (extension_loaded('pcntl')) {
+        pcntl_async_signals(true);
+        $terminate = static function () use ($process): void {
+            proc_terminate($process);
+        };
+        pcntl_signal(SIGINT, $terminate);
+        pcntl_signal(SIGTERM, $terminate);
+    }
+
+    do {
+        usleep(200_000);
+        $status = proc_get_status($process);
+    } while ($status['running']);
+
+    exit($status['exitcode']);
+}
+
+/**
  * Buildozer-style one-command build: bundle + assemble, auto-installing a
  * JDK/Gradle (into ~/.local/share/phpnitro-tools, cached across
  * projects/runs — see resolveOrInstallJava()/resolveOrInstallGradle())
@@ -2328,6 +2511,9 @@ switch ($command) {
         break;
     case 'dev:push':
         cmdDevPush(in_array('--watch', $argv, true));
+        break;
+    case 'run':
+        cmdRun();
         break;
     case 'build:android':
         cmdBuildAndroid($argv[2] ?? 'debug');
