@@ -1,21 +1,29 @@
 # CLI (`bin/phpx`)
 
 ```bash
-php bin/phpx serve                  # sert public/ sur le port 8090
+php bin/phpx serve                  # sert public/ sur le port 8090, affiche le QR PhpNitro Go
 php bin/phpx make:page About        # crée lib/pages/app/AboutPage.php + lib/backend/src/Controller/AboutController.php
-                                     # enregistre /about (page) ET /api/about (controller)
+php bin/phpx make:auth              # scaffold Login/Register/ForgotPassword/ResetPassword + Controllers pairés
 php bin/phpx make:entity Product    # crée lib/backend/src/Entity/Product.php + Repository/ProductRepository.php
+php bin/phpx make:migration nom     # crée une migration de base de données horodatée
+php bin/phpx migrate                # applique les migrations en attente
+php bin/phpx migrate:rollback       # annule le dernier lot de migrations
+php bin/phpx migrate:status         # liste les migrations appliquées/en attente
 php bin/phpx new mon-app            # scaffold un nouveau projet complet
 php bin/phpx bundle:android         # copie public/ + lib/ + packages/ + .env dans l'app Android (PHP minifié)
+php bin/phpx build:android [debug|release]  # bundle: + gradle assemble, JDK/Gradle/SDK auto-installés si besoin
+php bin/phpx dev:push [--watch]     # pousse le PHP sur un device connecté, sans rebuild/reinstall
 php bin/phpx payments               # liste les gateways déclarés dans phpnitro.yml et leur statut dans .env
 php bin/phpx maps                   # idem pour les fournisseurs de carte
 php bin/phpx icon                   # régénère l'icône Android depuis phpnitro.yml's `icon`
 php bin/phpx firebase               # liste la config Firebase déclarée et son statut
+php bin/phpx docs:api               # génère docs/api/*.md depuis les docblocks des classes publiques
+php bin/phpx doctor                 # vérifie que la machine est prête (PHP, Composer, Java, Gradle, SDK, adb)
 ```
 
 `make:page` génère la classe et l'ajoute automatiquement au routeur (`public/index.php`), **et** génère un Controller pairé dans `lib/backend/src/Controller/`, câblé dans `Backend\Kernel` — façon Symfony, sans attributs de routage. `make:entity` fait la même chose côté données.
 
-Par défaut, `make:page Home` (sans second argument) enregistre la route `/home`, pas `/` — passe explicitement `/` en second argument pour la page racine.
+`make:page` ne prend qu'un seul argument (le nom) — la route native (`?screen=...`) est toujours le kebab-case de ce nom (`HomePage` → `home`, `AboutPage` → `about`), sans exception. Côté Controller/API, `home` spécifiquement route vers `/api` tout court (pas `/api/home`) — le seul cas spécial, câblé en dur dans `cmdMakePage()`, pas un second argument à passer toi-même.
 
 ## `phpnitro.yml` — le manifeste de l'app
 
@@ -87,3 +95,5 @@ phpx new mon-app   # fonctionne depuis n'importe quel dossier, à partir de main
 ## Installation en une commande
 
 Chaque tag de version (`.github/workflows/release.yml`) compile `phpx.phar` (via `humbug/box`, téléchargé côté CI, jamais côté poste de dev) et le publie comme artefact de la Release GitHub correspondante — pas de compilation locale nécessaire pour un utilisateur final, la même expérience qu'un `flutter`/`composer.phar` téléchargé une fois. `php box.phar compile` (ci-dessus) reste la façon de le compiler soi-même pour du développement local de `phpx` lui-même.
+
+**Tant qu'aucun tag `v*` n'a encore été poussé**, cette URL de release n'existe pas encore (404) — le workflow ne publie rien tout seul, il attend un vrai tag. En attendant le premier tag, la seule façon d'utiliser `phpx` est de cloner ce monorepo et d'appeler `php bin/phpx <commande>` directement depuis sa racine (voir [CONTRIBUTING.md](../CONTRIBUTING.md)).

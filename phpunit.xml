@@ -61,5 +61,8 @@
         <testsuite name="offline">
             <directory>packages/offline/tests</directory>
         </testsuite>
+        <testsuite name="validation">
+            <directory>packages/validation/tests</directory>
+        </testsuite>
     </testsuites>
 </phpunit>

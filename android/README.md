@@ -4,14 +4,16 @@
 
 ## Comment ça marche
 
-- `MainActivity` affiche une `WebView` pointée sur `http://127.0.0.1:8090/`.
-- `PhpServer.kt` lance le binaire PHP embarqué (`jniLibs/<abi>/libphp.so`) comme sous-processus au démarrage de l'app, avec `LD_LIBRARY_PATH` pointé sur le dossier natif (pour trouver `libsqlite3.so`) et `TMPDIR`/session/logs dans le stockage privé de l'app.
-- Le contenu de `engine/` (widgets PHP + Tailwind compilé) est copié depuis `assets/www` vers le stockage de l'app au premier lancement.
+Deux `Activity`, deux moteurs de rendu — voir le commentaire de `AndroidManifest.xml` sur les alias `.DynamicIcon*` pour la source de vérité :
+
+- **`NativeRenderPocActivity`** (`android/engine`) est **le vrai lanceur de l'app aujourd'hui, pas un aperçu optionnel** : peint directement sur un `android.graphics.Canvas` (Skia) à partir des commandes JSON de `Canvas::toJson()`, zéro WebView dans le rendu. Chaque route ayant atteint la parité avec sa version WebView a vu sa page WebView supprimée.
+- **`MainActivity`** (WebView) reste ce qu'il reste des capacités pas encore portées côté natif (aperçu caméra, NFC en avant-plan, VideoPlayer, cartes interactives, animations) — atteignable depuis un écran natif via un bouton "Voir sur WebView" (`NativeDeviceBridge.kt`'s `openWebView()`), pas l'expérience par défaut.
+- `PhpServer.kt` lance le binaire PHP embarqué (`jniLibs/<abi>/libphp.so`) comme sous-processus au démarrage de l'app, avec `LD_LIBRARY_PATH` pointé sur le dossier natif (pour trouver `libsqlite3.so`) et `TMPDIR`/session/logs dans le stockage privé de l'app — commun aux deux Activity.
 - Deux architectures embarquées (`armeabi-v7a` et `arm64-v8a`) : la bonne est choisie automatiquement par Android selon le device.
 
-## Compiler les binaires PHP (déjà fait, généré dans `jniLibs/` — gitignored, gros fichiers)
+## Compiler les binaires PHP (déjà fait, résultat committé dans `android/engine/src/main/jniLibs/`)
 
-Les binaires PHP ne sont **pas commités** (trop volumineux, ~17 Mo chacun une fois OpenSSL statiquement lié). `android/php-ndk-patch/` contient un `Dockerfile` (+ `Makefile` + patches) **modifié par rapport à l'upstream** (`v3l0c1r4pt0r/php-ndk`) : la version d'origine ne compile ni `openssl` ni `curl`, ce qui rendait **tout appel HTTPS sortant impossible** depuis le PHP embarqué sur device (confirmé en conditions réelles : Feexpay échouait avec "Undefined constant CURLOPT_POST" faute de `curl`, et même en le contournant via `file_get_contents`, `https://` n'était pas un wrapper enregistré faute d'`openssl`). Notre version ajoute OpenSSL 3.0.15 cross-compilé statiquement (`no-shared`, cible officielle `android-arm`/`android-arm64`) et le câble via `--with-openssl` — voir le commentaire en tête du `Dockerfile` pour le détail.
+Contrairement à `libphpnitro_render.so` (le moteur Rust partagé, jamais commité — voir la section dédiée plus bas), les binaires PHP **sont bien committés tels quels** dans `android/engine/src/main/jniLibs/<abi>/libphp.so` (~19 Mo/~17 Mo une fois OpenSSL statiquement lié) et `libsqlite3.so` à côté — pas gitignorés, aucune recompilation nécessaire pour builder l'app. `android/php-ndk-patch/` contient un `Dockerfile` (+ `Makefile` + patches) **modifié par rapport à l'upstream** (`v3l0c1r4pt0r/php-ndk`) pour qui voudrait les régénérer : la version d'origine ne compile ni `openssl` ni `curl`, ce qui rendait **tout appel HTTPS sortant impossible** depuis le PHP embarqué sur device (confirmé en conditions réelles : Feexpay échouait avec "Undefined constant CURLOPT_POST" faute de `curl`, et même en le contournant via `file_get_contents`, `https://` n'était pas un wrapper enregistré faute d'`openssl`). Notre version ajoute OpenSSL 3.0.15 cross-compilé statiquement (`no-shared`, cible officielle `android-arm`/`android-arm64`) et le câble via `--with-openssl` — voir le commentaire en tête du `Dockerfile` pour le détail.
 
 ```bash
 git clone https://github.com/v3l0c1r4pt0r/php-ndk.git /tmp/php-ndk
@@ -21,18 +23,18 @@ make armv7a && make install-armv7a DESTDIR=/tmp/php-ndk-output   # nécessite Do
 make aarch64 && make install-aarch64 DESTDIR=/tmp/php-ndk-output
 ```
 
-Puis copier et renommer (`php.so` → `libphp.so`, pour rester sur la convention `lib*.so`) dans `android/app/src/main/jniLibs/<abi>/` (et le même chemin sous `examples/ecom/android/`), avec `libsqlite3.so` à côté. Un strip (`llvm-strip`, fourni par le NDK) réduit la taille d'environ moitié sans rien casser.
+Puis copier et renommer (`php.so` → `libphp.so`, pour rester sur la convention `lib*.so`) dans `android/engine/src/main/jniLibs/<abi>/`, avec `libsqlite3.so` à côté, et committer le résultat. Un strip (`llvm-strip`, fourni par le NDK) réduit la taille d'environ moitié sans rien casser.
 
-**cacert.pem, indispensable en plus du binaire** : OpenSSL cross-compilé n'a aucun magasin de certificats racine à sa disposition (Android garde le sien dans un format qu'OpenSSL ne sait pas lire directement) — sans ça, toute requête HTTPS échoue quand même avec `certificate verify failed`, TLS négocié ou pas. `android/app/src/main/assets/cacert.pem` (le bundle Mozilla, celui que curl/la plupart des distros embarquent aussi) est copié une fois par lancement vers le stockage de l'app par `PhpServer.kt`, et pointé via `-d openssl.cafile=...` au démarrage du process PHP.
+**cacert.pem, indispensable en plus du binaire** : OpenSSL cross-compilé n'a aucun magasin de certificats racine à sa disposition (Android garde le sien dans un format qu'OpenSSL ne sait pas lire directement) — sans ça, toute requête HTTPS échoue quand même avec `certificate verify failed`, TLS négocié ou pas. `android/engine/src/main/assets/cacert.pem` (le bundle Mozilla, celui que curl/la plupart des distros embarquent aussi) est copié une fois par lancement vers le stockage de l'app par `PhpServer.kt`, et pointé via `-d openssl.cafile=...` au démarrage du process PHP.
 
 ## Build & install
 
 ```bash
-cd android
-php ../bin/phpx bundle:android   # copie engine/ dans app/src/main/assets/www
-gradle :app:assembleDebug        # ou via Android Studio
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+php bin/phpx build:android   # bundle: (public/ + lib/ + packages/ + .env) + gradle :app:assembleDebug
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 ```
+
+`build:android` détecte/télécharge tout seul JDK 17+/Gradle ≥ 8.9/le SDK Android si besoin (voir `docs/cli.md`) — pas de setup manuel requis.
 
 ## Pièges rencontrés (pour référence)
 
@@ -49,7 +51,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ## Le moteur de rendu Rust partagé : `RustRenderer.kt` — désormais vérifié sur un vrai device, pas encore câblé
 
-`engine/src/main/java/com/phpnitro/engine/RustRenderer.kt` appelle `rust/phpnitro-render/src/jni_bridge.rs` (un pont JNI dédié — convention d'appel différente de l'ABI C plate que Linux/Windows/macOS/iOS consomment directement via ctypes/P-Invoke/C-interop). Pendant Android de ces quatre autres ports, mais avec une vraie limite : **`android-e2e-test`, le seul job CI qui exécute du code sur un vrai émulateur, est toujours désactivé** (limite de facturation GitHub — voir le commentaire dans `ci.yml`), donc toujours aucune preuve exécutée en CI.
+`engine/src/main/java/com/phpnitro/engine/RustRenderer.kt` appelle `rust/phpnitro-render/src/jni_bridge.rs` (un pont JNI dédié — convention d'appel différente de l'ABI C plate que Linux/Windows/macOS/iOS consomment directement via ctypes/P-Invoke/C-interop) — le pendant Android de ces quatre autres ports, mais avec une vraie limite : **`android-e2e-test`, le seul job CI qui exécute du code sur un vrai émulateur, est toujours désactivé** (limite de facturation GitHub — voir le commentaire dans `ci.yml`), donc toujours aucune preuve exécutée en CI.
 
 **Ceci dit, `renderFrame()`/`hitTest()` ont désormais été vérifiés pour de vrai à la main** : `android/app/src/androidTest/java/com/mobile/engine/RustRendererDeviceTest.kt` (deux tests, un rendu de rect rouge + un hit-test), lancé via `gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.mobile.engine.RustRendererDeviceTest` (un vrai binaire `gradle` — aucun `gradlew` commité dans ce repo ; celui que `bin/build-rust-android.sh`/`phpx build:android` installent sous `~/.local/share/phpnitro-tools/gradle-<version>/bin/gradle` fonctionne directement) sur un vrai device (Infinix X6532, Android 14) — **`BUILD SUCCESSFUL`**, les deux tests passent. Première fois que ce pont JNI tourne réellement sur une JVM. Deux prérequis pour rejouer ça, aucun automatique : `libphpnitro_render.so` doit exister sous `android/engine/src/main/jniLibs/<abi>/` (jamais commité — voir `bin/build-rust-android.sh`, qui cross-compile ça en local exactement comme la CI, en un seul appel : `rustup target add`/`cargo install cargo-ndk`/détection du NDK/`cargo ndk build`, plus besoin de le faire à la main étape par étape) ; un vrai device/émulateur connecté via `adb`.
 
