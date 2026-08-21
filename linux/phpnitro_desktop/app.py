@@ -26,6 +26,19 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
 
+# libshumate (gir1.2-shumate-1.0) is a real GNOME map-widget library, not
+# core GTK4 — unlike Gtk.Video (bundled with GTK4 itself since 4.6), it
+# may genuinely not be installed on a given machine. Import failure is
+# handled the same way a missing Rust .so already is elsewhere in this
+# file: caught once here, checked before ever touching Shumate.* so a
+# `map:open:` tap degrades to "nothing happens" instead of a crash, not
+# the other way around.
+try:
+    gi.require_version("Shumate", "1.0")
+    from gi.repository import Shumate
+except (ValueError, ImportError):
+    Shumate = None  # type: ignore[assignment]
+
 from . import image_loader, navigation, php_process, rust_render, screen_client  # noqa: E402
 from .canvas import RenderState, needs_animation, render_payload  # noqa: E402
 from .draw_command import DrawCommandPayload, HScrollCommand, VScrollCommand  # noqa: E402
@@ -152,6 +165,7 @@ class PhpNitroCanvasWidget(Gtk.Overlay):
         self._rust_render_start = time.monotonic()
         self._active_text_input: Optional[Gtk.Widget] = None
         self._active_video_overlay: Optional[Gtk.Widget] = None
+        self._active_map_overlay: Optional[Gtk.Widget] = None
 
         # hScroll/vScroll's own "was this decisive move actually meant as
         # this axis's scroll" ambiguity — a candidate target found on
@@ -205,6 +219,7 @@ class PhpNitroCanvasWidget(Gtk.Overlay):
         # against content it was never laid out for.
         self.clear_text_input()
         self.clear_video_overlay()
+        self.clear_map_overlay()
         self._update_animation_timer()
         self.queue_draw()
 
@@ -302,6 +317,61 @@ class PhpNitroCanvasWidget(Gtk.Overlay):
             return
         self.remove_overlay(self._active_video_overlay)
         self._active_video_overlay = None
+
+    def show_map_overlay(self, latitude: float, longitude: float, zoom: int, rect: tuple[float, float, float, float]) -> None:
+        """`map:open:<lat>:<lon>:<zoom>` (MapView.php) — ports
+        `NativeRenderPocActivity.kt`'s `showMapOverlay()`: a real,
+        pannable/zoomable map centered at (latitude, longitude), no API
+        key needed (OpenStreetMap tiles via libshumate, same "no API key"
+        property osmdroid/MapKit already have on Android/iOS/macOS).
+
+        Unlike every other overlay in this file, `Shumate` isn't GTK4
+        core (unlike `Gtk.Video`) and isn't installed in the environment
+        this was written in (confirmed via `apt-cache policy`), so this
+        was written and reviewed by hand rather than exercised locally —
+        confirmed correct since via CI (`gir1.2-shumate-1.0` added to
+        ci.yml; `test_show_map_overlay_constructs_a_real_widget_when_shumate_is_available`
+        runs for real there and passes). `Shumate is None` (import
+        genuinely unavailable) and any exception during construction
+        still degrade to "no overlay shown, printed to stderr" rather
+        than a crash — the same fail-soft contract `_draw_via_rust`
+        already has for a missing Rust library.
+        """
+        self.clear_map_overlay()
+
+        if Shumate is None:
+            print("[phpnitro] map:open: tapped but libshumate (gir1.2-shumate-1.0) isn't available — no map overlay shown.")
+            return
+
+        try:
+            left, top, right, bottom = rect
+            width, height = right - left, bottom - top
+
+            simple_map = Shumate.SimpleMap()
+            registry = Shumate.MapSourceRegistry.new_with_defaults()
+            osm_source = registry.get_by_id(Shumate.MAP_SOURCE_OSM_MAPNIK)
+            simple_map.set_map_source(osm_source)
+
+            map_widget = simple_map.get_map()
+            map_widget.get_viewport().set_zoom_level(zoom)
+            map_widget.center_on(latitude, longitude)
+
+            simple_map.set_size_request(max(int(width), 1), max(int(height), 1))
+            simple_map.set_halign(Gtk.Align.START)
+            simple_map.set_valign(Gtk.Align.START)
+            simple_map.set_margin_start(int(left))
+            simple_map.set_margin_top(int(top))
+
+            self.add_overlay(simple_map)
+            self._active_map_overlay = simple_map
+        except Exception as exc:  # noqa: BLE001 — see docstring: never let this crash the app.
+            print(f"[phpnitro] failed to show map overlay: {exc}")
+
+    def clear_map_overlay(self) -> None:
+        if self._active_map_overlay is None:
+            return
+        self.remove_overlay(self._active_map_overlay)
+        self._active_map_overlay = None
 
     def _emit_field_value_changed(self, field_name: str, value: str) -> None:
         # Every keystroke, not just on blur/submit — mirrors
@@ -625,6 +695,31 @@ class ScreenWindow(Gtk.ApplicationWindow):
         # no fetch at all" treatment as focus: above.
         if action.startswith("video:play:"):
             self.canvas.show_video_overlay(action[len("video:play:"):], rect)
+            return
+
+        # map:open:<lat>:<lon>:<zoom> (MapView.php) — same "entirely
+        # client-side, no fetch at all" treatment as focus: above.
+        # Fallback values mirror NativeRenderPocActivity.kt's own
+        # showMapOverlay dispatch exactly (Paris, zoom 14).
+        if action.startswith("map:open:"):
+            parts = action[len("map:open:"):].split(":")
+
+            def _part(index: int) -> Optional[str]:
+                return parts[index] if index < len(parts) else None
+
+            try:
+                latitude = float(_part(0)) if _part(0) else 48.8566
+            except ValueError:
+                latitude = 48.8566
+            try:
+                longitude = float(_part(1)) if _part(1) else 2.3522
+            except ValueError:
+                longitude = 2.3522
+            try:
+                zoom = int(_part(2)) if _part(2) else 14
+            except ValueError:
+                zoom = 14
+            self.canvas.show_map_overlay(latitude, longitude, zoom, rect)
             return
 
         result = navigation.reduce(action, self.stack, meta_json)

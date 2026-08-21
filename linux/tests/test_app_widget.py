@@ -364,6 +364,48 @@ class PhpNitroCanvasWidgetTests(unittest.TestCase):
 
         self.assertIsNone(self.widget._active_video_overlay)
 
+    def test_show_map_overlay_degrades_to_nothing_without_crashing_when_shumate_is_unavailable(self):
+        # Forces the "library absent" branch via a real patch rather than
+        # relying on the ambient environment actually lacking libshumate —
+        # CI now has gir1.2-shumate-1.0 installed (see
+        # test_show_map_overlay_constructs_a_real_widget_when_shumate_is_available),
+        # so this behavior has to be tested in isolation from whatever's
+        # really on the machine running it, local dev box or CI alike.
+        from unittest import mock
+
+        from phpnitro_desktop import app as app_module
+
+        with mock.patch.object(app_module, "Shumate", None):
+            self.widget.show_map_overlay(48.8566, 2.3522, 14, (0.0, 0.0, 100.0, 100.0))
+
+        self.assertIsNone(self.widget._active_map_overlay)
+
+    def test_show_map_overlay_constructs_a_real_widget_when_shumate_is_available(self):
+        from phpnitro_desktop import app as app_module
+
+        if app_module.Shumate is None:
+            self.skipTest("libshumate (gir1.2-shumate-1.0) not installed in this environment")
+
+        # Genuinely never exercised anywhere until gir1.2-shumate-1.0 was
+        # added to ci.yml's own apt-get line alongside this test — if the
+        # Shumate.SimpleMap/MapSourceRegistry/Map API calls in
+        # show_map_overlay() are wrong, THIS is what catches it, not a
+        # local run (see the docstring on show_map_overlay itself).
+        self.widget.show_map_overlay(48.8566, 2.3522, 14, (10.0, 20.0, 210.0, 260.0))
+
+        self.assertIsNotNone(self.widget._active_map_overlay)
+
+    def test_set_payload_clears_any_active_map_overlay_field(self):
+        # Can't construct a real overlay without Shumate installed, but
+        # clear_map_overlay()'s own no-op-when-empty path (called by
+        # set_payload) is exercised regardless — confirms set_payload
+        # doesn't raise even with no map overlay ever shown.
+        payload = decode_payload({"commands": [], "hitRegions": [], "contentHeight": 0})
+
+        self.widget.set_payload(payload)
+
+        self.assertIsNone(self.widget._active_map_overlay)
+
     def test_a_decisive_vertical_move_cancels_a_pending_horizontal_scroll(self):
         self.widget.set_payload(self._hscroll_payload())
 
