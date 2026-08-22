@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Politique de confidentialité — PhpNitro Go</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; max-width: 700px; margin: 3rem auto; padding: 0 1.5rem; line-height: 1.6; color: #111827; }
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.1rem; margin-top: 2rem; }
+  code { background: #f3f4f6; padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  footer { margin-top: 3rem; font-size: 0.85em; color: #6b7280; }
+</style>
+</head>
+<body>
+
+<h1>Politique de confidentialité — PhpNitro Go</h1>
+<p><em>Dernière mise à jour : 22 août 2026</em></p>
+
+<p>PhpNitro Go (<code>com.phpnitro.go</code>) est une application compagnon pour les
+développeurs utilisant <a href="https://github.com/phpnitro/phpnitro">PhpNitro</a>,
+un framework open source pour créer des applications mobiles en PHP. Elle sert
+uniquement à prévisualiser, sur un vrai appareil, l'écran natif d'un projet
+PhpNitro en cours de développement — sans qu'aucun code de ce projet ne soit
+jamais intégré à l'application elle-même.</p>
+
+<h2>Ce que l'application fait réellement</h2>
+<p>Au lancement, PhpNitro Go affiche un écran pour saisir ou scanner (via
+appareil photo) l'adresse d'un serveur de développement local (typiquement
+<code>phpx serve</code>, tournant sur le même réseau Wi-Fi que ton
+ordinateur). Une fois connectée, elle envoie de simples requêtes HTTP à ce
+serveur et affiche les commandes de dessin qu'il renvoie — exactement comme
+si le code de ton projet tournait directement sur l'appareil.</p>
+
+<h2>Permissions demandées</h2>
+<ul>
+  <li><strong>Appareil photo</strong> — uniquement pour scanner le QR code
+    affiché par ton serveur de développement (adresse IP + port). L'image de
+    l'appareil photo est traitée entièrement sur l'appareil (décodage de
+    code-barres via ML Kit, hors ligne) et n'est jamais enregistrée, envoyée
+    à un serveur, ni partagée avec qui que ce soit — y compris avec les
+    auteurs de PhpNitro.</li>
+  <li><strong>Réseau (Internet/réseau local)</strong> — utilisé uniquement
+    pour parler au serveur de développement dont TU saisis ou scannes
+    l'adresse. Aucun serveur exploité par PhpNitro ou ses auteurs n'est
+    jamais contacté par l'application elle-même.</li>
+</ul>
+
+<h2>Ce que l'application ne fait pas</h2>
+<ul>
+  <li>Aucun compte utilisateur, aucune authentification.</li>
+  <li>Aucune analytique, aucun outil de suivi, aucun SDK publicitaire.</li>
+  <li>Aucune donnée personnelle collectée, stockée ou transmise par
+    l'application à un serveur tiers.</li>
+  <li>Aucun code de projet embarqué — l'application ne fait qu'afficher ce
+    que TON propre serveur de développement lui envoie.</li>
+</ul>
+
+<h2>Une nuance importante</h2>
+<p>PhpNitro Go affiche l'écran que renvoie <em>le serveur auquel tu la
+connectes</em> — c'est-à-dire ton propre projet, en cours de développement,
+sur ta propre machine. Si cet écran-là demande explicitement une autre
+permission (par exemple, la biométrie ou la localisation, si le projet
+PhpNitro connecté utilise ces fonctionnalités), Android te la demandera au
+moment voulu, de façon habituelle — mais PhpNitro Go elle-même ne déclare et
+ne demande jamais ce genre de permission : seules l'appareil photo et le
+réseau, listés ci-dessus, sont réellement inclus dans cette application.</p>
+
+<h2>Contact</h2>
+<p>Pour toute question : <a href="https://github.com/phpnitro/phpnitro/issues">
+ouvre une issue sur GitHub</a>.</p>
+
+<footer>
+PhpNitro Go fait partie du projet open source
+<a href="https://github.com/phpnitro/phpnitro">phpnitro/phpnitro</a> (licence MIT).
+</footer>
+
+</body>
+</html>
