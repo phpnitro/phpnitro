@@ -1,7 +1,7 @@
 name: phpx
 title: phpx
 base: core24
-version: '0.1.0'
+version: '0.1.1'
 license: MIT
 contact: awademeronaldoo@gmail.com
 summary: CLI pour PhpNitro, le framework PHP pour apps mobiles/desktop natives
