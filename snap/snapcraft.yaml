@@ -21,6 +21,7 @@ description: |
 issues: https://github.com/phpnitro/phpnitro/issues
 source-code: https://github.com/phpnitro/phpnitro
 website: https://github.com/phpnitro/phpnitro
+icon: snap/gui/icon.svg
 
 grade: stable
 confinement: strict
