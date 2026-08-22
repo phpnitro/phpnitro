@@ -1,0 +1,155 @@
+name: phpx
+title: phpx
+base: core24
+version: '0.1.1'
+license: MIT
+contact: awademeronaldoo@gmail.com
+summary: CLI pour PhpNitro, le framework PHP pour apps mobiles/desktop natives
+description: |
+  Installe `phpx` avec son propre PHP embarqué, plus tout ce que
+  `phpx run` a besoin pour lancer le desktop Linux d'un projet scaffoldé
+  (`--all`) sans rien à installer soi-même : Python 3, PyGObject/GTK4,
+  Cairo, libshumate (MapView). Les animations Lottie ne fonctionnent
+  pas dans ce snap (librlottie0-1 vit dans le dépôt Ubuntu Pro/ESM sur
+  ce base — voir snap/README.md) ; le reste du framework n'en dépend
+  pas.
+
+  `phpx new mon-app`, `phpx serve`, `phpx run`... fonctionnent
+  directement après `snap install phpx`, comme le SDK Flutter après son
+  propre téléchargement.
+
+issues: https://github.com/phpnitro/phpnitro/issues
+source-code: https://github.com/phpnitro/phpnitro
+website: https://github.com/phpnitro/phpnitro
+
+grade: stable
+confinement: strict
+# strict, pas classic : classic force une revue manuelle de Canonical
+# avant toute publication réelle (confirmé en pratique — voir
+# l'historique de ce fichier), peu importe qui publie. Sous strict,
+# chaque besoin réel de phpx correspond à une interface standard :
+# - `home` : phpx new/serve/run écrivent/lisent dans le projet — donc
+#   RESTRICTION RÉELLE assumée : uniquement un projet scaffoldé sous
+#   $HOME, plus jamais un chemin arbitraire ailleurs sur le disque (ce
+#   que classic permettait). La quasi-totalité d'un usage normal
+#   (`cd ~/projects && phpx new mon-app`) tient déjà dans $HOME.
+# - `network`/`network-bind` : `phpx serve`/`php -S` écoute un port
+#   local, les fetches HTTP de `phpx run` sont sortants.
+# - `desktop`/`desktop-legacy`/`wayland`/`x11`/`opengl` : la vraie
+#   fenêtre GTK4 que `phpx run`'s cible Linux ouvre.
+# - `raw-usb` : adb (`dev:push`/`run`'s cible Android) parle au device
+#   par USB. Contrairement aux interfaces ci-dessus, `raw-usb` ne se
+#   connecte PAS automatiquement à l'installation — un
+#   `sudo snap connect phpx:raw-usb` est nécessaire une fois avant que
+#   ces deux commandes marchent, la seule vraie friction restante.
+#
+# Contrainte de vérification honnête : contrairement à classic (aucun
+# sandbox, testable en extrayant juste le .snap), le VRAI comportement
+# sous strict (apparmor/seccomp) ne peut être confirmé que par un vrai
+# `snap install` — pas de sudo disponible dans l'environnement où ce
+# fichier a été écrit. Le contenu du paquet (mêmes binaires PHP/
+# Python3/GTK4, même script wrapper) a été revérifié, pas le sandbox
+# runtime lui-même.
+
+apps:
+  phpx:
+    command: bin/phpx-wrapper
+    plugs:
+      - home
+      - network
+      - network-bind
+      - desktop
+      - desktop-legacy
+      - wayland
+      - x11
+      - opengl
+      - raw-usb
+
+parts:
+  phpx-phar:
+    plugin: nil
+    # Compile depuis CE checkout plutôt que de télécharger le
+    # phpx.phar déjà publié (v0.1.0) — vérifié pour de vrai que
+    # celui-ci ne suffit PAS : v0.1.0 date d'avant `phpx run` (ajouté
+    # après ce tag), donc le snap se retrouvait avec un phpx.phar qui
+    # ne connaissait même pas sa propre raison d'être. Même recette que
+    # .github/workflows/release.yml (composer install --no-dev, box
+    # compile) — un snap qui build sa propre release, pas un second
+    # artefact à garder synchronisé à la main avec le prochain tag.
+    #
+    # Délibérément PAS de `source: .` : confirmé par un vrai build qui
+    # est resté bloqué 10+ minutes dessus — ça copie le répertoire de
+    # travail tel quel, `.git/` (tout l'historique) et n'importe quel
+    # artefact non commité (vendor/, caches Gradle, etc.) compris, et
+    # `box compile` s'est retrouvé à traiter des dizaines de milliers
+    # de fichiers au lieu des quelques milliers attendus. `git archive
+    # HEAD` à la place : seul l'arbre RÉELLEMENT COMMITÉ de la branche
+    # courante, sans `.git`, sans rien de non commité — rapide, et
+    # exactement ce qu'un vrai clone CI verrait de toute façon.
+    #
+    # php/composer/curl ne sont PAS listés en build-packages : ça
+    # demanderait à snapcraft de les installer réellement sur la
+    # machine de build (apt-get install, pas juste stage-packages'
+    # simple téléchargement de .deb) — a échoué ici en mode
+    # destructif sans root ("Packages list not refreshed, not running
+    # as superuser"). Les trois sont déjà présents sur CETTE machine
+    # de build ; un vrai pipeline CI (voir .github/workflows/
+    # release.yml, qui tourne sur un runner frais) les installerait
+    # via setup-php avant cette étape.
+    override-build: |
+      git -C "$SNAPCRAFT_PROJECT_DIR" archive HEAD | tar -x
+      composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+      curl -Ls -o box.phar https://github.com/box-project/box/releases/latest/download/box.phar
+      chmod +x box.phar
+      php -d phar.readonly=0 box.phar compile
+      cp phpx.phar "$SNAPCRAFT_PART_INSTALL/phpx.phar"
+
+  phpx-wrapper:
+    plugin: dump
+    source: snap/local
+    organize:
+      phpx-wrapper: bin/phpx-wrapper
+
+  # PHP lui-même — phpx.phar tourne dessus, et c'est aussi le php que
+  # `composer install`/`phpx serve` d'un projet scaffoldé utiliseront
+  # une fois `phpx new` exécuté (PATH mis à jour par le wrapper).
+  php-runtime:
+    plugin: nil
+    stage-packages:
+      - php-cli
+      - php-curl
+      - php-mbstring
+      - php-sqlite3
+      - php-xml
+      - php-zip
+
+  # Tout ce que `phpx run`'s cible Linux desktop a besoin pour ouvrir
+  # une vraie fenêtre — mêmes paquets que ci.yml's job linux-desktop,
+  # SAUF librlottie0-1 : sa version sur ce base core24
+  # (0.1+dfsg-4ubuntu1.1+esm1, le suffixe "+esm1" ne trompe pas) vit
+  # dans le dépôt Ubuntu Pro/ESM, qui a renvoyé une vraie 401
+  # Unauthorized au moment de builder ce snap ici — un token Ubuntu Pro
+  # que cette machine de build n'a pas, pas une erreur de nom de
+  # paquet. Lottie degrade déjà proprement à "pas d'overlay affiché"
+  # quand librlottie est absent (voir lottie_render.py) — ce snap vit
+  # juste dans cette situation-là par défaut, MapView/VideoPlayer/tout
+  # le reste restant intacts.
+  desktop-runtime:
+    plugin: nil
+    stage-packages:
+      # Confirmé en extrayant un vrai build de ce snap (unsquashfs) :
+      # le seul paquet `python3` ne fait remonter AUCUN interpréteur —
+      # ni /usr/bin/python3 ni /usr/bin/python3.NN nulle part dans
+      # l'arbre stagé. `python3` sur ce base est un métapaquet/paquet
+      # de politique, pas l'interpréteur lui-même ; `python3-minimal`
+      # fournit le symlink /usr/bin/python3, `python3.12-minimal`
+      # fournit le vrai binaire /usr/bin/python3.12 que ce symlink
+      # cible — les deux listés explicitement plutôt que supposés
+      # tirés en dépendance.
+      - python3
+      - python3-minimal
+      - python3.12-minimal
+      - python3-gi
+      - python3-gi-cairo
+      - gir1.2-gtk-4.0
+      - gir1.2-shumate-1.0

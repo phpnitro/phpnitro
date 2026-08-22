@@ -1,0 +1,48 @@
+#!/bin/sh
+# Runs the bundled php against phpx.phar, with PATH/PYTHONPATH/
+# GI_TYPELIB_PATH/LD_LIBRARY_PATH pointed at this snap's own staged
+# packages rather than whatever (if anything) the host system has —
+# the whole point of bundling php-cli + python3-gi + gir1.2-gtk-4.0 +
+# librlottie0-1 + gir1.2-shumate-1.0 as stage-packages in the first
+# place: `phpx run`'s Linux target execs a plain `python3 -m
+# phpnitro_desktop`, and that python3 has to be THIS one (with GTK4
+# already importable) for it to work on a machine that never installed
+# any of this itself.
+#
+# classic confinement (see snapcraft.yaml's own comment on why) means
+# no private mount namespace to rely on for isolation — these paths
+# are set explicitly rather than assumed.
+
+# $SNAPCRAFT_ARCH_TRIPLET only exists at BUILD time (substituted inside
+# snapcraft.yaml itself) — this script runs later, on a real install,
+# where snapd instead exposes $SNAP_ARCH ("amd64"/"arm64"/...), not the
+# dpkg triplet ("x86_64-linux-gnu"/"aarch64-linux-gnu") stage-packages
+# actually installs under. Mapped by hand for the two realistic
+# desktop targets; only amd64 has actually been built/run here.
+case "$SNAP_ARCH" in
+    amd64) triplet="x86_64-linux-gnu" ;;
+    arm64) triplet="aarch64-linux-gnu" ;;
+    *) triplet="$SNAP_ARCH-linux-gnu" ;;
+esac
+
+export PATH="$SNAP/usr/bin:$SNAP/bin:$PATH"
+export PYTHONPATH="$SNAP/usr/lib/python3/dist-packages${PYTHONPATH:+:$PYTHONPATH}"
+export GI_TYPELIB_PATH="$SNAP/usr/lib/$triplet/girepository-1.0${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+export LD_LIBRARY_PATH="$SNAP/usr/lib/$triplet:$SNAP/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+# Confirmed by actually extracting a real build of this snap
+# (unsquashfs) and inspecting it: staging a .deb only unpacks its file
+# tree, it never runs the package's own postinst — so the
+# update-alternatives symlink a normal `apt install php-cli` sets up
+# (/usr/bin/php -> /etc/alternatives/php -> php8.4) never gets
+# created here. Only the versioned binary (php8.4 on core24) actually
+# exists; resolved by pattern rather than hardcoding "8.4" so a future
+# core revision bumping the default PHP version doesn't silently break
+# this.
+php_bin=$(ls "$SNAP"/usr/bin/php[0-9]* 2>/dev/null | head -n1)
+if [ -z "$php_bin" ]; then
+    echo "phpx (snap) : aucun binaire php trouvé sous \$SNAP/usr/bin — snap cassé ?" >&2
+    exit 1
+fi
+
+exec "$php_bin" "$SNAP/phpx.phar" "$@"
