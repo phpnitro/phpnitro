@@ -51,7 +51,7 @@ phpx make:page Home
 phpx serve
 ```
 
-`serve` affiche un QR code pour **PhpNitro Go** (`android/go/`, une app compagnon sans code de projet) — le scanner ouvre l'écran natif réel sur un vrai device/émulateur. PhpNitro Go n'est pas encore publié nulle part ; en attendant, `curl http://127.0.0.1:8090/native/layout-demo?screen=home` renvoie directement le JSON de commandes de dessin, pour vérifier que le pipeline tourne sans rendu visuel.
+`serve` affiche un QR code pour **PhpNitro Go** (`android/go/`, une app compagnon sans code de projet) — le scanner ouvre l'écran natif réel sur un vrai device/émulateur. Un APK debug installable directement est publié à chaque tag `go-v*` (voir la [Démarrage rapide](../README.md) du dépôt pour l'URL et sa réserve honnête tant qu'aucun tag n'a encore été poussé) ; sinon, `cd android && gradle :go:assembleDebug` le build depuis ce monorepo. En attendant un device, `curl http://127.0.0.1:8090/native/layout-demo?screen=home` renvoie directement le JSON de commandes de dessin, pour vérifier que le pipeline tourne sans rendu visuel.
 
 `phpx new` copie `lib/`, `public/`, `android/app/` (pas `android/engine/` — une dépendance JitPack à la place), `ios/`, `assets/`, `.env`, `phpnitro.yml`, et écrit un `composer.json` déclarant `phpnitro/ui` comme dépendance Packagist (pas copié) — ton nouveau projet n'est pas imbriqué dans le framework. `lib/pages/app/` arrive avec un seul écran minimal (`NativeHomeScreen.php`, juste pour ne pas planter sur la toute première requête) : `make:page Home` crée ta vraie première page (`HomePage.php`) et la remplace — `home` est un cas spécial câblé en dur (route API `/api` au lieu de `/api/home`), pas un second argument à passer.
 

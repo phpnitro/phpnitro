@@ -1,0 +1,54 @@
+name: Release PhpNitro Go
+
+# Triggered by a go-v*-style tag push — dormant otherwise, so adding
+# this workflow does NOT publish anything on its own (same "no
+# premature publishing" story as release.yml's own header comment). A
+# separate tag namespace from phpx.phar's own `v*` tags: PhpNitro Go
+# and phpx are independent artifacts with independent version
+# lifecycles, no reason to force them to share a tag sequence.
+#
+# Builds a debug-signed APK, not a real release-signed one — this
+# module's own release keystore (android/go/keystore.properties) is a
+# real secret nobody has added to this repo's GitHub Actions secrets,
+# and doing so is a decision for the account owner, not something this
+# workflow can assume. Android's own well-known debug key is fine for
+# what PhpNitro Go actually is: a developer tool you sideload to scan
+# `phpx serve`'s QR code and see your own screen render on a real
+# device — not a Play Store consumer listing.
+on:
+  push:
+    tags:
+      - 'go-v*'
+
+jobs:
+  release-go-apk:
+    name: Build and publish PhpNitro Go (debug APK)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      # No PHP/composer step, unlike android-build's own job in ci.yml —
+      # PhpNitro Go bundles no project PHP of its own (see
+      # android/README.md's own description: "une petite app compagnon
+      # qui n'a besoin d'aucun code de projet"), and :engine (the
+      # module it depends on via `implementation(project(":engine"))`)
+      # is pure Kotlin, nothing of its own build needs PHP either.
+      #
+      # No Rust cross-compile step either, unlike ci.yml's own
+      # android-build job — :engine's RustRenderer.kt is never
+      # referenced anywhere PhpNitro Go's own code (ConnectActivity/
+      # NativeRenderPocActivity's remote-mode branch) actually runs, so
+      # a missing libphpnitro_render.so never gets exercised here.
+      # libphp.so itself is already committed to :engine's jniLibs/
+      # (see android/README.md), so packaging has real native content
+      # regardless.
+      - uses: gradle/actions/setup-gradle@v4
+      - run: cd android && gradle :go:assembleDebug
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: android/go/build/outputs/apk/debug/go-debug.apk
