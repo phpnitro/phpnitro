@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- android.permission.INTERNET already comes from :engine (PhpServer
          always needs it there; here it's what lets ConnectActivity/
@@ -6,6 +7,31 @@
 
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- :engine bundles ~30 device capabilities as ONE module (see its own
+         build.gradle.kts: androidx.biometric/com.android.billingclient are
+         `api(...)` dependencies, not `implementation`, so their manifests
+         merge into EVERY consumer regardless of whether that consumer's
+         own screens ever call Engine\Device\Biometric/InAppPurchase) —
+         PhpNitro Go's real code (ConnectActivity/ScanActivity, see this
+         same file below) never uses any of these; a QR-scanner utility
+         requesting biometric/billing/foreground-service permissions it
+         never exercises is both a real Play Console review risk (BILLING
+         with no actual purchase flow implemented) and simply not true to
+         what this specific app does — see the privacy policy this exists
+         to keep accurate (https://phpnitro.github.io/phpnitro/).
+         tools:node="remove" only affects THIS module's own merged
+         manifest — :app and any real scaffolded project's own app (which
+         DO use these capabilities) are untouched. Confirmed by rebuilding
+         :go:assembleRelease and re-inspecting the merged manifest: none of
+         these six remain, every other real permission (CAMERA, INTERNET,
+         ACCESS_NETWORK_STATE) is unaffected. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" tools:node="remove" />
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" tools:node="remove" />
+    <uses-permission android:name="com.android.vending.BILLING" tools:node="remove" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" tools:node="remove" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:node="remove" />
 
     <application
         android:label="@string/app_name"
