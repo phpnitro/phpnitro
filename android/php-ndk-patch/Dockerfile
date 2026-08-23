@@ -46,7 +46,7 @@ RUN case "${TARGET}" in \
     esac; \
     ./Configure ${OSSL_TARGET} -D__ANDROID_API__=32 no-shared no-tests no-engine \
       --prefix=/root/openssl-install --openssldir=/root/openssl-install --libdir=lib && \
-    make -j7 && \
+    make -j2 && \
     make install_sw
 
 # Cross-compiling: point pkg-config ONLY at our freshly-built Android
@@ -97,7 +97,7 @@ RUN \
   for hdr in resolv_params.h resolv_private.h resolv_static.h resolv_stats.h; do \
     curl https://android.googlesource.com/platform/bionic/+/refs/heads/android12--mainline-release/libc/dns/include/$hdr?format=TEXT | base64 -d > $hdr; \
   done
-RUN make -j7 sapi/cli/php
+RUN make -j2 sapi/cli/php
 RUN cp /root/build/sapi/cli/php /root/install/php.so
 RUN cp /root/sqlite-amalgamation-${SQLITE3_VERSION}/libsqlite3.so /root/install/libsqlite3.so
 
