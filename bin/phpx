@@ -758,6 +758,39 @@ function syncManifestIcon(string $androidResDir): void
     ));
 }
 
+/**
+ * Fixed, framework-defined env var names per gateway — [public, secret].
+ * A project's phpnitro.yml only lists WHICH gateways it uses (a plain
+ * name, e.g. `payments: [stripe, fedapay]`), never the variable names
+ * themselves: nothing in the actual gateway classes
+ * (Engine\Payments\Stripe::pay() etc.) reads phpnitro.yml at all, they
+ * take a $secretKey parameter and leave sourcing it from $_ENV to the
+ * caller — so a per-project "which variable did you name it" pointer
+ * was pure indirection with no real payoff, just a second place to
+ * update whenever the first one changed. One declaration, not two.
+ *
+ * Paydunya has 4 real keys (master/private/public/token — see
+ * Engine\Payments\Paydunya), not 2; master stands in for "secret" here
+ * since this table only has room for a pair — purely for this status
+ * display, the class itself reads all 4 real variables directly.
+ *
+ * @return array<string, array{0: string, 1: string}>
+ */
+function paymentGatewayEnvVars(): array
+{
+    return [
+        'kkiapay' => ['KKIAPAY_PUBLIC_KEY', 'KKIAPAY_PRIVATE_KEY'],
+        'stripe' => ['STRIPE_PUBLIC_KEY', 'STRIPE_SECRET_KEY'],
+        'paypal' => ['PAYPAL_CLIENT_ID', 'PAYPAL_SECRET_KEY'],
+        'fedapay' => ['FEDAPAY_PUBLIC_KEY', 'FEDAPAY_SECRET_KEY'],
+        'feexpay' => ['FEEXPAY_SHOP_ID', 'FEEXPAY_API_KEY'],
+        'razorpay' => ['RAZORPAY_API_KEY', 'RAZORPAY_SECRET_KEY'],
+        'paydunya' => ['PAYDUNYA_TEST_PUBLIC_KEY', 'PAYDUNYA_PRIMARY_KEY'],
+        'izichangepay' => ['IZICHANGEPAY_API_KEY', 'IZICHANGEPAY_API_SECRET'],
+        'tresorpay' => ['TRESORPAY_PUBLIC_KEY', 'TRESORPAY_SECRET_KEY'],
+    ];
+}
+
 function cmdPayments(): void
 {
     $manifest = loadManifest();
@@ -776,12 +809,18 @@ function cmdPayments(): void
 
     echo "Moyens de paiement déclarés dans phpnitro.yml :\n\n";
 
-    foreach ($payments as $name => $config) {
-        $publicKeyEnv = $config['public_key_env'] ?? null;
-        $secretKeyEnv = $config['secret_key_env'] ?? null;
+    $knownGateways = paymentGatewayEnvVars();
 
-        $publicSet = $publicKeyEnv !== null && ($_ENV[$publicKeyEnv] ?? '') !== '';
-        $secretSet = $secretKeyEnv !== null && ($_ENV[$secretKeyEnv] ?? '') !== '';
+    foreach ($payments as $name) {
+        [$publicKeyEnv, $secretKeyEnv] = $knownGateways[$name] ?? [null, null];
+        if ($publicKeyEnv === null) {
+            printf("  %-14s inconnu — voir bin/phpx's paymentGatewayEnvVars()\n", $name);
+
+            continue;
+        }
+
+        $publicSet = ($_ENV[$publicKeyEnv] ?? '') !== '';
+        $secretSet = ($_ENV[$secretKeyEnv] ?? '') !== '';
 
         $status = match (true) {
             $publicSet && $secretSet => 'configuré (clé publique + secrète)',
@@ -791,6 +830,20 @@ function cmdPayments(): void
 
         printf("  %-14s %s\n", $name, $status);
     }
+}
+
+/**
+ * Fixed, framework-defined env var name per map provider — same
+ * "one declaration, not two" reasoning as paymentGatewayEnvVars().
+ *
+ * @return array<string, string>
+ */
+function mapProviderEnvVars(): array
+{
+    return [
+        'mapbox' => 'MAPBOX_ACCESS_TOKEN',
+        'google' => 'GOOGLE_MAPS_API_KEY',
+    ];
 }
 
 function cmdMaps(): void
@@ -805,14 +858,17 @@ function cmdMaps(): void
 
     echo "Fournisseurs de carte déclarés dans phpnitro.yml :\n\n";
 
-    // Chaque fournisseur n'a qu'une seule clé (access_token_env pour
-    // Mapbox, api_key_env pour Google...) contrairement aux gateways de
-    // paiement qui ont une paire publique/secrète — prendre la première
-    // (et unique) valeur du sous-tableau évite de coder en dur le nom du
-    // champ par fournisseur.
-    foreach ($maps as $name => $config) {
-        $keyEnv = array_values($config)[0] ?? null;
-        $configured = $keyEnv !== null && ($_ENV[$keyEnv] ?? '') !== '';
+    $knownProviders = mapProviderEnvVars();
+
+    foreach ($maps as $name) {
+        $keyEnv = $knownProviders[$name] ?? null;
+        if ($keyEnv === null) {
+            printf("  %-14s inconnu — voir bin/phpx's mapProviderEnvVars()\n", $name);
+
+            continue;
+        }
+
+        $configured = ($_ENV[$keyEnv] ?? '') !== '';
 
         printf("  %-14s %s\n", $name, $configured ? 'configuré' : 'non configuré');
     }
@@ -823,10 +879,8 @@ function cmdMaps(): void
 function cmdFirebase(): void
 {
     $manifest = loadManifest();
-    $firebase = $manifest['firebase'] ?? [];
-
-    if ($firebase === []) {
-        echo "Firebase non déclaré dans phpnitro.yml.\n";
+    if (($manifest['firebase'] ?? false) !== true) {
+        echo "Firebase non déclaré dans phpnitro.yml (firebase: true).\n";
 
         return;
     }
@@ -836,20 +890,19 @@ function cmdFirebase(): void
         (new \Symfony\Component\Dotenv\Dotenv())->loadEnv($envPath);
     }
 
-    echo "Firebase (phpnitro.yml) :\n\n";
+    echo "Firebase :\n\n";
 
-    // Flat map (label => nom de variable d'environnement), contrairement à
-    // payments/maps qui groupent plusieurs fournisseurs — Firebase n'a
-    // qu'un seul projet possible ici, donc un seul niveau suffit.
+    // Un seul projet Firebase possible par projet PhpNitro (contrairement
+    // à payments/maps, qui listent plusieurs fournisseurs) — noms de
+    // variable fixes, même raisonnement que paymentGatewayEnvVars().
     $labels = [
-        'service_account_env' => 'compte de service (FCM + Firestore)',
-        'project_id_env' => 'project ID',
-        'web_api_key_env' => 'cle API web (Firebase Auth)',
+        'FIREBASE_SERVICE_ACCOUNT_JSON' => 'compte de service (FCM + Firestore)',
+        'FIREBASE_PROJECT_ID' => 'project ID',
+        'FIREBASE_WEB_API_KEY' => 'cle API web (Firebase Auth)',
     ];
 
-    foreach ($firebase as $key => $envVarName) {
+    foreach ($labels as $envVarName => $label) {
         $configured = ($_ENV[$envVarName] ?? '') !== '';
-        $label = $labels[$key] ?? $key;
 
         printf("  %-32s %s\n", $label, $configured ? 'configuré' : 'non configuré');
     }

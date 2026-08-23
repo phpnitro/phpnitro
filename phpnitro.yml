@@ -18,60 +18,29 @@ php: ">=8.1"
 # icon: assets/icon.png
 # icon_background: "#2563EB"
 
-# Chaque gateway déclare le(s) nom(s) de variable(s) d'environnement qu'il
-# attend dans .env — `phpx payments` lit ce fichier et dit lesquels sont
-# réellement configurés, sans jamais lire les clés elles-mêmes.
-payments:
-    kkiapay:
-        public_key_env: KKIAPAY_PUBLIC_KEY
-        secret_key_env: KKIAPAY_PRIVATE_KEY
-    stripe:
-        public_key_env: STRIPE_PUBLIC_KEY
-        secret_key_env: STRIPE_SECRET_KEY
-    paypal:
-        public_key_env: PAYPAL_CLIENT_ID
-        secret_key_env: PAYPAL_SECRET_KEY
-    fedapay:
-        public_key_env: FEDAPAY_PUBLIC_KEY
-        secret_key_env: FEDAPAY_SECRET_KEY
-    feexpay:
-        public_key_env: FEEXPAY_SHOP_ID
-        secret_key_env: FEEXPAY_API_KEY
-    razorpay:
-        public_key_env: RAZORPAY_API_KEY
-        secret_key_env: RAZORPAY_SECRET_KEY
-    # PayDunya a 4 vraies clés (master/private/public/token — voir
-    # Engine\Payments\Paydunya), pas 2 — phpx payments (public_key_env/
-    # secret_key_env) ne modélise qu'une paire, donc master sert de proxy
-    # pour "secret" ici. Les 4 vraies variables restent lues directement
-    # par la classe elle-même, cette déclaration ne sert qu'au statut
-    # affiché par `phpx payments`.
-    paydunya:
-        public_key_env: PAYDUNYA_TEST_PUBLIC_KEY
-        secret_key_env: PAYDUNYA_PRIMARY_KEY
-    izichangepay:
-        public_key_env: IZICHANGEPAY_API_KEY
-        secret_key_env: IZICHANGEPAY_API_SECRET
-    tresorpay:
-        public_key_env: TRESORPAY_PUBLIC_KEY
-        secret_key_env: TRESORPAY_SECRET_KEY
+# Juste les noms des gateways que ce projet utilise — pas où sont leurs
+# clés. Chaque gateway a déjà un nom de variable fixe défini une seule
+# fois par le framework (voir bin/phpx's paymentGatewayEnvVars()), par
+# exemple STRIPE_PUBLIC_KEY/STRIPE_SECRET_KEY pour stripe — mets les
+# vraies valeurs dans .env sous ces noms-là, rien à redéclarer ici.
+# `phpx payments` dit lesquels sont réellement configurés, sans jamais
+# lire les clés elles-mêmes.
+payments: [stripe, fedapay, paypal, razorpay, paydunya]
 
-# Engine\Maps\MapView::make() choisit le premier fournisseur configuré ici ;
-# OpenStreetMap n'a pas besoin d'entrée, c'est le repli toujours disponible
-# sans clé (voir `phpx maps`).
-maps:
-    mapbox:
-        access_token_env: MAPBOX_ACCESS_TOKEN
-    google:
-        api_key_env: GOOGLE_MAPS_API_KEY
+# Même principe que payments ci-dessus — voir bin/phpx's
+# mapProviderEnvVars() pour les noms de variable fixes
+# (MAPBOX_ACCESS_TOKEN, GOOGLE_MAPS_API_KEY). OpenStreetMap n'a pas
+# besoin d'entrée, c'est le repli toujours disponible sans clé (voir
+# `phpx maps`). Actuellement mort côté rendu natif : Engine\Native\
+# MapView (osmdroid) n'a besoin d'aucune clé et ignore cette section —
+# seule `phpx maps` la lit, pour un usage direct de l'API REST d'un
+# fournisseur en dehors du rendu de carte intégré.
+maps: []
 
-# Engine\Firebase\ (voir packages/firebase/src/) — service_account_env sert
-# à FirebaseMessaging (envoi de push, à exécuter depuis ton propre serveur,
-# jamais depuis le PHP embarqué sur le téléphone) et Firestore ;
-# web_api_key_env sert à FirebaseAuth (connexion des utilisateurs finaux,
-# une clé distincte et client-safe par conception, pas le compte de
-# service). Voir `phpx firebase`.
-firebase:
-    service_account_env: FIREBASE_SERVICE_ACCOUNT_JSON
-    project_id_env: FIREBASE_PROJECT_ID
-    web_api_key_env: FIREBASE_WEB_API_KEY
+# Un seul projet Firebase possible par projet PhpNitro (contrairement à
+# payments/maps, qui listent plusieurs fournisseurs) — juste true/false.
+# Noms de variable fixes (voir cmdFirebase() dans bin/phpx) :
+# FIREBASE_SERVICE_ACCOUNT_JSON (FirebaseMessaging + Firestore),
+# FIREBASE_PROJECT_ID, FIREBASE_WEB_API_KEY (FirebaseAuth). Voir
+# `phpx firebase`.
+firebase: false
