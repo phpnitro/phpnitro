@@ -25,8 +25,15 @@ android {
         applicationId = "com.phpnitro.go"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1"
+        // Bumped from 1/"0.1" — Play Console permanently consumes a
+        // versionCode the moment a real upload attempt reaches it (even
+        // one still in draft/setup, which is exactly what produced the
+        // deployment_cert.der/hybrid_*_cert.der files), so the fixed
+        // build (permissions stripped, native debug symbols configured)
+        // needs a strictly higher one or Google rejects the upload
+        // outright — not optional, a hard Play Console requirement.
+        versionCode = 2
+        versionName = "0.2"
     }
 
     signingConfigs {
@@ -47,6 +54,16 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (keystoreProperties.isNotEmpty()) {
                 signingConfig = signingConfigs.getByName("release")
+            }
+            // Play Console warns on any App Bundle shipping native code
+            // (libphp.so/libsqlite3.so, both prebuilt and committed as-is
+            // — see android/README.md) without a debug symbols upload —
+            // without this, a native crash/ANR report shows raw memory
+            // addresses instead of function names. SYMBOL_TABLE (not
+            // FULL): enough to symbolicate a stack trace, without
+            // bundling full DWARF debug info Google doesn't need.
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
             }
         }
     }
