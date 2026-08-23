@@ -49,21 +49,9 @@ php: ">=8.1"
 icon: assets/icon.png       # optionnel — PNG carré, génère l'icône Android
 icon_background: "#2563EB"  # optionnel — couleur de fond de l'icône adaptative
 
-payments:
-  kkiapay:
-    public_key_env: KKIAPAY_PUBLIC_KEY
-    secret_key_env: KKIAPAY_PRIVATE_KEY
-
-maps:
-  mapbox:
-    access_token_env: MAPBOX_ACCESS_TOKEN
-  google:
-    api_key_env: GOOGLE_MAPS_API_KEY
-
-firebase:
-  service_account_env: FIREBASE_SERVICE_ACCOUNT_JSON
-  project_id_env: FIREBASE_PROJECT_ID
-  web_api_key_env: FIREBASE_WEB_API_KEY
+payments: [stripe, fedapay, paypal]
+maps: [mapbox]
+firebase: true
 ```
 
 Même rôle que `pubspec.yaml` pour Flutter. `name` est la source de vérité pour `APP_NAME` dans `.env` **et** pour le label natif Android (`strings.xml`), resynchronisés automatiquement par `phpx serve`/`phpx bundle:android`.
@@ -72,7 +60,7 @@ Même rôle que `pubspec.yaml` pour Flutter. `name` est la source de vérité po
 
 iOS n'a pas d'équivalent à `bundle:android`/`build:android` — aucune commande phpx ne pilote encore un vrai build Xcode (voir [docs/mobile-builds.md](mobile-builds.md)) — donc rien ne se synchronise automatiquement avant d'ouvrir le projet dans Xcode. `phpx sync` comble ce trou : resynchronise `name`/`icon`/`version` vers Android **et** `ios/App/Info.plist`, à lancer à la main après avoir édité `phpnitro.yml` (par exemple juste avant d'ouvrir Xcode).
 
-`payments`/`maps`/`firebase` déclarent quelles variables d'environnement chaque gateway/fournisseur attend, sans jamais lire les clés elles-mêmes.
+`payments`/`maps` sont juste des listes de noms — pas où sont leurs clés. Chaque gateway/fournisseur a un nom de variable fixe défini une seule fois par le framework (`paymentGatewayEnvVars()`/`mapProviderEnvVars()` dans `bin/phpx`, ex. `STRIPE_PUBLIC_KEY`/`STRIPE_SECRET_KEY` pour `stripe`) — mets les vraies valeurs dans `.env` sous ces noms-là, rien à redéclarer dans `phpnitro.yml`. `firebase` est un simple `true`/`false` (un seul projet Firebase possible par projet PhpNitro, pas une liste de fournisseurs). `phpx payments`/`phpx maps`/`phpx firebase` disent lesquels sont réellement configurés, sans jamais lire les clés elles-mêmes.
 
 ## Minification (pas obfuscation)
 
