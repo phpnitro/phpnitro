@@ -37,6 +37,9 @@ payments:
     feexpay:
         public_key_env: FEEXPAY_SHOP_ID
         secret_key_env: FEEXPAY_API_KEY
+    razorpay:
+        public_key_env: RAZORPAY_API_KEY
+        secret_key_env: RAZORPAY_SECRET_KEY
     izichangepay:
         public_key_env: IZICHANGEPAY_API_KEY
         secret_key_env: IZICHANGEPAY_API_SECRET
