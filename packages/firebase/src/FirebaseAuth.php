@@ -73,6 +73,76 @@ final class FirebaseAuth
     }
 
     /**
+     * Exchanges a Facebook OAuth access token (see
+     * Engine\SocialAuth\FacebookSignIn::exchangeCode() — its 'access_token'
+     * key, added specifically to feed this call) for a Firebase session,
+     * same signInWithIdp mechanism as signInWithGoogleIdToken() above but
+     * with Facebook's own postBody shape ("access_token=...", not
+     * "id_token=..." — Facebook's OAuth2 flow issues an access token, not
+     * an OIDC ID token like Google's does).
+     *
+     * @return array{idToken: string, localId: string, refreshToken: string, error: null}|array{idToken: null, localId: null, refreshToken: null, error: string}
+     */
+    public static function signInWithFacebookAccessToken(string $webApiKey, string $facebookAccessToken): array
+    {
+        return self::signInWithIdp($webApiKey, 'facebook.com', $facebookAccessToken);
+    }
+
+    /**
+     * Same as signInWithFacebookAccessToken(), for
+     * Engine\SocialAuth\GithubSignIn::exchangeCode()'s access token —
+     * GitHub is also a plain OAuth2 provider (no ID token), same
+     * "access_token=..." postBody shape.
+     *
+     * @return array{idToken: string, localId: string, refreshToken: string, error: null}|array{idToken: null, localId: null, refreshToken: null, error: string}
+     */
+    public static function signInWithGithubAccessToken(string $webApiKey, string $githubAccessToken): array
+    {
+        return self::signInWithIdp($webApiKey, 'github.com', $githubAccessToken);
+    }
+
+    /**
+     * @return array{idToken: string, localId: string, refreshToken: string, error: null}|array{idToken: null, localId: null, refreshToken: null, error: string}
+     */
+    private static function signInWithIdp(string $webApiKey, string $providerId, string $accessToken): array
+    {
+        return self::post('accounts:signInWithIdp', $webApiKey, [
+            'postBody' => "access_token={$accessToken}&providerId={$providerId}",
+            'requestUri' => 'http://localhost',
+            'returnSecureToken' => true,
+        ]);
+    }
+
+    /**
+     * Triggers Firebase's own password-reset email (Identity Toolkit
+     * sends it directly — no SMTP/mail setup needed on this app's own
+     * backend, same "PHP decides, Google's infrastructure does the
+     * actual delivery" split as signIn()/signUp()). Always reports
+     * success-shaped output for a well-formed email, whether or not an
+     * account actually exists for it — Identity Toolkit's own
+     * anti-enumeration behavior, not something this wrapper adds.
+     *
+     * @return array{success: true, error: null}|array{success: false, error: string}
+     */
+    public static function sendPasswordResetEmail(string $webApiKey, string $email): array
+    {
+        $data = self::rawPost('accounts:sendOobCode', $webApiKey, [
+            'requestType' => 'PASSWORD_RESET',
+            'email' => $email,
+        ]);
+
+        if ($data === null) {
+            return ['success' => false, 'error' => 'network_error'];
+        }
+
+        if (isset($data['email'])) {
+            return ['success' => true, 'error' => null];
+        }
+
+        return ['success' => false, 'error' => $data['error']['message'] ?? 'unknown_error'];
+    }
+
+    /**
      * One request per call — the same response is used for the success
      * shape (idToken/localId/refreshToken) AND, on failure, the
      * machine-readable reason Identity Toolkit gives (EMAIL_EXISTS,
@@ -99,8 +169,39 @@ final class FirebaseAuth
     {
         $failure = ['idToken' => null, 'localId' => null, 'refreshToken' => null, 'error' => null];
 
-        $payload = json_encode($body, JSON_THROW_ON_ERROR);
+        $data = self::rawPost($endpoint, $webApiKey, $body);
 
+        if ($data === null) {
+            return [...$failure, 'error' => 'network_error'];
+        }
+
+        if (isset($data['idToken'], $data['localId'])) {
+            return [
+                'idToken' => $data['idToken'],
+                'localId' => $data['localId'],
+                'refreshToken' => $data['refreshToken'] ?? '',
+                'error' => null,
+            ];
+        }
+
+        return [...$failure, 'error' => $data['error']['message'] ?? 'unknown_error'];
+    }
+
+    /**
+     * Every Identity Toolkit endpoint's response has its OWN shape
+     * (accounts:signUp/signInWithPassword/signInWithIdp return idToken/
+     * localId; accounts:sendOobCode returns email/kind instead, no
+     * idToken at all) — this is the shared raw HTTP call every public
+     * method here goes through, each interpreting the decoded response
+     * its own way rather than forcing one fixed shape onto all of them.
+     *
+     * @param array<string, mixed> $body
+     * @return array<string, mixed>|null null on any network/transport
+     *     failure — an error Identity Toolkit itself reported still
+     *     decodes fine here, it's just an array with an `error` key.
+     */
+    private static function rawPost(string $endpoint, string $webApiKey, array $body): ?array
+    {
         try {
             $response = file_get_contents(
                 "https://identitytoolkit.googleapis.com/v1/{$endpoint}?key={$webApiKey}",
@@ -109,7 +210,7 @@ final class FirebaseAuth
                     'http' => [
                         'method' => 'POST',
                         'header' => "Content-Type: application/json\r\n",
-                        'content' => $payload,
+                        'content' => json_encode($body, JSON_THROW_ON_ERROR),
                         'timeout' => 10,
                         'ignore_errors' => true,
                     ],
@@ -117,23 +218,14 @@ final class FirebaseAuth
             );
 
             if ($response === false) {
-                return [...$failure, 'error' => 'network_error'];
+                return null;
             }
 
             $data = json_decode($response, true);
 
-            if (isset($data['idToken'], $data['localId'])) {
-                return [
-                    'idToken' => $data['idToken'],
-                    'localId' => $data['localId'],
-                    'refreshToken' => $data['refreshToken'] ?? '',
-                    'error' => null,
-                ];
-            }
-
-            return [...$failure, 'error' => $data['error']['message'] ?? 'unknown_error'];
+            return is_array($data) ? $data : null;
         } catch (\Throwable) {
-            return [...$failure, 'error' => 'network_error'];
+            return null;
         }
     }
 }

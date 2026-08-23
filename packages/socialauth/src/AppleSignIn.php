@@ -65,6 +65,7 @@ final class AppleSignIn extends OAuthProvider
             'id' => (string) ($claims['sub'] ?? ''),
             'email' => $claims['email'] ?? null,
             'name' => null,
+            'access_token' => $tokenResponse['access_token'] ?? null,
         ];
     }
 

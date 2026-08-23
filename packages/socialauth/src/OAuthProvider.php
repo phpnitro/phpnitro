@@ -72,10 +72,16 @@ abstract class OAuthProvider
 
     /**
      * Normalizes each provider's own field names into a common shape.
+     * `access_token` is $tokenResponse's own OAuth2 access token, passed
+     * through as-is (not provider-specific) — needed as-is by
+     * Engine\Firebase\FirebaseAuth::signInWithFacebookAccessToken()/
+     * signInWithGithubAccessToken(), which authenticate the token
+     * against its issuing provider server-side rather than trusting
+     * this app's own OAuth exchange as proof by itself.
      *
      * @param array<string, mixed> $tokenResponse
      * @param array<string, mixed>|null $userInfoResponse
-     * @return array{id: string, email: ?string, name: ?string}
+     * @return array{id: string, email: ?string, name: ?string, access_token: ?string}
      */
     abstract protected static function normalize(array $tokenResponse, ?array $userInfoResponse): array;
 
@@ -92,7 +98,7 @@ abstract class OAuthProvider
     }
 
     /**
-     * @return array{id: string, email: ?string, name: ?string}|null null on any failure (network, denied, bad code) — nothing to salvage, caller shows a generic "connexion échouée".
+     * @return array{id: string, email: ?string, name: ?string, access_token: ?string}|null null on any failure (network, denied, bad code) — nothing to salvage, caller shows a generic "connexion échouée".
      */
     public static function exchangeCode(string $code, string $clientId, string $clientSecret, string $redirectUri): ?array
     {

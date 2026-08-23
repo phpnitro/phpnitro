@@ -59,9 +59,10 @@ final class NativeWidgetsFirebaseAuthScreen
                 ),
             ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
             // GitHub/Facebook/Microsoft/Apple land here — see
-            // OAuthProvider::exchangeCode()'s normalized {id, email, name}
-            // shape, stored as-is rather than in a real Users table (same
-            // demo-only "$_SESSION stands in for a database row" idiom
+            // OAuthProvider::exchangeCode()'s normalized
+            // {id, email, name, access_token} shape, stored as-is rather
+            // than in a real Users table (same demo-only "$_SESSION
+            // stands in for a database row" idiom
             // Dismissible/Reorderable already use elsewhere in this
             // showcase — a real app would look up/create a local account
             // keyed by provider+id here instead).
