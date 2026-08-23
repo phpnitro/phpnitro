@@ -30,7 +30,7 @@ payments:
         secret_key_env: STRIPE_SECRET_KEY
     paypal:
         public_key_env: PAYPAL_CLIENT_ID
-        secret_key_env: PAYPAL_CLIENT_SECRET
+        secret_key_env: PAYPAL_SECRET_KEY
     fedapay:
         public_key_env: FEDAPAY_PUBLIC_KEY
         secret_key_env: FEDAPAY_SECRET_KEY
