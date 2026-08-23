@@ -61,7 +61,7 @@ require_once __DIR__ . '/QrCode.php';
 // android/app/build.gradle.kts pins via JitPack — bump alongside a real
 // android/engine/ release (see this monorepo's own android/engine/ for
 // the source that tag mirrors).
-define('ANDROID_ENGINE_VERSION', 'v1.2.0');
+define('ANDROID_ENGINE_VERSION', 'v1.3.0');
 
 /**
  * The bare "PHPNITRO" wordmark every letter needed for this specific
