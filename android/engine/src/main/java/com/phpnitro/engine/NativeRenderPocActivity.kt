@@ -995,6 +995,13 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 deviceBridge.scheduleBackgroundTask(endpoint, interval)
             }
             "bgcancel" -> deviceBridge.cancelBackgroundTask()
+            "alarmschedule" -> {
+                val requestCode = parts.getOrNull(1)?.toIntOrNull() ?: 1
+                val delaySeconds = parts.getOrNull(2)?.toIntOrNull() ?: 3600
+                val title = java.net.URLDecoder.decode(parts.getOrElse(3) { "Rappel" }, "UTF-8")
+                val message = java.net.URLDecoder.decode(parts.getOrElse(4) { "" }, "UTF-8")
+                deviceBridge.scheduleAlarm(requestCode, delaySeconds, title, message)
+            }
             "printpdf" -> printCurrentScreen()
             // Engine\Device\UrlLauncher — the URL travels rawurlencode()'d
             // (see UrlLauncher's own docblock for why), decoded back here.

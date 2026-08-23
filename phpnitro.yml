@@ -30,13 +30,16 @@ payments:
         secret_key_env: STRIPE_SECRET_KEY
     paypal:
         public_key_env: PAYPAL_CLIENT_ID
-        secret_key_env: PAYPAL_CLIENT_SECRET
+        secret_key_env: PAYPAL_SECRET_KEY
     fedapay:
         public_key_env: FEDAPAY_PUBLIC_KEY
         secret_key_env: FEDAPAY_SECRET_KEY
     feexpay:
         public_key_env: FEEXPAY_SHOP_ID
         secret_key_env: FEEXPAY_API_KEY
+    razorpay:
+        public_key_env: RAZORPAY_API_KEY
+        secret_key_env: RAZORPAY_SECRET_KEY
     # PayDunya a 4 vraies clés (master/private/public/token — voir
     # Engine\Payments\Paydunya), pas 2 — phpx payments (public_key_env/
     # secret_key_env) ne modélise qu'une paire, donc master sert de proxy
