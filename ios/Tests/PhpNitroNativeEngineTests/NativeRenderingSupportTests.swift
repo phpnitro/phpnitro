@@ -23,7 +23,13 @@ final class NativeRenderingSupportTests: XCTestCase {
             expectation.fulfill()
         }
 
-        wait(for: [expectation], timeout: 5)
+        // 15s, not 5s: this decode is near-instant in practice, but the
+        // real observed flake (this exact test, twice in one CI session)
+        // was ImageLoader's .utility-QoS dispatch getting deprioritized
+        // under a loaded/shared runner, not a genuine slowdown — fixed
+        // at the source (ImageLoader now uses .userInitiated), this is
+        // just a safety margin on top, not a mask for a real bug.
+        wait(for: [expectation], timeout: 15)
         XCTAssertNotNil(ImageLoader.get("data:image/png;base64,\(pngBase64)"))
     }
 
