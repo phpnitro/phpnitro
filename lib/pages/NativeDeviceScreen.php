@@ -4,20 +4,39 @@ namespace Engine\App;
 
 use Engine\Device\AppLinks;
 use Engine\Device\AppSettings;
+use Engine\Device\BackgroundTask;
+use Engine\Device\Battery;
+use Engine\Device\Bluetooth;
+use Engine\Device\Brightness;
+use Engine\Device\CalendarEvents;
 use Engine\Device\Camera;
 use Engine\Device\Clipboard;
 use Engine\Device\Connectivity;
+use Engine\Device\Contacts;
+use Engine\Device\DeviceId;
 use Engine\Device\EmailSender;
 use Engine\Device\FileSaver;
 use Engine\Device\FileSelector;
+use Engine\Device\Fingerprint;
 use Engine\Device\DynamicIcon;
+use Engine\Device\Geofence;
 use Engine\Device\ImageCropper;
+use Engine\Device\ImagePicker;
+use Engine\Device\InAppPurchase;
 use Engine\Device\InAppReview;
 use Engine\Device\InAppUpdate;
 use Engine\Device\MapLauncher;
+use Engine\Device\Nfc;
+use Engine\Device\Notify;
 use Engine\Device\OpenFile;
 use Engine\Device\RestartApp;
+use Engine\Device\SecureStorage;
+use Engine\Device\Sensors;
+use Engine\Device\Share;
+use Engine\Device\Sound;
+use Engine\Device\Torch;
 use Engine\Device\UrlLauncher;
+use Engine\Device\Vibrate;
 use Engine\Device\WebSocket;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
@@ -64,20 +83,21 @@ final class NativeDeviceScreen
 {
     public static function build(float $screenWidth, float $screenHeight): Widget
     {
-        $batteryOut = $_GET['battery_out'] ?? null;
-        $deviceIdOut = $_GET['device_id_out'] ?? null;
-        $bluetoothOut = $_GET['bt_out'] ?? null;
-        $secureOut = $_GET['secure_out'] ?? null;
-        $contactsOut = $_GET['contacts_out'] ?? null;
-        $calendarOut = $_GET['calendar_out'] ?? null;
+        $torchOut = Torch::result();
+        $batteryOut = Battery::result();
+        $deviceIdOut = DeviceId::result();
+        $bluetoothOut = Bluetooth::result();
+        $secureOut = SecureStorage::result();
+        $contactsOut = Contacts::result();
+        $calendarOut = CalendarEvents::result();
         $photoOut = Camera::result();
-        $pickedImageOut = $_GET['picked_image_out'] ?? null;
-        $biometricOut = $_GET['biometric_out'] ?? null;
+        $pickedImageOut = ImagePicker::result();
+        $biometricOut = Fingerprint::result();
         $locationOut = $_GET['location_out'] ?? null;
         $micOut = VoiceRecorder::result();
-        $sensorOut = $_GET['sensor_out'] ?? null;
-        $nfcOut = $_GET['nfc_out'] ?? null;
-        $iapOut = $_GET['iap_out'] ?? null;
+        $sensorOut = Sensors::result();
+        $nfcOut = Nfc::result();
+        $iapOut = InAppPurchase::result();
         $locPermOut = Permission::result('loc_perm_out');
         $qrOut = QrScanner::result();
         $connectivityOut = Connectivity::result();
@@ -102,37 +122,37 @@ final class NativeDeviceScreen
                 EdgeInsets::all(Tokens::SPACE_XL),
                 Flex::column([
                     new Text('Pont natif réel — NativeDeviceBridge.kt', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
-                    $row('Vibrer', 'device:vibrate'),
-                    $row('Torche', 'device:torch'),
-                    $row('Batterie', 'device:battery:battery_out', $batteryOut),
-                    $row('ID device', 'device:deviceid:device_id_out', $deviceIdOut),
-                    $row('Bluetooth', 'device:bluetooth:bt_out', $bluetoothOut),
-                    $row('Stocker un secret', 'device:securestore:demo_key'),
-                    $row('Lire le secret', 'device:secureretrieve:demo_key:secure_out', $secureOut),
-                    $row('Contacts', 'device:contacts:contacts_out', $contactsOut),
-                    $row('Calendrier', 'device:calendar:calendar_out', $calendarOut),
-                    $row('Jouer un son', 'device:sound'),
-                    $row('Notification', 'device:notify'),
-                    $row('Partager', 'device:share'),
+                    $row('Vibrer', Vibrate::vibrateAction()),
+                    $row('Torche', Torch::toggleAction(), $torchOut),
+                    $row('Batterie', Battery::readAction(), $batteryOut),
+                    $row('ID device', DeviceId::readAction(), $deviceIdOut),
+                    $row('Bluetooth', Bluetooth::stateAction(), $bluetoothOut),
+                    $row('Stocker un secret', SecureStorage::storeAction('demo_key', 'valeur secrète')),
+                    $row('Lire le secret', SecureStorage::retrieveAction('demo_key'), $secureOut),
+                    $row('Contacts', Contacts::countAction(), $contactsOut),
+                    $row('Calendrier', CalendarEvents::countAction(), $calendarOut),
+                    $row('Jouer un son', Sound::playAction('http://' . ($_SERVER['HTTP_HOST'] ?? '127.0.0.1') . '/assets/audio/beep.wav')),
+                    $row('Notification', Notify::showAction('PhpNitro', 'Ceci est une notification native.')),
+                    $row('Partager', Share::shareAction('Regarde cette app faite avec PhpNitro !', 'PhpNitro Demo')),
                     $row('Icône bleue', DynamicIcon::setAction('alt')),
                     $row('Icône par défaut', DynamicIcon::setAction('default')),
                     $row('Photo native', Camera::captureAction(), $photoOut),
-                    $row('Choisir une image', 'device:pickimage', $pickedImageOut),
-                    $row('Authentifier (biométrie)', 'device:biometric:biometric_out', $biometricOut),
-                    $row('Luminosité 50%', 'device:brightness'),
+                    $row('Choisir une image', ImagePicker::pickAction(), $pickedImageOut),
+                    $row('Authentifier (biométrie)', Fingerprint::authenticateAction(), $biometricOut),
+                    $row('Luminosité 50%', Brightness::setAction(0.5)),
                     $row('Localiser', 'device:locate:location_out', $locationOut),
                     $row('Activer le micro (2s)', VoiceRecorder::recordAction(), $micOut),
                     $row('Vérifier/demander la localisation', Permission::requestAction('location', 'loc_perm_out'), $locPermOut),
                     $row('Scanner un QR code', QrScanner::scanAction(), $qrOut),
-                    $row('Accéléromètre', 'device:sensor:sensor_out', $sensorOut),
-                    $row('Écouter NFC', 'device:nfcstart'),
-                    $row('Arrêter NFC', 'device:nfcstop', $nfcOut),
-                    $row('Produits (achat intégré)', 'device:iapquery:iap_out', $iapOut),
-                    $row('Acheter demo_product', 'device:iappurchase'),
-                    $row('Activer zone (Paris, 200m)', 'device:geofenceadd'),
-                    $row('Désactiver la zone', 'device:geofenceremove'),
-                    $row('Planifier tâche de fond', 'device:bgschedule'),
-                    $row('Annuler tâche de fond', 'device:bgcancel'),
+                    $row('Accéléromètre', Sensors::readAccelerometerAction(), $sensorOut),
+                    $row('Écouter NFC', Nfc::startListeningAction()),
+                    $row('Arrêter NFC', Nfc::stopListeningAction(), $nfcOut),
+                    $row('Produits (achat intégré)', InAppPurchase::queryAction('demo_product'), $iapOut),
+                    $row('Acheter demo_product', InAppPurchase::purchaseAction('demo_product')),
+                    $row('Activer zone (Paris, 200m)', Geofence::addAction('paris_demo', 48.8566, 2.3522, 200)),
+                    $row('Désactiver la zone', Geofence::removeAction('paris_demo')),
+                    $row('Planifier tâche de fond', BackgroundTask::scheduleAction('/api/ping')),
+                    $row('Annuler tâche de fond', BackgroundTask::cancelAction()),
                     new Padding(EdgeInsets::only(top: Tokens::SPACE_LG), new Divider()),
                     $row('Imprimer (PDF)', 'device:printpdf'),
                     new Padding(EdgeInsets::only(top: Tokens::SPACE_LG), new Divider()),

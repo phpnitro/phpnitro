@@ -848,8 +848,11 @@ class NativeRenderPocActivity : AppCompatActivity() {
     private fun handleDeviceAction(token: String) {
         val parts = token.split(":")
         when (parts.getOrNull(0)) {
-            "vibrate" -> deviceBridge.vibrate(200)
-            "torch" -> deviceBridge.toggleTorch()
+            "vibrate" -> deviceBridge.vibrate(parts.getOrNull(1)?.toLongOrNull() ?: 200)
+            "torch" -> {
+                fieldValues[parts.getOrElse(1) { "torch_out" }] = if (deviceBridge.toggleTorch()) "on" else "off"
+                refetch(action = null, includeFields = true)
+            }
             // See CrashReporter — a real user's actual path to a
             // developer's inbox for a crash that already happened,
             // regardless of build type (no debug gate, unlike the dev
@@ -867,9 +870,13 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 fieldValues[parts.getOrElse(1) { "bt_out" }] = deviceBridge.bluetoothState()
                 refetch(action = null, includeFields = true)
             }
-            "securestore" -> deviceBridge.secureStore(parts.getOrElse(1) { "demo_key" }, "valeur secrète")
+            "securestore" -> {
+                val key = java.net.URLDecoder.decode(parts.getOrElse(1) { "demo_key" }, "UTF-8")
+                val value = java.net.URLDecoder.decode(parts.getOrElse(2) { "" }, "UTF-8")
+                deviceBridge.secureStore(key, value)
+            }
             "secureretrieve" -> {
-                val key = parts.getOrElse(1) { "demo_key" }
+                val key = java.net.URLDecoder.decode(parts.getOrElse(1) { "demo_key" }, "UTF-8")
                 fieldValues[parts.getOrElse(2) { "secure_out" }] = deviceBridge.secureRetrieve(key)
                 refetch(action = null, includeFields = true)
             }
@@ -883,9 +890,21 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 fieldValues[parts.getOrElse(1) { "calendar_out" }] = if (count < 0) "Permission requise" else "$count événements"
                 refetch(action = null, includeFields = true)
             }
-            "sound" -> deviceBridge.playSound("http://$serverHost:$serverPort/assets/audio/beep.wav")
-            "notify" -> deviceBridge.showNotification("PhpNitro", "Ceci est une notification native.")
-            "share" -> deviceBridge.share("Regarde cette app faite avec PhpNitro !", "PhpNitro Demo")
+            "sound" -> {
+                val url = parts.getOrNull(1)?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+                    ?: "http://$serverHost:$serverPort/assets/audio/beep.wav"
+                deviceBridge.playSound(url)
+            }
+            "notify" -> {
+                val title = java.net.URLDecoder.decode(parts.getOrElse(1) { "PhpNitro" }, "UTF-8")
+                val message = java.net.URLDecoder.decode(parts.getOrElse(2) { "Ceci est une notification native." }, "UTF-8")
+                deviceBridge.showNotification(title, message)
+            }
+            "share" -> {
+                val text = java.net.URLDecoder.decode(parts.getOrElse(1) { "Regarde cette app faite avec PhpNitro !" }, "UTF-8")
+                val title = java.net.URLDecoder.decode(parts.getOrElse(2) { "PhpNitro" }, "UTF-8")
+                deviceBridge.share(text, title)
+            }
             "appicon" -> deviceBridge.setAppIcon(parts.getOrElse(1) { "default" })
             // Manual "🎉 encore" replay button — Confetti::triggerAction().
             // The automatic case (Canvas::triggerConfetti(), a widget
@@ -893,7 +912,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
             // since that one has to fire on every matching render, not
             // just a tap.
             "confetti" -> showConfettiOverlay()
-            "brightness" -> deviceBridge.setBrightness(0.5f)
+            "brightness" -> deviceBridge.setBrightness(parts.getOrNull(1)?.toFloatOrNull() ?: 0.5f)
             "locate" -> {
                 deviceBridge.getLocation { result ->
                     fieldValues[parts.getOrElse(1) { "location_out" }] = result
@@ -949,15 +968,32 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 nfcAdapter?.disableForegroundDispatch(this)
             }
             "iapquery" -> {
-                deviceBridge.queryProducts(listOf("demo_product")) { result ->
-                    fieldValues[parts.getOrElse(1) { "iap_out" }] = result
+                val productId = java.net.URLDecoder.decode(parts.getOrElse(1) { "demo_product" }, "UTF-8")
+                deviceBridge.queryProducts(listOf(productId)) { result ->
+                    fieldValues[parts.getOrElse(2) { "iap_out" }] = result
                     refetch(action = null, includeFields = true)
                 }
             }
-            "iappurchase" -> deviceBridge.purchaseProduct("demo_product")
-            "geofenceadd" -> deviceBridge.addGeofence("paris_demo", 48.8566, 2.3522, 200f)
-            "geofenceremove" -> deviceBridge.removeGeofence("paris_demo")
-            "bgschedule" -> deviceBridge.scheduleBackgroundTask("/api/ping", 15)
+            "iappurchase" -> {
+                val productId = java.net.URLDecoder.decode(parts.getOrElse(1) { "demo_product" }, "UTF-8")
+                deviceBridge.purchaseProduct(productId)
+            }
+            "geofenceadd" -> {
+                val id = java.net.URLDecoder.decode(parts.getOrElse(1) { "paris_demo" }, "UTF-8")
+                val lat = parts.getOrNull(2)?.toDoubleOrNull() ?: 48.8566
+                val lng = parts.getOrNull(3)?.toDoubleOrNull() ?: 2.3522
+                val radius = parts.getOrNull(4)?.toFloatOrNull() ?: 200f
+                deviceBridge.addGeofence(id, lat, lng, radius)
+            }
+            "geofenceremove" -> {
+                val id = java.net.URLDecoder.decode(parts.getOrElse(1) { "paris_demo" }, "UTF-8")
+                deviceBridge.removeGeofence(id)
+            }
+            "bgschedule" -> {
+                val endpoint = java.net.URLDecoder.decode(parts.getOrElse(1) { "/api/ping" }, "UTF-8")
+                val interval = parts.getOrNull(2)?.toIntOrNull() ?: 15
+                deviceBridge.scheduleBackgroundTask(endpoint, interval)
+            }
             "bgcancel" -> deviceBridge.cancelBackgroundTask()
             "printpdf" -> printCurrentScreen()
             // Engine\Device\UrlLauncher — the URL travels rawurlencode()'d
