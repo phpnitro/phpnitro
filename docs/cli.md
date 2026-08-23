@@ -17,6 +17,7 @@ php bin/phpx run                    # détecte une cible dispo (device Android, 
 php bin/phpx payments               # liste les gateways déclarés dans phpnitro.yml et leur statut dans .env
 php bin/phpx maps                   # idem pour les fournisseurs de carte
 php bin/phpx icon                   # régénère l'icône Android depuis phpnitro.yml's `icon`
+php bin/phpx sync                   # resynchronise nom/icône/version depuis phpnitro.yml vers Android + iOS
 php bin/phpx firebase               # liste la config Firebase déclarée et son statut
 php bin/phpx docs:api               # génère docs/api/*.md depuis les docblocks des classes publiques
 php bin/phpx doctor                 # vérifie que la machine est prête (PHP, Composer, Java, Gradle, SDK, adb)
@@ -65,7 +66,13 @@ firebase:
   web_api_key_env: FIREBASE_WEB_API_KEY
 ```
 
-Même rôle que `pubspec.yaml` pour Flutter. `name` est la source de vérité pour `APP_NAME` dans `.env` **et** pour le label natif Android (`strings.xml`), resynchronisés automatiquement par `phpx serve`/`phpx bundle:android`. `payments`/`maps`/`firebase` déclarent quelles variables d'environnement chaque gateway/fournisseur attend, sans jamais lire les clés elles-mêmes.
+Même rôle que `pubspec.yaml` pour Flutter. `name` est la source de vérité pour `APP_NAME` dans `.env` **et** pour le label natif Android (`strings.xml`), resynchronisés automatiquement par `phpx serve`/`phpx bundle:android`.
+
+`version` suit exactement la convention de `pubspec.yaml` : `"1.0.0+3"` = versionName/`CFBundleShortVersionString` `"1.0.0"` + versionCode/`CFBundleVersion` `3` (le `+N` est optionnel, vaut `1` par défaut si omis). C'est la seule source de vérité — édite ce champ, jamais `android/app/build.gradle.kts` ni `ios/App/Info.plist` directement, ils seraient de toute façon écrasés au prochain sync. `phpx bundle:android` (donc `phpx build:android` aussi) synchronise `name`/`version`/`icon` vers Android automatiquement avant chaque vrai build — impossible d'oublier de bumper le versionCode avant un upload Play Store, l'exact incident qui a motivé cette fonctionnalité (Play Console refuse tout re-upload avec un versionCode déjà consommé, même par un draft annulé).
+
+iOS n'a pas d'équivalent à `bundle:android`/`build:android` — aucune commande phpx ne pilote encore un vrai build Xcode (voir [docs/mobile-builds.md](mobile-builds.md)) — donc rien ne se synchronise automatiquement avant d'ouvrir le projet dans Xcode. `phpx sync` comble ce trou : resynchronise `name`/`icon`/`version` vers Android **et** `ios/App/Info.plist`, à lancer à la main après avoir édité `phpnitro.yml` (par exemple juste avant d'ouvrir Xcode).
+
+`payments`/`maps`/`firebase` déclarent quelles variables d'environnement chaque gateway/fournisseur attend, sans jamais lire les clés elles-mêmes.
 
 ## Minification (pas obfuscation)
 

@@ -21,15 +21,24 @@
  *   phpx payments                     List phpnitro.yml's declared payment gateways and their .env status
  *   phpx maps                         List phpnitro.yml's declared map providers and their .env status
  *   phpx icon                         Regenerate the Android launcher icon from phpnitro.yml's `icon`
+ *   phpx sync                         Resync name/icon/version from phpnitro.yml into Android + iOS
  *   phpx firebase                     List phpnitro.yml's declared Firebase config and their .env status
  *   phpx docs:api                     Generate docs/api/*.md from every public class's docblocks + signatures
  *   phpx doctor                       Check the local machine's readiness for phpx development
  *
  * phpnitro.yml (project root) is the app manifest — name/description/version,
  * the payment gateways and map providers the app declares, and optionally
- * `icon`/`icon_background` for the Android launcher icon. `serve` keeps
- * .env's APP_NAME in sync with `name`; `bundle:android` additionally syncs
- * the native app label (strings.xml) and regenerates the launcher icon.
+ * `icon`/`icon_background` for the Android launcher icon. `version` follows
+ * Flutter's pubspec.yaml convention ("1.0.0+3" = versionName/
+ * CFBundleShortVersionString "1.0.0" + versionCode/CFBundleVersion 3; the
+ * "+N" is optional, defaults to 1) — the single source of truth for every
+ * platform's version instead of editing build.gradle.kts/Info.plist by
+ * hand. `serve` keeps .env's APP_NAME in sync with `name`;
+ * `bundle:android` additionally syncs the native app label (strings.xml)
+ * and version (versionCode/versionName), and regenerates the launcher
+ * icon — all three automatically, before every real Android build. `sync`
+ * does the same plus iOS's Info.plist, on demand (nothing currently
+ * drives a real iOS build to hook this into automatically).
  */
 
 // PHPX_TOOL_ROOT is where this script itself lives — used only by cmdNew()
@@ -121,6 +130,7 @@ function printPhpxUsage(): void
         'payments' => 'Liste les moyens de paiement déclarés dans phpnitro.yml',
         'maps' => 'Liste les fournisseurs de carte déclarés dans phpnitro.yml',
         'icon' => "Régénère l'icône Android depuis phpnitro.yml",
+        'sync' => "Resynchronise nom/icône/version depuis phpnitro.yml vers Android + iOS",
         'firebase' => 'Liste la config Firebase déclarée dans phpnitro.yml',
         'docs:api' => 'Génère docs/api/*.md depuis les docblocks des classes publiques',
         'doctor' => 'Vérifie que la machine est prête pour développer avec phpx',
@@ -608,6 +618,95 @@ function syncManifestToEnv(): void
 }
 
 /**
+ * Splits phpnitro.yml's `version` into [versionName, versionCode] — same
+ * convention as Flutter's pubspec.yaml ("1.0.0+3" = versionName "1.0.0" +
+ * build number 3). The "+N" is optional and defaults to 1, so a bare
+ * `version: 1.0.0` (this repo's own phpnitro.yml before this feature
+ * existed) keeps working without editing it.
+ *
+ * @return array{0: string, 1: int}
+ */
+function parseManifestVersion(array $manifest): array
+{
+    $version = (string) ($manifest['version'] ?? '1.0.0');
+    if (!str_contains($version, '+')) {
+        return [$version, 1];
+    }
+
+    [$name, $code] = explode('+', $version, 2);
+
+    return [$name, (int) $code];
+}
+
+/**
+ * Rewrites android/app/build.gradle.kts's versionCode/versionName from the
+ * manifest's `version` (see parseManifestVersion()). Play Console
+ * permanently consumes a versionCode the moment any upload reaches it —
+ * forgetting to bump it before a real release build is a real failure
+ * mode this project hit itself (see CHANGELOG). A single number in
+ * phpnitro.yml removes the chance to forget it in build.gradle.kts too.
+ */
+function syncManifestToAndroidVersion(string $androidAppDir): void
+{
+    $manifest = loadManifest();
+    if (!isset($manifest['version'])) {
+        return;
+    }
+
+    $gradlePath = "{$androidAppDir}/build.gradle.kts";
+    if (!is_file($gradlePath)) {
+        return;
+    }
+
+    [$versionName, $versionCode] = parseManifestVersion($manifest);
+
+    $gradle = file_get_contents($gradlePath);
+    $gradle = preg_replace('/versionCode\s*=\s*\d+/', "versionCode = {$versionCode}", $gradle, 1);
+    $gradle = preg_replace('/versionName\s*=\s*"[^"]*"/', 'versionName = "' . addslashes($versionName) . '"', $gradle, 1);
+
+    file_put_contents($gradlePath, $gradle);
+}
+
+/**
+ * iOS equivalent of syncManifestToAndroidVersion() — rewrites
+ * ios/App/Info.plist's CFBundleVersion/CFBundleShortVersionString, same
+ * "1.0.0+3" manifest format. Unlike Android, nothing in phpx drives a
+ * real iOS build yet (no `phpx build:ios` — see docs/mobile-builds.md),
+ * so this only ever runs from the explicit `phpx sync`, never
+ * automatically before a build.
+ */
+function syncManifestToIosPlist(): void
+{
+    $manifest = loadManifest();
+    if (!isset($manifest['version'])) {
+        return;
+    }
+
+    $plistPath = PHPX_ROOT . '/ios/App/Info.plist';
+    if (!is_file($plistPath)) {
+        return;
+    }
+
+    [$versionName, $versionCode] = parseManifestVersion($manifest);
+
+    $plist = file_get_contents($plistPath);
+    $plist = preg_replace(
+        '#(<key>CFBundleVersion</key>\s*<string>)[^<]*(</string>)#',
+        '${1}' . $versionCode . '${2}',
+        $plist,
+        1,
+    );
+    $plist = preg_replace(
+        '#(<key>CFBundleShortVersionString</key>\s*<string>)[^<]*(</string>)#',
+        '${1}' . htmlspecialchars($versionName, ENT_XML1 | ENT_QUOTES) . '${2}',
+        $plist,
+        1,
+    );
+
+    file_put_contents($plistPath, $plist);
+}
+
+/**
  * Rewrites android/.../res/values/strings.xml's app_name from the
  * manifest's `name` — the OS-level launcher label, distinct from .env's
  * APP_NAME (read at runtime by the PHP app itself). Only meaningful for
@@ -943,6 +1042,42 @@ function cmdIcon(): void
     }
 
     syncManifestIcon(PHPX_ROOT . '/android/app/src/main/res');
+}
+
+/**
+ * Resyncs every manifest-derived file phpx knows how to generate, in one
+ * go — the missing piece next to cmdBundleAndroid() (which already does
+ * this for Android automatically before every real build): iOS has no
+ * `phpx build:ios` to hook into (see docs/mobile-builds.md's iOS state),
+ * so its Info.plist only ever gets refreshed from here, on demand.
+ * Also useful right after hand-editing phpnitro.yml when you don't want
+ * a full build yet — e.g. bump `version`, run `phpx sync`, open Xcode.
+ */
+function cmdSync(): void
+{
+    syncManifestToEnv();
+
+    $androidResDir = PHPX_ROOT . '/android/app/src/main/res';
+    $syncedAndroid = is_dir($androidResDir);
+    if ($syncedAndroid) {
+        syncManifestToAndroidStrings($androidResDir);
+        syncManifestToAndroidVersion(PHPX_ROOT . '/android/app');
+        syncManifestIcon($androidResDir);
+    }
+
+    $syncedIos = is_file(PHPX_ROOT . '/ios/App/Info.plist');
+    if ($syncedIos) {
+        syncManifestToIosPlist();
+    }
+
+    $targets = array_filter(['Android' => $syncedAndroid, 'iOS' => $syncedIos]);
+    if ($targets === []) {
+        echo "Rien à synchroniser (ni android/, ni ios/ dans ce projet).\n";
+
+        return;
+    }
+
+    echo 'phpnitro.yml synchronisé vers ' . implode(' + ', array_keys($targets)) . ".\n";
 }
 
 /**
@@ -1671,6 +1806,7 @@ function cmdBundleAndroid(): void
 
     $androidResDir = PHPX_ROOT . '/android/app/src/main/res';
     syncManifestToAndroidStrings($androidResDir);
+    syncManifestToAndroidVersion(PHPX_ROOT . '/android/app');
     syncManifestIcon($androidResDir);
 
     $staging = PHPX_ROOT . '/android/app/src/main/assets/www';
@@ -2531,6 +2667,9 @@ switch ($command) {
         break;
     case 'icon':
         cmdIcon();
+        break;
+    case 'sync':
+        cmdSync();
         break;
     case 'firebase':
         cmdFirebase();
