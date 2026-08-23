@@ -700,6 +700,33 @@ class NativeDeviceBridge(private val context: Context) {
     }
 
     /**
+     * Same AlarmReceiver WebAppInterface.scheduleAlarm() already uses —
+     * genuinely shared (fires a notification even if this app's process
+     * has since been killed, whichever rendering path scheduled it).
+     * setExactAndAllowWhileIdle so it still fires under Doze, at the cost
+     * of needing the (normal, no runtime prompt) SCHEDULE_EXACT_ALARM +
+     * USE_EXACT_ALARM permissions on API 31+ — already declared in
+     * android/app/src/main/AndroidManifest.xml.
+     */
+    fun scheduleAlarm(requestCode: Int, delaySeconds: Int, title: String, message: String) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            putExtra("title", title)
+            putExtra("message", message)
+            putExtra("requestCode", requestCode)
+        }
+        val pendingIntent = android.app.PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE,
+        )
+        val triggerAt = System.currentTimeMillis() + delaySeconds * 1000L
+
+        alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+    }
+
+    /**
      * ML Kit Translate — on-device, no API key, downloads the language
      * model on first use over whatever network is available (kept
      * simple: no Wi-Fi-only restriction for this demo). The real native
