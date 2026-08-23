@@ -37,6 +37,15 @@ payments:
     feexpay:
         public_key_env: FEEXPAY_SHOP_ID
         secret_key_env: FEEXPAY_API_KEY
+    # PayDunya a 4 vraies clés (master/private/public/token — voir
+    # Engine\Payments\Paydunya), pas 2 — phpx payments (public_key_env/
+    # secret_key_env) ne modélise qu'une paire, donc master sert de proxy
+    # pour "secret" ici. Les 4 vraies variables restent lues directement
+    # par la classe elle-même, cette déclaration ne sert qu'au statut
+    # affiché par `phpx payments`.
+    paydunya:
+        public_key_env: PAYDUNYA_TEST_PUBLIC_KEY
+        secret_key_env: PAYDUNYA_PRIMARY_KEY
     izichangepay:
         public_key_env: IZICHANGEPAY_API_KEY
         secret_key_env: IZICHANGEPAY_API_SECRET
