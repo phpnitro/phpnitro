@@ -111,3 +111,12 @@ Chaque tag de version (`.github/workflows/release.yml`) compile `phpx.phar` (via
 Vérifié pour de vrai à la publication de `v0.1.0` : deux bugs de `box.json` ont fait échouer les deux premières tentatives (`package.json`/`package-lock.json` listés dans `files` alors qu'ils n'existent nulle part dans ce dépôt ; `bin` absent de `directories`, donc `bin/QrCode.php` — requis sans condition par `bin/phpx` — manquait du bundle et faisait planter le phar dès son lancement). La 3ᵉ tentative a réellement téléchargé, lancé et scaffoldé un projet avec ce `phpx.phar` publié — l'URL ci-dessus fonctionne.
 
 Si tu clones ce monorepo pour contribuer plutôt que pour l'utiliser en dépendance, `php bin/phpx <commande>` depuis sa racine reste équivalent (voir [CONTRIBUTING.md](../CONTRIBUTING.md)).
+
+### Snap Store (Linux)
+
+```bash
+sudo snap install phpx
+sudo snap connect phpx:raw-usb   # une seule fois — nécessaire pour dev:push/run sur un device Android par USB
+```
+
+Contrairement au `.phar` ci-dessus (qui suppose `php` déjà installé sur la machine), ce snap embarque son propre PHP **et** tout ce que la cible desktop Linux de `phpx run` a besoin (Python 3, PyGObject/GTK4, Cairo, libshumate) — rien d'autre à installer, comme le SDK Flutter après son propre téléchargement. Publié en confinement `strict` (pas `classic` : demande une revue manuelle Canonical quel que soit le publisher — voir `snap/snapcraft.yaml`), donc `phpx new`/`serve`/`run` ne peuvent lire/écrire que sous `$HOME` — couvre l'usage normal (`cd ~/projects && phpx new mon-app`), pas un chemin arbitraire ailleurs sur le disque. Les animations Lottie ne fonctionnent pas dans ce snap (`librlottie0-1` vit dans le dépôt Ubuntu Pro/ESM sur ce base) ; le reste du framework n'en dépend pas. Détails de la recette : [snap/README.md](../snap/README.md).

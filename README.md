@@ -66,6 +66,9 @@ Prérequis : PHP ≥ 8.1 + Composer. (Android SDK + Gradle ≥ 8.9 + JDK seuleme
 ```bash
 curl -fsSL https://github.com/phpnitro/phpnitro/releases/latest/download/phpx.phar -o /usr/local/bin/phpx
 chmod +x /usr/local/bin/phpx
+# Sur Linux, alternative qui embarque aussi PHP + tout ce que `phpx run`
+# demande pour ouvrir une vraie fenêtre desktop (Python/GTK4/Cairo) —
+# rien à installer soi-même : sudo snap install phpx
 
 phpx new mon-app
 cd mon-app
@@ -92,6 +95,8 @@ phpx serve
 | [Référence API](docs/api.md) | Générée automatiquement (`phpx docs:api`) pour les packages hors moteur natif |
 | [Changelog](CHANGELOG.md) | Historique des changements notables |
 | [Contribuer](CONTRIBUTING.md) | Installation, conventions, structure du code |
+
+Une question, une idée, envie de montrer ce que tu as construit avec PhpNitro ? [Discussions](https://github.com/phpnitro/phpnitro/discussions) — les Issues restent réservées aux bugs et demandes de fonctionnalités précises.
 
 ## État du projet
 
