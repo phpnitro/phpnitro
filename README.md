@@ -54,7 +54,7 @@ if ($action === 'increment') {
 ## Ce que ça donne concrètement
 
 - **~80 widgets natifs** — mise en page (`Flex`, `Stack`, `Wrap`...), formulaires (dialogues Android réels), texte riche multi-styles, animations implicites (`Animated`/`Hero`, FLIP réel), listes virtualisées (`LazyList`) — [référence complète](docs/widgets.md).
-- **~30 capacités device réellement natives** — caméra, biométrie, NFC, géofencing, achat intégré, impression PDF, traduction sur l'appareil (ML Kit) — pas de simulation WebView, du vrai code Kotlin appelé directement. [Détails](docs/device-and-native.md).
+- **~40 capacités device réellement natives** — caméra, biométrie, NFC, géofencing, achat intégré, impression PDF, traduction sur l'appareil (ML Kit) — pas de simulation WebView, du vrai code Kotlin appelé directement. [Détails](docs/device-and-native.md).
 - **Un geste vraiment continu** — `Dismissible` (glisser pour supprimer) suit le doigt à 100% côté client, zéro requête réseau par frame, PHP ne voit que le résultat final.
 - **Backend unifié** — Symfony HttpFoundation + Doctrine DBAL, dans le même processus, zéro configuration réseau supplémentaire.
 - **CLI complète** (`phpx`) — scaffold de projet, génération de pages/entités, bundle Android, packaging `.phar`. [Détails](docs/cli.md).
