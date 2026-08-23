@@ -41,7 +41,16 @@ enum ImageLoader {
         // network location — decode it directly instead of a doomed
         // URLSession fetch.
         if url.hasPrefix("data:") {
-            DispatchQueue.global(qos: .utility).async {
+            // .userInitiated, not .utility: this is a synchronous local
+            // decode the caller is actively waiting on to render (not a
+            // deferrable background task) — .utility can get
+            // deprioritized under real system load, which is exactly
+            // what made this flake in CI (NativeRenderingSupportTests'
+            // own 5s wait() occasionally not enough on a loaded/shared
+            // runner, confirmed by two real reruns in the same session
+            // fixing it with no code change — a scheduling delay, not a
+            // race in ImageLoader itself).
+            DispatchQueue.global(qos: .userInitiated).async {
                 let base64Payload = url.split(separator: ",", maxSplits: 1).last.map(String.init) ?? ""
                 guard let data = Data(base64Encoded: base64Payload) else { return finish(nil) }
                 finish(UIImage(data: data))
