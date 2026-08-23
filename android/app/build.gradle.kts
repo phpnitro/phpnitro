@@ -53,6 +53,21 @@ android {
             if (keystoreProperties.isNotEmpty()) {
                 signingConfig = signingConfigs.getByName("release")
             }
+            // Play Console warns on any App Bundle shipping native code
+            // (libphp.so/libsqlite3.so, both prebuilt and committed as-is
+            // — see android/README.md) without a debug symbols upload —
+            // without this, a native crash/ANR report shows raw memory
+            // addresses instead of function names. This is the SAME
+            // fix android/go/build.gradle.kts carries — this file is
+            // exactly what `phpx new` copies into every scaffolded
+            // project (see cmdNew() in bin/phpx), so any real developer
+            // publishing their own PhpNitro app hits this same warning
+            // without it. SYMBOL_TABLE (not FULL): enough to
+            // symbolicate a stack trace, without bundling full DWARF
+            // debug info Google doesn't need.
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
         }
     }
 
