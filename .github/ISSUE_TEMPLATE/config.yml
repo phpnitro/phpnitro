@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question / besoin d'aide
+    url: https://github.com/phpnitro/phpnitro/discussions/categories/q-a
+    about: Les Issues sont réservées aux bugs et demandes de fonctionnalités — pour une question d'usage, la catégorie Q&A des Discussions.
+  - name: Idée / suggestion
+    url: https://github.com/phpnitro/phpnitro/discussions/categories/ideas
+    about: Une idée pas encore assez précise pour une demande de fonctionnalité ? La catégorie Ideas des Discussions.
