@@ -2,6 +2,7 @@
 
 namespace Engine\App;
 
+use Engine\Device\AlarmScheduler;
 use Engine\Device\AppLinks;
 use Engine\Device\AppSettings;
 use Engine\Device\BackgroundTask;
@@ -153,6 +154,7 @@ final class NativeDeviceScreen
                     $row('Désactiver la zone', Geofence::removeAction('paris_demo')),
                     $row('Planifier tâche de fond', BackgroundTask::scheduleAction('/api/ping')),
                     $row('Annuler tâche de fond', BackgroundTask::cancelAction()),
+                    $row('Alarme dans 1h', AlarmScheduler::scheduleAction(1, 3600, 'PhpNitro', 'Ton alarme a sonné !')),
                     new Padding(EdgeInsets::only(top: Tokens::SPACE_LG), new Divider()),
                     $row('Imprimer (PDF)', 'device:printpdf'),
                     new Padding(EdgeInsets::only(top: Tokens::SPACE_LG), new Divider()),
