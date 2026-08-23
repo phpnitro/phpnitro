@@ -1164,14 +1164,14 @@
             "y": 104.25,
             "width": 360,
             "height": 54,
-            "action": "device:vibrate"
+            "action": "device:vibrate:200"
         },
         {
             "x": 20,
             "y": 170.25,
             "width": 360,
             "height": 54,
-            "action": "device:torch"
+            "action": "device:torch:torch_out"
         },
         {
             "x": 20,
@@ -1199,7 +1199,7 @@
             "y": 434.25,
             "width": 360,
             "height": 54,
-            "action": "device:securestore:demo_key"
+            "action": "device:securestore:demo_key:valeur%20secr%C3%A8te"
         },
         {
             "x": 20,
@@ -1227,21 +1227,21 @@
             "y": 698.25,
             "width": 360,
             "height": 54,
-            "action": "device:sound"
+            "action": "device:sound:http%3A%2F%2F127.0.0.1%2Fassets%2Faudio%2Fbeep.wav"
         },
         {
             "x": 20,
             "y": 764.25,
             "width": 360,
             "height": 54,
-            "action": "device:notify"
+            "action": "device:notify:PhpNitro:Ceci%20est%20une%20notification%20native."
         },
         {
             "x": 20,
             "y": 830.25,
             "width": 360,
             "height": 54,
-            "action": "device:share"
+            "action": "device:share:Regarde%20cette%20app%20faite%20avec%20PhpNitro%20%21:PhpNitro%20Demo"
         },
         {
             "x": 20,
@@ -1283,7 +1283,7 @@
             "y": 1226.25,
             "width": 360,
             "height": 54,
-            "action": "device:brightness"
+            "action": "device:brightness:0.5"
         },
         {
             "x": 20,
@@ -1339,35 +1339,35 @@
             "y": 1754.25,
             "width": 360,
             "height": 54,
-            "action": "device:iapquery:iap_out"
+            "action": "device:iapquery:demo_product:iap_out"
         },
         {
             "x": 20,
             "y": 1820.25,
             "width": 360,
             "height": 54,
-            "action": "device:iappurchase"
+            "action": "device:iappurchase:demo_product"
         },
         {
             "x": 20,
             "y": 1886.25,
             "width": 360,
             "height": 54,
-            "action": "device:geofenceadd"
+            "action": "device:geofenceadd:paris_demo:48.8566:2.3522:200"
         },
         {
             "x": 20,
             "y": 1952.25,
             "width": 360,
             "height": 54,
-            "action": "device:geofenceremove"
+            "action": "device:geofenceremove:paris_demo"
         },
         {
             "x": 20,
             "y": 2018.25,
             "width": 360,
             "height": 54,
-            "action": "device:bgschedule"
+            "action": "device:bgschedule:%2Fapi%2Fping:15"
         },
         {
             "x": 20,
