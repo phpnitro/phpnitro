@@ -6,7 +6,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKDIR="$(mktemp -d)"
-trap 'pkill -f "phpx serve 8123" 2>/dev/null || true; pkill -f "php -S 127.0.0.1:8123" 2>/dev/null || true; rm -rf "$WORKDIR"' EXIT
+trap 'pkill -f "phpx serve 8123" 2>/dev/null || true; pkill -f "php -S 0.0.0.0:8123" 2>/dev/null || true; rm -rf "$WORKDIR"' EXIT
 
 echo "== phpx new =="
 (cd "$WORKDIR" && php "$ROOT/bin/phpx" new demo-app)
