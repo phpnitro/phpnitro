@@ -824,8 +824,8 @@ function cmdPayments(): void
 
         $status = match (true) {
             $publicSet && $secretSet => 'configuré (clé publique + secrète)',
-            $publicSet => 'clé publique seule — vérification serveur désactivée, mode démo',
-            default => 'non configuré',
+            $publicSet => "clé publique seule — ajoute {$secretKeyEnv} dans .env (vérification serveur désactivée, mode démo)",
+            default => "non configuré — ajoute {$publicKeyEnv} et {$secretKeyEnv} dans .env",
         };
 
         printf("  %-14s %s\n", $name, $status);
@@ -870,7 +870,7 @@ function cmdMaps(): void
 
         $configured = ($_ENV[$keyEnv] ?? '') !== '';
 
-        printf("  %-14s %s\n", $name, $configured ? 'configuré' : 'non configuré');
+        printf("  %-14s %s\n", $name, $configured ? 'configuré' : "non configuré — ajoute {$keyEnv} dans .env");
     }
 
     printf("  %-14s %s\n", 'openstreetmap', 'toujours disponible (aucune clé requise)');
@@ -904,7 +904,7 @@ function cmdFirebase(): void
     foreach ($labels as $envVarName => $label) {
         $configured = ($_ENV[$envVarName] ?? '') !== '';
 
-        printf("  %-32s %s\n", $label, $configured ? 'configuré' : 'non configuré');
+        printf("  %-32s %s\n", $label, $configured ? 'configuré' : "non configuré — ajoute {$envVarName} dans .env");
     }
 }
 
