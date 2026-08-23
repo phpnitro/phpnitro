@@ -42,6 +42,7 @@ final class FacebookSignIn extends OAuthProvider
             'id' => (string) ($userInfoResponse['id'] ?? ''),
             'email' => $userInfoResponse['email'] ?? null,
             'name' => $userInfoResponse['name'] ?? null,
+            'access_token' => $tokenResponse['access_token'] ?? null,
         ];
     }
 }

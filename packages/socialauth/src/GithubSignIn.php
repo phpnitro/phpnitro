@@ -50,6 +50,7 @@ final class GithubSignIn extends OAuthProvider
             'id' => (string) ($userInfoResponse['id'] ?? ''),
             'email' => $userInfoResponse['email'] ?? null,
             'name' => $userInfoResponse['name'] ?? $userInfoResponse['login'] ?? null,
+            'access_token' => $tokenResponse['access_token'] ?? null,
         ];
     }
 }

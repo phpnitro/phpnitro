@@ -44,6 +44,7 @@ final class MicrosoftSignIn extends OAuthProvider
             'id' => (string) ($userInfoResponse['id'] ?? ''),
             'email' => $userInfoResponse['mail'] ?? $userInfoResponse['userPrincipalName'] ?? null,
             'name' => $userInfoResponse['displayName'] ?? null,
+            'access_token' => $tokenResponse['access_token'] ?? null,
         ];
     }
 }
