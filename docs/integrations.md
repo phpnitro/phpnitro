@@ -10,9 +10,12 @@
 
 | Classe | Rôle | Authentification |
 |---|---|---|
-| `GoogleServiceAccount` | Jeton OAuth2 depuis un compte de service (JWT RS256 signé via `openssl_sign`) — brique partagée par les deux classes suivantes. | Compte de service (JSON). |
+| `GoogleServiceAccount` | Jeton OAuth2 depuis un compte de service (JWT RS256 signé via `openssl_sign`) — brique partagée par les classes serveur ci-dessous. | Compte de service (JSON). |
 | `FirebaseMessaging::send(...)` | Envoie une notification push (FCM HTTP v1). **Doit tourner sur ton propre serveur hébergé**, jamais depuis le PHP embarqué sur le téléphone. | Compte de service. |
-| `FirebaseAuth::signIn(...)` / `::signUp(...)` | Connexion/inscription via l'API REST Identity Toolkit. | Clé API web (client-safe). |
+| `FirebaseAuth::signIn(...)` / `::signUp(...)` | Connexion/inscription email + mot de passe via l'API REST Identity Toolkit. | Clé API web (client-safe). |
+| `FirebaseAuth::signInWithGoogleIdToken(...)` | Échange un ID token Google (obtenu via Credential Manager côté Android) contre une session Firebase. | Clé API web. |
+| `FirebaseAuth::signInWithFacebookAccessToken(...)` / `::signInWithGithubAccessToken(...)` | Idem pour Facebook/GitHub — prend l'`access_token` que `Engine\SocialAuth\FacebookSignIn`/`GithubSignIn::exchangeCode()` retourne déjà (voir section Authentification sociale ci-dessous). | Clé API web. |
+| `FirebaseAuth::sendPasswordResetEmail(...)` | Déclenche l'email de réinitialisation envoyé par Firebase lui-même (aucun SMTP à configurer). | Clé API web. |
 | `Firestore::get(...)` / `::set(...)` | Client REST minimal (un document à la fois). | Compte de service. |
 
 Confiance : implémenté d'après la doc officielle, rien testé contre un vrai projet Firebase (aucun compte disponible). Le JWT signing a un test dédié qui vérifie la structure et la signature RS256 avec une paire de clés générée à la volée, sans réseau.
@@ -38,7 +41,28 @@ Données dérivées de deux jeux de données ouverts, licences documentées dans
 
 ## Authentification sociale
 
-`packages/socialauth/` (7 fournisseurs OAuth2 — Google, Microsoft, GitHub, Slack, Facebook, X, Apple) a été supprimé : c'était un service attaché à `Button::make()`, le widget Tailwind supprimé avec la bascule vers le rendu natif, et il n'avait plus aucun appelant. Pas encore reconstruit en natif — un vrai chantier futur (flux OAuth2 déclenché depuis un `Button`, callback géré côté PHP comme avant) plutôt qu'une résurrection de l'ancien code.
+`packages/socialauth/src/` (namespace `Engine\SocialAuth\`) — Google est géré à part, via un vrai SDK natif (Credential Manager, voir `NativeDeviceBridge.kt::signInWithGoogle()`), pas ce package. Les quatre autres (Microsoft, GitHub, Facebook, Apple) n'ont pas d'équivalent SDK Android que ce framework embarque — un flux OAuth2 Authorization Code classique est donc l'approche native-appropriée pour eux, pas un compromis :
+
+```php
+use Engine\Device\UrlLauncher;
+use Engine\SocialAuth\GithubSignIn;
+
+// 1. Ouvre la page d'autorisation du fournisseur
+UrlLauncher::openAction(GithubSignIn::authorizeUrl($clientId, $redirectUri));
+
+// 2. Le fournisseur redirige vers phpnitro://oauth-callback?code=...
+//    (App Link, voir NativeRenderPocActivity.onNewIntent()) — l'action
+//    handler du développeur (public/index.php) récupère ensuite le
+//    profil normalisé :
+$profile = GithubSignIn::exchangeCode($code, $clientId, $clientSecret, $redirectUri);
+// $profile = ['id' => ..., 'email' => ..., 'name' => ..., 'access_token' => ...]
+```
+
+`OAuthProvider` (classe de base abstraite) porte tout le flux partagé (`authorizeUrl()`/`exchangeCode()`) ; chaque fournisseur ne déclare que ses propres endpoints + la normalisation de son profil. Apple diffère sur un point réel : pas de `client_secret` statique, mais un JWT ES256 signé à la volée (`AppleSignIn::clientSecret()`) depuis la clé `.p8` téléchargée une fois sur Apple Developer.
+
+`access_token` (le jeton brut du fournisseur, pas seulement le profil normalisé) est ce que `Engine\Firebase\FirebaseAuth::signInWithFacebookAccessToken()`/`::signInWithGithubAccessToken()` attendent pour fédérer la connexion avec Firebase — voir la section Firebase ci-dessus.
+
+**Confiance** : `UNVERIFIED` dans le docblock de chaque fournisseur (Facebook/GitHub/Microsoft/Apple) — écrit d'après leur doc OAuth2 officielle respective, jamais testé contre une vraie app OAuth (aucun compte développeur disponible ici). Slack/X (Twitter), présents dans une génération antérieure de ce package (widget Tailwind, supprimé avec la bascule vers le rendu natif), n'ont pas encore de fournisseur `OAuthProvider` reconstruit.
 
 ## Formats (nombres, devises, dates)
 
