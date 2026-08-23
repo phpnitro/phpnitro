@@ -33,10 +33,12 @@ namespace Engine\Payments;
  *
  * Endpoints/field names below are Stripe's own stable, long-documented
  * REST API (Checkout Sessions) — unlike Fedapay.php's docblock, there is
- * no live-verified discrepancy to report here: **this class has not
- * been tested against a real Stripe account** (no sandbox/test-mode
- * credentials available yet) — verify against a real test-mode key
- * before relying on this in production.
+ * no live-verified discrepancy to report here.
+ *
+ * **Verified against a real Stripe test-mode account**: pay() created a
+ * real Checkout Session and returned a real checkout.stripe.com URL;
+ * status() correctly read it back (payment_status "unpaid", status
+ * "open", right reference) before any payment was completed.
  */
 final class Stripe
 {
