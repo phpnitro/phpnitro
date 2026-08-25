@@ -19,12 +19,12 @@ val keystoreProperties = Properties().apply {
 
 android {
     namespace = "com.phpnitro.go"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.phpnitro.go"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 36
         // Bumped from 1/"0.1" — Play Console permanently consumes a
         // versionCode the moment a real upload attempt reaches it (even
         // one still in draft/setup, which is exactly what produced the

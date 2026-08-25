@@ -3,7 +3,7 @@
 ## Prérequis
 
 - PHP ≥ 8.1 avec Composer
-- Pour builder l'APK Android : rien à installer à la main — `phpx build:android` détecte/télécharge tout seul le SDK (compileSdk 35), Gradle ≥ 8.9 et un JDK 17 si besoin. Voir [docs/mobile-builds.md](mobile-builds.md).
+- Pour builder l'APK Android : rien à installer à la main — `phpx build:android` détecte/télécharge tout seul le SDK (compileSdk 36), Gradle ≥ 9.1 et un JDK 17 si besoin. Voir [docs/mobile-builds.md](mobile-builds.md).
 
 ## Structure d'un projet
 

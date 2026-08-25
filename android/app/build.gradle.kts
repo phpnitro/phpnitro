@@ -17,12 +17,12 @@ val keystoreProperties = Properties().apply {
 
 android {
     namespace = "com.mobile.engine"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.mobile.engine"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "0.1"
         // Real on-device UI tests (src/androidTest) — see this module's

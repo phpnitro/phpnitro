@@ -2441,7 +2441,7 @@ function resolveOrInstallAndroidSdk(): string
 
 /**
  * A `gradle` already on PATH satisfying the project's minimum (read from
- * android/build.gradle.kts's AGP version — AGP 8.7+ requires Gradle 8.9+)
+ * android/build.gradle.kts's AGP version — AGP 9.0+ requires Gradle 9.1+)
  * is used as-is. Otherwise downloads the pinned version straight into
  * ~/.local/share/phpnitro-tools/gradle-<version>, once — every later call
  * across every project on this machine reuses it, never re-downloaded,
@@ -2450,8 +2450,8 @@ function resolveOrInstallAndroidSdk(): string
  */
 function resolveOrInstallGradle(): string
 {
-    $pinnedVersion = '8.10.2';
-    $minMajorMinor = '8.9';
+    $pinnedVersion = '9.1.0';
+    $minMajorMinor = '9.1';
 
     $existing = trim((string) shell_exec('command -v gradle 2>/dev/null'));
     if ($existing !== '') {

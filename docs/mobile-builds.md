@@ -11,7 +11,7 @@ php bin/phpx build:android   # bundle: + gradle :app:assembleDebug, en une comma
 # → android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Aucun prérequis à installer à la main : `build:android` détecte JDK 17+/Gradle ≥ 8.9/le SDK Android (compileSdk 35) déjà présents, et télécharge tout seul ce qui manque (JDK Temurin, Gradle, SDK command-line tools — mis en cache dans `~/.local/share/phpnitro-tools/`, jamais re-téléchargé une fois fait). `php bin/phpx doctor` liste l'état de chaque outil sans rien installer, si tu veux juste vérifier avant de lancer une vraie build. Pour régénérer les binaires PHP toi-même, voir `android/README.md`.
+Aucun prérequis à installer à la main : `build:android` détecte JDK 17+/Gradle ≥ 9.1/le SDK Android (compileSdk 36) déjà présents, et télécharge tout seul ce qui manque (JDK Temurin, Gradle, SDK command-line tools — mis en cache dans `~/.local/share/phpnitro-tools/`, jamais re-téléchargé une fois fait). `php bin/phpx doctor` liste l'état de chaque outil sans rien installer, si tu veux juste vérifier avant de lancer une vraie build. Pour régénérer les binaires PHP toi-même, voir `android/README.md`.
 
 Installation sur téléphone : `adb install -r app-debug.apk`, ou transfère le fichier et autorise l'installation de sources inconnues. APK signé en debug (parfait pour tester, pas pour le Play Store — il faudra une clé de release).
 
