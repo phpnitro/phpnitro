@@ -27,15 +27,15 @@ android {
         applicationId = "com.phpnitro.go"
         minSdk = 24
         targetSdk = 36
-        // Bumped from 1/"0.1" — Play Console permanently consumes a
+        // Bumped from 2/"0.2" — Play Console permanently consumes a
         // versionCode the moment a real upload attempt reaches it (even
-        // one still in draft/setup, which is exactly what produced the
-        // deployment_cert.der/hybrid_*_cert.der files), so the fixed
-        // build (permissions stripped, native debug symbols configured)
-        // needs a strictly higher one or Google rejects the upload
-        // outright — not optional, a hard Play Console requirement.
-        versionCode = 2
-        versionName = "0.2"
+        // one still in draft/setup), so any new AAB needs a strictly
+        // higher one or Google rejects the upload outright — not
+        // optional, a hard Play Console requirement. This release
+        // specifically targets API 36 (see the AGP 9.0.1 bump, PR #82) —
+        // the whole reason a new upload is needed now.
+        versionCode = 3
+        versionName = "0.3"
     }
 
     signingConfigs {
