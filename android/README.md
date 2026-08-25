@@ -34,7 +34,7 @@ php bin/phpx build:android   # bundle: (public/ + lib/ + packages/ + .env) + gra
 adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-`build:android` détecte/télécharge tout seul JDK 17+/Gradle ≥ 8.9/le SDK Android si besoin (voir `docs/cli.md`) — pas de setup manuel requis.
+`build:android` détecte/télécharge tout seul JDK 17+/Gradle ≥ 9.1/le SDK Android si besoin (voir `docs/cli.md`) — pas de setup manuel requis.
 
 ## Pièges rencontrés (pour référence)
 

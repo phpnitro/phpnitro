@@ -61,7 +61,7 @@ if ($action === 'increment') {
 
 ## Démarrage rapide
 
-Prérequis : PHP ≥ 8.1 + Composer. (Android SDK + Gradle ≥ 8.9 + JDK seulement pour builder l'APK — `phpx build:android` les installe tout seul si besoin, voir [docs/mobile-builds.md](docs/mobile-builds.md).)
+Prérequis : PHP ≥ 8.1 + Composer. (Android SDK + Gradle ≥ 9.1 + JDK seulement pour builder l'APK — `phpx build:android` les installe tout seul si besoin, voir [docs/mobile-builds.md](docs/mobile-builds.md).)
 
 ```bash
 curl -fsSL https://github.com/phpnitro/phpnitro/releases/latest/download/phpx.phar -o /usr/local/bin/phpx

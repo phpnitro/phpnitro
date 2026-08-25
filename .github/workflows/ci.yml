@@ -80,7 +80,15 @@ jobs:
       - run: cargo install cargo-ndk --locked
       - run: cargo ndk -t arm64-v8a -t armeabi-v7a -o ../../android/engine/src/main/jniLibs build --release
         working-directory: rust/phpnitro-render
+      # Pinned explicitly: this project has no Gradle wrapper (bin/phpx's
+      # own resolveOrInstallGradle() plays that role locally), so without
+      # this the action would just use whatever `gradle` happens to be
+      # pre-installed on the runner image — no guarantee it satisfies AGP
+      # 9.0.1's Gradle >= 9.1.0 requirement. Keep in sync with
+      # resolveOrInstallGradle()'s $pinnedVersion in bin/phpx.
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.1.0'
       - run: cd android && gradle :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
@@ -126,7 +134,15 @@ jobs:
           distribution: temurin
           java-version: '17'
       - run: php bin/phpx bundle:android
+      # Pinned explicitly: this project has no Gradle wrapper (bin/phpx's
+      # own resolveOrInstallGradle() plays that role locally), so without
+      # this the action would just use whatever `gradle` happens to be
+      # pre-installed on the runner image — no guarantee it satisfies AGP
+      # 9.0.1's Gradle >= 9.1.0 requirement. Keep in sync with
+      # resolveOrInstallGradle()'s $pinnedVersion in bin/phpx.
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.1.0'
       # connectedDebugAndroidTest builds+installs both the app APK and the
       # test APK itself — no separate assembleDebug needed first. Only
       # NativeUiE2ETest.kt's non-@Ignore()'d tests actually run; the two

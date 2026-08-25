@@ -2,7 +2,9 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
+    // AGP 9.0+ bundles Kotlin support directly (no separate
+    // org.jetbrains.kotlin.android plugin) — see
+    // developer.android.com/build/migrate-to-built-in-kotlin.
 }
 
 // android/go/keystore.properties (gitignored — see keystore.properties.example
@@ -19,12 +21,12 @@ val keystoreProperties = Properties().apply {
 
 android {
     namespace = "com.phpnitro.go"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.phpnitro.go"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 36
         // Bumped from 1/"0.1" — Play Console permanently consumes a
         // versionCode the moment a real upload attempt reaches it (even
         // one still in draft/setup, which is exactly what produced the
@@ -85,9 +87,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+    // No kotlinOptions block: built-in Kotlin derives jvmTarget from
+    // compileOptions.targetCompatibility above (17) by default.
 }
 
 dependencies {
