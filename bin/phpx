@@ -1355,8 +1355,26 @@ function cmdNew(string $directory, bool $all = false): void
         echo "Copied {$file} to {$targetDir}/{$file}\n";
     }
 
+    // .env itself is gitignored below (newProjectGitignore()) — real API
+    // keys land there the moment a project wires up payments/Firebase/
+    // maps, and expecting every developer to remember "never let a real
+    // value slip into a tracked file" doesn't scale. .env.example is the
+    // tracked stand-in a fresh clone/collaborator actually sees; today's
+    // copy has no secrets in it either way (just APP_NAME/APP_DEBUG), so
+    // this is a plain duplicate, not a redaction step.
+    copy($targetDir . '/.env', $targetDir . '/.env.example');
+    echo "Wrote {$targetDir}/.env.example\n";
+
     file_put_contents($targetDir . '/composer.json', newProjectComposerJson());
     echo "Wrote {$targetDir}/composer.json (phpnitro/* packages as Packagist dependencies)\n";
+
+    // Without this, a scaffolded project's first `git add -A` stages
+    // vendor/ (tens of MB of Composer dependencies) AND, worse,
+    // android/app/release.keystore — a REAL Android signing key —
+    // straight into git history. Confirmed the hard way: a fresh scaffold
+    // had neither excluded until this fix.
+    file_put_contents($targetDir . '/.gitignore', newProjectGitignore());
+    echo "Wrote {$targetDir}/.gitignore\n";
 
     resetPagesForNewProject($targetDir);
 
@@ -1366,6 +1384,42 @@ function cmdNew(string $directory, bool $all = false): void
         echo "Tip: re-run with --all to also scaffold linux/ macos/ windows/ (still pre-alpha — see their own README.md)\n";
     }
     echo "Next: cd {$directory} && composer install && phpx make:page Home && phpx serve\n";
+}
+
+/**
+ * Not a copy of this monorepo's own .gitignore — that one has
+ * monorepo-only entries (examples/ subdirectories, each package's own
+ * vendor/, docs/notes/, the Rust crate's target/...) that don't exist in
+ * a scaffolded project, and deliberately ignores composer.lock (packages
+ * are developed in this same repo, so locking fights local development)
+ * — the opposite of what a real standalone app should do (composer.lock
+ * SHOULD be committed there, for reproducible builds), so it's
+ * intentionally absent below.
+ */
+function newProjectGitignore(): string
+{
+    return <<<'GITIGNORE'
+    .claude/
+    /.env
+    /vendor/
+    /node_modules/
+    /.phpunit.result.cache
+    /public/assets/
+    /public/__qr.png
+    /android/.gradle/
+    /android/build/
+    /android/app/build/
+    /android/local.properties
+    /android/app/*.keystore
+    /android/keystore.properties
+    /android/.kotlin/
+    /android/app/src/main/assets/www/
+    /ios/.build/
+    /lib/backend/var/*.sqlite
+    /lib/backend/var/uploads/
+    /var/
+    /.vscode/
+    GITIGNORE;
 }
 
 /**
