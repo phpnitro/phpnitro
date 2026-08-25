@@ -11,7 +11,12 @@ android {
 
     defaultConfig {
         minSdk = 24
-        targetSdk = 36
+        // No targetSdk here: AGP 9.0+ removed it from a LIBRARY module's
+        // defaultConfig DSL entirely ("Unresolved reference", confirmed
+        // against a real CI run) — it was always an application-only
+        // concept (the app's own targetSdk is what Play Store checks),
+        // vestigial on a library either way. :app and :go (both
+        // com.android.application) keep their real targetSdk = 36.
     }
 
     packaging {
