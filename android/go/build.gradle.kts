@@ -27,15 +27,15 @@ android {
         applicationId = "com.phpnitro.go"
         minSdk = 24
         targetSdk = 36
-        // Bumped from 1/"0.1" — Play Console permanently consumes a
-        // versionCode the moment a real upload attempt reaches it (even
-        // one still in draft/setup, which is exactly what produced the
-        // deployment_cert.der/hybrid_*_cert.der files), so the fixed
-        // build (permissions stripped, native debug symbols configured)
-        // needs a strictly higher one or Google rejects the upload
-        // outright — not optional, a hard Play Console requirement.
-        versionCode = 2
-        versionName = "0.2"
+        // Bumped from 2/"0.2" straight to 4/"0.4" — Play Console permanently
+        // consumes a versionCode the moment a real upload attempt reaches
+        // it (even one still in draft/setup), and 3 was already consumed
+        // by an earlier upload before the two crash fixes above landed
+        // (WorkManager's WorkDatabase_Impl, ML Kit's DI graph) — this is
+        // the first build that actually contains both, so it needs a
+        // strictly higher versionCode than whatever the Store already has.
+        versionCode = 4
+        versionName = "0.4"
     }
 
     signingConfigs {
