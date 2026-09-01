@@ -1500,10 +1500,22 @@ function newProjectAndroidSettingsGradleKts(): string
  */
 function newProjectAndroidBuildGradleKts(): string
 {
+    // Kept in sync with this monorepo's own android/build.gradle.kts by
+    // hand (a scaffolded project writes this file fresh rather than
+    // copying it — it has no :engine module to include, JitPack's
+    // repository instead — so there's no single source of truth a diff
+    // would catch drifting). Confirmed the hard way once already: AGP
+    // 8.7.2 (the version this returned until 2026-09-01) caps out at
+    // compileSdk 35, silently incompatible with android/app/build.gradle.kts's
+    // compileSdk = 36 (copied verbatim into every scaffold) — every
+    // `phpx new` project failed to build from the moment it was created,
+    // nobody had scaffolded a fresh one since the AGP 9 bump to notice.
+    // No org.jetbrains.kotlin.android plugin either: AGP 9.0+ bundles
+    // Kotlin support directly ("built-in Kotlin") — see
+    // developer.android.com/build/migrate-to-built-in-kotlin.
     return <<<'GRADLE'
     plugins {
-        id("com.android.application") version "8.7.2" apply false
-        id("org.jetbrains.kotlin.android") version "2.0.21" apply false
+        id("com.android.application") version "9.0.1" apply false
     }
 
     GRADLE;
