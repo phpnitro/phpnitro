@@ -17,6 +17,23 @@
 # instantiate at the exact moment the periodic background ping fires.
 -keep class com.mobile.engine.BackgroundPingWorker { *; }
 
+# A DIFFERENT WorkManager failure than the one above, confirmed on a real
+# device on :go's real v0.3 release build (AGP 9.0.1): "Unable to get
+# provider androidx.startup.InitializationProvider ... Failed to create an
+# instance of class androidx.work.impl.WorkDatabase" — WorkManager's own
+# internal Room database (WorkDatabase_Impl) is only ever instantiated by
+# reflection, so R8 sees no direct call site and throws it away; a known
+# AGP 9 R8 regression (its default/consumer rules used to catch this, they
+# no longer reliably do). :app pulls in the same androidx.work dependency
+# transitively via :engine and has never been through a real signed
+# release build (see README's own "pas encore vérifié par un vrai build
+# signé" note) — applying the same fix here proactively rather than
+# waiting to hit it independently.
+-keep class androidx.work.impl.WorkDatabase_Impl { *; }
+-keep class * extends androidx.work.ListenableWorker {
+    <init>(android.content.Context, androidx.work.WorkerParameters);
+}
+
 # AndroidManifest.xml's <receiver android:name=".AlarmReceiver"> resolves
 # the class by that same literal name at broadcast-delivery time. AGP's own
 # default consumer rules already keep manifest-declared components in the
