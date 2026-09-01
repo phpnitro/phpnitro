@@ -170,7 +170,23 @@ class ConnectActivity : AppCompatActivity() {
 
         root.addView(content)
 
-        val scroll = ScrollView(this).apply { addView(root) }
+        // A ScrollView always gives its single child WRAP_CONTENT height —
+        // root (hero + form) only paints its own #F9FAFB background for
+        // that content height, not the screen's. On any device where the
+        // content is shorter than the actual screen (near enough on some
+        // aspect ratios, badly short on others — confirmed on 2 of 3 real
+        // devices tested, one showing a large black gap, not just an
+        // unstyled status/nav bar edge), the remainder showed through as
+        // the Activity window's own default background (AppCompat's
+        // day/night default — explains why the gap was gray on one phone,
+        // solid black on the other two). The scrollview itself IS stretched
+        // to the full window by setContentView(), so painting the
+        // background there — not just on its wrap-content child — is what
+        // actually covers the whole screen regardless of content height.
+        val scroll = ScrollView(this).apply {
+            setBackgroundColor(Color.parseColor("#F9FAFB"))
+            addView(root)
+        }
         setContentView(scroll)
     }
 
