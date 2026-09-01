@@ -13,12 +13,20 @@
 # consistent with every Play-Services-family SDK), which R8 partially
 # strips/renames despite the AAR's bundled consumer rules; a documented
 # ML Kit + R8 issue (googlesamples/mlkit#213 hits the exact same null
-# BarcodeScannerImpl$zza pattern). Keeping the whole package is
-# deliberate, not "the one class that crashed today" — R8 renamed enough
-# of the internal dynamic-dispatch chain that a narrower rule would very
-# plausibly just move the crash to the next zz*-named class in it.
--keep class com.google.mlkit.vision.barcode.** { *; }
--dontwarn com.google.mlkit.vision.barcode.**
+# BarcodeScannerImpl$zza pattern).
+#
+# First attempt kept only com.google.mlkit.vision.barcode.** — made it
+# WORSE (crashed at launch instead of at scan): ML Kit's internal
+# dependency-injection graph (its own MlKitInitProvider, same
+# androidx.startup-ContentProvider idiom WorkManager uses above) wires
+# barcode's internal Component against com.google.mlkit.common.sdkinternal
+# classes — a DIFFERENT package R8 was still free to rename. This isn't
+# "the two classes that happened to crash so far" — com.google.mlkit.common
+# is the shared internal machinery EVERY ML Kit feature module depends on
+# to bootstrap, so scope the keep to the whole SDK rather than keep
+# rediscovering which sub-package the dependency graph reaches into next.
+-keep class com.google.mlkit.** { *; }
+-dontwarn com.google.mlkit.**
 
 # Real crash confirmed on a real device, real v0.3 release build (AGP
 # 9.0.1): "Unable to get provider androidx.startup.InitializationProvider
