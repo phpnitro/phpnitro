@@ -1,9 +1,24 @@
 # PhpNitro Go has no JS bridge or reflection-based dispatch of its own
 # (that's :app's WebAppInterface, not used here — this app has no WebView
-# at all) — CameraX and ML Kit ship their own consumer ProGuard rules
-# inside their AARs, so nothing app-specific has been needed here yet. If
-# a release build crashes where a debug build doesn't, start by comparing
-# behavior with isMinifyEnabled = false before adding rules here.
+# at all). CameraX's own consumer ProGuard rules have been enough so far;
+# ML Kit's have NOT (see below) — if a release build crashes where a
+# debug build doesn't, start by comparing behavior with
+# isMinifyEnabled = false before adding rules here.
+
+# Real crash confirmed on a real device (ScanActivity, camera preview up,
+# first scan attempt), real release build (AGP 9.0.1): NullPointerException
+# invoking a method on a null com.google.mlkit.vision.barcode.internal.zzh
+# — ML Kit barcode-scanning resolves its internal scanner client through
+# its own dynamic-loading indirection (obfuscated zz*-named classes,
+# consistent with every Play-Services-family SDK), which R8 partially
+# strips/renames despite the AAR's bundled consumer rules; a documented
+# ML Kit + R8 issue (googlesamples/mlkit#213 hits the exact same null
+# BarcodeScannerImpl$zza pattern). Keeping the whole package is
+# deliberate, not "the one class that crashed today" — R8 renamed enough
+# of the internal dynamic-dispatch chain that a narrower rule would very
+# plausibly just move the crash to the next zz*-named class in it.
+-keep class com.google.mlkit.vision.barcode.** { *; }
+-dontwarn com.google.mlkit.vision.barcode.**
 
 # Real crash confirmed on a real device, real v0.3 release build (AGP
 # 9.0.1): "Unable to get provider androidx.startup.InitializationProvider

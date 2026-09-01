@@ -34,6 +34,20 @@
     <init>(android.content.Context, androidx.work.WorkerParameters);
 }
 
+# A DIFFERENT ML Kit failure than WorkManager's above, confirmed on a real
+# device on :go's real release build (AGP 9.0.1): NullPointerException
+# invoking a method on a null com.google.mlkit.vision.barcode.internal.zzh
+# — ML Kit barcode-scanning resolves its internal scanner client through
+# its own dynamic-loading indirection (obfuscated zz*-named classes), which
+# R8 partially strips/renames despite the AAR's bundled consumer rules; a
+# documented ML Kit + R8 issue (googlesamples/mlkit#213 hits the exact same
+# null BarcodeScannerImpl$zza pattern). :app pulls in the same
+# com.google.mlkit:barcode-scanning dependency transitively via :engine
+# (Engine\Native\QrScannerButton's still-image decode) and has never been
+# through a real signed release build — applying the same fix proactively.
+-keep class com.google.mlkit.vision.barcode.** { *; }
+-dontwarn com.google.mlkit.vision.barcode.**
+
 # AndroidManifest.xml's <receiver android:name=".AlarmReceiver"> resolves
 # the class by that same literal name at broadcast-delivery time. AGP's own
 # default consumer rules already keep manifest-declared components in the
