@@ -175,18 +175,36 @@ public final class NativeScreenViewController: UIViewController {
         }
 
         // device:* (Engine\Device\* action-string builders, e.g.
-        // Vibrate::vibrateAction()) — same "entirely client-side, no
-        // fetch at all" treatment as focus:/video:play: above, matching
+        // Vibrate::vibrateAction()) — matches
         // NativeRenderPocActivity.kt's own handleDeviceAction(), which
-        // branches on "device:" before anything that refetches. Only
-        // "vibrate" exists so far (2026-09-09) — see
-        // NativeDeviceBridge.swift's own docblock on why this is
-        // starting small rather than porting all ~40 Android has at once.
+        // branches on "device:" before anything else. Two shapes exist
+        // there: "vibrate" (entirely client-side, no fetch at all — same
+        // treatment focus:/video:play: get above) and the rest (torch/
+        // battery/deviceid...), which write their result into
+        // `fieldValues[outputFieldName]` and trigger a normal refetch so
+        // PHP can render it — `fetch(action: nil)` already sends every
+        // non-empty fieldValues entry (see ScreenClient's own docblock),
+        // so that's the whole "includeFields" equivalent here, no
+        // separate flag needed. Only these four exist so far
+        // (2026-09-09) of Android's ~40 — see NativeDeviceBridge.swift's
+        // own docblock on why this is starting small.
         if action.hasPrefix("device:") {
             let parts = action.dropFirst("device:".count).components(separatedBy: ":")
             switch parts.first {
             case "vibrate":
                 NativeDeviceBridge.vibrate(milliseconds: parts.count > 1 ? Int(parts[1]) ?? 200 : 200)
+            case "torch":
+                let outField = parts.count > 1 ? parts[1] : "torch_out"
+                fieldValues[outField] = NativeDeviceBridge.toggleTorch() ? "on" : "off"
+                fetch(action: nil)
+            case "battery":
+                let outField = parts.count > 1 ? parts[1] : "battery_out"
+                fieldValues[outField] = "\(NativeDeviceBridge.batteryLevel())%"
+                fetch(action: nil)
+            case "deviceid":
+                let outField = parts.count > 1 ? parts[1] : "device_id_out"
+                fieldValues[outField] = NativeDeviceBridge.deviceId()
+                fetch(action: nil)
             default:
                 break
             }
