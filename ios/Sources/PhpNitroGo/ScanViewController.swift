@@ -39,6 +39,10 @@ public final class ScanViewController: UIViewController, AVCaptureMetadataOutput
 
     override public func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        // See ConnectViewController/NativeScreenViewController's own
+        // identical override — ScanActivity.kt runs edge-to-edge too,
+        // same NoActionBar theme.
+        navigationController?.setNavigationBarHidden(true, animated: animated)
         if captureSession.isRunning == false, AVCaptureDevice.authorizationStatus(for: .video) == .authorized {
             DispatchQueue.global(qos: .userInitiated).async { [captureSession] in captureSession.startRunning() }
         }
