@@ -26,6 +26,11 @@ public final class NativeScreenViewController: UIViewController {
 
     private let errorView = ScreenErrorView()
 
+    /// Guards the first fetch, now fired from viewDidLayoutSubviews()
+    /// instead of viewDidLoad() — see that method's own doc comment for
+    /// why this moved.
+    private var hasFetchedOnce = false
+
     public init(host: String, port: Int, screen: String = "home") {
         self.client = ScreenClient(host: host, port: port)
         self.screenStack = [screen]
@@ -34,6 +39,23 @@ public final class NativeScreenViewController: UIViewController {
 
     public required init?(coder: NSCoder) {
         fatalError("NativeScreenViewController is always created with a host/port, not from a storyboard.")
+    }
+
+    override public func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        // Real layout bug found the first time this was compared
+        // side-by-side against a booted Android emulator (2026-09-09):
+        // every Android activity here runs under
+        // `Theme.AppCompat.DayNight.NoActionBar` (fully edge-to-edge,
+        // see android/engine/src/main/res/values/themes.xml) — this
+        // engine draws its own in-canvas app bars and back buttons
+        // (Canvas::appBar(), the "back" hitRegion) and never needs a
+        // second, system-drawn one. A UINavigationController's nav bar
+        // was left at its default visible state, pushing every screen's
+        // content down by its own height for nothing — a real gap
+        // between the status bar and the canvas' own drawn content that
+        // Android's equivalent screenshot never had.
+        navigationController?.setNavigationBarHidden(true, animated: animated)
     }
 
     override public func viewDidLoad() {
@@ -62,7 +84,25 @@ public final class NativeScreenViewController: UIViewController {
             errorView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
-        fetch(action: nil)
+    }
+
+    override public func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        // The very first fetch used to fire from viewDidLoad(), before
+        // Auto Layout had ever run — canvasView.bounds was still .zero
+        // then, so fetch(action:) fell back to UIScreen.main.bounds
+        // (the FULL device height, status bar included). That mismatch
+        // is exactly what broke the bottom tab bar (see fetch(action:)'s
+        // own doc comment): PHP's "fixed to bottom" elements ended up
+        // positioned a status-bar's-height too low for canvasView's own,
+        // smaller real bounds, pushing them out of its drawable area
+        // entirely. Firing the first fetch here instead — after layout
+        // has actually run — means canvasView.bounds is correct by the
+        // time PHP hears about it.
+        if !hasFetchedOnce {
+            hasFetchedOnce = true
+            fetch(action: nil)
+        }
     }
 
     /// For a future TextField overlay (or any other widget with its own
@@ -96,6 +136,25 @@ public final class NativeScreenViewController: UIViewController {
             return
         }
 
+        // device:* (Engine\Device\* action-string builders, e.g.
+        // Vibrate::vibrateAction()) — same "entirely client-side, no
+        // fetch at all" treatment as focus:/video:play: above, matching
+        // NativeRenderPocActivity.kt's own handleDeviceAction(), which
+        // branches on "device:" before anything that refetches. Only
+        // "vibrate" exists so far (2026-09-09) — see
+        // NativeDeviceBridge.swift's own docblock on why this is
+        // starting small rather than porting all ~40 Android has at once.
+        if action.hasPrefix("device:") {
+            let parts = action.dropFirst("device:".count).components(separatedBy: ":")
+            switch parts.first {
+            case "vibrate":
+                NativeDeviceBridge.vibrate(milliseconds: parts.count > 1 ? Int(parts[1]) ?? 200 : 200)
+            default:
+                break
+            }
+            return
+        }
+
         // map:open:<lat>:<lon>:<zoom> (MapView.php) — same "entirely
         // client-side, no fetch at all" treatment as focus: above.
         // Fallback values mirror NativeRenderPocActivity.kt's own
@@ -126,7 +185,16 @@ public final class NativeScreenViewController: UIViewController {
     }
 
     private func fetch(action: String?) {
-        let bounds = UIScreen.main.bounds
+        // canvasView.bounds, NOT UIScreen.main.bounds — PHP positions
+        // "fixed" elements (the bottom tab bar, a FAB) assuming the
+        // height it's told IS the real drawable height. UIScreen's own
+        // bounds include the status bar that canvasView's own top
+        // constraint (view.safeAreaLayoutGuide.topAnchor) sits below, so
+        // it used to tell PHP the canvas had ~59pt more room at the
+        // bottom than it actually does — see viewDidLayoutSubviews()'s
+        // own doc comment for how this was found and why the first
+        // fetch had to move there to get a real, laid-out bounds at all.
+        let bounds = canvasView.bounds
         let screen = screenStack.last ?? "home"
         client.fetchScreen(screen, action: action, width: bounds.width, height: bounds.height, fieldValues: fieldValues) { [weak self] result in
             DispatchQueue.main.async {

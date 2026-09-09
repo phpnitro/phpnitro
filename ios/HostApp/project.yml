@@ -27,3 +27,65 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phpnitro.hostapp
         TARGETED_DEVICE_FAMILY: "1"
+  HostAppUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - HostAppUITests
+    dependencies:
+      - target: HostApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phpnitro.hostapp.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: HostApp
+  GoHostApp:
+    type: application
+    platform: iOS
+    sources:
+      - GoHostApp
+    dependencies:
+      - package: PhpNitroEngine
+        product: PhpNitroGo
+    info:
+      path: GoHostApp/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        NSCameraUsageDescription: "Scanner le QR code affiché par phpx serve."
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phpnitro.gohostapp
+        TARGETED_DEVICE_FAMILY: "1"
+  GoHostAppUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - GoHostAppUITests
+    dependencies:
+      - target: GoHostApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phpnitro.gohostapp.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: GoHostApp
+schemes:
+  HostApp:
+    build:
+      targets:
+        HostApp: all
+        HostAppUITests: [test]
+    test:
+      targets:
+        - HostAppUITests
+  GoHostApp:
+    build:
+      targets:
+        GoHostApp: all
+        GoHostAppUITests: [test]
+    test:
+      targets:
+        - GoHostAppUITests

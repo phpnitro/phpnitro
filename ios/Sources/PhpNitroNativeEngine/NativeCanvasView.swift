@@ -32,20 +32,26 @@ public final class NativeCanvasView: UIView {
 
     /// Real bug found the first time this engine ever ran on an actual
     /// simulator/device (2026-09-09, first Mac available for this
-    /// project): the very first `icon` command drawn in this process
-    /// renders nothing — confirmed by redrawing that exact same
-    /// IconCommand a second time immediately afterward, in the same
-    /// draw(rect:) call, which then painted correctly. `text` (Roboto)
-    /// never showed this — only the icon fonts (MaterialIcons/
-    /// FontAwesome), registered at runtime via
+    /// project): drawing an `icon` command sometimes renders nothing —
+    /// confirmed by redrawing the exact same IconCommand a second time
+    /// immediately afterward, in the same draw(rect:) call, which then
+    /// painted correctly. `text` (Roboto) never showed this — only the
+    /// icon fonts (MaterialIcons/FontAwesome), registered at runtime via
     /// CTFontManagerRegisterGraphicsFont() (see IconFont.swift) rather
-    /// than declared in Info.plist, are affected. Neither a synchronous
-    /// throwaway draw right after registration (into a separate 1x1
-    /// offscreen context) nor an extra `setNeedsDisplay()` pass on a
-    /// later run-loop turn fixed it — only redrawing every icon again
-    /// later in this SAME draw(rect:) call, reusing this SAME CGContext,
-    /// does. See draw(rect:) below for the actual workaround.
-    private static var hasWarmedUpIconFont = false
+    /// than declared in Info.plist, are affected.
+    ///
+    /// Two narrower fixes were tried and both failed a real
+    /// navigate-away-and-back test in HostApp before this one: a
+    /// process-wide "only the very first icon ever" static flag missed
+    /// every NEW NativeCanvasView instance (a fresh CALayer/CGContext),
+    /// and a per-instance "only this view's first paint" flag still
+    /// missed cases where the SAME instance's later payload introduced
+    /// icon glyphs/sizes it hadn't drawn before. Rather than chase the
+    /// exact CoreText/UIKit precondition further, every draw(rect:) pass
+    /// simply repaints every icon command a second time, unconditionally
+    /// — icons are few and cheap per screen, and this is the one
+    /// approach confirmed to survive restart, in-app navigation, and
+    /// revisiting a screen.
 
     /// Fired from handleTap(_:) when a tap lands inside one of the
     /// current payload's hitRegions — the caller (whatever eventually
@@ -112,11 +118,45 @@ public final class NativeCanvasView: UIView {
     private let hScrollOffsets: [String: CGFloat] = [:]
     private let vScrollOffsets: [String: CGFloat] = [:]
 
+    // MARK: - Page scroll (NativeCanvasView.kt's own scrollY)
+    //
+    // A real bug found comparing side-by-side against a booted Android
+    // emulator (2026-09-09): this view had NO page-scroll support at
+    // all — every screen taller than one viewport just drew everything
+    // starting at y=0, silently clipping anything past the bottom edge,
+    // with nothing to reveal it. Ported from NativeCanvasView.kt's own
+    // scrollY/maxScrollY()/flingScroll() (a hand-rolled Float tracked by
+    // this view, translated at draw time — NOT a UIScrollView wrapping
+    // this view, so `fixed` content can be drawn a second time,
+    // untranslated, on top, matching Android's own two-pass
+    // drawCommands(..., fixed:) split exactly).
+
+    /// Current scroll offset in points, content space (same units
+    /// draw-command coordinates use) — 0 at the top. Mirrors
+    /// NativeCanvasView.kt:202's own `scrollY`.
+    private var scrollY: CGFloat = 0
+
+    private var panGesture: UIPanGestureRecognizer?
+    private var flingDisplayLink: CADisplayLink?
+    private var flingStartValue: CGFloat = 0
+    private var flingTargetValue: CGFloat = 0
+    private var flingStartTime: CFTimeInterval = 0
+    private let flingDuration: CFTimeInterval = 0.35
+
+    /// Mirrors NativeCanvasView.kt:632-635's own `maxScrollY()` —
+    /// `contentHeight` comes from the server-computed payload, never a
+    /// local Auto Layout measurement.
+    private func maxScrollY() -> CGFloat {
+        guard let payload else { return 0 }
+        return max(0, CGFloat(payload.contentHeight) - bounds.height)
+    }
+
     override public init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .white
         isOpaque = true
         configureTapRecognizer()
+        configurePanRecognizer()
     }
 
     public required init?(coder: NSCoder) {
@@ -124,6 +164,7 @@ public final class NativeCanvasView: UIView {
         backgroundColor = .white
         isOpaque = true
         configureTapRecognizer()
+        configurePanRecognizer()
     }
 
     deinit {
@@ -152,6 +193,16 @@ public final class NativeCanvasView: UIView {
         clearVideoOverlay()
         clearMapOverlay()
         updateAnimationState()
+        // Every new payload is a simplification of NativeCanvasView.kt's
+        // own scroll-preserving refetch (that one only resets scrollY on
+        // navigate:/tab:/back, keeping it across a same-screen toggle:
+        // refetch) — this always resets to the top. A stale scrollY
+        // surviving into a screen with a very different contentHeight
+        // (or a genuinely new screen after tab:/navigate:) is worse than
+        // losing scroll position on same-screen refetches scroll support
+        // doesn't distinguish here yet.
+        scrollY = 0
+        stopFling()
         setNeedsDisplay()
     }
 
@@ -273,32 +324,45 @@ public final class NativeCanvasView: UIView {
     override public func draw(_ rect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext(), let payload else { return }
 
-        for command in payload.commands {
+        // Two passes, mirroring NativeCanvasView.kt's own onDraw(): the
+        // scrollable pass translated by -scrollY, then the "fixed" pass
+        // (app bar, bottom tab bar, a FAB) drawn a second time with no
+        // translate at all, on top — see this class's own `scrollY`
+        // doc comment for why this was missing entirely before.
+        let scrollableCommands = payload.commands.filter { !$0.isFixed }
+        let fixedCommands = payload.commands.filter { $0.isFixed }
+
+        context.saveGState()
+        context.translateBy(x: 0, y: -scrollY)
+        for command in scrollableCommands {
             drawCommand(command, in: context)
         }
+        // See the doc comment above this class's own properties for why
+        // this unconditionally repeats on every pass. Walks into
+        // clientPanel/hScroll/vScroll's own nested `commands` too — an
+        // icon inside one of those is just as affected as a top-level one.
+        for icon in Self.allIconCommands(in: scrollableCommands) {
+            draw(icon, in: context)
+        }
+        context.restoreGState()
 
-        // Real bug found the first time this engine ever ran on an actual
-        // simulator/device (2026-09-09, first Mac available for this
-        // project): the very first `icon` command drawn in this PROCESS
-        // renders nothing. Confirmed narrowly: redrawing that exact same
-        // IconCommand a second time works ONLY when done later in this
-        // SAME draw(rect:) call, reusing this same CGContext — neither a
-        // throwaway warm-up draw into a separate offscreen context right
-        // after font registration, nor a whole extra `setNeedsDisplay()`
-        // pass on a later run-loop turn, fixed it (both tried and
-        // measured against a freshly-erased simulator first). So this
-        // isn't a process-wide CoreText glyph-cache cold start — it's
-        // specific to this view's own real, window-backed CGContext
-        // needing one FULL pass to complete before an icon font drawn
-        // into it will actually show pixels. Repainting every icon
-        // command once more, still inside this same call, is the
-        // smallest change that reproduces the confirmed-working
-        // "draw it twice" workaround without a visible double-frame.
-        if !Self.hasWarmedUpIconFont {
-            for case .icon(let icon) in payload.commands {
-                draw(icon, in: context)
+        for command in fixedCommands {
+            drawCommand(command, in: context)
+        }
+        for icon in Self.allIconCommands(in: fixedCommands) {
+            draw(icon, in: context)
+        }
+    }
+
+    private static func allIconCommands(in commands: [DrawCommand]) -> [IconCommand] {
+        commands.flatMap { command -> [IconCommand] in
+            switch command {
+            case .icon(let icon): return [icon]
+            case .clientPanel(let panel): return allIconCommands(in: panel.commands)
+            case .hScroll(let scroll): return allIconCommands(in: scroll.commands)
+            case .vScroll(let scroll): return allIconCommands(in: scroll.commands)
+            default: return []
             }
-            Self.hasWarmedUpIconFont = true
         }
     }
 
@@ -333,9 +397,95 @@ public final class NativeCanvasView: UIView {
     }
 
     @objc private func handleTap(_ recognizer: UITapGestureRecognizer) {
-        guard let payload, let region = payload.region(at: recognizer.location(in: self)) else { return }
-        let rect = CGRect(x: region.x, y: region.y, width: region.width, height: region.height)
-        onAction?(region.action, rect)
+        guard let payload, let region = payload.region(at: recognizer.location(in: self), scrollY: scrollY) else { return }
+        let contentRect = CGRect(x: region.x, y: region.y, width: region.width, height: region.height)
+        // showTextInput/showVideoOverlay/showMapOverlay all use this
+        // rect directly as a real subview's frame — VIEW space, not the
+        // draw commands' own CONTENT space. A `fixed` region was never
+        // translated by scrollY in the first place (see draw(rect:)'s
+        // own fixed pass), so only a scrollable region's rect needs
+        // shifting back by -scrollY to land in the same place on screen
+        // the tap actually landed.
+        let viewRect = (region.fixed ?? false) ? contentRect : contentRect.offsetBy(dx: 0, dy: -scrollY)
+        onAction?(region.action, viewRect)
+    }
+
+    // MARK: - Page scroll (drag + fling)
+
+    private func configurePanRecognizer() {
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+        addGestureRecognizer(pan)
+        panGesture = pan
+    }
+
+    @objc private func handlePan(_ recognizer: UIPanGestureRecognizer) {
+        let maxScroll = maxScrollY()
+        guard maxScroll > 0 else { return }
+
+        switch recognizer.state {
+        case .began:
+            stopFling()
+
+        case .changed:
+            // translation is CUMULATIVE since .began, so this recomputes
+            // scrollY from a fixed reference each call rather than
+            // accumulating a delta — recognizer.setTranslation(_: in:)
+            // keeps that reference at the drag's start point.
+            let translationY = recognizer.translation(in: self).y
+            scrollY = (scrollY - translationY).clamped(to: 0...maxScroll)
+            recognizer.setTranslation(.zero, in: self)
+            setNeedsDisplay()
+
+        case .ended, .cancelled:
+            // Mirrors NativeCanvasView.kt's own flingScroll(): velocity
+            // in points/sec, a fixed 0.35 factor for total travel
+            // distance, clamped to the scrollable range, eased out over
+            // flingDuration. -velocity because a fling continuing an
+            // upward drag (negative translation, content moving up)
+            // should keep INCREASING scrollY, same sign convention as
+            // the `.changed` branch above.
+            let velocityY = recognizer.velocity(in: self).y
+            guard abs(velocityY) >= 50 else { return }
+            let distance = -velocityY * 0.35
+            startFling(to: (scrollY + distance).clamped(to: 0...maxScroll))
+
+        default:
+            break
+        }
+    }
+
+    private func startFling(to target: CGFloat) {
+        flingStartValue = scrollY
+        flingTargetValue = target
+        flingStartTime = CACurrentMediaTime()
+
+        stopFlingDisplayLinkOnly()
+        let link = CADisplayLink(target: self, selector: #selector(flingTick))
+        link.add(to: .main, forMode: .common)
+        flingDisplayLink = link
+    }
+
+    @objc private func flingTick() {
+        let elapsed = CACurrentMediaTime() - flingStartTime
+        let t = min(1, elapsed / flingDuration)
+        // DecelerateInterpolator-equivalent ease-out (1 - (1-t)^2) —
+        // matches Android's own fling curve shape closely enough that
+        // the two platforms feel the same, without pulling in a real
+        // physics/friction simulation neither implementation actually uses.
+        let eased = 1 - (1 - t) * (1 - t)
+        scrollY = flingStartValue + (flingTargetValue - flingStartValue) * eased
+        setNeedsDisplay()
+
+        if t >= 1 { stopFling() }
+    }
+
+    private func stopFling() {
+        stopFlingDisplayLinkOnly()
+    }
+
+    private func stopFlingDisplayLinkOnly() {
+        flingDisplayLink?.invalidate()
+        flingDisplayLink = nil
     }
 
     // MARK: - Animation loop (spinner/skeleton only)
@@ -370,16 +520,35 @@ public final class NativeCanvasView: UIView {
             ? UIBezierPath(roundedRect: rect, cornerRadius: radius).cgPath
             : UIBezierPath(rect: rect).cgPath
 
+        // Real bug found the first time a screen with many consecutive
+        // borderless rects (no PHP `borderColor`/`borderWidth`) ever
+        // rendered on a device/simulator — every earlier screen this was
+        // checked against happened to have a bordered card early in its
+        // command list, which hid this completely. A CGContext's current
+        // path is NOT part of the graphics state stack (Apple's own
+        // docs on CGContext.saveGState() are explicit about this) — so
+        // it is NOT restored by restoreGState() the way fill/stroke
+        // color, line width, etc. are. `fillPath()`/`strokePath()` DO
+        // clear the current path as a side effect once they run, but a
+        // path added and never consumed by either (this rect has a
+        // fill, no border) used to stay in the context, silently
+        // prepended to the NEXT rect's own path — so that next rect's
+        // fillPath() painted its own shape AND every unconsumed leftover
+        // shape before it, in whatever color came last. A screen with
+        // many borderless rows compounds this every single row, quickly
+        // painting almost the entire background in the last fill color
+        // used. Fixed by only ever adding the path immediately before
+        // the call that consumes it, never leaving one dangling.
         context.saveGState()
-        context.addPath(path)
 
         if let color = command.color, let uiColor = UIColor(hex: color) {
+            context.addPath(path)
             context.setFillColor(uiColor.cgColor)
             context.fillPath()
-            context.addPath(path)
         }
 
         if let borderColor = command.borderColor, let uiColor = UIColor(hex: borderColor), (command.borderWidth ?? 0) > 0 {
+            context.addPath(path)
             context.setStrokeColor(uiColor.cgColor)
             context.setLineWidth(command.borderWidth ?? 1)
             context.strokePath()
@@ -712,12 +881,23 @@ public final class NativeCanvasView: UIView {
     }
 }
 
-extension UIColor {
+private extension Comparable {
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        min(max(self, range.lowerBound), range.upperBound)
+    }
+}
+
+public extension UIColor {
     /// Parses "#RRGGBB" or "#RRGGBBAA" — the exact two shapes every
     /// Engine\Color::toHex()/Tokens color constant on the PHP side
     /// produces. Returns nil (never crashes) on anything else, same
     /// "malformed input degrades gracefully" contract the rest of this
     /// renderer follows for an unrecognized command type.
+    ///
+    /// Public (not just internal to this target) — PhpNitroGo's own
+    /// ConnectViewController needs the exact same hex parsing to match
+    /// ConnectActivity.kt's colors verbatim, and duplicating this parser
+    /// there just to keep it target-private isn't worth it.
     convenience init?(hex: String) {
         var value = hex
         if value.hasPrefix("#") { value.removeFirst() }
