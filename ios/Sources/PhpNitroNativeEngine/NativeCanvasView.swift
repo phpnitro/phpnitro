@@ -30,6 +30,23 @@ import UIKit
 public final class NativeCanvasView: UIView {
     private var payload: DrawCommandPayload?
 
+    /// Real bug found the first time this engine ever ran on an actual
+    /// simulator/device (2026-09-09, first Mac available for this
+    /// project): the very first `icon` command drawn in this process
+    /// renders nothing — confirmed by redrawing that exact same
+    /// IconCommand a second time immediately afterward, in the same
+    /// draw(rect:) call, which then painted correctly. `text` (Roboto)
+    /// never showed this — only the icon fonts (MaterialIcons/
+    /// FontAwesome), registered at runtime via
+    /// CTFontManagerRegisterGraphicsFont() (see IconFont.swift) rather
+    /// than declared in Info.plist, are affected. Neither a synchronous
+    /// throwaway draw right after registration (into a separate 1x1
+    /// offscreen context) nor an extra `setNeedsDisplay()` pass on a
+    /// later run-loop turn fixed it — only redrawing every icon again
+    /// later in this SAME draw(rect:) call, reusing this SAME CGContext,
+    /// does. See draw(rect:) below for the actual workaround.
+    private static var hasWarmedUpIconFont = false
+
     /// Fired from handleTap(_:) when a tap lands inside one of the
     /// current payload's hitRegions — the caller (whatever eventually
     /// plays the role of NativeRenderPocActivity's own tap dispatch)
@@ -258,6 +275,30 @@ public final class NativeCanvasView: UIView {
 
         for command in payload.commands {
             drawCommand(command, in: context)
+        }
+
+        // Real bug found the first time this engine ever ran on an actual
+        // simulator/device (2026-09-09, first Mac available for this
+        // project): the very first `icon` command drawn in this PROCESS
+        // renders nothing. Confirmed narrowly: redrawing that exact same
+        // IconCommand a second time works ONLY when done later in this
+        // SAME draw(rect:) call, reusing this same CGContext — neither a
+        // throwaway warm-up draw into a separate offscreen context right
+        // after font registration, nor a whole extra `setNeedsDisplay()`
+        // pass on a later run-loop turn, fixed it (both tried and
+        // measured against a freshly-erased simulator first). So this
+        // isn't a process-wide CoreText glyph-cache cold start — it's
+        // specific to this view's own real, window-backed CGContext
+        // needing one FULL pass to complete before an icon font drawn
+        // into it will actually show pixels. Repainting every icon
+        // command once more, still inside this same call, is the
+        // smallest change that reproduces the confirmed-working
+        // "draw it twice" workaround without a visible double-frame.
+        if !Self.hasWarmedUpIconFont {
+            for case .icon(let icon) in payload.commands {
+                draw(icon, in: context)
+            }
+            Self.hasWarmedUpIconFont = true
         }
     }
 
