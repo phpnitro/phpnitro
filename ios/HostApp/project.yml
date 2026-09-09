@@ -27,3 +27,24 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phpnitro.hostapp
         TARGETED_DEVICE_FAMILY: "1"
+  HostAppUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - HostAppUITests
+    dependencies:
+      - target: HostApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phpnitro.hostapp.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: HostApp
+schemes:
+  HostApp:
+    build:
+      targets:
+        HostApp: all
+        HostAppUITests: [test]
+    test:
+      targets:
+        - HostAppUITests
