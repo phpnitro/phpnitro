@@ -229,10 +229,22 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					0D976CA77ABA7BC77D8B90EE = {
+						DevelopmentTeam = KGV44Q59VW;
+						ProvisioningStyle = Automatic;
 						TestTargetID = 9449693025558232B0B9E882;
 					};
 					4C93F8B55043917856E6E2F5 = {
+						DevelopmentTeam = KGV44Q59VW;
+						ProvisioningStyle = Automatic;
 						TestTargetID = 6524349EED4813911B1F3701;
+					};
+					6524349EED4813911B1F3701 = {
+						DevelopmentTeam = KGV44Q59VW;
+						ProvisioningStyle = Automatic;
+					};
+					9449693025558232B0B9E882 = {
+						DevelopmentTeam = KGV44Q59VW;
+						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -413,8 +425,10 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = KGV44Q59VW;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -551,8 +565,10 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = KGV44Q59VW;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
