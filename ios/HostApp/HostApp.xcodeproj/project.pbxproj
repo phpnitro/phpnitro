@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		004FA2E0BCF5E33DFD01DC77 /* PhpNitroNativeEngine in Frameworks */ = {isa = PBXBuildFile; productRef = B0E0EF3D68ADB7B1659BFFBD /* PhpNitroNativeEngine */; };
+		3B298E321BB08E36F414E2F9 /* DeviceVibrateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 949C000EBB7BBD97D3B8AB49 /* DeviceVibrateTests.swift */; };
 		4B1BA3BAEB32DDC56FAE6253 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 551D9369729ABE29383DEFB9 /* AppDelegate.swift */; };
 		87118DF82A865D74ACD3CD9E /* NavigationRoundTripTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F17395A4DF2B81A070CAB66B /* NavigationRoundTripTests.swift */; };
 		B003373B7013AA647BD0FE6D /* PhpNitroGo in Frameworks */ = {isa = PBXBuildFile; productRef = 45C1C408EC5E18AF683EC10D /* PhpNitroGo */; };
@@ -39,6 +40,7 @@
 		551D9369729ABE29383DEFB9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		5757A419B0A5EEC7ECDB38A6 /* GoHostApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GoHostApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9020CE7EACB62240190CCBA4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		949C000EBB7BBD97D3B8AB49 /* DeviceVibrateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceVibrateTests.swift; sourceTree = "<group>"; };
 		B533BACDC63140B7C5B28DE0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B76897E92937CCFD8BA41FE3 /* ios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ios; path = ..; sourceTree = SOURCE_ROOT; };
 		E88FE46BCBADF56395B96D03 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -97,6 +99,7 @@
 		6F0C4393728FCCA5C32222FF /* HostAppUITests */ = {
 			isa = PBXGroup;
 			children = (
+				949C000EBB7BBD97D3B8AB49 /* DeviceVibrateTests.swift */,
 				F17395A4DF2B81A070CAB66B /* NavigationRoundTripTests.swift */,
 			);
 			path = HostAppUITests;
@@ -279,6 +282,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3B298E321BB08E36F414E2F9 /* DeviceVibrateTests.swift in Sources */,
 				87118DF82A865D74ACD3CD9E /* NavigationRoundTripTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
