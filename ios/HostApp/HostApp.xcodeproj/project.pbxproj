@@ -8,11 +8,13 @@
 
 /* Begin PBXBuildFile section */
 		004FA2E0BCF5E33DFD01DC77 /* PhpNitroNativeEngine in Frameworks */ = {isa = PBXBuildFile; productRef = B0E0EF3D68ADB7B1659BFFBD /* PhpNitroNativeEngine */; };
+		1C38880867B9FF8C7123E85C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 211509AC2089AD9BD91E2B10 /* Assets.xcassets */; };
 		3B298E321BB08E36F414E2F9 /* DeviceVibrateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 949C000EBB7BBD97D3B8AB49 /* DeviceVibrateTests.swift */; };
 		4B1BA3BAEB32DDC56FAE6253 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 551D9369729ABE29383DEFB9 /* AppDelegate.swift */; };
 		87118DF82A865D74ACD3CD9E /* NavigationRoundTripTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F17395A4DF2B81A070CAB66B /* NavigationRoundTripTests.swift */; };
 		B003373B7013AA647BD0FE6D /* PhpNitroGo in Frameworks */ = {isa = PBXBuildFile; productRef = 45C1C408EC5E18AF683EC10D /* PhpNitroGo */; };
 		B2A8BD13FFDFBC063273B0CA /* GoConnectTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E1BF367FD444B6CCC067658 /* GoConnectTests.swift */; };
+		E3FF7BB59AE86815633E37F6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 409749CDBBFAB6D81943B688 /* Assets.xcassets */; };
 		E4EE27E758833556B2403203 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E88FE46BCBADF56395B96D03 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
@@ -35,6 +37,8 @@
 
 /* Begin PBXFileReference section */
 		0E1BF367FD444B6CCC067658 /* GoConnectTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoConnectTests.swift; sourceTree = "<group>"; };
+		211509AC2089AD9BD91E2B10 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		409749CDBBFAB6D81943B688 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		42D113A904F1E14B3A93CC17 /* HostAppUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = HostAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		5180BB1D2C878CF6A26B427F /* GoHostAppUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = GoHostAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		551D9369729ABE29383DEFB9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -80,6 +84,7 @@
 			isa = PBXGroup;
 			children = (
 				E88FE46BCBADF56395B96D03 /* AppDelegate.swift */,
+				409749CDBBFAB6D81943B688 /* Assets.xcassets */,
 				B533BACDC63140B7C5B28DE0 /* Info.plist */,
 			);
 			path = GoHostApp;
@@ -129,6 +134,7 @@
 			isa = PBXGroup;
 			children = (
 				551D9369729ABE29383DEFB9 /* AppDelegate.swift */,
+				211509AC2089AD9BD91E2B10 /* Assets.xcassets */,
 				9020CE7EACB62240190CCBA4 /* Info.plist */,
 			);
 			path = HostApp;
@@ -178,6 +184,7 @@
 			buildConfigurationList = 16BB2E7EE57ED564D0FDF20E /* Build configuration list for PBXNativeTarget "HostApp" */;
 			buildPhases = (
 				08A87C1C0639B8699AF1E065 /* Sources */,
+				1D89DB1B17743D46A6FFAA3F /* Resources */,
 				D4C954B655A538BE7B129EAF /* Frameworks */,
 			);
 			buildRules = (
@@ -197,6 +204,7 @@
 			buildConfigurationList = FDCBD6E4DEFD40CD8CD230F0 /* Build configuration list for PBXNativeTarget "GoHostApp" */;
 			buildPhases = (
 				A9333FA8E454D1F899739321 /* Sources */,
+				23B8C22944CFD695A27A189B /* Resources */,
 				9A59D586AD1C54944A6803BC /* Frameworks */,
 			);
 			buildRules = (
@@ -252,6 +260,25 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		1D89DB1B17743D46A6FFAA3F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1C38880867B9FF8C7123E85C /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		23B8C22944CFD695A27A189B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E3FF7BB59AE86815633E37F6 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		08A87C1C0639B8699AF1E065 /* Sources */ = {
