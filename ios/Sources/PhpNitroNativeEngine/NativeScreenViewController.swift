@@ -36,6 +36,23 @@ public final class NativeScreenViewController: UIViewController {
         fatalError("NativeScreenViewController is always created with a host/port, not from a storyboard.")
     }
 
+    override public func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        // Real layout bug found the first time this was compared
+        // side-by-side against a booted Android emulator (2026-09-09):
+        // every Android activity here runs under
+        // `Theme.AppCompat.DayNight.NoActionBar` (fully edge-to-edge,
+        // see android/engine/src/main/res/values/themes.xml) — this
+        // engine draws its own in-canvas app bars and back buttons
+        // (Canvas::appBar(), the "back" hitRegion) and never needs a
+        // second, system-drawn one. A UINavigationController's nav bar
+        // was left at its default visible state, pushing every screen's
+        // content down by its own height for nothing — a real gap
+        // between the status bar and the canvas' own drawn content that
+        // Android's equivalent screenshot never had.
+        navigationController?.setNavigationBarHidden(true, animated: animated)
+    }
+
     override public func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .white
