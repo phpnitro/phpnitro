@@ -113,6 +113,25 @@ public final class NativeScreenViewController: UIViewController {
             return
         }
 
+        // device:* (Engine\Device\* action-string builders, e.g.
+        // Vibrate::vibrateAction()) — same "entirely client-side, no
+        // fetch at all" treatment as focus:/video:play: above, matching
+        // NativeRenderPocActivity.kt's own handleDeviceAction(), which
+        // branches on "device:" before anything that refetches. Only
+        // "vibrate" exists so far (2026-09-09) — see
+        // NativeDeviceBridge.swift's own docblock on why this is
+        // starting small rather than porting all ~40 Android has at once.
+        if action.hasPrefix("device:") {
+            let parts = action.dropFirst("device:".count).components(separatedBy: ":")
+            switch parts.first {
+            case "vibrate":
+                NativeDeviceBridge.vibrate(milliseconds: parts.count > 1 ? Int(parts[1]) ?? 200 : 200)
+            default:
+                break
+            }
+            return
+        }
+
         // map:open:<lat>:<lon>:<zoom> (MapView.php) — same "entirely
         // client-side, no fetch at all" treatment as focus: above.
         // Fallback values mirror NativeRenderPocActivity.kt's own
