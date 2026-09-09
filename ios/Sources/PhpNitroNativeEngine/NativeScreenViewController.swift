@@ -26,6 +26,11 @@ public final class NativeScreenViewController: UIViewController {
 
     private let errorView = ScreenErrorView()
 
+    /// Guards the first fetch, now fired from viewDidLayoutSubviews()
+    /// instead of viewDidLoad() — see that method's own doc comment for
+    /// why this moved.
+    private var hasFetchedOnce = false
+
     public init(host: String, port: Int, screen: String = "home") {
         self.client = ScreenClient(host: host, port: port)
         self.screenStack = [screen]
@@ -79,7 +84,25 @@ public final class NativeScreenViewController: UIViewController {
             errorView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
-        fetch(action: nil)
+    }
+
+    override public func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        // The very first fetch used to fire from viewDidLoad(), before
+        // Auto Layout had ever run — canvasView.bounds was still .zero
+        // then, so fetch(action:) fell back to UIScreen.main.bounds
+        // (the FULL device height, status bar included). That mismatch
+        // is exactly what broke the bottom tab bar (see fetch(action:)'s
+        // own doc comment): PHP's "fixed to bottom" elements ended up
+        // positioned a status-bar's-height too low for canvasView's own,
+        // smaller real bounds, pushing them out of its drawable area
+        // entirely. Firing the first fetch here instead — after layout
+        // has actually run — means canvasView.bounds is correct by the
+        // time PHP hears about it.
+        if !hasFetchedOnce {
+            hasFetchedOnce = true
+            fetch(action: nil)
+        }
     }
 
     /// For a future TextField overlay (or any other widget with its own
@@ -162,7 +185,16 @@ public final class NativeScreenViewController: UIViewController {
     }
 
     private func fetch(action: String?) {
-        let bounds = UIScreen.main.bounds
+        // canvasView.bounds, NOT UIScreen.main.bounds — PHP positions
+        // "fixed" elements (the bottom tab bar, a FAB) assuming the
+        // height it's told IS the real drawable height. UIScreen's own
+        // bounds include the status bar that canvasView's own top
+        // constraint (view.safeAreaLayoutGuide.topAnchor) sits below, so
+        // it used to tell PHP the canvas had ~59pt more room at the
+        // bottom than it actually does — see viewDidLayoutSubviews()'s
+        // own doc comment for how this was found and why the first
+        // fetch had to move there to get a real, laid-out bounds at all.
+        let bounds = canvasView.bounds
         let screen = screenStack.last ?? "home"
         client.fetchScreen(screen, action: action, width: bounds.width, height: bounds.height, fieldValues: fieldValues) { [weak self] result in
             DispatchQueue.main.async {
