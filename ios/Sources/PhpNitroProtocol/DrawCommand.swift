@@ -322,9 +322,16 @@ public struct DrawCommandPayload: Decodable {
     /// custom `init(from:)` below rather than auto-synthesis specifically
     /// so a missing key defaults to `[]`, not a decode failure.
     public let sliderRegions: [SliderRegion]
+    /// How long PHP itself took to compute this response — surfaced by
+    /// NativeRenderPocActivity.kt's own DevTools panel (extracted there
+    /// via a regex against the raw response body; decoded properly here
+    /// instead) as "php: X ms", split apart from the surrounding
+    /// network/parse round trip so a slow frame can be blamed on the
+    /// right side.
+    public let renderTimeMs: Double?
 
     private enum CodingKeys: String, CodingKey {
-        case commands, hitRegions, contentHeight, sliderRegions
+        case commands, hitRegions, contentHeight, sliderRegions, renderTimeMs
     }
 
     public init(from decoder: Decoder) throws {
@@ -333,6 +340,7 @@ public struct DrawCommandPayload: Decodable {
         hitRegions = try container.decode([HitRegion].self, forKey: .hitRegions)
         contentHeight = try container.decode(Double.self, forKey: .contentHeight)
         sliderRegions = try container.decodeIfPresent([SliderRegion].self, forKey: .sliderRegions) ?? []
+        renderTimeMs = try container.decodeIfPresent(Double.self, forKey: .renderTimeMs)
     }
 
     /// Which hitRegion (if any) a tap at $point should fire — checked in
