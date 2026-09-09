@@ -31,6 +31,12 @@ public final class NativeScreenViewController: UIViewController {
     /// why this moved.
     private var hasFetchedOnce = false
 
+    #if DEBUG
+    /// See DevToolsOverlay's own docblock for why this whole feature is
+    /// compiled out of a release build entirely, not just hidden.
+    private let devTools = DevToolsOverlay()
+    #endif
+
     public init(host: String, port: Int, screen: String = "home") {
         self.client = ScreenClient(host: host, port: port)
         self.screenStack = [screen]
@@ -65,6 +71,9 @@ public final class NativeScreenViewController: UIViewController {
         canvasView.translatesAutoresizingMaskIntoConstraints = false
         canvasView.onAction = { [weak self] action, rect in self?.handle(action: action, rect: rect) }
         canvasView.onFieldValueChanged = { [weak self] name, value in self?.setFieldValue(value, forName: name) }
+        #if DEBUG
+        canvasView.onInspect = { [weak self] action, rect in self?.showInspectResult(action: action, rect: rect) }
+        #endif
         view.addSubview(canvasView)
         NSLayoutConstraint.activate([
             canvasView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
@@ -84,7 +93,36 @@ public final class NativeScreenViewController: UIViewController {
             errorView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
+        #if DEBUG
+        devTools.translatesAutoresizingMaskIntoConstraints = false
+        devTools.onToggleInspect = { [weak self] in self?.toggleInspectMode() }
+        view.addSubview(devTools)
+        NSLayoutConstraint.activate([
+            devTools.topAnchor.constraint(equalTo: view.topAnchor),
+            devTools.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            devTools.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            devTools.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+        #endif
     }
+
+    #if DEBUG
+    private func toggleInspectMode() {
+        canvasView.inspectMode.toggle()
+        devTools.setInspecting(canvasView.inspectMode)
+    }
+
+    private func showInspectResult(action: String, rect: CGRect) {
+        devTools.setInspecting(false)
+        let message = String(
+            format: "action: %@\nbounds: x=%.1f y=%.1f w=%.1f h=%.1f",
+            action, rect.origin.x, rect.origin.y, rect.width, rect.height
+        )
+        let alert = UIAlertController(title: "🔍 Widget inspecté", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
+    #endif
 
     override public func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
@@ -196,12 +234,27 @@ public final class NativeScreenViewController: UIViewController {
         // fetch had to move there to get a real, laid-out bounds at all.
         let bounds = canvasView.bounds
         let screen = screenStack.last ?? "home"
+        #if DEBUG
+        let fetchStart = Date()
+        #endif
         client.fetchScreen(screen, action: action, width: bounds.width, height: bounds.height, fieldValues: fieldValues) { [weak self] result in
             DispatchQueue.main.async {
                 switch result {
                 case .success(let payload):
                     self?.errorView.isHidden = true
                     self?.canvasView.setPayload(payload)
+                    #if DEBUG
+                    guard let self else { return }
+                    self.devTools.update(
+                        screen: screen,
+                        stackDepth: self.screenStack.count,
+                        roundTripMs: Date().timeIntervalSince(fetchStart) * 1000,
+                        phpRenderTimeMs: payload.renderTimeMs,
+                        commandCount: payload.commands.count,
+                        hitRegionCount: payload.hitRegions.count,
+                        wasUnchanged: false
+                    )
+                    #endif
                 case .failure(let error):
                     self?.errorView.show(error)
                 }
