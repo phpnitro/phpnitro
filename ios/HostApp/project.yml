@@ -1,0 +1,29 @@
+name: HostApp
+options:
+  bundleIdPrefix: com.phpnitro.hostapp
+  deploymentTarget:
+    iOS: "15.0"
+packages:
+  PhpNitroEngine:
+    path: ..
+targets:
+  HostApp:
+    type: application
+    platform: iOS
+    sources:
+      - HostApp
+    dependencies:
+      - package: PhpNitroEngine
+        product: PhpNitroNativeEngine
+    info:
+      path: HostApp/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.phpnitro.hostapp
+        TARGETED_DEVICE_FAMILY: "1"
