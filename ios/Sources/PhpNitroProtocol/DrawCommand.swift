@@ -61,6 +61,31 @@ public enum DrawCommand: Decodable {
         default: self = .unknown(type: type)
         }
     }
+
+    /// Whether NativeCanvasView.swift should draw this command in its
+    /// untranslated "fixed" pass (app bar, bottom tab bar, a FAB) rather
+    /// than the pass translated by `-scrollY` — mirrors
+    /// NativeCanvasView.kt's own `drawCommands(..., fixed: Boolean, ...)`
+    /// filter (`command.optBoolean("fixed", false) != fixed`). The
+    /// container types (clientPanel/hScroll/vScroll/slider) have no
+    /// `fixed` field of their own on the PHP side — Canvas::beginFixed()/
+    /// endFixed() only ever wraps flat primitives — so they default to
+    /// `false` (scrollable) here, same as Android's own `optBoolean`
+    /// would for a JSON object missing the key entirely.
+    public var isFixed: Bool {
+        switch self {
+        case .rect(let c): return c.fixed ?? false
+        case .text(let c): return c.fixed ?? false
+        case .icon(let c): return c.fixed ?? false
+        case .circle(let c): return c.fixed ?? false
+        case .line(let c): return c.fixed ?? false
+        case .arc(let c): return c.fixed ?? false
+        case .image(let c): return c.fixed ?? false
+        case .spinner(let c): return c.fixed ?? false
+        case .skeleton(let c): return c.fixed ?? false
+        case .clientPanel, .hScroll, .vScroll, .slider, .unknown: return false
+        }
+    }
 }
 
 /// Mirrors Canvas::rect()'s exact field set — $color/$borderColor are
@@ -75,6 +100,7 @@ public struct RectCommand: Decodable {
     public let radius: Double?
     public let borderColor: String?
     public let borderWidth: Double?
+    public let fixed: Bool?
 }
 
 public struct TextCommand: Decodable {
@@ -91,6 +117,7 @@ public struct TextCommand: Decodable {
     /// usage); a renderer should fall back to the system font when set,
     /// same as any other font it doesn't have.
     public let fontFamily: String?
+    public let fixed: Bool?
 }
 
 public struct IconCommand: Decodable {
@@ -105,6 +132,7 @@ public struct IconCommand: Decodable {
     /// android/engine/src/main/assets/fonts/ for what would need
     /// porting over as real font assets here too).
     public let font: String?
+    public let fixed: Bool?
 }
 
 public struct CircleCommand: Decodable {
@@ -114,6 +142,7 @@ public struct CircleCommand: Decodable {
     public let color: String?
     public let borderColor: String?
     public let borderWidth: Double?
+    public let fixed: Bool?
 }
 
 public struct LineCommand: Decodable {
@@ -123,6 +152,7 @@ public struct LineCommand: Decodable {
     public let y2: Double
     public let color: String
     public let width: Double?
+    public let fixed: Bool?
 }
 
 public struct ArcCommand: Decodable {
@@ -133,6 +163,7 @@ public struct ArcCommand: Decodable {
     public let sweepDegrees: Double
     public let color: String
     public let strokeWidth: Double
+    public let fixed: Bool?
 }
 
 /// Mirrors Canvas::image()'s field set (Image.php's own $url is passed
@@ -147,6 +178,7 @@ public struct ImageCommand: Decodable {
     public let height: Double
     public let url: String
     public let radius: Double?
+    public let fixed: Bool?
 }
 
 /// Mirrors Canvas::spinner()'s field set. No rotation angle travels with
@@ -161,6 +193,7 @@ public struct SpinnerCommand: Decodable {
     public let color: String
     public let trackColor: String
     public let strokeWidth: Double
+    public let fixed: Bool?
 }
 
 /// Mirrors Canvas::skeleton()'s field set — a loading placeholder with a
@@ -173,6 +206,7 @@ public struct SkeletonCommand: Decodable {
     public let height: Double
     public let color: String
     public let radius: Double
+    public let fixed: Bool?
 }
 
 /// Mirrors Canvas::clientTabPanel()'s field set — one embedded, already
@@ -254,6 +288,7 @@ public struct HitRegion: Decodable {
     public let width: Double
     public let height: Double
     public let action: String
+    public let fixed: Bool?
 }
 
 /// One entry of the envelope's own top-level `sliderRegions[]` — a
@@ -307,18 +342,27 @@ public struct DrawCommandPayload: Decodable {
     /// overlap should hit whichever one is visually on top. Mirrors
     /// NativeCanvasView.kt's own hit-testing intent (last-drawn wins),
     /// not a literal port of its implementation.
-    public func action(at point: CGPoint) -> String? {
-        region(at: point)?.action
+    ///
+    /// `scrollY` mirrors NativeCanvasView.kt's own `handleTap()`: a
+    /// region's own x/y/width/height are always in UNSCROLLED content
+    /// space (the same space draw commands use before the `-scrollY`
+    /// translate), so a raw tap point needs `scrollY` added back before
+    /// comparing — except for a `fixed` region (the bottom tab bar, a
+    /// FAB), which was never translated in the first place and must be
+    /// compared against the raw point as-is.
+    public func action(at point: CGPoint, scrollY: Double = 0) -> String? {
+        region(at: point, scrollY: scrollY)?.action
     }
 
     /// Same matching order/logic as `action(at:)` above, but returns the
     /// whole matched `HitRegion` — a `focus:` action needs its rect to
     /// position a text-input overlay (see `NativeScreenViewController.swift`'s
     /// own `handle(action:rect:)`).
-    public func region(at point: CGPoint) -> HitRegion? {
+    public func region(at point: CGPoint, scrollY: Double = 0) -> HitRegion? {
         for region in hitRegions.reversed() {
             let rect = CGRect(x: region.x, y: region.y, width: region.width, height: region.height)
-            if rect.contains(point) {
+            let effectivePoint = (region.fixed ?? false) ? point : CGPoint(x: point.x, y: point.y + scrollY)
+            if rect.contains(effectivePoint) {
                 return region
             }
         }

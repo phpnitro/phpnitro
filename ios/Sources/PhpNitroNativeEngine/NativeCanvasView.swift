@@ -118,11 +118,45 @@ public final class NativeCanvasView: UIView {
     private let hScrollOffsets: [String: CGFloat] = [:]
     private let vScrollOffsets: [String: CGFloat] = [:]
 
+    // MARK: - Page scroll (NativeCanvasView.kt's own scrollY)
+    //
+    // A real bug found comparing side-by-side against a booted Android
+    // emulator (2026-09-09): this view had NO page-scroll support at
+    // all — every screen taller than one viewport just drew everything
+    // starting at y=0, silently clipping anything past the bottom edge,
+    // with nothing to reveal it. Ported from NativeCanvasView.kt's own
+    // scrollY/maxScrollY()/flingScroll() (a hand-rolled Float tracked by
+    // this view, translated at draw time — NOT a UIScrollView wrapping
+    // this view, so `fixed` content can be drawn a second time,
+    // untranslated, on top, matching Android's own two-pass
+    // drawCommands(..., fixed:) split exactly).
+
+    /// Current scroll offset in points, content space (same units
+    /// draw-command coordinates use) — 0 at the top. Mirrors
+    /// NativeCanvasView.kt:202's own `scrollY`.
+    private var scrollY: CGFloat = 0
+
+    private var panGesture: UIPanGestureRecognizer?
+    private var flingDisplayLink: CADisplayLink?
+    private var flingStartValue: CGFloat = 0
+    private var flingTargetValue: CGFloat = 0
+    private var flingStartTime: CFTimeInterval = 0
+    private let flingDuration: CFTimeInterval = 0.35
+
+    /// Mirrors NativeCanvasView.kt:632-635's own `maxScrollY()` —
+    /// `contentHeight` comes from the server-computed payload, never a
+    /// local Auto Layout measurement.
+    private func maxScrollY() -> CGFloat {
+        guard let payload else { return 0 }
+        return max(0, CGFloat(payload.contentHeight) - bounds.height)
+    }
+
     override public init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .white
         isOpaque = true
         configureTapRecognizer()
+        configurePanRecognizer()
     }
 
     public required init?(coder: NSCoder) {
@@ -130,6 +164,7 @@ public final class NativeCanvasView: UIView {
         backgroundColor = .white
         isOpaque = true
         configureTapRecognizer()
+        configurePanRecognizer()
     }
 
     deinit {
@@ -158,6 +193,16 @@ public final class NativeCanvasView: UIView {
         clearVideoOverlay()
         clearMapOverlay()
         updateAnimationState()
+        // Every new payload is a simplification of NativeCanvasView.kt's
+        // own scroll-preserving refetch (that one only resets scrollY on
+        // navigate:/tab:/back, keeping it across a same-screen toggle:
+        // refetch) — this always resets to the top. A stale scrollY
+        // surviving into a screen with a very different contentHeight
+        // (or a genuinely new screen after tab:/navigate:) is worse than
+        // losing scroll position on same-screen refetches scroll support
+        // doesn't distinguish here yet.
+        scrollY = 0
+        stopFling()
         setNeedsDisplay()
     }
 
@@ -279,15 +324,32 @@ public final class NativeCanvasView: UIView {
     override public func draw(_ rect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext(), let payload else { return }
 
-        for command in payload.commands {
+        // Two passes, mirroring NativeCanvasView.kt's own onDraw(): the
+        // scrollable pass translated by -scrollY, then the "fixed" pass
+        // (app bar, bottom tab bar, a FAB) drawn a second time with no
+        // translate at all, on top — see this class's own `scrollY`
+        // doc comment for why this was missing entirely before.
+        let scrollableCommands = payload.commands.filter { !$0.isFixed }
+        let fixedCommands = payload.commands.filter { $0.isFixed }
+
+        context.saveGState()
+        context.translateBy(x: 0, y: -scrollY)
+        for command in scrollableCommands {
             drawCommand(command, in: context)
         }
-
         // See the doc comment above this class's own properties for why
         // this unconditionally repeats on every pass. Walks into
         // clientPanel/hScroll/vScroll's own nested `commands` too — an
         // icon inside one of those is just as affected as a top-level one.
-        for icon in Self.allIconCommands(in: payload.commands) {
+        for icon in Self.allIconCommands(in: scrollableCommands) {
+            draw(icon, in: context)
+        }
+        context.restoreGState()
+
+        for command in fixedCommands {
+            drawCommand(command, in: context)
+        }
+        for icon in Self.allIconCommands(in: fixedCommands) {
             draw(icon, in: context)
         }
     }
@@ -335,9 +397,95 @@ public final class NativeCanvasView: UIView {
     }
 
     @objc private func handleTap(_ recognizer: UITapGestureRecognizer) {
-        guard let payload, let region = payload.region(at: recognizer.location(in: self)) else { return }
-        let rect = CGRect(x: region.x, y: region.y, width: region.width, height: region.height)
-        onAction?(region.action, rect)
+        guard let payload, let region = payload.region(at: recognizer.location(in: self), scrollY: scrollY) else { return }
+        let contentRect = CGRect(x: region.x, y: region.y, width: region.width, height: region.height)
+        // showTextInput/showVideoOverlay/showMapOverlay all use this
+        // rect directly as a real subview's frame — VIEW space, not the
+        // draw commands' own CONTENT space. A `fixed` region was never
+        // translated by scrollY in the first place (see draw(rect:)'s
+        // own fixed pass), so only a scrollable region's rect needs
+        // shifting back by -scrollY to land in the same place on screen
+        // the tap actually landed.
+        let viewRect = (region.fixed ?? false) ? contentRect : contentRect.offsetBy(dx: 0, dy: -scrollY)
+        onAction?(region.action, viewRect)
+    }
+
+    // MARK: - Page scroll (drag + fling)
+
+    private func configurePanRecognizer() {
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+        addGestureRecognizer(pan)
+        panGesture = pan
+    }
+
+    @objc private func handlePan(_ recognizer: UIPanGestureRecognizer) {
+        let maxScroll = maxScrollY()
+        guard maxScroll > 0 else { return }
+
+        switch recognizer.state {
+        case .began:
+            stopFling()
+
+        case .changed:
+            // translation is CUMULATIVE since .began, so this recomputes
+            // scrollY from a fixed reference each call rather than
+            // accumulating a delta — recognizer.setTranslation(_: in:)
+            // keeps that reference at the drag's start point.
+            let translationY = recognizer.translation(in: self).y
+            scrollY = (scrollY - translationY).clamped(to: 0...maxScroll)
+            recognizer.setTranslation(.zero, in: self)
+            setNeedsDisplay()
+
+        case .ended, .cancelled:
+            // Mirrors NativeCanvasView.kt's own flingScroll(): velocity
+            // in points/sec, a fixed 0.35 factor for total travel
+            // distance, clamped to the scrollable range, eased out over
+            // flingDuration. -velocity because a fling continuing an
+            // upward drag (negative translation, content moving up)
+            // should keep INCREASING scrollY, same sign convention as
+            // the `.changed` branch above.
+            let velocityY = recognizer.velocity(in: self).y
+            guard abs(velocityY) >= 50 else { return }
+            let distance = -velocityY * 0.35
+            startFling(to: (scrollY + distance).clamped(to: 0...maxScroll))
+
+        default:
+            break
+        }
+    }
+
+    private func startFling(to target: CGFloat) {
+        flingStartValue = scrollY
+        flingTargetValue = target
+        flingStartTime = CACurrentMediaTime()
+
+        stopFlingDisplayLinkOnly()
+        let link = CADisplayLink(target: self, selector: #selector(flingTick))
+        link.add(to: .main, forMode: .common)
+        flingDisplayLink = link
+    }
+
+    @objc private func flingTick() {
+        let elapsed = CACurrentMediaTime() - flingStartTime
+        let t = min(1, elapsed / flingDuration)
+        // DecelerateInterpolator-equivalent ease-out (1 - (1-t)^2) —
+        // matches Android's own fling curve shape closely enough that
+        // the two platforms feel the same, without pulling in a real
+        // physics/friction simulation neither implementation actually uses.
+        let eased = 1 - (1 - t) * (1 - t)
+        scrollY = flingStartValue + (flingTargetValue - flingStartValue) * eased
+        setNeedsDisplay()
+
+        if t >= 1 { stopFling() }
+    }
+
+    private func stopFling() {
+        stopFlingDisplayLinkOnly()
+    }
+
+    private func stopFlingDisplayLinkOnly() {
+        flingDisplayLink?.invalidate()
+        flingDisplayLink = nil
     }
 
     // MARK: - Animation loop (spinner/skeleton only)
@@ -730,6 +878,12 @@ public final class NativeCanvasView: UIView {
         context.strokePath()
 
         context.restoreGState()
+    }
+}
+
+private extension Comparable {
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        min(max(self, range.lowerBound), range.upperBound)
     }
 }
 
