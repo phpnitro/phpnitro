@@ -179,6 +179,17 @@ public final class ConnectViewController: UIViewController, UITextFieldDelegate 
         let fieldIcon = UILabel()
         fieldIcon.text = "🌐"
         fieldIcon.font = .systemFont(ofSize: 16)
+        // Without this, fieldIcon (not urlField) was the one stretching
+        // to fill fieldBox's leftover width — UIStackView's `.fill`
+        // distribution picks whichever arranged view has the lower
+        // horizontal content-hugging priority to absorb slack space, and
+        // a bare UILabel's default here wasn't reliably lower than
+        // UITextField's own. Found by giving both a background color
+        // (green/blue) and looking at their real frames: the field's
+        // own placeholder WAS already left-aligned — inside a box that
+        // started three-quarters of the way across, because the icon
+        // label had eaten all the space up to that point.
+        fieldIcon.setContentHuggingPriority(.required, for: .horizontal)
 
         urlField.placeholder = "192.168.1.23:8090"
         urlField.textColor = UIColor(hex: "#111827")
