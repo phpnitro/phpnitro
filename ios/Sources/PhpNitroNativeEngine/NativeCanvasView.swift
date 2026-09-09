@@ -32,20 +32,26 @@ public final class NativeCanvasView: UIView {
 
     /// Real bug found the first time this engine ever ran on an actual
     /// simulator/device (2026-09-09, first Mac available for this
-    /// project): the very first `icon` command drawn in this process
-    /// renders nothing — confirmed by redrawing that exact same
-    /// IconCommand a second time immediately afterward, in the same
-    /// draw(rect:) call, which then painted correctly. `text` (Roboto)
-    /// never showed this — only the icon fonts (MaterialIcons/
-    /// FontAwesome), registered at runtime via
+    /// project): drawing an `icon` command sometimes renders nothing —
+    /// confirmed by redrawing the exact same IconCommand a second time
+    /// immediately afterward, in the same draw(rect:) call, which then
+    /// painted correctly. `text` (Roboto) never showed this — only the
+    /// icon fonts (MaterialIcons/FontAwesome), registered at runtime via
     /// CTFontManagerRegisterGraphicsFont() (see IconFont.swift) rather
-    /// than declared in Info.plist, are affected. Neither a synchronous
-    /// throwaway draw right after registration (into a separate 1x1
-    /// offscreen context) nor an extra `setNeedsDisplay()` pass on a
-    /// later run-loop turn fixed it — only redrawing every icon again
-    /// later in this SAME draw(rect:) call, reusing this SAME CGContext,
-    /// does. See draw(rect:) below for the actual workaround.
-    private static var hasWarmedUpIconFont = false
+    /// than declared in Info.plist, are affected.
+    ///
+    /// Two narrower fixes were tried and both failed a real
+    /// navigate-away-and-back test in HostApp before this one: a
+    /// process-wide "only the very first icon ever" static flag missed
+    /// every NEW NativeCanvasView instance (a fresh CALayer/CGContext),
+    /// and a per-instance "only this view's first paint" flag still
+    /// missed cases where the SAME instance's later payload introduced
+    /// icon glyphs/sizes it hadn't drawn before. Rather than chase the
+    /// exact CoreText/UIKit precondition further, every draw(rect:) pass
+    /// simply repaints every icon command a second time, unconditionally
+    /// — icons are few and cheap per screen, and this is the one
+    /// approach confirmed to survive restart, in-app navigation, and
+    /// revisiting a screen.
 
     /// Fired from handleTap(_:) when a tap lands inside one of the
     /// current payload's hitRegions — the caller (whatever eventually
@@ -277,28 +283,24 @@ public final class NativeCanvasView: UIView {
             drawCommand(command, in: context)
         }
 
-        // Real bug found the first time this engine ever ran on an actual
-        // simulator/device (2026-09-09, first Mac available for this
-        // project): the very first `icon` command drawn in this PROCESS
-        // renders nothing. Confirmed narrowly: redrawing that exact same
-        // IconCommand a second time works ONLY when done later in this
-        // SAME draw(rect:) call, reusing this same CGContext — neither a
-        // throwaway warm-up draw into a separate offscreen context right
-        // after font registration, nor a whole extra `setNeedsDisplay()`
-        // pass on a later run-loop turn, fixed it (both tried and
-        // measured against a freshly-erased simulator first). So this
-        // isn't a process-wide CoreText glyph-cache cold start — it's
-        // specific to this view's own real, window-backed CGContext
-        // needing one FULL pass to complete before an icon font drawn
-        // into it will actually show pixels. Repainting every icon
-        // command once more, still inside this same call, is the
-        // smallest change that reproduces the confirmed-working
-        // "draw it twice" workaround without a visible double-frame.
-        if !Self.hasWarmedUpIconFont {
-            for case .icon(let icon) in payload.commands {
-                draw(icon, in: context)
+        // See the doc comment above this class's own properties for why
+        // this unconditionally repeats on every pass. Walks into
+        // clientPanel/hScroll/vScroll's own nested `commands` too — an
+        // icon inside one of those is just as affected as a top-level one.
+        for icon in Self.allIconCommands(in: payload.commands) {
+            draw(icon, in: context)
+        }
+    }
+
+    private static func allIconCommands(in commands: [DrawCommand]) -> [IconCommand] {
+        commands.flatMap { command -> [IconCommand] in
+            switch command {
+            case .icon(let icon): return [icon]
+            case .clientPanel(let panel): return allIconCommands(in: panel.commands)
+            case .hScroll(let scroll): return allIconCommands(in: scroll.commands)
+            case .vScroll(let scroll): return allIconCommands(in: scroll.commands)
+            default: return []
             }
-            Self.hasWarmedUpIconFont = true
         }
     }
 
