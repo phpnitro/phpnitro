@@ -372,16 +372,35 @@ public final class NativeCanvasView: UIView {
             ? UIBezierPath(roundedRect: rect, cornerRadius: radius).cgPath
             : UIBezierPath(rect: rect).cgPath
 
+        // Real bug found the first time a screen with many consecutive
+        // borderless rects (no PHP `borderColor`/`borderWidth`) ever
+        // rendered on a device/simulator — every earlier screen this was
+        // checked against happened to have a bordered card early in its
+        // command list, which hid this completely. A CGContext's current
+        // path is NOT part of the graphics state stack (Apple's own
+        // docs on CGContext.saveGState() are explicit about this) — so
+        // it is NOT restored by restoreGState() the way fill/stroke
+        // color, line width, etc. are. `fillPath()`/`strokePath()` DO
+        // clear the current path as a side effect once they run, but a
+        // path added and never consumed by either (this rect has a
+        // fill, no border) used to stay in the context, silently
+        // prepended to the NEXT rect's own path — so that next rect's
+        // fillPath() painted its own shape AND every unconsumed leftover
+        // shape before it, in whatever color came last. A screen with
+        // many borderless rows compounds this every single row, quickly
+        // painting almost the entire background in the last fill color
+        // used. Fixed by only ever adding the path immediately before
+        // the call that consumes it, never leaving one dangling.
         context.saveGState()
-        context.addPath(path)
 
         if let color = command.color, let uiColor = UIColor(hex: color) {
+            context.addPath(path)
             context.setFillColor(uiColor.cgColor)
             context.fillPath()
-            context.addPath(path)
         }
 
         if let borderColor = command.borderColor, let uiColor = UIColor(hex: borderColor), (command.borderWidth ?? 0) > 0 {
+            context.addPath(path)
             context.setStrokeColor(uiColor.cgColor)
             context.setLineWidth(command.borderWidth ?? 1)
             context.strokePath()
