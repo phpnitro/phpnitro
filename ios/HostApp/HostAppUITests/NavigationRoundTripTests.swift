@@ -25,16 +25,19 @@ final class NavigationRoundTripTests: XCTestCase {
         let home = XCUIScreen.main.screenshot().image.pngData()
 
         // "Réglages" row (hitRegion action: "navigate:settings" — PHP's
-        // own x=20,y=285.75,width=320,height=62 canvas-local; canvas
-        // top sits ~124pt below the device's own top edge).
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.448, dy: 0.504)).tap()
+        // own x=20,y=285.75,width=320,height=62 canvas-local; canvas top
+        // sits ~59pt below the device's own top edge — just the status
+        // bar, no system nav bar, see NativeScreenViewController's own
+        // setNavigationBarHidden(true) fix for why that's ~124pt less
+        // than it used to be).
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.448, dy: 0.430)).tap()
         sleep(2)
         let afterNavigate = XCUIScreen.main.screenshot().image.pngData()
 
         // The settings screen's own fixed appbar "back" hitRegion
         // (x=16,y=10,width=36,height=36 canvas-local) — a real
         // "action": "back" from PHP, not a synthetic gesture.
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.085, dy: 0.174)).tap()
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.085, dy: 0.10)).tap()
         sleep(2)
         let afterBack = XCUIScreen.main.screenshot().image.pngData()
 
