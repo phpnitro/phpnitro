@@ -10,9 +10,19 @@
 		004FA2E0BCF5E33DFD01DC77 /* PhpNitroNativeEngine in Frameworks */ = {isa = PBXBuildFile; productRef = B0E0EF3D68ADB7B1659BFFBD /* PhpNitroNativeEngine */; };
 		4B1BA3BAEB32DDC56FAE6253 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 551D9369729ABE29383DEFB9 /* AppDelegate.swift */; };
 		87118DF82A865D74ACD3CD9E /* NavigationRoundTripTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F17395A4DF2B81A070CAB66B /* NavigationRoundTripTests.swift */; };
+		B003373B7013AA647BD0FE6D /* PhpNitroGo in Frameworks */ = {isa = PBXBuildFile; productRef = 45C1C408EC5E18AF683EC10D /* PhpNitroGo */; };
+		B2A8BD13FFDFBC063273B0CA /* GoConnectTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E1BF367FD444B6CCC067658 /* GoConnectTests.swift */; };
+		E4EE27E758833556B2403203 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E88FE46BCBADF56395B96D03 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		8F4C49DF383FA6C15B6A06E7 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 79099445C4BF84705A69E2B5 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9449693025558232B0B9E882;
+			remoteInfo = GoHostApp;
+		};
 		CA9A7D7BA515B23493F3FADB /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 79099445C4BF84705A69E2B5 /* Project object */;
@@ -23,15 +33,28 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0E1BF367FD444B6CCC067658 /* GoConnectTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoConnectTests.swift; sourceTree = "<group>"; };
 		42D113A904F1E14B3A93CC17 /* HostAppUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = HostAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5180BB1D2C878CF6A26B427F /* GoHostAppUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = GoHostAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		551D9369729ABE29383DEFB9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		5757A419B0A5EEC7ECDB38A6 /* GoHostApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GoHostApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9020CE7EACB62240190CCBA4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		B533BACDC63140B7C5B28DE0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B76897E92937CCFD8BA41FE3 /* ios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ios; path = ..; sourceTree = SOURCE_ROOT; };
+		E88FE46BCBADF56395B96D03 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		EC775FAA03B8A4A9EA9B9F30 /* HostApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = HostApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F17395A4DF2B81A070CAB66B /* NavigationRoundTripTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationRoundTripTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		9A59D586AD1C54944A6803BC /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B003373B7013AA647BD0FE6D /* PhpNitroGo in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D4C954B655A538BE7B129EAF /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -51,9 +74,20 @@
 			name = Packages;
 			sourceTree = "<group>";
 		};
+		2C91CCFA169981FF18E0820C /* GoHostApp */ = {
+			isa = PBXGroup;
+			children = (
+				E88FE46BCBADF56395B96D03 /* AppDelegate.swift */,
+				B533BACDC63140B7C5B28DE0 /* Info.plist */,
+			);
+			path = GoHostApp;
+			sourceTree = "<group>";
+		};
 		6A25AA5B3A0502300D45A53A /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				5757A419B0A5EEC7ECDB38A6 /* GoHostApp.app */,
+				5180BB1D2C878CF6A26B427F /* GoHostAppUITests.xctest */,
 				EC775FAA03B8A4A9EA9B9F30 /* HostApp.app */,
 				42D113A904F1E14B3A93CC17 /* HostAppUITests.xctest */,
 			);
@@ -68,9 +102,19 @@
 			path = HostAppUITests;
 			sourceTree = "<group>";
 		};
+		B537D5DE7E0C5F74E85CD1FC /* GoHostAppUITests */ = {
+			isa = PBXGroup;
+			children = (
+				0E1BF367FD444B6CCC067658 /* GoConnectTests.swift */,
+			);
+			path = GoHostAppUITests;
+			sourceTree = "<group>";
+		};
 		D9C9E99AB9D4B127B9F05FB2 = {
 			isa = PBXGroup;
 			children = (
+				2C91CCFA169981FF18E0820C /* GoHostApp */,
+				B537D5DE7E0C5F74E85CD1FC /* GoHostAppUITests */,
 				ECFF6D473491C6837CE726B4 /* HostApp */,
 				6F0C4393728FCCA5C32222FF /* HostAppUITests */,
 				2A46B5C560E45E2F92C69948 /* Packages */,
@@ -90,6 +134,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		0D976CA77ABA7BC77D8B90EE /* GoHostAppUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5CF86429FF1EEABE8285C4A7 /* Build configuration list for PBXNativeTarget "GoHostAppUITests" */;
+			buildPhases = (
+				A5E012C50D8284EE52729244 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				4CCD1029A32238406476AD47 /* PBXTargetDependency */,
+			);
+			name = GoHostAppUITests;
+			packageProductDependencies = (
+			);
+			productName = GoHostAppUITests;
+			productReference = 5180BB1D2C878CF6A26B427F /* GoHostAppUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		4C93F8B55043917856E6E2F5 /* HostAppUITests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 1E3886DCD5DC3A722AD20BA3 /* Build configuration list for PBXNativeTarget "HostAppUITests" */;
@@ -127,6 +189,25 @@
 			productReference = EC775FAA03B8A4A9EA9B9F30 /* HostApp.app */;
 			productType = "com.apple.product-type.application";
 		};
+		9449693025558232B0B9E882 /* GoHostApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FDCBD6E4DEFD40CD8CD230F0 /* Build configuration list for PBXNativeTarget "GoHostApp" */;
+			buildPhases = (
+				A9333FA8E454D1F899739321 /* Sources */,
+				9A59D586AD1C54944A6803BC /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = GoHostApp;
+			packageProductDependencies = (
+				45C1C408EC5E18AF683EC10D /* PhpNitroGo */,
+			);
+			productName = GoHostApp;
+			productReference = 5757A419B0A5EEC7ECDB38A6 /* GoHostApp.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -136,6 +217,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					0D976CA77ABA7BC77D8B90EE = {
+						TestTargetID = 9449693025558232B0B9E882;
+					};
 					4C93F8B55043917856E6E2F5 = {
 						TestTargetID = 6524349EED4813911B1F3701;
 					};
@@ -160,6 +244,8 @@
 			targets = (
 				6524349EED4813911B1F3701 /* HostApp */,
 				4C93F8B55043917856E6E2F5 /* HostAppUITests */,
+				9449693025558232B0B9E882 /* GoHostApp */,
+				0D976CA77ABA7BC77D8B90EE /* GoHostAppUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -170,6 +256,22 @@
 			buildActionMask = 2147483647;
 			files = (
 				4B1BA3BAEB32DDC56FAE6253 /* AppDelegate.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A5E012C50D8284EE52729244 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B2A8BD13FFDFBC063273B0CA /* GoConnectTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A9333FA8E454D1F899739321 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E4EE27E758833556B2403203 /* AppDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -184,6 +286,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		4CCD1029A32238406476AD47 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9449693025558232B0B9E882 /* GoHostApp */;
+			targetProxy = 8F4C49DF383FA6C15B6A06E7 /* PBXContainerItemProxy */;
+		};
 		8B8277AE564A3633E1B000E0 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 6524349EED4813911B1F3701 /* HostApp */;
@@ -298,6 +405,39 @@
 			};
 			name = Release;
 		};
+		91714D24A0B9246A1784A850 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.phpnitro.gohostapp.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = GoHostApp;
+			};
+			name = Release;
+		};
+		9464FF8D2F56FDE0EC3C2DB1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = GoHostApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.phpnitro.gohostapp;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 		AE6335DB3FCCC9FAF951A070 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -313,6 +453,39 @@
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
+		};
+		B454E3508D0B6B1DBCA7D765 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.phpnitro.gohostapp.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = GoHostApp;
+			};
+			name = Debug;
+		};
+		F214D8BD9AB7668FE9284EFA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = GoHostApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.phpnitro.gohostapp;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
 		};
 		F48E89C41391BE7102AFF5FC /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -398,11 +571,29 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		5CF86429FF1EEABE8285C4A7 /* Build configuration list for PBXNativeTarget "GoHostAppUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B454E3508D0B6B1DBCA7D765 /* Debug */,
+				91714D24A0B9246A1784A850 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		9DAA1490A520A7509FC0E701 /* Build configuration list for PBXProject "HostApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				F48E89C41391BE7102AFF5FC /* Debug */,
 				8857D01F6A68A1E004EAE7D1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		FDCBD6E4DEFD40CD8CD230F0 /* Build configuration list for PBXNativeTarget "GoHostApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F214D8BD9AB7668FE9284EFA /* Debug */,
+				9464FF8D2F56FDE0EC3C2DB1 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -417,6 +608,10 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		45C1C408EC5E18AF683EC10D /* PhpNitroGo */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PhpNitroGo;
+		};
 		B0E0EF3D68ADB7B1659BFFBD /* PhpNitroNativeEngine */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = PhpNitroNativeEngine;
