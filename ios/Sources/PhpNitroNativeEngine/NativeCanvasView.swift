@@ -714,12 +714,17 @@ public final class NativeCanvasView: UIView {
     }
 }
 
-extension UIColor {
+public extension UIColor {
     /// Parses "#RRGGBB" or "#RRGGBBAA" — the exact two shapes every
     /// Engine\Color::toHex()/Tokens color constant on the PHP side
     /// produces. Returns nil (never crashes) on anything else, same
     /// "malformed input degrades gracefully" contract the rest of this
     /// renderer follows for an unrecognized command type.
+    ///
+    /// Public (not just internal to this target) — PhpNitroGo's own
+    /// ConnectViewController needs the exact same hex parsing to match
+    /// ConnectActivity.kt's colors verbatim, and duplicating this parser
+    /// there just to keep it target-private isn't worth it.
     convenience init?(hex: String) {
         var value = hex
         if value.hasPrefix("#") { value.removeFirst() }
