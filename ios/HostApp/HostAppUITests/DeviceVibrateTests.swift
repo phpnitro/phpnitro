@@ -16,7 +16,7 @@ final class DeviceVibrateTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-screen", "device"]
         app.launch()
-        sleep(2)
+        sleep(3)
         let before = XCUIScreen.main.screenshot().image.pngData()
 
         // "Vibrer" row — canvas-local (20,104.25,320,54), canvas top at
