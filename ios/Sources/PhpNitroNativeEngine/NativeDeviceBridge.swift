@@ -1389,6 +1389,18 @@ extension NativeDeviceBridge {
         }
         monitor.start(queue: DispatchQueue(label: "phpnitro.wifi-check"))
     }
+
+    // MARK: - Hotspot
+
+    /// Mirrors NativeDeviceBridge.kt's own hotspotState() in intent
+    /// only: that one is already best-effort/reflection-based
+    /// (WifiManager.isWifiApEnabled is @hide, may be blocked by OEM/
+    /// Android version). iOS goes further and exposes NO API at all,
+    /// public or private-but-reachable, for a third-party app to read
+    /// Personal Hotspot state — always "unsupported".
+    public static func hotspotState() -> String {
+        "unsupported"
+    }
 }
 
 private extension Comparable {
