@@ -193,7 +193,7 @@ public final class NativeScreenViewController: UIViewController {
         // PHP can render it — `fetch(action: nil)` already sends every
         // non-empty fieldValues entry (see ScreenClient's own docblock),
         // so that's the whole "includeFields" equivalent here, no
-        // separate flag needed. Only these twenty-six exist so far
+        // separate flag needed. Only these twenty-seven exist so far
         // (2026-09-10) of Android's ~40 — see NativeDeviceBridge.swift's
         // own docblock on why this is starting small.
         if action.hasPrefix("device:") {
@@ -322,6 +322,12 @@ public final class NativeScreenViewController: UIViewController {
                 let outField = parts.count > 1 ? parts[1] : "update_out"
                 fieldValues[outField] = NativeDeviceBridge.checkForUpdate()
                 fetch(action: nil)
+            case "locate":
+                let outField = parts.count > 1 ? parts[1] : "location_out"
+                NativeDeviceBridge.getLocation { [weak self] result in
+                    self?.fieldValues[outField] = result
+                    self?.fetch(action: nil)
+                }
             default:
                 break
             }
