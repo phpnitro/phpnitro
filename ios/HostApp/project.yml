@@ -46,6 +46,18 @@ targets:
         # usage-description string present at all, authorized or not.
         NSContactsUsageDescription: "Compte les contacts pour la démo NativeDeviceBridge — lecture seule."
         NSCalendarsUsageDescription: "Compte les événements à venir pour la démo NativeDeviceBridge — lecture seule."
+        # Alternate icon for device:appicon:alt (Engine\Device\DynamicIcon,
+        # "Icône bleue" in NativeDeviceScreen.php) — NativeDeviceBridge.swift's
+        # setAppIcon() calls UIApplication.setAlternateIconName("alt"), which
+        # looks this key up here. A loose PNG (HostApp/AppIcon-Alt.png), not
+        # an asset-catalog entry — alternate icons predate Xcode's asset
+        # catalog support for them and this is still the form XcodeGen's own
+        # plain Info.plist properties can express directly.
+        CFBundleIcons:
+          CFBundleAlternateIcons:
+            alt:
+              CFBundleIconFiles:
+                - AppIcon-Alt
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phpnitro.hostapp
