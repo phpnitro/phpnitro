@@ -453,6 +453,8 @@ public final class NativeScreenViewController: UIViewController {
                     self?.fieldValues[outField] = result
                     self?.fetch(action: nil)
                 }
+            case "filesapp":
+                NativeDeviceBridge.openFilesApp()
             default:
                 break
             }
