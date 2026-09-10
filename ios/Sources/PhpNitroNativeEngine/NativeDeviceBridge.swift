@@ -164,17 +164,39 @@ public enum NativeDeviceBridge {
     // MARK: - Sound
 
     /// Mirrors NativeDeviceBridge.kt's own playSound() — same
-    /// fire-and-forget MediaPlayer idea, AVPlayer here. Held in a static
-    /// var (not a local one) for the same reason
-    /// WebAppInterface.swift's own audioPlayer is an instance property:
-    /// an unretained AVPlayer is deallocated the instant this function
-    /// returns, stopping playback before it's even heard.
-    private static var soundPlayer: AVPlayer?
+    /// fire-and-forget MediaPlayer idea. Held in a static var (not a
+    /// local one) for the same reason WebAppInterface.swift's own
+    /// audioPlayer is an instance property: an unretained player is
+    /// deallocated before playback finishes.
+    ///
+    /// A first version used AVPlayer(url:).play() directly — silent on
+    /// a real device with no error and no crash, only found by
+    /// physically listening (Simulator audio came from the Mac's own
+    /// speakers either way, so this never got a real "is it actually
+    /// audible" check there). AVPlayer.play() has no built-in "wait
+    /// until buffered" for a fire-and-forget one-shot like this: on a
+    /// real network fetch, play() often returns before the remote
+    /// asset has buffered anything at all, and there's no second
+    /// chance to call it again. Downloading the (small, effects-length)
+    /// file first and handing the bytes to AVAudioPlayer sidesteps that
+    /// race entirely — by the time .play() runs, every byte is already
+    /// in memory.
+    private static var soundPlayer: AVAudioPlayer?
 
     public static func playSound(_ urlString: String) {
         guard let url = URL(string: urlString) else { return }
-        soundPlayer = AVPlayer(url: url)
-        soundPlayer?.play()
+        // .playback (not the default .soloAmbient) so this ignores the
+        // physical Ring/Silent switch — invisible on the Simulator (no
+        // such switch), only surfaced testing on a real device.
+        try? AVAudioSession.sharedInstance().setCategory(.playback)
+        try? AVAudioSession.sharedInstance().setActive(true)
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            guard let data, let player = try? AVAudioPlayer(data: data) else { return }
+            DispatchQueue.main.async {
+                soundPlayer = player
+                player.play()
+            }
+        }.resume()
     }
 
     // MARK: - Notify
