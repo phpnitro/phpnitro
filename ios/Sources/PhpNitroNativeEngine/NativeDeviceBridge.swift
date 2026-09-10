@@ -314,6 +314,56 @@ public enum NativeDeviceBridge {
         guard UIApplication.shared.alternateIconName != name else { return }
         UIApplication.shared.setAlternateIconName(name)
     }
+
+    // MARK: - Clipboard / Email / App settings
+
+    /// Mirrors NativeDeviceBridge.kt's own clipboardcopy/clipboardpaste —
+    /// UIPasteboard is the direct iOS equivalent of ClipboardManager, no
+    /// permission or restriction like Android 10+'s background-read
+    /// limits (Engine\Device\Clipboard's own docblock calls that out as
+    /// an Android-specific wrinkle, not something to replicate here).
+    public static func clipboardCopy(_ text: String) {
+        UIPasteboard.general.string = text
+    }
+
+    public static func clipboardPaste() -> String {
+        UIPasteboard.general.string?.isEmpty == false
+            ? UIPasteboard.general.string!
+            : "Presse-papiers vide ou inaccessible"
+    }
+
+    /// Mirrors NativeDeviceBridge.kt's own sendemail — Android's
+    /// Intent.ACTION_SENDTO with a "mailto:" Uri only ever matches real
+    /// mail apps (unlike ACTION_SEND, which lists other share targets
+    /// too); a "mailto:" URL opened via UIApplication.open(_:) has the
+    /// same effect here, same fire-and-forget contract (no result field
+    /// — "the mail app opened with a draft," not "it sent").
+    public static func sendEmail(to: String, subject: String, body: String) {
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.path = to
+        components.queryItems = [
+            URLQueryItem(name: "subject", value: subject),
+            URLQueryItem(name: "body", value: body),
+        ]
+        guard let url = components.url else { return }
+        UIApplication.shared.open(url)
+    }
+
+    /// Mirrors NativeDeviceBridge.kt's own appsettings — Android maps a
+    /// small whitelist ('app'/'wifi'/'location'/'notifications'/
+    /// 'bluetooth') to distinct Settings screens; iOS only exposes ONE
+    /// public deep link at all (UIApplication.openSettingsURLString,
+    /// this app's own permissions page) — every per-category Settings
+    /// screen Android can jump to directly has no iOS equivalent
+    /// UIApplication is allowed to open. A real platform gap, not a
+    /// narrower implementation of the same capability: `screen` is
+    /// accepted for call-shape parity with AppSettings::openAction() but
+    /// always opens the same page here.
+    public static func openAppSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
+    }
 }
 
 private extension Comparable {
