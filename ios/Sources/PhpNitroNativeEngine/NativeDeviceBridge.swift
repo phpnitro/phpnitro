@@ -672,6 +672,65 @@ public enum NativeDeviceBridge {
     public static func checkForUpdate() -> String {
         "update_not_available"
     }
+
+    // MARK: - Location (one-shot)
+
+    /// Retained for the lifetime of one location fetch — CLLocationManager
+    /// only ever reports back through a delegate, same reasoning as
+    /// LocationPermissionRequester above (a different class: that one
+    /// requests the PERMISSION, this one requests a FIX once already
+    /// granted — Android keeps these as two separate calls too,
+    /// getLocation() vs. the permission check in handlePermissionAction()).
+    private final class LocationFetcher: NSObject, CLLocationManagerDelegate {
+        private let manager = CLLocationManager()
+        private let completion: (String) -> Void
+
+        init(completion: @escaping (String) -> Void) {
+            self.completion = completion
+            super.init()
+            manager.delegate = self
+        }
+
+        func fetch() {
+            manager.requestLocation()
+        }
+
+        func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+            NativeDeviceBridge.pendingLocationFetch = nil
+            guard let location = locations.last else {
+                completion("Position inconnue")
+                return
+            }
+            completion(String(format: "%.5f, %.5f", location.coordinate.latitude, location.coordinate.longitude))
+        }
+
+        func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+            NativeDeviceBridge.pendingLocationFetch = nil
+            completion("Erreur de localisation")
+        }
+    }
+
+    private static var pendingLocationFetch: LocationFetcher?
+
+    /// Mirrors NativeDeviceBridge.kt's own getLocation() — same "check,
+    /// never request" contract every other permission-gated read in this
+    /// file already follows (contactsCount(), upcomingEventsCount()):
+    /// actually prompting is Permission::requestAction('location')'s own
+    /// job, tapped separately first. requestLocation() (not
+    /// startUpdatingLocation(), which streams continuously) matches
+    /// FusedLocationProviderClient's own one-shot lastLocation the exact
+    /// same way readAccelerometer() above takes one accelerometer sample
+    /// and stops, not a stream.
+    public static func getLocation(completion: @escaping (String) -> Void) {
+        let status = CLLocationManager().authorizationStatus
+        guard status == .authorizedWhenInUse || status == .authorizedAlways else {
+            completion("Permission requise")
+            return
+        }
+        let fetcher = LocationFetcher(completion: completion)
+        pendingLocationFetch = fetcher
+        fetcher.fetch()
+    }
 }
 
 private extension Comparable {
