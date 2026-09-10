@@ -153,6 +153,32 @@ class NativeDeviceBridge(private val context: Context) {
         }
     }
 
+    /**
+     * WallpaperManager.setBitmap() — SET_WALLPAPER is a normal
+     * permission (always granted, no runtime prompt). Downloads
+     * $imageUrl off the main thread (network + bitmap decode, same
+     * reasoning readSensor()'s own async shape has for anything that
+     * can't finish synchronously) and reports back through onResult on
+     * the main thread.
+     */
+    fun setWallpaper(imageUrl: String, onResult: (String) -> Unit) {
+        val mainHandler = Handler(Looper.getMainLooper())
+        Thread {
+            val result = try {
+                val bitmap = java.net.URL(imageUrl).openStream().use { android.graphics.BitmapFactory.decodeStream(it) }
+                if (bitmap == null) {
+                    "Erreur : image invalide"
+                } else {
+                    android.app.WallpaperManager.getInstance(context).setBitmap(bitmap)
+                    "Fond d'écran modifié"
+                }
+            } catch (e: Exception) {
+                "Erreur : ${e.message}"
+            }
+            mainHandler.post { onResult(result) }
+        }.start()
+    }
+
     /** Same real ConnectivityManager check WebAppInterface.getConnectionType() uses — the native replacement for Engine\Connectivity\ConnectivityBadge's JS-side navigator.onLine. */
     fun isOnline(): Boolean {
         val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
