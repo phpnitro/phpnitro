@@ -67,6 +67,20 @@ public final class NativeCanvasView: UIView {
     /// for `focus:` specifically.
     public var onAction: ((_ action: String, _ rect: CGRect) -> Void)?
 
+    /// Flutter DevTools' "Select Widget Mode", scoped to what's actually
+    /// available here — mirrors NativeRenderPocActivity.kt's own
+    /// `inspectMode`/`onTap()` branch: no widget tree survives past
+    /// paint() server-side to inspect, only the flat hit-region list
+    /// already hit-tested against. While `true`, the NEXT tap fires
+    /// `onInspect` (action + content-space rect) instead of `onAction`,
+    /// then turns itself back off — one inspected tap at a time, same as
+    /// Android's own "consumes the next tap" contract.
+    public var inspectMode = false
+
+    /// `(action, rect)` for the tap `inspectMode` just consumed — content
+    /// space, same convention `onAction`'s own `rect` uses.
+    public var onInspect: ((_ action: String, _ rect: CGRect) -> Void)?
+
     /// `(fieldName, value)` — fires on every keystroke in the active
     /// text-input overlay (see `showTextInput`'s own doc comment).
     public var onFieldValueChanged: ((String, String) -> Void)?
@@ -407,6 +421,13 @@ public final class NativeCanvasView: UIView {
         // shifting back by -scrollY to land in the same place on screen
         // the tap actually landed.
         let viewRect = (region.fixed ?? false) ? contentRect : contentRect.offsetBy(dx: 0, dy: -scrollY)
+
+        if inspectMode {
+            inspectMode = false
+            onInspect?(region.action, contentRect)
+            return
+        }
+
         onAction?(region.action, viewRect)
     }
 

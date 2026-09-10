@@ -3,6 +3,21 @@ options:
   bundleIdPrefix: com.phpnitro.hostapp
   deploymentTarget:
     iOS: "15.0"
+settings:
+  base:
+    # Real device build/run (2026-09-09, first iPhone available for this
+    # project — an 11 Pro Max) needs a real signing identity; simulator
+    # builds never read these. Team ID recovered from the embedded
+    # provisioning profile Xcode itself generated the first time this
+    # was signed via the GUI's own Signing & Capabilities picker (the
+    # only way that actually surfaced the right team — `xcodebuild
+    # -allowProvisioningUpdates` alone never auto-selected one, and a
+    # DIFFERENT, stale keychain certificate's team (WA4FYZ452J, this
+    # file's own first guess) produced "No Account for Team X" instead).
+    # Pinning it here so a future `xcodegen generate` doesn't wipe out a
+    # team choice made by hand in the Xcode GUI again.
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: KGV44Q59VW
 packages:
   PhpNitroEngine:
     path: ..
@@ -27,6 +42,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phpnitro.hostapp
         TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
   HostAppUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -60,6 +76,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phpnitro.gohostapp
         TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
   GoHostAppUITests:
     type: bundle.ui-testing
     platform: iOS
