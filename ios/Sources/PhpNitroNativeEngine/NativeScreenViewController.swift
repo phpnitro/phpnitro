@@ -396,6 +396,12 @@ public final class NativeScreenViewController: UIViewController {
             case "wssend":
                 let message = (parts.count > 1 ? parts[1].removingPercentEncoding : nil) ?? ""
                 NativeDeviceBridge.sendWebSocket(message)
+            case "wsjoinroom":
+                let room = (parts.count > 1 ? parts[1].removingPercentEncoding : nil) ?? ""
+                NativeDeviceBridge.joinWebSocketRoom(room)
+            case "wsleaveroom":
+                let room = (parts.count > 1 ? parts[1].removingPercentEncoding : nil) ?? ""
+                NativeDeviceBridge.leaveWebSocketRoom(room)
             case "wsdisconnect":
                 NativeDeviceBridge.disconnectWebSocket()
             case "scanqr":
