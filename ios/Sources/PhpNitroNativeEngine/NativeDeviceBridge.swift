@@ -343,6 +343,26 @@ public enum NativeDeviceBridge {
             ? UIPasteboard.general.string!
             : "Presse-papiers vide ou inaccessible"
     }
+
+    // MARK: - Email
+
+    /// Mirrors NativeDeviceBridge.kt's own sendemail — Android's
+    /// Intent.ACTION_SENDTO with a "mailto:" Uri only ever matches real
+    /// mail apps (unlike ACTION_SEND, which lists other share targets
+    /// too); a "mailto:" URL opened via UIApplication.open(_:) has the
+    /// same effect here, same fire-and-forget contract (no result field
+    /// — "the mail app opened with a draft," not "it sent").
+    public static func sendEmail(to: String, subject: String, body: String) {
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.path = to
+        components.queryItems = [
+            URLQueryItem(name: "subject", value: subject),
+            URLQueryItem(name: "body", value: body),
+        ]
+        guard let url = components.url else { return }
+        UIApplication.shared.open(url)
+    }
 }
 
 private extension Comparable {
