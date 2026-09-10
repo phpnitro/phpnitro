@@ -796,6 +796,25 @@ public enum NativeDeviceBridge {
             return error.localizedDescription
         }
     }
+
+    // MARK: - App links (deep link)
+
+    /// Mirrors NativeDeviceBridge.kt's own applink — Android reads the
+    /// current Intent's own data URI directly (kept current via
+    /// onNewIntent()'s own setIntent() call). iOS has no equivalent
+    /// "ask the OS for the URL that's already open" — the only way to
+    /// learn a launch/open URL at all is a UIApplicationDelegate/
+    /// UISceneDelegate callback firing once, at the moment it happens,
+    /// so this needs to be told, not asked: AppDelegate calls
+    /// recordAppLink(_:) from both didFinishLaunchingWithOptions's own
+    /// launchOptions[.url] and application(_:open:options:), and this
+    /// just remembers the last one — same "full URI string, or 'Aucun
+    /// lien'" result AppLinks.php's own docblock documents.
+    public static var lastAppLink = "Aucun lien"
+
+    public static func recordAppLink(_ url: URL) {
+        lastAppLink = url.absoluteString
+    }
 }
 
 private extension Comparable {
