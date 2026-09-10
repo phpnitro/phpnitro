@@ -1,4 +1,7 @@
 import AVFoundation
+import Contacts
+import EventKit
+import Security
 import UIKit
 
 /// The iOS counterpart of NativeDeviceBridge.kt — one native capability at
@@ -72,5 +75,85 @@ public enum NativeDeviceBridge {
     /// not hiding behind an identical-looking API name).
     public static func deviceId() -> String {
         UIDevice.current.identifierForVendor?.uuidString ?? ""
+    }
+
+    // MARK: - Secure storage (Keychain)
+
+    /// Mirrors NativeDeviceBridge.kt's own secureStore()/secureRetrieve()
+    /// — Android backs theirs with a Keystore-encrypted
+    /// EncryptedSharedPreferences file named "phpx_secure_storage"; the
+    /// Keychain is the direct iOS equivalent (hardware-backed encryption
+    /// at rest, same threat model), with `kSecAttrService` playing the
+    /// same "which app's bucket" role that file name does. Unlike
+    /// Android, there's no single shared file also reachable from a
+    /// WebView bridge to keep in sync with — PhpNitroWebViewBridge's own
+    /// WebAppInterface.swift has never had a secure-storage bridge at
+    /// all, so there's no existing iOS convention to match here, only
+    /// Android's to mirror.
+    private static let keychainService = "phpx_secure_storage"
+
+    public static func secureStore(key: String, value: String) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: key,
+        ]
+        SecItemDelete(query as CFDictionary)
+
+        var attributes = query
+        attributes[kSecValueData as String] = Data(value.utf8)
+        SecItemAdd(attributes as CFDictionary, nil)
+    }
+
+    public static func secureRetrieve(key: String) -> String {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: key,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var result: AnyObject?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let data = result as? Data else {
+            return ""
+        }
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    // MARK: - Contacts / Calendar (read-only counts)
+
+    /// Mirrors NativeDeviceBridge.kt's own contactsCount() — same
+    /// "check, never request" contract (see that file's own docblock):
+    /// `.notDetermined` is treated the same as `.denied`, both return -1,
+    /// because actually prompting belongs to a separate Permission
+    /// action a caller taps first, not something a read action should
+    /// trigger as a side effect.
+    public static func contactsCount() -> Int {
+        guard CNContactStore.authorizationStatus(for: .contacts) == .authorized else { return -1 }
+
+        var count = 0
+        let request = CNContactFetchRequest(keysToFetch: [CNContactIdentifierKey as CNKeyDescriptor])
+        try? CNContactStore().enumerateContacts(with: request) { _, _ in count += 1 }
+        return count
+    }
+
+    /// Mirrors NativeDeviceBridge.kt's own upcomingEventsCount() — same
+    /// 30-day window, same "check, never request" contract as
+    /// contactsCount() above.
+    public static func upcomingEventsCount() -> Int {
+        let status = EKEventStore.authorizationStatus(for: .event)
+        let isAuthorized: Bool
+        if #available(iOS 17.0, *) {
+            isAuthorized = status == .fullAccess
+        } else {
+            isAuthorized = status == .authorized
+        }
+        guard isAuthorized else { return -1 }
+
+        let store = EKEventStore()
+        let now = Date()
+        let in30Days = now.addingTimeInterval(30 * 24 * 60 * 60)
+        let predicate = store.predicateForEvents(withStart: now, end: in30Days, calendars: nil)
+        return store.events(matching: predicate).count
     }
 }
