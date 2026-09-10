@@ -508,6 +508,18 @@ jobs:
           clang --version
           autoconf --version || brew install autoconf
 
+      # macos-14 runners ship Apple's own ancient bison (2.3 — kept
+      # deliberately outdated for GPLv3 licensing reasons, not a runner
+      # misconfiguration), confirmed by this job's own first real CI run
+      # ("configure: error: bison 3.0.0 or later is required"). re2c
+      # installed alongside pre-emptively for the exact same "known PHP
+      # build prerequisite on macOS" reason (Homebrew's own php formula
+      # needs both) rather than waiting for a second red run to find it.
+      - name: Install bison/re2c (Apple's system bison is too old for PHP)
+        run: |
+          brew install bison re2c
+          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
+
       - name: buildconf (generate ./configure)
         working-directory: php-src
         run: |
