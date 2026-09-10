@@ -193,7 +193,7 @@ public final class NativeScreenViewController: UIViewController {
         // PHP can render it — `fetch(action: nil)` already sends every
         // non-empty fieldValues entry (see ScreenClient's own docblock),
         // so that's the whole "includeFields" equivalent here, no
-        // separate flag needed. Only these forty-five exist so far
+        // separate flag needed. Only these forty-seven exist so far
         // (2026-09-10) of Android's ~40 — see NativeDeviceBridge.swift's
         // own docblock on why this is starting small.
         if action.hasPrefix("device:") {
@@ -416,6 +416,16 @@ public final class NativeScreenViewController: UIViewController {
                 fieldValues["nfc_out"] = NativeDeviceBridge.lastNfcResult
                 NativeDeviceBridge.stopNfcListening()
                 fetch(action: nil)
+            case "iapquery":
+                let productId = (parts.count > 1 ? parts[1].removingPercentEncoding : nil) ?? "demo_product"
+                let outField = parts.count > 2 ? parts[2] : "iap_out"
+                NativeDeviceBridge.queryProducts(productIds: [productId]) { [weak self] result in
+                    self?.fieldValues[outField] = result
+                    self?.fetch(action: nil)
+                }
+            case "iappurchase":
+                let productId = (parts.count > 1 ? parts[1].removingPercentEncoding : nil) ?? "demo_product"
+                NativeDeviceBridge.purchaseProduct(productId: productId)
             default:
                 break
             }
