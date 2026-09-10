@@ -193,7 +193,7 @@ public final class NativeScreenViewController: UIViewController {
         // PHP can render it — `fetch(action: nil)` already sends every
         // non-empty fieldValues entry (see ScreenClient's own docblock),
         // so that's the whole "includeFields" equivalent here, no
-        // separate flag needed. Only these nine exist so far
+        // separate flag needed. Only these ten exist so far
         // (2026-09-10) of Android's ~40 — see NativeDeviceBridge.swift's
         // own docblock on why this is starting small.
         if action.hasPrefix("device:") {
@@ -248,6 +248,10 @@ public final class NativeScreenViewController: UIViewController {
                 let title = (parts.count > 1 ? parts[1].removingPercentEncoding : nil) ?? "PhpNitro"
                 let message = (parts.count > 2 ? parts[2].removingPercentEncoding : nil) ?? "Ceci est une notification native."
                 NativeDeviceBridge.showNotification(title: title, message: message)
+            case "share":
+                let text = (parts.count > 1 ? parts[1].removingPercentEncoding : nil) ?? "Regarde cette app faite avec PhpNitro !"
+                let title = (parts.count > 2 ? parts[2].removingPercentEncoding : nil) ?? "PhpNitro"
+                NativeDeviceBridge.share(text: text, title: title, from: self)
             default:
                 break
             }

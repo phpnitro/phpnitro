@@ -194,4 +194,17 @@ public enum NativeDeviceBridge {
             center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
         }
     }
+
+    // MARK: - Share
+
+    /// Mirrors NativeDeviceBridge.kt's own share() (Intent.ACTION_SEND
+    /// chooser) — UIActivityViewController is the direct iOS equivalent.
+    /// `title` is accepted for call-shape parity with the Android/PHP
+    /// action-string builder (Engine\Device\Share::shareAction()) but
+    /// unused here, same as WebAppInterface.swift's own share(text:):
+    /// UIActivityViewController has no "chooser title" parameter.
+    public static func share(text: String, title: String, from presenter: UIViewController) {
+        let activity = UIActivityViewController(activityItems: [text], applicationActivities: nil)
+        presenter.present(activity, animated: true)
+    }
 }
