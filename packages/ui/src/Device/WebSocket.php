@@ -55,6 +55,29 @@ final class WebSocket
         return 'device:wsdisconnect';
     }
 
+    /**
+     * Sends a small `{"type":"join","room":"<room>"}` JSON envelope over
+     * the ALREADY-OPEN connection — not a WebSocket protocol feature (the
+     * raw RFC 6455 protocol has no concept of rooms at all), but the same
+     * application-level convention real backends that support multi-room
+     * broadcast already expect (Socket.IO's own join/leave events,
+     * Laravel Reverb/Pusher channel subscriptions). Against the public
+     * echo demo server this app connects to by default, the only visible
+     * effect is that envelope echoing straight back — proving the
+     * message went out, not proving real room routing, since an echo
+     * server has no second client to broadcast to. Requires
+     * WebSocket::connectAction() to have been called first.
+     */
+    public static function joinRoomAction(string $room): string
+    {
+        return 'device:wsjoinroom:' . rawurlencode($room);
+    }
+
+    public static function leaveRoomAction(string $room): string
+    {
+        return 'device:wsleaveroom:' . rawurlencode($room);
+    }
+
     public static function result(string $outputField = 'ws_out'): ?string
     {
         return $_GET[$outputField] ?? null;
