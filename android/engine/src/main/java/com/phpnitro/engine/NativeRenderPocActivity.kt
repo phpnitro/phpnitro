@@ -890,6 +890,13 @@ class NativeRenderPocActivity : AppCompatActivity() {
                     refetch(action = null, includeFields = true)
                 }
             }
+            "health" -> {
+                val outputField = parts.getOrElse(1) { "health_out" }
+                deviceBridge.healthStepCount { result ->
+                    fieldValues[outputField] = result
+                    refetch(action = null, includeFields = true)
+                }
+            }
             "securestore" -> {
                 val key = java.net.URLDecoder.decode(parts.getOrElse(1) { "demo_key" }, "UTF-8")
                 val value = java.net.URLDecoder.decode(parts.getOrElse(2) { "" }, "UTF-8")
