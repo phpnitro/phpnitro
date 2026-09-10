@@ -436,6 +436,12 @@ public final class NativeScreenViewController: UIViewController {
                 let outField = parts.count > 1 ? parts[1] : "airplane_out"
                 fieldValues[outField] = NativeDeviceBridge.airplaneModeState()
                 fetch(action: nil)
+            case "wifi":
+                let outField = parts.count > 1 ? parts[1] : "wifi_out"
+                NativeDeviceBridge.wifiState { [weak self] result in
+                    self?.fieldValues[outField] = result
+                    self?.fetch(action: nil)
+                }
             default:
                 break
             }
