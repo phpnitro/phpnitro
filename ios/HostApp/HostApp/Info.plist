@@ -38,8 +38,14 @@
 	</dict>
 	<key>NSCalendarsUsageDescription</key>
 	<string>Compte les événements à venir pour la démo NativeDeviceBridge — lecture seule.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Démo de demande de permission caméra (NativeDeviceBridge).</string>
 	<key>NSContactsUsageDescription</key>
 	<string>Compte les contacts pour la démo NativeDeviceBridge — lecture seule.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Démo de demande de permission de localisation (NativeDeviceBridge).</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Démo de demande de permission microphone (NativeDeviceBridge).</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -1,5 +1,6 @@
 import AVFoundation
 import Contacts
+import CoreLocation
 import EventKit
 import Network
 import Security
@@ -379,6 +380,94 @@ public enum NativeDeviceBridge {
     public static func openAppSettings() {
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         UIApplication.shared.open(url)
+    }
+
+    // MARK: - Generic permission request
+
+    /// Retained for the lifetime of one requestWhenInUseAuthorization()
+    /// call — CLLocationManager only ever reports back through a
+    /// delegate, unlike every other permission check here, which takes
+    /// a completion handler. A local `let` would be deallocated before
+    /// the callback fires.
+    private final class LocationPermissionRequester: NSObject, CLLocationManagerDelegate {
+        private let manager = CLLocationManager()
+        private let completion: (String) -> Void
+
+        init(completion: @escaping (String) -> Void) {
+            self.completion = completion
+            super.init()
+            manager.delegate = self
+        }
+
+        func request() {
+            manager.requestWhenInUseAuthorization()
+        }
+
+        func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+            switch manager.authorizationStatus {
+            case .notDetermined:
+                return
+            case .authorizedWhenInUse, .authorizedAlways:
+                completion("granted")
+            default:
+                completion("denied")
+            }
+            NativeDeviceBridge.pendingLocationPermission = nil
+        }
+    }
+
+    private static var pendingLocationPermission: LocationPermissionRequester?
+
+    /// Mirrors NativeDeviceBridge.kt's own handlePermissionAction() —
+    /// same fixed whitelist (Engine\Device\Permission's own docblock:
+    /// 'camera', 'microphone', 'location', 'coarse_location', 'contacts',
+    /// 'calendar', 'notifications', 'bluetooth'), same three possible
+    /// results ('granted'/'denied'/'unknown_permission'). Two real
+    /// platform gaps, not narrower ports of the same capability:
+    /// 'coarse_location' has no separate iOS permission (CoreLocation
+    /// has no "approximate only" request, unlike Android's own ACCESS_
+    /// COARSE_LOCATION) so it's treated identically to 'location' here;
+    /// 'bluetooth' has no explicit iOS request API at all (creating a
+    /// CBCentralManager triggers the system prompt as a side effect,
+    /// not something this can ask for up front), so it reports
+    /// "unknown_permission" the same way an unrecognised key would,
+    /// same "not yet implemented" stance bluetoothState() itself
+    /// documents (still todo as of this writing).
+    public static func requestPermission(_ key: String, completion: @escaping (String) -> Void) {
+        switch key {
+        case "camera":
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async { completion(granted ? "granted" : "denied") }
+            }
+        case "microphone":
+            AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                DispatchQueue.main.async { completion(granted ? "granted" : "denied") }
+            }
+        case "location", "coarse_location":
+            let requester = LocationPermissionRequester(completion: completion)
+            pendingLocationPermission = requester
+            requester.request()
+        case "contacts":
+            CNContactStore().requestAccess(for: .contacts) { granted, _ in
+                DispatchQueue.main.async { completion(granted ? "granted" : "denied") }
+            }
+        case "calendar":
+            if #available(iOS 17.0, *) {
+                EKEventStore().requestFullAccessToEvents { granted, _ in
+                    DispatchQueue.main.async { completion(granted ? "granted" : "denied") }
+                }
+            } else {
+                EKEventStore().requestAccess(to: .event) { granted, _ in
+                    DispatchQueue.main.async { completion(granted ? "granted" : "denied") }
+                }
+            }
+        case "notifications":
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
+                DispatchQueue.main.async { completion(granted ? "granted" : "denied") }
+            }
+        default:
+            completion("unknown_permission")
+        }
     }
 }
 
