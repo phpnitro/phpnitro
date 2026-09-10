@@ -1513,6 +1513,19 @@ extension NativeDeviceBridge {
             }
         }
     }
+
+    // MARK: - APN
+
+    /// Mirrors NativeDeviceBridge.kt's own apnName() in intent only:
+    /// that one is already almost-always "unsupported" in practice
+    /// (needs carrier privileges since Android 10, see its own
+    /// docblock). iOS exposes no public API at all, entitled or not,
+    /// for a third-party app to read the cellular APN configuration —
+    /// always "unsupported", a permanent platform gap same as
+    /// airplaneModeState()/hotspotState() above.
+    public static func apnName() -> String {
+        "unsupported"
+    }
 }
 
 private extension Comparable {
