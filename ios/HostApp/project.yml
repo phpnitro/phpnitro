@@ -65,6 +65,10 @@ targets:
         # these present, granted or not.
         NSCameraUsageDescription: "Démo de demande de permission caméra (NativeDeviceBridge)."
         NSMicrophoneUsageDescription: "Démo de demande de permission microphone (NativeDeviceBridge)."
+        # device:cropimage — UIImagePickerController's .photoLibrary
+        # source (unlike PHPickerViewController above) needs this or it
+        # crashes the instant the picker is presented.
+        NSPhotoLibraryUsageDescription: "Choisit une image à recadrer pour la démo NativeDeviceBridge."
         NSLocationWhenInUseUsageDescription: "Démo de demande de permission de localisation (NativeDeviceBridge)."
         # Face ID (not Touch ID) is the one biometric mode that crashes
         # without a usage description at all — Fingerprint::authenticateAction()'s
