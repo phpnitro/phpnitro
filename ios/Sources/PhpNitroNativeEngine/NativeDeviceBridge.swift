@@ -1362,6 +1362,33 @@ extension NativeDeviceBridge {
     public static func airplaneModeState() -> String {
         "unsupported"
     }
+
+    // MARK: - Wi-Fi
+
+    /// Mirrors NativeDeviceBridge.kt's own wifiState() in shape, not in
+    /// coverage: Android reads WifiManager.isWifiEnabled directly (a
+    /// plain radio on/off flag, independent of whether it's actually
+    /// connected to anything); iOS exposes no such flag to third-party
+    /// apps at all. The closest honest signal is NWPathMonitor telling
+    /// us whether the CURRENT network path is using the Wi-Fi
+    /// interface — which conflates "Wi-Fi is off" with "Wi-Fi is on but
+    /// not the active route" (e.g. cellular preferred, or connected to
+    /// a Wi-Fi network with no internet route) into the same
+    /// "unsupported" bucket, since there's no way here to tell those
+    /// apart. SSID itself needs the com.apple.developer.
+    /// networking.wifi-info entitlement (NEHotspotNetwork.fetchCurrent)
+    /// which this app doesn't request, so only "on" (no name) is ever
+    /// returned when Wi-Fi IS the active route.
+    public static func wifiState(completion: @escaping (String) -> Void) {
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { path in
+            monitor.cancel()
+            DispatchQueue.main.async {
+                completion(path.status == .satisfied && path.usesInterfaceType(.wifi) ? "on" : "unsupported")
+            }
+        }
+        monitor.start(queue: DispatchQueue(label: "phpnitro.wifi-check"))
+    }
 }
 
 private extension Comparable {
