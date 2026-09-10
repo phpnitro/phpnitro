@@ -1301,6 +1301,55 @@ extension NativeDeviceBridge {
             _ = try? await product.purchase()
         }
     }
+
+    // MARK: - Image cropper
+
+    /// Retained for the lifetime of one picker presentation, same
+    /// reasoning as every other picker delegate in this file. Mirrors
+    /// NativeDeviceBridge.kt's own cropImage launcher (CanHub's
+    /// CropImageContract) in effect, not mechanism — Android needs a
+    /// third-party library because its own system picker has no crop
+    /// step at all (ImageCropper.php's own docblock: "this Canvas-based
+    /// pipeline has no 2D drag-a-rectangle-with-resize-handles
+    /// primitive"); iOS's UIImagePickerController already has one
+    /// built in (`allowsEditing = true` shows a real system move/zoom
+    /// crop overlay before returning), so this needs no external
+    /// dependency at all — a genuine platform difference in what's
+    /// already available, not a narrower reimplementation of CanHub's
+    /// own feature set (no aspect-ratio lock or freeform corner
+    /// handles, just the one system-provided crop rectangle).
+    private final class ImageCropperDelegate: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        private let completion: (String) -> Void
+
+        init(completion: @escaping (String) -> Void) {
+            self.completion = completion
+        }
+
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            picker.dismiss(animated: true)
+            NativeDeviceBridge.pendingCropPicker = nil
+            completion(info[.editedImage] != nil ? "Image recadrée" : "Erreur")
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            picker.dismiss(animated: true)
+            NativeDeviceBridge.pendingCropPicker = nil
+            completion("Annulé")
+        }
+    }
+
+    private static var pendingCropPicker: ImageCropperDelegate?
+
+    public static func cropImage(from presenter: UIViewController, completion: @escaping (String) -> Void) {
+        let delegate = ImageCropperDelegate(completion: completion)
+        pendingCropPicker = delegate
+
+        let picker = UIImagePickerController()
+        picker.sourceType = .photoLibrary
+        picker.allowsEditing = true
+        picker.delegate = delegate
+        presenter.present(picker, animated: true)
+    }
 }
 
 private extension Comparable {
