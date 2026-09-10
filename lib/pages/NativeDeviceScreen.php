@@ -100,6 +100,8 @@ final class NativeDeviceScreen
         $nfcOut = Nfc::result();
         $iapOut = InAppPurchase::result();
         $locPermOut = Permission::result('loc_perm_out');
+        $contactsPermOut = Permission::result('contacts_perm_out');
+        $calendarPermOut = Permission::result('calendar_perm_out');
         $qrOut = QrScanner::result();
         $connectivityOut = Connectivity::result();
         $appLinkOut = AppLinks::result();
@@ -144,6 +146,8 @@ final class NativeDeviceScreen
                     $row('Localiser', 'device:locate:location_out', $locationOut),
                     $row('Activer le micro (2s)', VoiceRecorder::recordAction(), $micOut),
                     $row('Vérifier/demander la localisation', Permission::requestAction('location', 'loc_perm_out'), $locPermOut),
+                    $row('Demander permission contacts', Permission::requestAction('contacts', 'contacts_perm_out'), $contactsPermOut),
+                    $row('Demander permission calendrier', Permission::requestAction('calendar', 'calendar_perm_out'), $calendarPermOut),
                     $row('Scanner un QR code', QrScanner::scanAction(), $qrOut),
                     $row('Accéléromètre', Sensors::readAccelerometerAction(), $sensorOut),
                     $row('Écouter NFC', Nfc::startListeningAction()),
