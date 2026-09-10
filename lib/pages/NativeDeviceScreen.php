@@ -3,6 +3,7 @@
 namespace Engine\App;
 
 use Engine\Device\AirplaneMode;
+use Engine\Device\Apn;
 use Engine\Device\AlarmScheduler;
 use Engine\Device\AppLinks;
 use Engine\Device\AppSettings;
@@ -33,6 +34,7 @@ use Engine\Device\MapLauncher;
 use Engine\Device\Nfc;
 use Engine\Device\Notify;
 use Engine\Device\OpenFile;
+use Engine\Device\Reminders;
 use Engine\Device\RestartApp;
 use Engine\Device\SecureStorage;
 use Engine\Device\Sensors;
@@ -99,6 +101,8 @@ final class NativeDeviceScreen
         $hotspotOut = Hotspot::result();
         $wallpaperOut = Wallpaper::result();
         $healthOut = Health::result();
+        $remindersOut = Reminders::result();
+        $apnOut = Apn::result();
         $secureOut = SecureStorage::result();
         $contactsOut = Contacts::result();
         $calendarOut = CalendarEvents::result();
@@ -146,6 +150,8 @@ final class NativeDeviceScreen
                     $row('Partage de connexion', Hotspot::stateAction(), $hotspotOut),
                     $row('Fond d\'écran', Wallpaper::setAction('http://' . ($_SERVER['HTTP_HOST'] ?? '127.0.0.1') . '/assets/images/google_logo.png'), $wallpaperOut),
                     $row('Pas aujourd\'hui (Santé)', Health::stepsAction(), $healthOut),
+                    $row('Rappels', Reminders::stateAction(), $remindersOut),
+                    $row('APN', Apn::readAction(), $apnOut),
                     $row('Stocker un secret', SecureStorage::storeAction('demo_key', 'valeur secrète')),
                     $row('Lire le secret', SecureStorage::retrieveAction('demo_key'), $secureOut),
                     $row('Contacts', Contacts::countAction(), $contactsOut),
