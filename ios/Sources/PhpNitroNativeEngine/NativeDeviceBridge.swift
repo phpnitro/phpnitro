@@ -3,6 +3,7 @@ import BackgroundTasks
 import Contacts
 import CoreLocation
 import CoreMotion
+import CoreNFC
 import EventKit
 import LocalAuthentication
 import Network
@@ -1161,6 +1162,57 @@ extension NativeDeviceBridge {
     public static func cancelBackgroundTask() {
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: backgroundTaskIdentifier)
         backgroundPingURL = nil
+    }
+
+    // MARK: - NFC
+
+    /// Mirrors NativeDeviceBridge.kt's own enableNfcForegroundDispatch()/
+    /// onNewIntent() NFC handling in effect, not mechanism — Android's
+    /// foreground dispatch can read ANY NFC tag technology and hands the
+    /// raw Intent to onNewIntent(); iOS's closest same-effort equivalent
+    /// is NFCNDEFReaderSession (NDEF-formatted tags only — the common
+    /// case for anything actually meant to carry readable data, unlike
+    /// NFCTagReaderSession's own per-protocol ISO7816/FeliCa/MiFare APIs,
+    /// which read raw technology but need a different call for each
+    /// one). Simulator never supports NFC at all
+    /// (NFCNDEFReaderSession.readingAvailable is always false there) —
+    /// same "silent no-op, not a crash" contract every other
+    /// hardware-gated capability in this file already has.
+    private final class NfcReaderDelegate: NSObject, NFCNDEFReaderSessionDelegate {
+        func readerSession(_ session: NFCNDEFReaderSession, didDetectNDEFs messages: [NFCNDEFMessage]) {
+            let payload = messages.first?.records.first?.payload
+            NativeDeviceBridge.lastNfcResult = payload.flatMap { String(data: $0, encoding: .utf8) } ?? "Tag NFC détecté"
+        }
+
+        func readerSession(_ session: NFCNDEFReaderSession, didInvalidateWithError error: Error) {
+            NativeDeviceBridge.nfcSession = nil
+            NativeDeviceBridge.nfcDelegate = nil
+        }
+    }
+
+    private static var nfcSession: NFCNDEFReaderSession?
+    private static var nfcDelegate: NfcReaderDelegate?
+
+    /// Fixed key, matching Nfc.php's own docblock ("the Kotlin handler
+    /// doesn't parse a custom output field") — lands on the NEXT
+    /// request, same "arm it, a tap fills this in, read it whenever"
+    /// contract, not a push-triggered refetch like WebSocket above.
+    public static var lastNfcResult = ""
+
+    public static func startNfcListening() {
+        guard NFCNDEFReaderSession.readingAvailable else { return }
+        let delegate = NfcReaderDelegate()
+        nfcDelegate = delegate
+        let session = NFCNDEFReaderSession(delegate: delegate, queue: nil, invalidateAfterFirstRead: false)
+        session.alertMessage = "Approche un tag NFC"
+        session.begin()
+        nfcSession = session
+    }
+
+    public static func stopNfcListening() {
+        nfcSession?.invalidate()
+        nfcSession = nil
+        nfcDelegate = nil
     }
 }
 
