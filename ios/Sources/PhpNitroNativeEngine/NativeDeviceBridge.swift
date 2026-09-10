@@ -1478,6 +1478,41 @@ extension NativeDeviceBridge {
             store.execute(query)
         }
     }
+
+    // MARK: - Reminders (read-only count)
+
+    /// Mirrors NativeDeviceBridge.kt's own remindersState() in action
+    /// name only: that one is permanently "unsupported" because Android
+    /// has no OS-level Reminders concept at all (see its own docblock).
+    /// iOS is the platform with the real, genuine capability here —
+    /// EventKit's EKReminder is a completely separate store from
+    /// EKEvent (Calendar), reached via `.reminder` instead of `.event`.
+    /// Same "check, never request" contract as contactsCount()/
+    /// upcomingEventsCount() above: fetchReminders(matching:) is itself
+    /// callback-based (EventKit has no synchronous reminders read),
+    /// unlike those two — a real API shape difference, not a stylistic
+    /// choice made here.
+    public static func remindersCount(completion: @escaping (Int) -> Void) {
+        let status = EKEventStore.authorizationStatus(for: .reminder)
+        let isAuthorized: Bool
+        if #available(iOS 17.0, *) {
+            isAuthorized = status == .fullAccess
+        } else {
+            isAuthorized = status == .authorized
+        }
+        guard isAuthorized else {
+            completion(-1)
+            return
+        }
+
+        let store = EKEventStore()
+        let predicate = store.predicateForReminders(in: nil)
+        store.fetchReminders(matching: predicate) { reminders in
+            DispatchQueue.main.async {
+                completion(reminders?.count ?? 0)
+            }
+        }
+    }
 }
 
 private extension Comparable {
