@@ -1232,9 +1232,9 @@
         },
         {
             "type": "text",
-            "x": 157.23499999999999,
+            "x": 123.107,
             "y": 4209.875,
-            "text": "Déconnecter",
+            "text": "Rejoindre room \"lobby\"",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -1251,8 +1251,46 @@
         },
         {
             "type": "text",
-            "x": 132.44675,
+            "x": 132.12575000000004,
             "y": 4275.875,
+            "text": "Quitter room \"lobby\"",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 4312.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 157.23499999999999,
+            "y": 4341.875,
+            "text": "Déconnecter",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 4378.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 132.44675,
+            "y": 4407.875,
             "text": "Recadrer une image",
             "color": "#FFFFFF",
             "size": 15,
@@ -1812,11 +1850,25 @@
             "y": 4180.25,
             "width": 360,
             "height": 54,
-            "action": "device:wsdisconnect"
+            "action": "device:wsjoinroom:lobby"
         },
         {
             "x": 20,
             "y": 4246.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:wsleaveroom:lobby"
+        },
+        {
+            "x": 20,
+            "y": 4312.25,
+            "width": 360,
+            "height": 54,
+            "action": "device:wsdisconnect"
+        },
+        {
+            "x": 20,
+            "y": 4378.25,
             "width": 360,
             "height": 54,
             "action": "device:cropimage:crop_out"
