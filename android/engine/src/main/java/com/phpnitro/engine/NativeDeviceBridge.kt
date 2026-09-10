@@ -92,6 +92,18 @@ class NativeDeviceBridge(private val context: Context) {
         return if (adapter.isEnabled) "on" else "off"
     }
 
+    /**
+     * Settings.Global.AIRPLANE_MODE_ON — a plain, publicly readable
+     * setting, no permission needed. Read-only on both platforms:
+     * neither Android nor iOS expose a public API to actually TOGGLE
+     * airplane mode from a third-party app (a real OS restriction, not
+     * a narrower implementation here).
+     */
+    fun airplaneModeState(): String {
+        val value = Settings.Global.getInt(context.contentResolver, Settings.Global.AIRPLANE_MODE_ON, 0)
+        return if (value != 0) "on" else "off"
+    }
+
     /** Same real ConnectivityManager check WebAppInterface.getConnectionType() uses — the native replacement for Engine\Connectivity\ConnectivityBadge's JS-side navigator.onLine. */
     fun isOnline(): Boolean {
         val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
