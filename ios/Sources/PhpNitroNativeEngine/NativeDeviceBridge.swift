@@ -201,6 +201,28 @@ public enum NativeDeviceBridge {
 
     // MARK: - Notify
 
+    /// iOS suppresses a local notification's banner entirely whenever
+    /// the posting app is in the foreground — which this demo always
+    /// is, tapping its own button — unless a UNUserNotificationCenter
+    /// delegate explicitly opts back in via willPresent's own
+    /// completionHandler. Found on a real device (2026-09-10): the
+    /// request was actually succeeding the whole time (no error, no
+    /// crash, permission granted), just never rendered, because
+    /// nothing had ever set this. Held statically so it outlives the
+    /// showNotification(title:message:) call that installs it, exactly
+    /// like soundPlayer above and for the same reason.
+    private final class ForegroundNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+        func userNotificationCenter(
+            _ center: UNUserNotificationCenter,
+            willPresent notification: UNNotification,
+            withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+        ) {
+            completionHandler([.banner, .sound, .list])
+        }
+    }
+
+    private static let notificationDelegate = ForegroundNotificationDelegate()
+
     /// Mirrors NativeDeviceBridge.kt's own showNotification() (channel
     /// "phpx_default") — UNUserNotificationCenter's local notifications,
     /// same "request authorization inline, silently no-op if denied"
@@ -209,6 +231,7 @@ public enum NativeDeviceBridge {
     /// re-requesting on every call is harmless, not a repeated prompt).
     public static func showNotification(title: String, message: String) {
         let center = UNUserNotificationCenter.current()
+        center.delegate = notificationDelegate
         center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
             guard granted else { return }
             let content = UNMutableNotificationContent()
