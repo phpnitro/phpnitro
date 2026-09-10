@@ -897,6 +897,10 @@ class NativeRenderPocActivity : AppCompatActivity() {
                     refetch(action = null, includeFields = true)
                 }
             }
+            "reminders" -> {
+                fieldValues[parts.getOrElse(1) { "reminders_out" }] = deviceBridge.remindersState()
+                refetch(action = null, includeFields = true)
+            }
             "securestore" -> {
                 val key = java.net.URLDecoder.decode(parts.getOrElse(1) { "demo_key" }, "UTF-8")
                 val value = java.net.URLDecoder.decode(parts.getOrElse(2) { "" }, "UTF-8")
