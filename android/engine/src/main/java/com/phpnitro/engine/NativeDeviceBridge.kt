@@ -129,6 +129,30 @@ class NativeDeviceBridge(private val context: Context) {
         return if (ssid.isNullOrEmpty() || ssid == "<unknown ssid>") "on" else "on: $ssid"
     }
 
+    /**
+     * Best-effort — "isWifiApEnabled"/"getWifiApState" have been hidden
+     * (`@hide`) SDK methods since day one, never part of the public
+     * WifiManager API at any Android version; this only works at all
+     * via reflection, and Android's own hidden-API restrictions
+     * (enforced since API 28, tightened further each release) can
+     * silently block that reflective call depending on OEM/version —
+     * "unsupported" is the honest, expected result on a growing share
+     * of real devices, not a bug in this wrapper. No public,
+     * officially-supported way to read personal-hotspot state exists
+     * on modern Android at all.
+     */
+    fun hotspotState(): String {
+        return try {
+            val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+                ?: return "unsupported"
+            val method = wifiManager.javaClass.getDeclaredMethod("isWifiApEnabled")
+            method.isAccessible = true
+            if (method.invoke(wifiManager) as? Boolean == true) "on" else "off"
+        } catch (e: Exception) {
+            "unsupported"
+        }
+    }
+
     /** Same real ConnectivityManager check WebAppInterface.getConnectionType() uses — the native replacement for Engine\Connectivity\ConnectivityBadge's JS-side navigator.onLine. */
     fun isOnline(): Boolean {
         val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
