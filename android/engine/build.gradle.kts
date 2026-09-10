@@ -126,4 +126,11 @@ dependencies {
     // already made for chillerlan/php-qrcode (QR encoding) instead of
     // hand-rolling Reed-Solomon.
     api("com.vanniktech:android-image-cropper:4.7.0")
+    // Engine\Device\Health — Health Connect is Google's current unified
+    // health/fitness store (Google Fit's own APIs are deprecated),
+    // itself a separate app most devices don't ship with pre-installed —
+    // see NativeDeviceBridge.kt's healthStepCount() for the "app not
+    // installed" / "permission not granted" fallbacks this makes
+    // genuinely necessary, not hypothetical edge cases.
+    api("androidx.health.connect:connect-client:1.1.0-alpha07")
 }
