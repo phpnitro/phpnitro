@@ -108,6 +108,24 @@ class WebSocketService : Service() {
         socket?.send(message)
     }
 
+    /**
+     * Engine\Device\WebSocket::joinRoomAction()'s own docblock: not a
+     * WebSocket protocol feature (RFC 6455 has no room concept at all),
+     * just a small JSON envelope over the already-open connection,
+     * matching what real backends supporting multi-room broadcast
+     * already expect (Socket.IO join/leave events, Reverb/Pusher channel
+     * subscriptions). org.json (not kotlinx.serialization) because
+     * that's what's already on the classpath everywhere else in this
+     * file's own package for tiny ad-hoc objects like this.
+     */
+    fun joinRoom(room: String) {
+        send(org.json.JSONObject().put("type", "join").put("room", room).toString())
+    }
+
+    fun leaveRoom(room: String) {
+        send(org.json.JSONObject().put("type", "leave").put("room", room).toString())
+    }
+
     fun disconnect() {
         socket?.close(1000, "client disconnect")
         socket = null
