@@ -1167,6 +1167,24 @@ public enum NativeDeviceBridge {
     public static func disconnectWebSocket() {
         webSocketManager.disconnect()
     }
+
+    /// Mirrors NativeDeviceBridge.kt's own WebSocketService.joinRoom()/
+    /// leaveRoom() (see that file's own docblock and Engine\Device\
+    /// WebSocket::joinRoomAction()'s own) — same small JSON envelope
+    /// over the already-open connection, not a real protocol feature.
+    /// JSONSerialization (not Codable) for the same "tiny ad-hoc object,
+    /// not worth a struct" reasoning org.json gets on the Android side.
+    public static func joinWebSocketRoom(_ room: String) {
+        guard let data = try? JSONSerialization.data(withJSONObject: ["type": "join", "room": room]),
+              let json = String(data: data, encoding: .utf8) else { return }
+        sendWebSocket(json)
+    }
+
+    public static func leaveWebSocketRoom(_ room: String) {
+        guard let data = try? JSONSerialization.data(withJSONObject: ["type": "leave", "room": room]),
+              let json = String(data: data, encoding: .utf8) else { return }
+        sendWebSocket(json)
+    }
 }
 
 extension NativeDeviceBridge {
