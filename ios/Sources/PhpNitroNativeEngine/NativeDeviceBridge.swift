@@ -1417,6 +1417,24 @@ extension NativeDeviceBridge {
     public static func setWallpaper(imageUrl: String, completion: @escaping (String) -> Void) {
         completion("Non disponible sur iOS")
     }
+
+    // MARK: - Files app
+
+    /// Mirrors NativeDeviceBridge.kt's own "filesapp" branch's intent —
+    /// jump straight to the system Files app — but not its mechanism:
+    /// Android resolves any app registered for
+    /// Intent.CATEGORY_APP_FILES; iOS has no public Info.plist query
+    /// scheme or URL scheme Apple documents for its own Files app.
+    /// `shareddocuments://` is a long-standing, widely-used (but
+    /// undocumented) URL scheme that opens Files.app on the Documents
+    /// tab — same "silent no-op on devices where it doesn't resolve,
+    /// not a crash" contract as Android's own ActivityNotFoundException
+    /// catch, achieved here via the plain canOpenURL check
+    /// UIApplication.open(_:) already needs before presenting anything.
+    public static func openFilesApp() {
+        guard let url = URL(string: "shareddocuments://"), UIApplication.shared.canOpenURL(url) else { return }
+        UIApplication.shared.open(url)
+    }
 }
 
 private extension Comparable {
