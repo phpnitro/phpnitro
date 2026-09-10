@@ -9,6 +9,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
+        // device:bgschedule — BGTaskScheduler requires this identifier's
+        // handler registered before the app finishes launching, not
+        // lazily the first time a screen actually schedules one.
+        NativeDeviceBridge.registerBackgroundTask()
+
         // Lets a UI test point this harness at a specific PHP screen
         // (e.g. "device") without a second AppDelegate/target — set via
         // -screen <name> in the test's launch arguments; every real use

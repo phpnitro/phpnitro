@@ -64,6 +64,14 @@ targets:
         # without a usage description at all — Fingerprint::authenticateAction()'s
         # authenticateBiometric() below.
         NSFaceIDUsageDescription: "Confirme ton identité pour la démo NativeDeviceBridge."
+        # device:bgschedule — BGTaskScheduler refuses to register/submit
+        # a task whose identifier isn't declared here, and "fetch" is
+        # the background mode that actually lets the OS wake this app
+        # to run it at all.
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.phpnitro.hostapp.ping
+        UIBackgroundModes:
+          - fetch
         # Makes this app's own Documents directory (where saveFile()
         # below writes) browsable from the Files app — the closest iOS
         # gets to Android's own MediaStore.Downloads visibility.
