@@ -193,7 +193,7 @@ public final class NativeScreenViewController: UIViewController {
         // PHP can render it — `fetch(action: nil)` already sends every
         // non-empty fieldValues entry (see ScreenClient's own docblock),
         // so that's the whole "includeFields" equivalent here, no
-        // separate flag needed. Only these twenty-nine exist so far
+        // separate flag needed. Only these thirty exist so far
         // (2026-09-10) of Android's ~40 — see NativeDeviceBridge.swift's
         // own docblock on why this is starting small.
         if action.hasPrefix("device:") {
@@ -339,6 +339,19 @@ public final class NativeScreenViewController: UIViewController {
                 let content = (parts.count > 2 ? parts[2].removingPercentEncoding : nil) ?? ""
                 let outField = parts.count > 3 ? parts[3] : "save_out"
                 fieldValues[outField] = NativeDeviceBridge.saveFile(fileName: fileName, content: content)
+                fetch(action: nil)
+            case "restartapp":
+                // RestartApp.php's own docblock: Android relaunches its
+                // launcher Intent then kills the process outright — no
+                // public iOS API does either (Apple rejects apps that
+                // call exit()/abort() deliberately; there's no
+                // "relaunch yourself" API at all). The closest safe
+                // equivalent: drop back to a fresh screen stack and
+                // fieldValues, the same "no prior state survives" effect
+                // from the user's own point of view, without actually
+                // killing the process.
+                screenStack = ["home"]
+                fieldValues = [:]
                 fetch(action: nil)
             default:
                 break
