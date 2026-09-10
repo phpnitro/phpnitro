@@ -260,6 +260,27 @@ public enum NativeDeviceBridge {
         guard let url = URL(string: urlString) else { return }
         UIApplication.shared.open(url)
     }
+
+    // MARK: - App icon
+
+    /// Mirrors NativeDeviceBridge.kt's own setAppIcon() in intent, not
+    /// mechanism — Android enables/disables manifest-declared
+    /// activity-aliases, iOS uses UIApplication's own alternate-icon
+    /// API (setAlternateIconName(_:)), which needs every variant
+    /// declared as CFBundleAlternateIcons in Info.plist at build time —
+    /// the same real "every icon file must be shipped up front" OS
+    /// constraint DynamicIcon.php's own docblock already calls out for
+    /// Android, not a narrower iOS-only limitation. `iconKey` "default"
+    /// (or empty) resets to the primary icon; anything else is looked
+    /// up by that exact key in CFBundleAlternateIcons (see
+    /// HostApp/project.yml's own Info.plist entry for the one variant
+    /// this demo ships: "blue").
+    public static func setAppIcon(_ iconKey: String) {
+        guard UIApplication.shared.supportsAlternateIcons else { return }
+        let name = (iconKey.isEmpty || iconKey == "default") ? nil : iconKey
+        guard UIApplication.shared.alternateIconName != name else { return }
+        UIApplication.shared.setAlternateIconName(name)
+    }
 }
 
 private extension Comparable {
