@@ -1,4 +1,5 @@
 import AVFoundation
+import BackgroundTasks
 import Contacts
 import CoreLocation
 import CoreMotion
@@ -1097,6 +1098,69 @@ public enum NativeDeviceBridge {
 
     public static func disconnectWebSocket() {
         webSocketManager.disconnect()
+    }
+}
+
+extension NativeDeviceBridge {
+    // MARK: - Background task
+
+    /// Mirrors NativeDeviceBridge.kt's own scheduleBackgroundTask()/
+    /// cancelBackgroundTask() (WorkManager + BackgroundPingWorker) —
+    /// BGTaskScheduler is the direct iOS equivalent, with the same
+    /// "one named task, scheduling again replaces rather than stacks"
+    /// semantics BackgroundTask.php's own docblock documents for
+    /// WorkManager's own KEEP policy — resubmitting `phpnitroTaskIdentifier`
+    /// implicitly replaces any pending request for that same identifier.
+    /// A real platform difference worth documenting, not hidden: iOS
+    /// gives no periodic-task guarantee at all — BGTaskScheduler treats
+    /// `earliestBeginDate` as a floor, not a promise, and the OS decides
+    /// if/when to actually run it based on battery, network, and usage
+    /// heuristics entirely outside this app's control (could be minutes
+    /// late, hours late, or never during a short testing session) —
+    /// unlike WorkManager's own 15-minute floor, which Android does
+    /// reliably honor as an upper bound on delay, not just a lower one.
+    public static let backgroundTaskIdentifier = "com.phpnitro.hostapp.ping"
+
+    private static var backgroundPingURL: URL?
+    private static var backgroundIntervalMinutes = 15
+
+    /// Called once, early in AppDelegate's own didFinishLaunchingWithOptions
+    /// — BGTaskScheduler requires every identifier's handler registered
+    /// before the app finishes launching, not lazily on first schedule.
+    public static func registerBackgroundTask() {
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: backgroundTaskIdentifier, using: nil) { task in
+            handleBackgroundTask(task as! BGAppRefreshTask)
+        }
+    }
+
+    private static func handleBackgroundTask(_ task: BGAppRefreshTask) {
+        scheduleNextBackgroundTask()
+        guard let url = backgroundPingURL else {
+            task.setTaskCompleted(success: false)
+            return
+        }
+        let dataTask = URLSession.shared.dataTask(with: url) { _, _, _ in
+            task.setTaskCompleted(success: true)
+        }
+        task.expirationHandler = { dataTask.cancel() }
+        dataTask.resume()
+    }
+
+    public static func scheduleBackgroundTask(endpoint: String, intervalMinutes: Int, host: String, port: Int) {
+        backgroundIntervalMinutes = max(15, intervalMinutes)
+        backgroundPingURL = URL(string: "http://\(host):\(port)\(endpoint)")
+        scheduleNextBackgroundTask()
+    }
+
+    private static func scheduleNextBackgroundTask() {
+        let request = BGAppRefreshTaskRequest(identifier: backgroundTaskIdentifier)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: Double(backgroundIntervalMinutes) * 60)
+        try? BGTaskScheduler.shared.submit(request)
+    }
+
+    public static func cancelBackgroundTask() {
+        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: backgroundTaskIdentifier)
+        backgroundPingURL = nil
     }
 }
 
