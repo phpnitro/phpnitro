@@ -461,6 +461,12 @@ public final class NativeScreenViewController: UIViewController {
                     self?.fieldValues[outField] = result
                     self?.fetch(action: nil)
                 }
+            case "reminders":
+                let outField = parts.count > 1 ? parts[1] : "reminders_out"
+                NativeDeviceBridge.remindersCount { [weak self] count in
+                    self?.fieldValues[outField] = count < 0 ? "Permission requise" : "\(count) rappels"
+                    self?.fetch(action: nil)
+                }
             default:
                 break
             }
