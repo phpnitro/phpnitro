@@ -469,3 +469,95 @@ jobs:
       - run: echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME" && ls "$ANDROID_NDK_HOME"
       - run: cargo install cargo-ndk --locked
       - run: cargo ndk -t arm64-v8a build --release
+
+  ios-php-embed-step1:
+    name: "iOS PHP embed — step 1: cross-compile libphp.a (experimental)"
+    # Step 1 of a deliberately incremental, CI-observed attempt at real
+    # on-device PHP for iOS (see ios/Sources/PhpNitroWebViewBridge/
+    # PhpEmbedBridge.swift's own TODOs and ios/README.md: Android embeds
+    # PHP as a genuine `php -S` SUBPROCESS via a cross-compiled libphp.so
+    # — a model that cannot port to iOS at all, since Process/NSTask
+    # doesn't exist there under the app sandbox. The actual iOS path has
+    # to be PHP's embed SAPI (--enable-embed=static) linked directly
+    # in-process, called via a thin C bridge — genuinely never attempted
+    # in this repo before, unlike every other native capability here.
+    # This job answers exactly one question — does php-src's own
+    # ./configure + make even produce a libphp.a when cross-compiled
+    # against the iOS SDK sysroot on this runner's toolchain — and
+    # nothing else: no linking into a Swift target yet (that's step 2+),
+    # no Package.swift wiring, no app changes. `continue-on-error: true`
+    # and no dependency from any other job: cross-compiling PHP's embed
+    # SAPI has known-fragile spots even on a plain macOS build (several
+    # long-standing php-src issues), so a red X here must never block an
+    # unrelated PR — this is intentionally exploratory, not a gate.
+    runs-on: macos-14
+    continue-on-error: true
+    steps:
+      - name: Checkout php-src
+        uses: actions/checkout@v4
+        with:
+          repository: php/php-src
+          ref: php-8.3.15
+          path: php-src
+
+      - name: Show toolchain versions
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-path
+          xcrun --sdk iphoneos --show-sdk-version
+          clang --version
+          autoconf --version || brew install autoconf
+
+      - name: buildconf (generate ./configure)
+        working-directory: php-src
+        run: |
+          ./buildconf --force
+
+      # --host=aarch64-apple-darwin (not a real "-ios" autoconf triple —
+      # autoconf's own triple tables don't know iOS as an OS component)
+      # is what actually flips ./configure into cross-compiling mode
+      # (host != build); the iOS-specific bits all come from CC/CFLAGS
+      # pointing at `xcrun -sdk iphoneos clang` instead. --disable-all
+      # + --without-pear + explicitly disabling cli/cgi/phpdbg keeps this
+      # first attempt to the smallest possible surface: the one thing
+      # under test is whether embed itself links, not whether any
+      # extension cross-compiles. Expected to plausibly fail here or at
+      # the make step — cross-compiling autoconf-based ./configure
+      # scripts normally need a preseeded config.cache for checks that
+      # would otherwise try to EXECUTE a target binary on the build
+      # host, which this first pass deliberately does not provide yet;
+      # the real CI log is the point, not a guess about what it'll say.
+      - name: configure (cross-compile for iOS device, arm64)
+        working-directory: php-src
+        run: |
+          export IOS_SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          export CC="xcrun -sdk iphoneos clang -arch arm64"
+          export CXX="xcrun -sdk iphoneos clang++ -arch arm64"
+          export CFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
+          export CXXFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
+          export LDFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
+          ./configure \
+            --host=aarch64-apple-darwin \
+            --disable-all \
+            --without-pear \
+            --disable-cli \
+            --disable-cgi \
+            --disable-phpdbg \
+            --enable-embed=static
+
+      - name: make (embed SAPI only)
+        working-directory: php-src
+        run: make -j"$(sysctl -n hw.ncpu)" 2>&1 | tail -200
+
+      - name: Check for libphp.a
+        working-directory: php-src
+        run: |
+          find . -name "libphp.a" -exec ls -la {} \;
+          test -f libs/libphp.a || (echo "libphp.a not produced" && exit 1)
+
+      - name: Upload libphp.a
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: libphp-ios-arm64-step1
+          path: php-src/libs/libphp.a
