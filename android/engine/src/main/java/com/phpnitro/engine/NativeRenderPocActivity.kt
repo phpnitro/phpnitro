@@ -878,6 +878,10 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 fieldValues[parts.getOrElse(1) { "wifi_out" }] = deviceBridge.wifiState()
                 refetch(action = null, includeFields = true)
             }
+            "hotspot" -> {
+                fieldValues[parts.getOrElse(1) { "hotspot_out" }] = deviceBridge.hotspotState()
+                refetch(action = null, includeFields = true)
+            }
             "securestore" -> {
                 val key = java.net.URLDecoder.decode(parts.getOrElse(1) { "demo_key" }, "UTF-8")
                 val value = java.net.URLDecoder.decode(parts.getOrElse(2) { "" }, "UTF-8")
