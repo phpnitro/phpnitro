@@ -467,6 +467,10 @@ public final class NativeScreenViewController: UIViewController {
                     self?.fieldValues[outField] = count < 0 ? "Permission requise" : "\(count) rappels"
                     self?.fetch(action: nil)
                 }
+            case "apn":
+                let outField = parts.count > 1 ? parts[1] : "apn_out"
+                fieldValues[outField] = NativeDeviceBridge.apnName()
+                fetch(action: nil)
             default:
                 break
             }
