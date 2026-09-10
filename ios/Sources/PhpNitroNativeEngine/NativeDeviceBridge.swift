@@ -918,6 +918,38 @@ public enum NativeDeviceBridge {
             completion("permission_denied")
         }
     }
+
+    // MARK: - Geofence
+
+    /// One shared manager for every registered region — CLLocationManager
+    /// itself is the object that owns "which regions am I monitoring",
+    /// so a single instance (not one per add/remove call) is required
+    /// for startMonitoring(for:)/stopMonitoring(for:) to see each
+    /// other's state at all.
+    private static let geofenceManager = CLLocationManager()
+
+    /// Mirrors NativeDeviceBridge.kt's own addGeofence() — same "check,
+    /// never request" contract Geofence.php's own docblock documents
+    /// (a missing grant is a silent no-op, not a crash or a prompt).
+    /// CLCircularRegion is the direct iOS equivalent of Android's own
+    /// Geofence + GeofencingRequest pair; `identifier` plays the exact
+    /// role $id does — the same string passed to removeGeofence(_:)
+    /// removes this specific region, not "the most recent one".
+    public static func addGeofence(id: String, latitude: Double, longitude: Double, radiusMeters: Double) {
+        let status = geofenceManager.authorizationStatus
+        guard status == .authorizedWhenInUse || status == .authorizedAlways else { return }
+        guard CLLocationManager.isMonitoringAvailable(for: CLCircularRegion.self) else { return }
+        let center = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        let region = CLCircularRegion(center: center, radius: radiusMeters, identifier: id)
+        region.notifyOnEntry = true
+        region.notifyOnExit = true
+        geofenceManager.startMonitoring(for: region)
+    }
+
+    public static func removeGeofence(id: String) {
+        guard let region = geofenceManager.monitoredRegions.first(where: { $0.identifier == id }) else { return }
+        geofenceManager.stopMonitoring(for: region)
+    }
 }
 
 private extension Comparable {
