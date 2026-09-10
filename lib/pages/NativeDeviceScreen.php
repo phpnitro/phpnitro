@@ -23,6 +23,7 @@ use Engine\Device\FileSelector;
 use Engine\Device\Fingerprint;
 use Engine\Device\DynamicIcon;
 use Engine\Device\Geofence;
+use Engine\Device\Health;
 use Engine\Device\ImageCropper;
 use Engine\Device\ImagePicker;
 use Engine\Device\InAppPurchase;
@@ -97,6 +98,7 @@ final class NativeDeviceScreen
         $wifiOut = Wifi::result();
         $hotspotOut = Hotspot::result();
         $wallpaperOut = Wallpaper::result();
+        $healthOut = Health::result();
         $secureOut = SecureStorage::result();
         $contactsOut = Contacts::result();
         $calendarOut = CalendarEvents::result();
@@ -143,6 +145,7 @@ final class NativeDeviceScreen
                     $row('Wi-Fi', Wifi::stateAction(), $wifiOut),
                     $row('Partage de connexion', Hotspot::stateAction(), $hotspotOut),
                     $row('Fond d\'écran', Wallpaper::setAction('http://' . ($_SERVER['HTTP_HOST'] ?? '127.0.0.1') . '/assets/images/google_logo.png'), $wallpaperOut),
+                    $row('Pas aujourd\'hui (Santé)', Health::stepsAction(), $healthOut),
                     $row('Stocker un secret', SecureStorage::storeAction('demo_key', 'valeur secrète')),
                     $row('Lire le secret', SecureStorage::retrieveAction('demo_key'), $secureOut),
                     $row('Contacts', Contacts::countAction(), $contactsOut),
