@@ -40,6 +40,7 @@ use Engine\Device\Torch;
 use Engine\Device\UrlLauncher;
 use Engine\Device\Vibrate;
 use Engine\Device\WebSocket;
+use Engine\Device\Hotspot;
 use Engine\Device\Wifi;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
@@ -92,6 +93,7 @@ final class NativeDeviceScreen
         $bluetoothOut = Bluetooth::result();
         $airplaneOut = AirplaneMode::result();
         $wifiOut = Wifi::result();
+        $hotspotOut = Hotspot::result();
         $secureOut = SecureStorage::result();
         $contactsOut = Contacts::result();
         $calendarOut = CalendarEvents::result();
@@ -136,6 +138,7 @@ final class NativeDeviceScreen
                     $row('Bluetooth', Bluetooth::stateAction(), $bluetoothOut),
                     $row('Mode avion', AirplaneMode::stateAction(), $airplaneOut),
                     $row('Wi-Fi', Wifi::stateAction(), $wifiOut),
+                    $row('Partage de connexion', Hotspot::stateAction(), $hotspotOut),
                     $row('Stocker un secret', SecureStorage::storeAction('demo_key', 'valeur secrète')),
                     $row('Lire le secret', SecureStorage::retrieveAction('demo_key'), $secureOut),
                     $row('Contacts', Contacts::countAction(), $contactsOut),
