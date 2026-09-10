@@ -507,6 +507,35 @@ public enum NativeDeviceBridge {
             completion("\(x), \(y), \(z)")
         }
     }
+
+    // MARK: - Alarm
+
+    /// Mirrors NativeDeviceBridge.kt's own scheduleAlarm() in effect —
+    /// Android's AlarmManager + a separate AlarmReceiver survives this
+    /// app's own process being killed; a UNTimeIntervalNotificationTrigger
+    /// local notification is the closest iOS has to the same "fires
+    /// later, independent of this process" guarantee, reusing the exact
+    /// delegate/authorization path showNotification() above already
+    /// sets up (so it also shows as a banner if the app happens to
+    /// still be foregrounded when it fires). `requestCode` becomes the
+    /// notification's own identifier — same "same code replaces the
+    /// previous request" semantics AlarmScheduler.php's own docblock
+    /// documents for PendingIntent.FLAG_UPDATE_CURRENT, since
+    /// UNUserNotificationCenter.add(_:) with a repeated identifier
+    /// already replaces rather than duplicates.
+    public static func scheduleAlarm(requestCode: Int, delaySeconds: Int, title: String, message: String) {
+        let center = UNUserNotificationCenter.current()
+        center.delegate = notificationDelegate
+        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = message
+            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(1, Double(delaySeconds)), repeats: false)
+            let request = UNNotificationRequest(identifier: "phpnitro.alarm.\(requestCode)", content: content, trigger: trigger)
+            center.add(request)
+        }
+    }
 }
 
 private extension Comparable {
