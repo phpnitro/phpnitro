@@ -73,6 +73,17 @@ let package = Package(
         .library(name: "PhpNitroGo", targets: ["PhpNitroGo"]),
         .library(name: "RustNativeRenderer", targets: ["RustNativeRenderer"]),
     ],
+    dependencies: [
+        // The direct iOS counterpart of Android's own
+        // com.vanniktech:android-image-cropper (see engine/build.gradle.kts) —
+        // a freeform, drag-resizable crop rectangle by default
+        // (Mantis.CropViewConfig's own presetFixedRatioType defaults to
+        // .alwaysUsingOnePresetFixedRatio(...) == nil, i.e. no fixed
+        // ratio), matching that library's own canChangeCropWindow=true/
+        // fixAspectRatio=false defaults — chosen over TOCropViewController
+        // for being pure-Swift and more actively maintained (2026-09-10).
+        .package(url: "https://github.com/guoyingtao/Mantis-spm.git", from: "3.1.0"),
+    ],
     targets: [
         .target(name: "PhpNitroProtocol", path: "Sources/PhpNitroProtocol"),
         .testTarget(
@@ -85,7 +96,10 @@ let package = Package(
 
         .target(
             name: "PhpNitroNativeEngine",
-            dependencies: ["PhpNitroProtocol"],
+            dependencies: [
+                "PhpNitroProtocol",
+                .product(name: "Mantis", package: "Mantis-spm"),
+            ],
             path: "Sources/PhpNitroNativeEngine",
             // Verbatim copies of the SAME two font files
             // android/engine/src/main/assets/fonts/ already bundles —

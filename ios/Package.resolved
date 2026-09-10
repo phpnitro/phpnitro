@@ -1,0 +1,14 @@
+{
+  "pins" : [
+    {
+      "identity" : "mantis-spm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/guoyingtao/Mantis-spm.git",
+      "state" : {
+        "revision" : "114b303e2ed4c5de37712922216f7b9263d11534",
+        "version" : "3.1.0"
+      }
+    }
+  ],
+  "version" : 2
+}
