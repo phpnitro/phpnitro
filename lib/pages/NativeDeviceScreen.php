@@ -41,6 +41,7 @@ use Engine\Device\UrlLauncher;
 use Engine\Device\Vibrate;
 use Engine\Device\WebSocket;
 use Engine\Device\Hotspot;
+use Engine\Device\Wallpaper;
 use Engine\Device\Wifi;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
@@ -94,6 +95,7 @@ final class NativeDeviceScreen
         $airplaneOut = AirplaneMode::result();
         $wifiOut = Wifi::result();
         $hotspotOut = Hotspot::result();
+        $wallpaperOut = Wallpaper::result();
         $secureOut = SecureStorage::result();
         $contactsOut = Contacts::result();
         $calendarOut = CalendarEvents::result();
@@ -139,6 +141,7 @@ final class NativeDeviceScreen
                     $row('Mode avion', AirplaneMode::stateAction(), $airplaneOut),
                     $row('Wi-Fi', Wifi::stateAction(), $wifiOut),
                     $row('Partage de connexion', Hotspot::stateAction(), $hotspotOut),
+                    $row('Fond d\'écran', Wallpaper::setAction('http://' . ($_SERVER['HTTP_HOST'] ?? '127.0.0.1') . '/assets/images/google_logo.png'), $wallpaperOut),
                     $row('Stocker un secret', SecureStorage::storeAction('demo_key', 'valeur secrète')),
                     $row('Lire le secret', SecureStorage::retrieveAction('demo_key'), $secureOut),
                     $row('Contacts', Contacts::countAction(), $contactsOut),
