@@ -10,6 +10,7 @@ import android.hardware.camera2.CameraManager
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.net.Uri
+import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
@@ -102,6 +103,30 @@ class NativeDeviceBridge(private val context: Context) {
     fun airplaneModeState(): String {
         val value = Settings.Global.getInt(context.contentResolver, Settings.Global.AIRPLANE_MODE_ON, 0)
         return if (value != 0) "on" else "off"
+    }
+
+    /**
+     * "unsupported" | "off" | "on" | "on: <SSID>" — WifiManager.isWifiEnabled
+     * needs only ACCESS_WIFI_STATE (a normal permission, always granted).
+     * The connected network's own SSID additionally needs
+     * ACCESS_FINE_LOCATION (an Android 27+ privacy restriction unrelated
+     * to WiFi itself, already declared for Engine\Device\Geofence) —
+     * same "check, never request" contract every other permission-gated
+     * read in this file follows: falls back to a bare "on" without it,
+     * rather than prompting.
+     */
+    fun wifiState(): String {
+        val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+            ?: return "unsupported"
+        if (!wifiManager.isWifiEnabled) return "off"
+        if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return "on"
+        }
+        @Suppress("DEPRECATION")
+        val ssid = wifiManager.connectionInfo?.ssid?.trim('"')
+        return if (ssid.isNullOrEmpty() || ssid == "<unknown ssid>") "on" else "on: $ssid"
     }
 
     /** Same real ConnectivityManager check WebAppInterface.getConnectionType() uses — the native replacement for Engine\Connectivity\ConnectivityBadge's JS-side navigator.onLine. */

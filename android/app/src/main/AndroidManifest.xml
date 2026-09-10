@@ -25,6 +25,10 @@
     <!-- Lets Connectivity (Engine\Device\Connectivity) read the current
          network state (Wi-Fi/mobile/offline) without a location permission. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- WifiInfo/WifiManager reads for Engine\Device\Wifi — the SSID
+         itself needs ACCESS_FINE_LOCATION too (already declared below)
+         on API 27+; this alone is enough for the on/off state check. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- Exact-time alarm scheduling for AlarmReceiver
          (Engine\Device\LocalNotification's scheduled variant), required on
          Android 12+ (API 31) alongside USE_EXACT_ALARM below. -->
