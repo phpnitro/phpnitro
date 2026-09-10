@@ -63,6 +63,8 @@
 	<string>Démo de demande de permission microphone (NativeDeviceBridge).</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Choisit une image à recadrer pour la démo NativeDeviceBridge.</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>Compte les rappels pour la démo NativeDeviceBridge — lecture seule.</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.phpnitro.hostapp.ping</string>
