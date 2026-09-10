@@ -3,6 +3,7 @@ import Contacts
 import EventKit
 import Security
 import UIKit
+import UserNotifications
 
 /// The iOS counterpart of NativeDeviceBridge.kt — one native capability at
 /// a time (2026-09-09: starting with `vibrate`, the simplest one, chosen
@@ -173,5 +174,24 @@ public enum NativeDeviceBridge {
         guard let url = URL(string: urlString) else { return }
         soundPlayer = AVPlayer(url: url)
         soundPlayer?.play()
+    }
+
+    // MARK: - Notify
+
+    /// Mirrors NativeDeviceBridge.kt's own showNotification() (channel
+    /// "phpx_default") — UNUserNotificationCenter's local notifications,
+    /// same "request authorization inline, silently no-op if denied"
+    /// contract WebAppInterface.swift's own showNotification() already
+    /// uses for the WebView path (iOS caches the user's answer, so
+    /// re-requesting on every call is harmless, not a repeated prompt).
+    public static func showNotification(title: String, message: String) {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = message
+            center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+        }
     }
 }
