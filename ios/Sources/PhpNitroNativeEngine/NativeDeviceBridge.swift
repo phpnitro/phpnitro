@@ -246,6 +246,20 @@ public enum NativeDeviceBridge {
         }
         monitor.start(queue: DispatchQueue(label: "phpnitro.connectivity-check"))
     }
+
+    // MARK: - URL launcher
+
+    /// Mirrors NativeDeviceBridge.kt's own openWebView() call site's
+    /// sibling — Engine\Device\UrlLauncher::openAction() targets any
+    /// scheme the OS can resolve (http/https/tel/mailto/sms/geo/...),
+    /// same as Android's Intent.ACTION_VIEW; UIApplication.open(_:) is
+    /// the direct iOS equivalent. Must run on the main thread (UIKit
+    /// requirement) — safe here since handle(action:rect:) itself
+    /// always runs on the main thread already.
+    public static func openURL(_ urlString: String) {
+        guard let url = URL(string: urlString) else { return }
+        UIApplication.shared.open(url)
+    }
 }
 
 private extension Comparable {
