@@ -442,6 +442,10 @@ public final class NativeScreenViewController: UIViewController {
                     self?.fieldValues[outField] = result
                     self?.fetch(action: nil)
                 }
+            case "hotspot":
+                let outField = parts.count > 1 ? parts[1] : "hotspot_out"
+                fieldValues[outField] = NativeDeviceBridge.hotspotState()
+                fetch(action: nil)
             default:
                 break
             }
