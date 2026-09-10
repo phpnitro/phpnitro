@@ -3,6 +3,7 @@ import Contacts
 import CoreLocation
 import CoreMotion
 import EventKit
+import LocalAuthentication
 import Network
 import Security
 import StoreKit
@@ -550,6 +551,39 @@ public enum NativeDeviceBridge {
     public static func requestInAppReview(from presenter: UIViewController) {
         guard let scene = presenter.view.window?.windowScene else { return }
         SKStoreReviewController.requestReview(in: scene)
+    }
+
+    // MARK: - Biometric (Face ID / Touch ID)
+
+    /// Mirrors NativeDeviceBridge.kt's own showBiometricPrompt() — reuses
+    /// the exact LAContext.evaluatePolicy() approach
+    /// PhpNitroWebViewBridge's own WebAppInterface.swift already has for
+    /// the WebView path (WKWebView implements no platform authenticator,
+    /// same reason that path needed this natively too), just reported
+    /// back through fieldValues/refetch instead of a JS callback.
+    public static func authenticateBiometric(completion: @escaping (Bool, String) -> Void) {
+        let context = LAContext()
+        var error: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
+            completion(false, biometricUnavailableReason(error))
+            return
+        }
+        context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: "Confirme ton identité") { success, evaluationError in
+            DispatchQueue.main.async {
+                completion(success, success ? "" : (evaluationError?.localizedDescription ?? "Authentification échouée."))
+            }
+        }
+    }
+
+    private static func biometricUnavailableReason(_ error: NSError?) -> String {
+        switch error?.code {
+        case LAError.biometryNotEnrolled.rawValue:
+            return "Aucune empreinte/visage enregistré sur ce téléphone."
+        case LAError.biometryNotAvailable.rawValue:
+            return "Ce device n'a pas de capteur biométrique."
+        default:
+            return "Authentification biométrique indisponible."
+        }
     }
 }
 

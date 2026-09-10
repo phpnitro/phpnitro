@@ -193,7 +193,7 @@ public final class NativeScreenViewController: UIViewController {
         // PHP can render it — `fetch(action: nil)` already sends every
         // non-empty fieldValues entry (see ScreenClient's own docblock),
         // so that's the whole "includeFields" equivalent here, no
-        // separate flag needed. Only these twenty-two exist so far
+        // separate flag needed. Only these twenty-three exist so far
         // (2026-09-10) of Android's ~40 — see NativeDeviceBridge.swift's
         // own docblock on why this is starting small.
         if action.hasPrefix("device:") {
@@ -302,6 +302,12 @@ public final class NativeScreenViewController: UIViewController {
                 NativeDeviceBridge.scheduleAlarm(requestCode: requestCode, delaySeconds: delaySeconds, title: title, message: message)
             case "inappreview":
                 NativeDeviceBridge.requestInAppReview(from: self)
+            case "biometric":
+                let outField = parts.count > 1 ? parts[1] : "biometric_out"
+                NativeDeviceBridge.authenticateBiometric { [weak self] success, message in
+                    self?.fieldValues[outField] = success ? "Authentifié" : message
+                    self?.fetch(action: nil)
+                }
             default:
                 break
             }
