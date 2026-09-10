@@ -1,8 +1,11 @@
 import AVFoundation
 import Contacts
+import CoreLocation
+import CoreMotion
 import EventKit
 import Network
 import Security
+import StoreKit
 import UIKit
 import UserNotifications
 
@@ -363,6 +366,170 @@ public enum NativeDeviceBridge {
     public static func openAppSettings() {
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         UIApplication.shared.open(url)
+    }
+
+    // MARK: - Generic permission request
+
+    /// Retained for the lifetime of one requestWhenInUseAuthorization()
+    /// call — CLLocationManager only ever reports back through a
+    /// delegate, unlike every other permission check here, which takes
+    /// a completion handler. A local `let` would be deallocated before
+    /// the callback fires.
+    private final class LocationPermissionRequester: NSObject, CLLocationManagerDelegate {
+        private let manager = CLLocationManager()
+        private let completion: (String) -> Void
+
+        init(completion: @escaping (String) -> Void) {
+            self.completion = completion
+            super.init()
+            manager.delegate = self
+        }
+
+        func request() {
+            manager.requestWhenInUseAuthorization()
+        }
+
+        func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+            switch manager.authorizationStatus {
+            case .notDetermined:
+                return
+            case .authorizedWhenInUse, .authorizedAlways:
+                completion("granted")
+            default:
+                completion("denied")
+            }
+            NativeDeviceBridge.pendingLocationPermission = nil
+        }
+    }
+
+    private static var pendingLocationPermission: LocationPermissionRequester?
+
+    /// Mirrors NativeDeviceBridge.kt's own handlePermissionAction() —
+    /// same fixed whitelist (Engine\Device\Permission's own docblock:
+    /// 'camera', 'microphone', 'location', 'coarse_location', 'contacts',
+    /// 'calendar', 'notifications', 'bluetooth'), same three possible
+    /// results ('granted'/'denied'/'unknown_permission'). Two real
+    /// platform gaps, not narrower ports of the same capability:
+    /// 'coarse_location' has no separate iOS permission (CoreLocation
+    /// has no "approximate only" request, unlike Android's own ACCESS_
+    /// COARSE_LOCATION) so it's treated identically to 'location' here;
+    /// 'bluetooth' has no explicit iOS request API at all (creating a
+    /// CBCentralManager triggers the system prompt as a side effect,
+    /// not something this can ask for up front), so it reports
+    /// "unknown_permission" the same way an unrecognised key would,
+    /// same "not yet implemented" stance bluetoothState() itself
+    /// documents (still todo as of this writing).
+    public static func requestPermission(_ key: String, completion: @escaping (String) -> Void) {
+        switch key {
+        case "camera":
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async { completion(granted ? "granted" : "denied") }
+            }
+        case "microphone":
+            AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                DispatchQueue.main.async { completion(granted ? "granted" : "denied") }
+            }
+        case "location", "coarse_location":
+            let requester = LocationPermissionRequester(completion: completion)
+            pendingLocationPermission = requester
+            requester.request()
+        case "contacts":
+            CNContactStore().requestAccess(for: .contacts) { granted, _ in
+                DispatchQueue.main.async { completion(granted ? "granted" : "denied") }
+            }
+        case "calendar":
+            if #available(iOS 17.0, *) {
+                EKEventStore().requestFullAccessToEvents { granted, _ in
+                    DispatchQueue.main.async { completion(granted ? "granted" : "denied") }
+                }
+            } else {
+                EKEventStore().requestAccess(to: .event) { granted, _ in
+                    DispatchQueue.main.async { completion(granted ? "granted" : "denied") }
+                }
+            }
+        case "notifications":
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
+                DispatchQueue.main.async { completion(granted ? "granted" : "denied") }
+            }
+        default:
+            completion("unknown_permission")
+        }
+    }
+
+    // MARK: - Sensor / Alarm / In-app review
+
+    /// Held for the lifetime of one one-shot accelerometer read —
+    /// CMMotionManager's own deviceMotion/accelerometer updates only
+    /// ever arrive via a still-running instance's handler block, same
+    /// "must outlive the async call" reasoning as soundPlayer and
+    /// LocationPermissionRequester above.
+    private static var motionManager: CMMotionManager?
+
+    /// Mirrors NativeDeviceBridge.kt's own readSensor(TYPE_ACCELEROMETER)
+    /// — a single reading, not a stream, matching Sensors.php's own
+    /// docblock ("this pipeline's paint model is one render per
+    /// request"). CMMotionManager has no "give me exactly one sample"
+    /// call, only startAccelerometerUpdates(to:), so this starts it,
+    /// takes the first sample handed back, and immediately stops —
+    /// the Simulator (no real accelerometer) never calls the handler at
+    /// all, reported as "Capteur indisponible" the same way Android's
+    /// own missing-sensor branch is.
+    public static func readAccelerometer(completion: @escaping (String) -> Void) {
+        guard CMMotionManager().isAccelerometerAvailable else {
+            completion("Capteur indisponible")
+            return
+        }
+        let manager = CMMotionManager()
+        motionManager = manager
+        manager.accelerometerUpdateInterval = 0.1
+        manager.startAccelerometerUpdates(to: .main) { data, _ in
+            guard let data else { return }
+            manager.stopAccelerometerUpdates()
+            motionManager = nil
+            let x = String(format: "%.2f", data.acceleration.x)
+            let y = String(format: "%.2f", data.acceleration.y)
+            let z = String(format: "%.2f", data.acceleration.z)
+            completion("\(x), \(y), \(z)")
+        }
+    }
+
+    /// Mirrors NativeDeviceBridge.kt's own scheduleAlarm() in effect —
+    /// Android's AlarmManager + a separate AlarmReceiver survives this
+    /// app's own process being killed; a UNTimeIntervalNotificationTrigger
+    /// local notification is the closest iOS has to the same "fires
+    /// later, independent of this process" guarantee, reusing the exact
+    /// delegate/authorization path showNotification() above already
+    /// sets up (so it also shows as a banner if the app happens to
+    /// still be foregrounded when it fires). `requestCode` becomes the
+    /// notification's own identifier — same "same code replaces the
+    /// previous request" semantics AlarmScheduler.php's own docblock
+    /// documents for PendingIntent.FLAG_UPDATE_CURRENT, since
+    /// UNUserNotificationCenter.add(_:) with a repeated identifier
+    /// already replaces rather than duplicates.
+    public static func scheduleAlarm(requestCode: Int, delaySeconds: Int, title: String, message: String) {
+        let center = UNUserNotificationCenter.current()
+        center.delegate = notificationDelegate
+        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = message
+            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(1, Double(delaySeconds)), repeats: false)
+            let request = UNNotificationRequest(identifier: "phpnitro.alarm.\(requestCode)", content: content, trigger: trigger)
+            center.add(request)
+        }
+    }
+
+    /// Mirrors NativeDeviceBridge.kt's own inappreview — SKStoreReviewController
+    /// is iOS's own equivalent of Play Core's ReviewManager: same "no
+    /// guarantee the prompt actually shows" contract (StoreKit throttles
+    /// how often this can trigger per app per year, same spirit as
+    /// Play's own quota — InAppReview.php's own docblock already covers
+    /// this as an expected, not a buggy, silent no-op), fire-and-forget,
+    /// no result field.
+    public static func requestInAppReview(from presenter: UIViewController) {
+        guard let scene = presenter.view.window?.windowScene else { return }
+        SKStoreReviewController.requestReview(in: scene)
     }
 }
 
