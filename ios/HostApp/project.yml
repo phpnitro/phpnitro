@@ -38,6 +38,12 @@ targets:
           UIApplicationSupportsMultipleScenes: false
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
+        # Required at BUILD time for contactsCount() (NativeDeviceBridge.swift)
+        # to not crash on an actual fetch once authorized — Android's own
+        # contactsCount() only ever CHECKS permission, never requests it,
+        # but iOS crashes outright on a real CNContactStore access with no
+        # usage-description string present at all, authorized or not.
+        NSContactsUsageDescription: "Compte les contacts pour la démo NativeDeviceBridge — lecture seule."
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.phpnitro.hostapp

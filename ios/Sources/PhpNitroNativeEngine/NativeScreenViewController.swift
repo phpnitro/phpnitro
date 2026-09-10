@@ -218,6 +218,11 @@ public final class NativeScreenViewController: UIViewController {
                 let outField = parts.count > 2 ? parts[2] : "secure_out"
                 fieldValues[outField] = NativeDeviceBridge.secureRetrieve(key: key)
                 fetch(action: nil)
+            case "contacts":
+                let outField = parts.count > 1 ? parts[1] : "contacts_out"
+                let count = NativeDeviceBridge.contactsCount()
+                fieldValues[outField] = count < 0 ? "Permission requise" : "\(count) contacts"
+                fetch(action: nil)
             default:
                 break
             }

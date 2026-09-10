@@ -1,4 +1,5 @@
 import AVFoundation
+import Contacts
 import Security
 import UIKit
 
@@ -116,5 +117,22 @@ public enum NativeDeviceBridge {
             return ""
         }
         return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    // MARK: - Contacts (read-only count)
+
+    /// Mirrors NativeDeviceBridge.kt's own contactsCount() — same
+    /// "check, never request" contract (see that file's own docblock):
+    /// `.notDetermined` is treated the same as `.denied`, both return -1,
+    /// because actually prompting belongs to a separate Permission
+    /// action a caller taps first, not something a read action should
+    /// trigger as a side effect.
+    public static func contactsCount() -> Int {
+        guard CNContactStore.authorizationStatus(for: .contacts) == .authorized else { return -1 }
+
+        var count = 0
+        let request = CNContactFetchRequest(keysToFetch: [CNContactIdentifierKey as CNKeyDescriptor])
+        try? CNContactStore().enumerateContacts(with: request) { _, _ in count += 1 }
+        return count
     }
 }
