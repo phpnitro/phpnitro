@@ -193,7 +193,7 @@ public final class NativeScreenViewController: UIViewController {
         // PHP can render it — `fetch(action: nil)` already sends every
         // non-empty fieldValues entry (see ScreenClient's own docblock),
         // so that's the whole "includeFields" equivalent here, no
-        // separate flag needed. Only these forty-two exist so far
+        // separate flag needed. Only these forty-four exist so far
         // (2026-09-10) of Android's ~40 — see NativeDeviceBridge.swift's
         // own docblock on why this is starting small.
         if action.hasPrefix("device:") {
@@ -404,6 +404,12 @@ public final class NativeScreenViewController: UIViewController {
                 NativeDeviceBridge.scheduleBackgroundTask(endpoint: endpoint, intervalMinutes: intervalMinutes, host: host, port: port)
             case "bgcancel":
                 NativeDeviceBridge.cancelBackgroundTask()
+            case "nfcstart":
+                NativeDeviceBridge.startNfcListening()
+            case "nfcstop":
+                fieldValues["nfc_out"] = NativeDeviceBridge.lastNfcResult
+                NativeDeviceBridge.stopNfcListening()
+                fetch(action: nil)
             default:
                 break
             }
