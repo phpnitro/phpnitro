@@ -205,6 +205,19 @@ public final class NativeScreenViewController: UIViewController {
                 let outField = parts.count > 1 ? parts[1] : "device_id_out"
                 fieldValues[outField] = NativeDeviceBridge.deviceId()
                 fetch(action: nil)
+            case "securestore":
+                // "device:securestore:<key>:<value>" — both rawurlencode()d
+                // PHP-side (Engine\Device\SecureStorage::storeAction()).
+                // Fire-and-forget, no output field, no refetch — matches
+                // handleDeviceAction()'s own "securestore" branch exactly.
+                let key = (parts.count > 1 ? parts[1] : "demo_key").removingPercentEncoding ?? ""
+                let value = (parts.count > 2 ? parts[2] : "").removingPercentEncoding ?? ""
+                NativeDeviceBridge.secureStore(key: key, value: value)
+            case "secureretrieve":
+                let key = (parts.count > 1 ? parts[1] : "demo_key").removingPercentEncoding ?? ""
+                let outField = parts.count > 2 ? parts[2] : "secure_out"
+                fieldValues[outField] = NativeDeviceBridge.secureRetrieve(key: key)
+                fetch(action: nil)
             default:
                 break
             }
