@@ -235,6 +235,17 @@ class NativeDeviceBridge(private val context: Context) {
         }
     }
 
+    /**
+     * Always "unsupported" — Android has no OS-level "Reminders"
+     * concept at all, unlike iOS's own EventKit reminders (EKReminder,
+     * a genuinely separate store from Calendar events). The closest
+     * Android analog (a task list) only exists inside individual third-
+     * party apps (Google Tasks, etc.), each with its own non-standard
+     * API a generic device bridge can't target — a real, permanent
+     * platform gap, not a temporary "not implemented yet".
+     */
+    fun remindersState(): String = "unsupported"
+
     /** Same real ConnectivityManager check WebAppInterface.getConnectionType() uses — the native replacement for Engine\Connectivity\ConnectivityBadge's JS-side navigator.onLine. */
     fun isOnline(): Boolean {
         val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
