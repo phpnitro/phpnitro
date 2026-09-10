@@ -1264,6 +1264,43 @@ extension NativeDeviceBridge {
         nfcSession = nil
         nfcDelegate = nil
     }
+
+    // MARK: - In-app purchase
+
+    /// Mirrors NativeDeviceBridge.kt's own queryProducts()/purchaseProduct()
+    /// in effect, not mechanism — Billing Library v7 there, StoreKit 2's
+    /// own Product API here (async/await, no delegate/listener setup
+    /// needed, the modern iOS 15+ replacement for the older
+    /// SKProductsRequest). Same documented caveat InAppPurchase.php's
+    /// own docblock already carries for the Android side: written to
+    /// follow the real API shape, never exercised against a real
+    /// product from this pipeline (no sandbox reachable outside a real
+    /// App Store Connect account with published in-app products) —
+    /// `productId` must already exist there for either call to return
+    /// anything meaningful.
+    public static func queryProducts(productIds: [String], completion: @escaping (String) -> Void) {
+        Task {
+            let summary: String
+            if let products = try? await Product.products(for: productIds), !products.isEmpty {
+                summary = products.map { "\($0.displayName): \($0.displayPrice)" }.joined(separator: ", ")
+            } else {
+                summary = "Aucun produit trouvé."
+            }
+            completion(summary)
+        }
+    }
+
+    /// No result field, same as NativeDeviceBridge.kt's own
+    /// purchaseProduct() — a successful purchase is reported through
+    /// StoreKit's own Transaction.updates listener, not wired back into
+    /// this request/response cycle here, same "currently a no-op"
+    /// caveat the Android listener's own docblock already carries.
+    public static func purchaseProduct(productId: String) {
+        Task {
+            guard let product = try? await Product.products(for: [productId]).first else { return }
+            _ = try? await product.purchase()
+        }
+    }
 }
 
 private extension Comparable {
