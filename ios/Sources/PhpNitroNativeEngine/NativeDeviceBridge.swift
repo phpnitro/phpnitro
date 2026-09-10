@@ -7,6 +7,7 @@ import LocalAuthentication
 import Network
 import PhotosUI
 import Security
+import UniformTypeIdentifiers
 import StoreKit
 import UIKit
 import UserNotifications
@@ -730,6 +731,44 @@ public enum NativeDeviceBridge {
         let fetcher = LocationFetcher(completion: completion)
         pendingLocationFetch = fetcher
         fetcher.fetch()
+    }
+
+    // MARK: - File picker
+
+    /// Retained for the lifetime of one picker presentation, same
+    /// reasoning as ImagePickerDelegate above. Mirrors
+    /// NativeDeviceBridge.kt's own pickFile launcher (ActivityResultContracts.
+    /// OpenDocument) — UIDocumentPickerViewController is the direct iOS
+    /// equivalent, reporting back the picked file's display name only
+    /// (FileSelector.php's own docblock: "not the file's actual bytes",
+    /// same scope this mirrors).
+    private final class FilePickerDelegate: NSObject, UIDocumentPickerDelegate {
+        private let completion: (String) -> Void
+
+        init(completion: @escaping (String) -> Void) {
+            self.completion = completion
+        }
+
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            NativeDeviceBridge.pendingFilePicker = nil
+            completion(urls.first?.lastPathComponent ?? "Annulé")
+        }
+
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            NativeDeviceBridge.pendingFilePicker = nil
+            completion("Annulé")
+        }
+    }
+
+    private static var pendingFilePicker: FilePickerDelegate?
+
+    public static func pickFile(from presenter: UIViewController, completion: @escaping (String) -> Void) {
+        let delegate = FilePickerDelegate(completion: completion)
+        pendingFilePicker = delegate
+
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.item])
+        picker.delegate = delegate
+        presenter.present(picker, animated: true)
     }
 }
 
