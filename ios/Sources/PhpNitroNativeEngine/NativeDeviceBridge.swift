@@ -657,6 +657,21 @@ public enum NativeDeviceBridge {
         guard let url = components.url else { return }
         UIApplication.shared.open(url)
     }
+
+    // MARK: - In-app update
+
+    /// Mirrors NativeDeviceBridge.kt's own checkupdate — Android checks
+    /// Play Core's AppUpdateManager, which always reports
+    /// 'update_not_available' outside a real Play Store install
+    /// (InAppUpdate.php's own docblock). iOS has no equivalent of Play
+    /// Core's own update-availability API at all (App Store Connect
+    /// exposes no public "is a newer version available" check) — this
+    /// always reports the same 'update_not_available' Android's own
+    /// wrapper reports in every non-Play-Store dev/test scenario, which
+    /// covers every real run of this demo either way.
+    public static func checkForUpdate() -> String {
+        "update_not_available"
+    }
 }
 
 private extension Comparable {
