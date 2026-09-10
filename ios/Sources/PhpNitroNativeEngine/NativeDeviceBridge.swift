@@ -11,6 +11,7 @@ import UniformTypeIdentifiers
 import StoreKit
 import UIKit
 import UserNotifications
+import Vision
 
 /// The iOS counterpart of NativeDeviceBridge.kt — one native capability at
 /// a time (2026-09-09: starting with `vibrate`, the simplest one, chosen
@@ -859,6 +860,82 @@ public enum NativeDeviceBridge {
         }
         let delegate = CameraDelegate(completion: completion)
         pendingCameraPicker = delegate
+
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.delegate = delegate
+        presenter.present(picker, animated: true)
+    }
+
+    // MARK: - QR scanner
+
+    /// Retained for the lifetime of one picker presentation, same
+    /// reasoning as CameraDelegate above. Mirrors NativeDeviceBridge.kt's
+    /// own scanQrPicture launcher + ML Kit decode — QrScanner.php's own
+    /// docblock is explicit this is deliberately "point, tap the
+    /// shutter, decode the still" rather than a live-scanning preview
+    /// (the one thing genuinely still WebView-only on this Canvas-only
+    /// path), so a photo via the system camera app, then VNDetectBarcodesRequest
+    /// (Vision) on that still image, matches that exact scope — not a
+    /// narrower substitute for ML Kit, the SAME "decode-a-still" contract
+    /// this was always meant to have.
+    private final class QrScannerDelegate: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        private let completion: (String) -> Void
+
+        init(completion: @escaping (String) -> Void) {
+            self.completion = completion
+        }
+
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            picker.dismiss(animated: true)
+            NativeDeviceBridge.pendingQrPicker = nil
+            guard let image = info[.originalImage] as? UIImage, let cgImage = image.cgImage else {
+                completion("Aucun code détecté")
+                return
+            }
+            let request = VNDetectBarcodesRequest()
+            let handler = VNImageRequestHandler(cgImage: cgImage, orientation: Self.cgOrientation(for: image.imageOrientation))
+            try? handler.perform([request])
+            let value = request.results?.first?.payloadStringValue
+            completion(value ?? "Aucun code détecté")
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            picker.dismiss(animated: true)
+            NativeDeviceBridge.pendingQrPicker = nil
+            completion("Annulé")
+        }
+
+        /// UIImage.Orientation and CGImagePropertyOrientation are two
+        /// separate enums with matching cases but no built-in
+        /// conversion between them — Vision needs the latter to
+        /// interpret a UIImagePickerController photo (which is rarely
+        /// .up: a phone photo's orientation lives in this metadata,
+        /// not in how the pixel buffer itself is laid out) correctly.
+        static func cgOrientation(for orientation: UIImage.Orientation) -> CGImagePropertyOrientation {
+            switch orientation {
+            case .up: return .up
+            case .upMirrored: return .upMirrored
+            case .down: return .down
+            case .downMirrored: return .downMirrored
+            case .left: return .left
+            case .leftMirrored: return .leftMirrored
+            case .right: return .right
+            case .rightMirrored: return .rightMirrored
+            @unknown default: return .up
+            }
+        }
+    }
+
+    private static var pendingQrPicker: QrScannerDelegate?
+
+    public static func scanQrCode(from presenter: UIViewController, completion: @escaping (String) -> Void) {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            completion("Aucune caméra disponible")
+            return
+        }
+        let delegate = QrScannerDelegate(completion: completion)
+        pendingQrPicker = delegate
 
         let picker = UIImagePickerController()
         picker.sourceType = .camera
