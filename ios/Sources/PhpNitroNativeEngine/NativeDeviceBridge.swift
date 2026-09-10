@@ -1350,6 +1350,18 @@ extension NativeDeviceBridge {
         picker.delegate = delegate
         presenter.present(picker, animated: true)
     }
+
+    // MARK: - Airplane mode
+
+    /// Mirrors NativeDeviceBridge.kt's own airplaneModeState() in intent
+    /// only, not in capability: unlike Android's Settings.Global.
+    /// AIRPLANE_MODE_ON (a plain readable system setting, no special
+    /// permission needed), iOS exposes airplane mode status to no
+    /// third-party app at all — there is no public API, entitled or
+    /// not. Always "unsupported", a permanent platform gap.
+    public static func airplaneModeState() -> String {
+        "unsupported"
+    }
 }
 
 private extension Comparable {
