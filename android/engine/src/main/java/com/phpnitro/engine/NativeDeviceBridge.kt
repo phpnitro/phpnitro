@@ -246,6 +246,31 @@ class NativeDeviceBridge(private val context: Context) {
      */
     fun remindersState(): String = "unsupported"
 
+    /**
+     * Best-effort, almost always "unsupported" on a real device —
+     * Telephony.Carriers has required carrier privileges (not just a
+     * runtime permission) to read on Android 10+ for anything beyond
+     * this app's own APN entries, which a generic demo app has none of.
+     * Catches both the SecurityException a normal app gets denied with
+     * and a null/empty cursor the same way, rather than crashing.
+     */
+    fun apnName(): String {
+        return try {
+            val cursor = context.contentResolver.query(
+                android.net.Uri.parse("content://telephony/carriers/preferapn"),
+                arrayOf("apn"),
+                null,
+                null,
+                null,
+            )
+            cursor?.use {
+                if (it.moveToFirst()) it.getString(0) ?: "unsupported" else "unsupported"
+            } ?: "unsupported"
+        } catch (e: Exception) {
+            "unsupported"
+        }
+    }
+
     /** Same real ConnectivityManager check WebAppInterface.getConnectionType() uses — the native replacement for Engine\Connectivity\ConnectivityBadge's JS-side navigator.onLine. */
     fun isOnline(): Boolean {
         val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
