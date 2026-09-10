@@ -815,6 +815,56 @@ public enum NativeDeviceBridge {
     public static func recordAppLink(_ url: URL) {
         lastAppLink = url.absoluteString
     }
+
+    // MARK: - Camera
+
+    /// Retained for the lifetime of one picker presentation, same
+    /// reasoning as ImagePickerDelegate/FilePickerDelegate above.
+    /// Mirrors NativeDeviceBridge.kt's own takePicturePreview launcher —
+    /// UIImagePickerController's .camera source is the direct iOS
+    /// equivalent, same "the system camera app handles its own
+    /// permission" contract Camera.php's own docblock documents (no
+    /// NSCameraUsageDescription check needed here beyond what the OS
+    /// itself already prompts for the first time this runs).
+    private final class CameraDelegate: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        private let completion: (String) -> Void
+
+        init(completion: @escaping (String) -> Void) {
+            self.completion = completion
+        }
+
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            picker.dismiss(animated: true)
+            NativeDeviceBridge.pendingCameraPicker = nil
+            guard let image = info[.originalImage] as? UIImage else {
+                completion("Erreur")
+                return
+            }
+            completion("Photo capturée (\(Int(image.size.width))x\(Int(image.size.height)))")
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            picker.dismiss(animated: true)
+            NativeDeviceBridge.pendingCameraPicker = nil
+            completion("Annulé")
+        }
+    }
+
+    private static var pendingCameraPicker: CameraDelegate?
+
+    public static func capturePhoto(from presenter: UIViewController, completion: @escaping (String) -> Void) {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            completion("Aucune caméra disponible")
+            return
+        }
+        let delegate = CameraDelegate(completion: completion)
+        pendingCameraPicker = delegate
+
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.delegate = delegate
+        presenter.present(picker, animated: true)
+    }
 }
 
 private extension Comparable {
