@@ -58,6 +58,11 @@ targets:
         # without a usage description at all — Fingerprint::authenticateAction()'s
         # authenticateBiometric() below.
         NSFaceIDUsageDescription: "Confirme ton identité pour la démo NativeDeviceBridge."
+        # Makes this app's own Documents directory (where saveFile()
+        # below writes) browsable from the Files app — the closest iOS
+        # gets to Android's own MediaStore.Downloads visibility.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
         # Alternate icon for device:appicon:alt (Engine\Device\DynamicIcon,
         # "Icône bleue" in NativeDeviceScreen.php) — NativeDeviceBridge.swift's
         # setAppIcon() calls UIApplication.setAlternateIconName("alt"), which
