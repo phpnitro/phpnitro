@@ -2,6 +2,7 @@
 
 namespace Engine\App;
 
+use Engine\Device\AirplaneMode;
 use Engine\Device\AlarmScheduler;
 use Engine\Device\AppLinks;
 use Engine\Device\AppSettings;
@@ -88,6 +89,7 @@ final class NativeDeviceScreen
         $batteryOut = Battery::result();
         $deviceIdOut = DeviceId::result();
         $bluetoothOut = Bluetooth::result();
+        $airplaneOut = AirplaneMode::result();
         $secureOut = SecureStorage::result();
         $contactsOut = Contacts::result();
         $calendarOut = CalendarEvents::result();
@@ -130,6 +132,7 @@ final class NativeDeviceScreen
                     $row('Batterie', Battery::readAction(), $batteryOut),
                     $row('ID device', DeviceId::readAction(), $deviceIdOut),
                     $row('Bluetooth', Bluetooth::stateAction(), $bluetoothOut),
+                    $row('Mode avion', AirplaneMode::stateAction(), $airplaneOut),
                     $row('Stocker un secret', SecureStorage::storeAction('demo_key', 'valeur secrète')),
                     $row('Lire le secret', SecureStorage::retrieveAction('demo_key'), $secureOut),
                     $row('Contacts', Contacts::countAction(), $contactsOut),
