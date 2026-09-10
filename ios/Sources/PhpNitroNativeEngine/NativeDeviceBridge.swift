@@ -1401,6 +1401,22 @@ extension NativeDeviceBridge {
     public static func hotspotState() -> String {
         "unsupported"
     }
+
+    // MARK: - Wallpaper
+
+    /// Mirrors NativeDeviceBridge.kt's own setWallpaper() in intent
+    /// only: Android's WallpaperManager.setBitmap() is a real, public,
+    /// no-special-entitlement API. iOS has never exposed anything
+    /// equivalent to third-party apps — no public API sets the home or
+    /// lock screen wallpaper at all (Wallpaper.php's own docblock
+    /// already documents this). Always reports the same "not
+    /// available" outcome, matching the "Erreur : ..." shape the
+    /// Android/PHP side already uses for a failed attempt, not the
+    /// "unsupported" used for silent capability checks — this IS an
+    /// action the user tapped, so it deserves a spoken answer.
+    public static func setWallpaper(imageUrl: String, completion: @escaping (String) -> Void) {
+        completion("Non disponible sur iOS")
+    }
 }
 
 private extension Comparable {
