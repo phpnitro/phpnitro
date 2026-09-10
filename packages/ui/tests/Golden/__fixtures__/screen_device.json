@@ -600,9 +600,9 @@
         },
         {
             "type": "text",
-            "x": 131.8715,
+            "x": 98.90599999999999,
             "y": 2113.875,
-            "text": "Scanner un QR code",
+            "text": "Demander permission rappels",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -619,9 +619,9 @@
         },
         {
             "type": "text",
-            "x": 150.2,
+            "x": 131.8715,
             "y": 2179.875,
-            "text": "Accéléromètre",
+            "text": "Scanner un QR code",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -638,9 +638,9 @@
         },
         {
             "type": "text",
-            "x": 157.92575,
+            "x": 150.2,
             "y": 2245.875,
-            "text": "Écouter NFC",
+            "text": "Accéléromètre",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -657,9 +657,9 @@
         },
         {
             "type": "text",
-            "x": 159.90425,
+            "x": 157.92575,
             "y": 2311.875,
-            "text": "Arrêter NFC",
+            "text": "Écouter NFC",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -676,9 +676,9 @@
         },
         {
             "type": "text",
-            "x": 119.873,
+            "x": 159.90425,
             "y": 2377.875,
-            "text": "Produits (achat intégré)",
+            "text": "Arrêter NFC",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -695,9 +695,9 @@
         },
         {
             "type": "text",
-            "x": 123.19774999999998,
+            "x": 119.873,
             "y": 2443.875,
-            "text": "Acheter demo_product",
+            "text": "Produits (achat intégré)",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -714,9 +714,9 @@
         },
         {
             "type": "text",
-            "x": 110.10499999999999,
+            "x": 123.19774999999998,
             "y": 2509.875,
-            "text": "Activer zone (Paris, 200m)",
+            "text": "Acheter demo_product",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -733,9 +733,9 @@
         },
         {
             "type": "text",
-            "x": 138.15575,
+            "x": 110.10499999999999,
             "y": 2575.875,
-            "text": "Désactiver la zone",
+            "text": "Activer zone (Paris, 200m)",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -752,9 +752,9 @@
         },
         {
             "type": "text",
-            "x": 123.59599999999998,
+            "x": 138.15575,
             "y": 2641.875,
-            "text": "Planifier tâche de fond",
+            "text": "Désactiver la zone",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -771,9 +771,9 @@
         },
         {
             "type": "text",
-            "x": 125.65325,
+            "x": 123.59599999999998,
             "y": 2707.875,
-            "text": "Annuler tâche de fond",
+            "text": "Planifier tâche de fond",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -790,8 +790,27 @@
         },
         {
             "type": "text",
-            "x": 147.14525,
+            "x": 125.65325,
             "y": 2773.875,
+            "text": "Annuler tâche de fond",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 2810.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 147.14525,
+            "y": 2839.875,
             "text": "Alarme dans 1h",
             "color": "#FFFFFF",
             "size": 15,
@@ -800,7 +819,7 @@
         {
             "type": "rect",
             "x": 20,
-            "y": 2814.25,
+            "y": 2880.25,
             "width": 360,
             "height": 1,
             "color": "#E5E7EB",
@@ -810,7 +829,7 @@
         {
             "type": "rect",
             "x": 20,
-            "y": 2827.25,
+            "y": 2893.25,
             "width": 360,
             "height": 54,
             "color": "#111827",
@@ -820,7 +839,7 @@
         {
             "type": "text",
             "x": 148.124,
-            "y": 2856.875,
+            "y": 2922.875,
             "text": "Imprimer (PDF)",
             "color": "#FFFFFF",
             "size": 15,
@@ -829,7 +848,7 @@
         {
             "type": "rect",
             "x": 20,
-            "y": 2897.25,
+            "y": 2963.25,
             "width": 360,
             "height": 1,
             "color": "#E5E7EB",
@@ -839,7 +858,7 @@
         {
             "type": "text",
             "x": 20,
-            "y": 2908.65,
+            "y": 2974.65,
             "text": "Capacités device — packages Engine\\Device (aucun widget",
             "color": "#9CA3AF",
             "size": 13
@@ -847,29 +866,10 @@
         {
             "type": "text",
             "x": 20,
-            "y": 2924.9,
+            "y": 2990.9,
             "text": "imposé)",
             "color": "#9CA3AF",
             "size": 13
-        },
-        {
-            "type": "rect",
-            "x": 20,
-            "y": 2942.75,
-            "width": 360,
-            "height": 54,
-            "color": "#111827",
-            "radius": 999,
-            "borderWidth": 0
-        },
-        {
-            "type": "text",
-            "x": 154.9985,
-            "y": 2972.375,
-            "text": "Ouvrir un lien",
-            "color": "#FFFFFF",
-            "size": 15,
-            "bold": true
         },
         {
             "type": "rect",
@@ -883,9 +883,9 @@
         },
         {
             "type": "text",
-            "x": 157.60175,
+            "x": 154.9985,
             "y": 3038.375,
-            "text": "Connectivité",
+            "text": "Ouvrir un lien",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -902,9 +902,9 @@
         },
         {
             "type": "text",
-            "x": 139.562,
+            "x": 157.60175,
             "y": 3104.375,
-            "text": "Demander un avis",
+            "text": "Connectivité",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -921,9 +921,9 @@
         },
         {
             "type": "text",
-            "x": 135.10025000000002,
+            "x": 139.562,
             "y": 3170.375,
-            "text": "Dernier lien entrant",
+            "text": "Demander un avis",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -940,9 +940,9 @@
         },
         {
             "type": "text",
-            "x": 141.03050000000002,
+            "x": 135.10025000000002,
             "y": 3236.375,
-            "text": "Réglages de l'app",
+            "text": "Dernier lien entrant",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -959,9 +959,9 @@
         },
         {
             "type": "text",
-            "x": 145.66325,
+            "x": 141.03050000000002,
             "y": 3302.375,
-            "text": "Ouvrir un fichier",
+            "text": "Réglages de l'app",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -978,9 +978,9 @@
         },
         {
             "type": "text",
-            "x": 133.139,
+            "x": 145.66325,
             "y": 3368.375,
-            "text": "Ouvrir l'app Fichiers",
+            "text": "Ouvrir un fichier",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -997,9 +997,9 @@
         },
         {
             "type": "text",
-            "x": 120.128,
+            "x": 133.139,
             "y": 3434.375,
-            "text": "Vérifier les mises à jour",
+            "text": "Ouvrir l'app Fichiers",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -1016,9 +1016,9 @@
         },
         {
             "type": "text",
-            "x": 142.4,
+            "x": 120.128,
             "y": 3500.375,
-            "text": "Choisir un fichier",
+            "text": "Vérifier les mises à jour",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -1035,9 +1035,9 @@
         },
         {
             "type": "text",
-            "x": 121.38575,
+            "x": 142.4,
             "y": 3566.375,
-            "text": "Ouvrir Paris dans Maps",
+            "text": "Choisir un fichier",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -1054,9 +1054,9 @@
         },
         {
             "type": "text",
-            "x": 131.3705,
+            "x": 121.38575,
             "y": 3632.375,
-            "text": "Enregistrer une note",
+            "text": "Ouvrir Paris dans Maps",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -1073,9 +1073,9 @@
         },
         {
             "type": "text",
-            "x": 99.12950000000002,
+            "x": 131.3705,
             "y": 3698.375,
-            "text": "Copier dans le presse-papiers",
+            "text": "Enregistrer une note",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -1092,9 +1092,9 @@
         },
         {
             "type": "text",
-            "x": 126.5885,
+            "x": 99.12950000000002,
             "y": 3764.375,
-            "text": "Lire le presse-papiers",
+            "text": "Copier dans le presse-papiers",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -1111,9 +1111,9 @@
         },
         {
             "type": "text",
-            "x": 142.313,
+            "x": 126.5885,
             "y": 3830.375,
-            "text": "Envoyer un email",
+            "text": "Lire le presse-papiers",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -1130,8 +1130,27 @@
         },
         {
             "type": "text",
-            "x": 142.565,
+            "x": 142.313,
             "y": 3896.375,
+            "text": "Envoyer un email",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 3932.75,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 142.565,
+            "y": 3962.375,
             "text": "Redémarrer l'app",
             "color": "#FFFFFF",
             "size": 15,
@@ -1140,7 +1159,7 @@
         {
             "type": "rect",
             "x": 20,
-            "y": 3936.75,
+            "y": 4002.75,
             "width": 360,
             "height": 1,
             "color": "#E5E7EB",
@@ -1150,7 +1169,7 @@
         {
             "type": "text",
             "x": 20,
-            "y": 3948.15,
+            "y": 4014.15,
             "text": "WebSocket — connexion persistante réelle (survit à",
             "color": "#9CA3AF",
             "size": 13
@@ -1158,29 +1177,10 @@
         {
             "type": "text",
             "x": 20,
-            "y": 3964.4,
+            "y": 4030.4,
             "text": "l'arrière-plan)",
             "color": "#9CA3AF",
             "size": 13
-        },
-        {
-            "type": "rect",
-            "x": 20,
-            "y": 3982.25,
-            "width": 360,
-            "height": 54,
-            "color": "#111827",
-            "radius": 999,
-            "borderWidth": 0
-        },
-        {
-            "type": "text",
-            "x": 119.27000000000001,
-            "y": 4011.875,
-            "text": "Connecter (echo public)",
-            "color": "#FFFFFF",
-            "size": 15,
-            "bold": true
         },
         {
             "type": "rect",
@@ -1194,9 +1194,9 @@
         },
         {
             "type": "text",
-            "x": 104.17325,
+            "x": 119.27000000000001,
             "y": 4077.875,
-            "text": "Envoyer \"Bonjour PhpNitro !\"",
+            "text": "Connecter (echo public)",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -1213,9 +1213,9 @@
         },
         {
             "type": "text",
-            "x": 157.23499999999999,
+            "x": 104.17325,
             "y": 4143.875,
-            "text": "Déconnecter",
+            "text": "Envoyer \"Bonjour PhpNitro !\"",
             "color": "#FFFFFF",
             "size": 15,
             "bold": true
@@ -1232,8 +1232,27 @@
         },
         {
             "type": "text",
-            "x": 132.44675,
+            "x": 157.23499999999999,
             "y": 4209.875,
+            "text": "Déconnecter",
+            "color": "#FFFFFF",
+            "size": 15,
+            "bold": true
+        },
+        {
+            "type": "rect",
+            "x": 20,
+            "y": 4246.25,
+            "width": 360,
+            "height": 54,
+            "color": "#111827",
+            "radius": 999,
+            "borderWidth": 0
+        },
+        {
+            "type": "text",
+            "x": 132.44675,
+            "y": 4275.875,
             "text": "Recadrer une image",
             "color": "#FFFFFF",
             "size": 15,
@@ -1583,214 +1602,221 @@
             "y": 2084.25,
             "width": 360,
             "height": 54,
-            "action": "device:scanqr:qr_out"
+            "action": "device:permission:reminders:reminders_perm_out"
         },
         {
             "x": 20,
             "y": 2150.25,
             "width": 360,
             "height": 54,
-            "action": "device:sensor:sensor_out"
+            "action": "device:scanqr:qr_out"
         },
         {
             "x": 20,
             "y": 2216.25,
             "width": 360,
             "height": 54,
-            "action": "device:nfcstart"
+            "action": "device:sensor:sensor_out"
         },
         {
             "x": 20,
             "y": 2282.25,
             "width": 360,
             "height": 54,
-            "action": "device:nfcstop"
+            "action": "device:nfcstart"
         },
         {
             "x": 20,
             "y": 2348.25,
             "width": 360,
             "height": 54,
-            "action": "device:iapquery:demo_product:iap_out"
+            "action": "device:nfcstop"
         },
         {
             "x": 20,
             "y": 2414.25,
             "width": 360,
             "height": 54,
-            "action": "device:iappurchase:demo_product"
+            "action": "device:iapquery:demo_product:iap_out"
         },
         {
             "x": 20,
             "y": 2480.25,
             "width": 360,
             "height": 54,
-            "action": "device:geofenceadd:paris_demo:48.8566:2.3522:200"
+            "action": "device:iappurchase:demo_product"
         },
         {
             "x": 20,
             "y": 2546.25,
             "width": 360,
             "height": 54,
-            "action": "device:geofenceremove:paris_demo"
+            "action": "device:geofenceadd:paris_demo:48.8566:2.3522:200"
         },
         {
             "x": 20,
             "y": 2612.25,
             "width": 360,
             "height": 54,
-            "action": "device:bgschedule:%2Fapi%2Fping:15"
+            "action": "device:geofenceremove:paris_demo"
         },
         {
             "x": 20,
             "y": 2678.25,
             "width": 360,
             "height": 54,
-            "action": "device:bgcancel"
+            "action": "device:bgschedule:%2Fapi%2Fping:15"
         },
         {
             "x": 20,
             "y": 2744.25,
             "width": 360,
             "height": 54,
+            "action": "device:bgcancel"
+        },
+        {
+            "x": 20,
+            "y": 2810.25,
+            "width": 360,
+            "height": 54,
             "action": "device:alarmschedule:1:3600:PhpNitro:Ton%20alarme%20a%20sonn%C3%A9%20%21"
         },
         {
             "x": 20,
-            "y": 2827.25,
+            "y": 2893.25,
             "width": 360,
             "height": 54,
             "action": "device:printpdf"
         },
         {
             "x": 20,
-            "y": 2942.75,
+            "y": 3008.75,
             "width": 360,
             "height": 54,
             "action": "device:openurl:https%3A%2F%2Fphpnitro.dev"
         },
         {
             "x": 20,
-            "y": 3008.75,
+            "y": 3074.75,
             "width": 360,
             "height": 54,
             "action": "device:connectivity:connectivity_out"
         },
         {
             "x": 20,
-            "y": 3074.75,
+            "y": 3140.75,
             "width": 360,
             "height": 54,
             "action": "device:inappreview"
         },
         {
             "x": 20,
-            "y": 3140.75,
+            "y": 3206.75,
             "width": 360,
             "height": 54,
             "action": "device:applink:app_link_out"
         },
         {
             "x": 20,
-            "y": 3206.75,
+            "y": 3272.75,
             "width": 360,
             "height": 54,
             "action": "device:appsettings:app"
         },
         {
             "x": 20,
-            "y": 3272.75,
+            "y": 3338.75,
             "width": 360,
             "height": 54,
             "action": "device:openfile:document.txt:text%2Fplain:Bonjour%20depuis%20PhpNitro%20%21"
         },
         {
             "x": 20,
-            "y": 3338.75,
+            "y": 3404.75,
             "width": 360,
             "height": 54,
             "action": "device:filesapp"
         },
         {
             "x": 20,
-            "y": 3404.75,
+            "y": 3470.75,
             "width": 360,
             "height": 54,
             "action": "device:checkupdate:update_out"
         },
         {
             "x": 20,
-            "y": 3470.75,
+            "y": 3536.75,
             "width": 360,
             "height": 54,
             "action": "device:pickfile:file_out"
         },
         {
             "x": 20,
-            "y": 3536.75,
+            "y": 3602.75,
             "width": 360,
             "height": 54,
             "action": "device:openmap:48.8566:2.3522:Paris"
         },
         {
             "x": 20,
-            "y": 3602.75,
+            "y": 3668.75,
             "width": 360,
             "height": 54,
             "action": "device:savefile:note.txt:Ma%20note%20PhpNitro:save_out"
         },
         {
             "x": 20,
-            "y": 3668.75,
+            "y": 3734.75,
             "width": 360,
             "height": 54,
             "action": "device:clipboardcopy:Copi%C3%A9%20depuis%20PhpNitro%20%21"
         },
         {
             "x": 20,
-            "y": 3734.75,
+            "y": 3800.75,
             "width": 360,
             "height": 54,
             "action": "device:clipboardpaste:clipboard_out"
         },
         {
             "x": 20,
-            "y": 3800.75,
+            "y": 3866.75,
             "width": 360,
             "height": 54,
             "action": "device:sendemail:contact%40example.com:Bonjour:Message%20envoy%C3%A9%20depuis%20PhpNitro."
         },
         {
             "x": 20,
-            "y": 3866.75,
+            "y": 3932.75,
             "width": 360,
             "height": 54,
             "action": "device:restartapp"
         },
         {
             "x": 20,
-            "y": 3982.25,
+            "y": 4048.25,
             "width": 360,
             "height": 54,
             "action": "device:wsconnect:wss%3A%2F%2Fws.postman-echo.com%2Fraw:ws_out"
         },
         {
             "x": 20,
-            "y": 4048.25,
+            "y": 4114.25,
             "width": 360,
             "height": 54,
             "action": "device:wssend:Bonjour%20PhpNitro%20%21"
         },
         {
             "x": 20,
-            "y": 4114.25,
+            "y": 4180.25,
             "width": 360,
             "height": 54,
             "action": "device:wsdisconnect"
         },
         {
             "x": 20,
-            "y": 4180.25,
+            "y": 4246.25,
             "width": 360,
             "height": 54,
             "action": "device:cropimage:crop_out"
