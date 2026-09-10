@@ -5,6 +5,7 @@ import CoreMotion
 import EventKit
 import Network
 import Security
+import StoreKit
 import UIKit
 import UserNotifications
 
@@ -535,6 +536,20 @@ public enum NativeDeviceBridge {
             let request = UNNotificationRequest(identifier: "phpnitro.alarm.\(requestCode)", content: content, trigger: trigger)
             center.add(request)
         }
+    }
+
+    // MARK: - In-app review
+
+    /// Mirrors NativeDeviceBridge.kt's own inappreview — SKStoreReviewController
+    /// is iOS's own equivalent of Play Core's ReviewManager: same "no
+    /// guarantee the prompt actually shows" contract (StoreKit throttles
+    /// how often this can trigger per app per year, same spirit as
+    /// Play's own quota — InAppReview.php's own docblock already covers
+    /// this as an expected, not a buggy, silent no-op), fire-and-forget,
+    /// no result field.
+    public static func requestInAppReview(from presenter: UIViewController) {
+        guard let scene = presenter.view.window?.windowScene else { return }
+        SKStoreReviewController.requestReview(in: scene)
     }
 }
 
