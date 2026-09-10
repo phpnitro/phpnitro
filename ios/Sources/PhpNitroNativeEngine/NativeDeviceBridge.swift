@@ -1,5 +1,6 @@
 import AVFoundation
 import BackgroundTasks
+import CoreBluetooth
 import Contacts
 import CoreLocation
 import CoreMotion
@@ -86,6 +87,55 @@ public enum NativeDeviceBridge {
     /// not hiding behind an identical-looking API name).
     public static func deviceId() -> String {
         UIDevice.current.identifierForVendor?.uuidString ?? ""
+    }
+
+    // MARK: - Bluetooth
+
+    /// Retained for the lifetime of one state check — CBCentralManager
+    /// only ever reports its real state asynchronously via
+    /// centralManagerDidUpdateState(_:), never synchronously at init
+    /// (it starts at .unknown even when Bluetooth is demonstrably on),
+    /// same "must outlive the async call" reasoning as every other
+    /// holder in this file.
+    private final class BluetoothStateChecker: NSObject, CBCentralManagerDelegate {
+        private var manager: CBCentralManager?
+        private let completion: (String) -> Void
+
+        init(completion: @escaping (String) -> Void) {
+            self.completion = completion
+            super.init()
+            // CBCentralManagerOptionShowPowerAlertKey: false — same
+            // "never triggers pairing/scanning UI" contract
+            // NativeDeviceBridge.kt's own bluetoothState() docblock
+            // documents; without it, iOS shows its own system alert the
+            // first time Bluetooth is found off, which a value-only
+            // status CHECK has no business popping up on its own.
+            manager = CBCentralManager(delegate: self, queue: nil, options: [CBCentralManagerOptionShowPowerAlertKey: false])
+        }
+
+        func centralManagerDidUpdateState(_ central: CBCentralManager) {
+            let result: String
+            switch central.state {
+            case .poweredOn: result = "on"
+            case .poweredOff: result = "off"
+            default: result = "unsupported"
+            }
+            completion(result)
+            NativeDeviceBridge.pendingBluetoothChecker = nil
+        }
+    }
+
+    private static var pendingBluetoothChecker: BluetoothStateChecker?
+
+    /// Mirrors NativeDeviceBridge.kt's own bluetoothState() — "unsupported"
+    /// | "off" | "on", never triggering pairing/scanning UI. Genuinely
+    /// asynchronous here (CBCentralManager has no synchronous
+    /// "isEnabled" the way BluetoothAdapter does), unlike Android's own
+    /// version — a real platform difference in shape, not effect: the
+    /// caller still ends up with the same three-value result either way.
+    public static func bluetoothState(completion: @escaping (String) -> Void) {
+        let checker = BluetoothStateChecker(completion: completion)
+        pendingBluetoothChecker = checker
     }
 
     // MARK: - Secure storage (Keychain)
