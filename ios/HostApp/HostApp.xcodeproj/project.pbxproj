@@ -17,6 +17,7 @@
 		B2A8BD13FFDFBC063273B0CA /* GoConnectTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E1BF367FD444B6CCC067658 /* GoConnectTests.swift */; };
 		E3FF7BB59AE86815633E37F6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 409749CDBBFAB6D81943B688 /* Assets.xcassets */; };
 		E4EE27E758833556B2403203 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E88FE46BCBADF56395B96D03 /* AppDelegate.swift */; };
+		EB3187D0CD5B40E9B2C00215 /* DeviceBatch3Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7B737607D0200AED2C93DE6 /* DeviceBatch3Tests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -49,6 +50,7 @@
 		A2C6CA89DDB3A5597F07450C /* DeviceBatch2Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceBatch2Tests.swift; sourceTree = "<group>"; };
 		B533BACDC63140B7C5B28DE0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B76897E92937CCFD8BA41FE3 /* ios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ios; path = ..; sourceTree = SOURCE_ROOT; };
+		E7B737607D0200AED2C93DE6 /* DeviceBatch3Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceBatch3Tests.swift; sourceTree = "<group>"; };
 		E88FE46BCBADF56395B96D03 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		EC775FAA03B8A4A9EA9B9F30 /* HostApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = HostApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F17395A4DF2B81A070CAB66B /* NavigationRoundTripTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationRoundTripTests.swift; sourceTree = "<group>"; };
@@ -107,6 +109,7 @@
 			isa = PBXGroup;
 			children = (
 				A2C6CA89DDB3A5597F07450C /* DeviceBatch2Tests.swift */,
+				E7B737607D0200AED2C93DE6 /* DeviceBatch3Tests.swift */,
 				949C000EBB7BBD97D3B8AB49 /* DeviceVibrateTests.swift */,
 				F17395A4DF2B81A070CAB66B /* NavigationRoundTripTests.swift */,
 			);
@@ -325,6 +328,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				ADCE906591702A6FBB7FED11 /* DeviceBatch2Tests.swift in Sources */,
+				EB3187D0CD5B40E9B2C00215 /* DeviceBatch3Tests.swift in Sources */,
 				3B298E321BB08E36F414E2F9 /* DeviceVibrateTests.swift in Sources */,
 				87118DF82A865D74ACD3CD9E /* NavigationRoundTripTests.swift in Sources */,
 			);

@@ -3,6 +3,7 @@ import Contacts
 import EventKit
 import Security
 import UIKit
+import UserNotifications
 
 /// The iOS counterpart of NativeDeviceBridge.kt — one native capability at
 /// a time (2026-09-09: starting with `vibrate`, the simplest one, chosen
@@ -155,5 +156,49 @@ public enum NativeDeviceBridge {
         let in30Days = now.addingTimeInterval(30 * 24 * 60 * 60)
         let predicate = store.predicateForEvents(withStart: now, end: in30Days, calendars: nil)
         return store.events(matching: predicate).count
+    }
+
+    // MARK: - Sound / Notify / Share
+
+    /// Mirrors NativeDeviceBridge.kt's own playSound() — same
+    /// fire-and-forget MediaPlayer idea, AVPlayer here. Held in a static
+    /// var (not a local one) for the same reason
+    /// WebAppInterface.swift's own audioPlayer is an instance property:
+    /// an unretained AVPlayer is deallocated the instant this function
+    /// returns, stopping playback before it's even heard.
+    private static var soundPlayer: AVPlayer?
+
+    public static func playSound(_ urlString: String) {
+        guard let url = URL(string: urlString) else { return }
+        soundPlayer = AVPlayer(url: url)
+        soundPlayer?.play()
+    }
+
+    /// Mirrors NativeDeviceBridge.kt's own showNotification() (channel
+    /// "phpx_default") — UNUserNotificationCenter's local notifications,
+    /// same "request authorization inline, silently no-op if denied"
+    /// contract WebAppInterface.swift's own showNotification() already
+    /// uses for the WebView path (iOS caches the user's answer, so
+    /// re-requesting on every call is harmless, not a repeated prompt).
+    public static func showNotification(title: String, message: String) {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = message
+            center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+        }
+    }
+
+    /// Mirrors NativeDeviceBridge.kt's own share() (Intent.ACTION_SEND
+    /// chooser) — UIActivityViewController is the direct iOS equivalent.
+    /// `title` is accepted for call-shape parity with the Android/PHP
+    /// action-string builder (Engine\Device\Share::shareAction()) but
+    /// unused here, same as WebAppInterface.swift's own share(text:):
+    /// UIActivityViewController has no "chooser title" parameter.
+    public static func share(text: String, title: String, from presenter: UIViewController) {
+        let activity = UIActivityViewController(activityItems: [text], applicationActivities: nil)
+        presenter.present(activity, animated: true)
     }
 }
