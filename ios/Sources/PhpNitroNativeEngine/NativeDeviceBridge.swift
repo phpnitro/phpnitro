@@ -326,6 +326,23 @@ public enum NativeDeviceBridge {
         guard UIApplication.shared.alternateIconName != name else { return }
         UIApplication.shared.setAlternateIconName(name)
     }
+
+    // MARK: - Clipboard
+
+    /// Mirrors NativeDeviceBridge.kt's own clipboardcopy/clipboardpaste —
+    /// UIPasteboard is the direct iOS equivalent of ClipboardManager, no
+    /// permission or restriction like Android 10+'s background-read
+    /// limits (Engine\Device\Clipboard's own docblock calls that out as
+    /// an Android-specific wrinkle, not something to replicate here).
+    public static func clipboardCopy(_ text: String) {
+        UIPasteboard.general.string = text
+    }
+
+    public static func clipboardPaste() -> String {
+        UIPasteboard.general.string?.isEmpty == false
+            ? UIPasteboard.general.string!
+            : "Presse-papiers vide ou inaccessible"
+    }
 }
 
 private extension Comparable {
