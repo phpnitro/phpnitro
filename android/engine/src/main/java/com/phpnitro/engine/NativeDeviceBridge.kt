@@ -32,6 +32,9 @@ import androidx.fragment.app.FragmentActivity
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.google.android.gms.location.LocationServices
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.File
 
 /**
@@ -177,6 +180,59 @@ class NativeDeviceBridge(private val context: Context) {
             }
             mainHandler.post { onResult(result) }
         }.start()
+    }
+
+    /**
+     * Best-effort — Health Connect is Google's current unified health/
+     * fitness store, itself a separate app most devices don't ship with
+     * pre-installed (SDK_UNAVAILABLE in that case, reported as
+     * "unsupported"). Same "check, never request" contract as
+     * contactsCount()/upcomingEventsCount() above: a permission not yet
+     * granted reports "Permission requise" rather than prompting.
+     * Today's step count via aggregate(), the one metric every Health
+     * Connect-integrated app/watch reliably contributes.
+     */
+    fun healthStepCount(onResult: (String) -> Unit) {
+        // connect-client itself declares minSdk 26 — this project's own
+        // minSdk stays 24 (see AndroidManifest.xml's own
+        // tools:overrideLibrary comment), so nothing below this guard
+        // may ever run on API < 26, keeping that override's "may lead
+        // to runtime failures" warning purely theoretical here.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            onResult("unsupported")
+            return
+        }
+        val mainHandler = Handler(Looper.getMainLooper())
+        CoroutineScope(Dispatchers.IO).launch {
+            val result = try {
+                val status = androidx.health.connect.client.HealthConnectClient.getSdkStatus(context)
+                if (status != androidx.health.connect.client.HealthConnectClient.SDK_AVAILABLE) {
+                    "unsupported"
+                } else {
+                    val client = androidx.health.connect.client.HealthConnectClient.getOrCreate(context)
+                    val permission = androidx.health.connect.client.permission.HealthPermission
+                        .getReadPermission(androidx.health.connect.client.records.StepsRecord::class)
+                    val granted = client.permissionController.getGrantedPermissions()
+                    if (!granted.contains(permission)) {
+                        "Permission requise"
+                    } else {
+                        val now = java.time.Instant.now()
+                        val startOfDay = now.truncatedTo(java.time.temporal.ChronoUnit.DAYS)
+                        val response = client.aggregate(
+                            androidx.health.connect.client.request.AggregateRequest(
+                                metrics = setOf(androidx.health.connect.client.records.StepsRecord.COUNT_TOTAL),
+                                timeRangeFilter = androidx.health.connect.client.time.TimeRangeFilter.between(startOfDay, now),
+                            ),
+                        )
+                        val steps = response[androidx.health.connect.client.records.StepsRecord.COUNT_TOTAL] ?: 0L
+                        "$steps pas aujourd'hui"
+                    }
+                }
+            } catch (e: Exception) {
+                "unsupported"
+            }
+            mainHandler.post { onResult(result) }
+        }
     }
 
     /** Same real ConnectivityManager check WebAppInterface.getConnectionType() uses — the native replacement for Engine\Connectivity\ConnectivityBadge's JS-side navigator.onLine. */
