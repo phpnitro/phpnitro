@@ -193,7 +193,7 @@ public final class NativeScreenViewController: UIViewController {
         // PHP can render it — `fetch(action: nil)` already sends every
         // non-empty fieldValues entry (see ScreenClient's own docblock),
         // so that's the whole "includeFields" equivalent here, no
-        // separate flag needed. Only these forty exist so far
+        // separate flag needed. Only these forty-two exist so far
         // (2026-09-10) of Android's ~40 — see NativeDeviceBridge.swift's
         // own docblock on why this is starting small.
         if action.hasPrefix("device:") {
@@ -398,6 +398,12 @@ public final class NativeScreenViewController: UIViewController {
                     self?.fieldValues[outField] = result
                     self?.fetch(action: nil)
                 }
+            case "bgschedule":
+                let endpoint = (parts.count > 1 ? parts[1].removingPercentEncoding : nil) ?? "/api/ping"
+                let intervalMinutes = parts.count > 2 ? Int(parts[2]) ?? 15 : 15
+                NativeDeviceBridge.scheduleBackgroundTask(endpoint: endpoint, intervalMinutes: intervalMinutes, host: host, port: port)
+            case "bgcancel":
+                NativeDeviceBridge.cancelBackgroundTask()
             default:
                 break
             }
