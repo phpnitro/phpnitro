@@ -950,6 +950,77 @@ public enum NativeDeviceBridge {
         guard let region = geofenceManager.monitoredRegions.first(where: { $0.identifier == id }) else { return }
         geofenceManager.stopMonitoring(for: region)
     }
+
+    // MARK: - WebSocket
+
+    /// Mirrors NativeDeviceBridge.kt's own WebSocketService in effect,
+    /// not mechanism — Android runs the connection in a foreground
+    /// Service specifically so it survives the hosting Activity being
+    /// destroyed/recreated; NativeScreenViewController is a SINGLE
+    /// instance for this entire app's lifetime (its own `screenStack`
+    /// simulates navigation without ever creating a second instance),
+    /// so a plain static holder here already gets the same "survives
+    /// screen navigation" property for free, with no separate service
+    /// needed. `onMessage` fires the exact same "no tap required, a
+    /// message pushes its own refetch" behavior WebSocket.php's own
+    /// docblock documents — real server push, not polling.
+    private final class WebSocketManager: NSObject {
+        private var task: URLSessionWebSocketTask?
+        private var onMessage: ((String) -> Void)?
+
+        func connect(url: URL, onMessage: @escaping (String) -> Void) {
+            disconnect()
+            self.onMessage = onMessage
+            task = URLSession(configuration: .default).webSocketTask(with: url)
+            task?.resume()
+            listen()
+        }
+
+        private func listen() {
+            task?.receive { [weak self] result in
+                guard let self else { return }
+                switch result {
+                case .success(let message):
+                    switch message {
+                    case .string(let text):
+                        self.onMessage?(text)
+                    case .data(let data):
+                        self.onMessage?(String(data: data, encoding: .utf8) ?? "")
+                    @unknown default:
+                        break
+                    }
+                    self.listen()
+                case .failure:
+                    break
+                }
+            }
+        }
+
+        func send(_ message: String) {
+            task?.send(.string(message)) { _ in }
+        }
+
+        func disconnect() {
+            task?.cancel(with: .goingAway, reason: nil)
+            task = nil
+            onMessage = nil
+        }
+    }
+
+    private static let webSocketManager = WebSocketManager()
+
+    public static func connectWebSocket(urlString: String, onMessage: @escaping (String) -> Void) {
+        guard let url = URL(string: urlString) else { return }
+        webSocketManager.connect(url: url, onMessage: onMessage)
+    }
+
+    public static func sendWebSocket(_ message: String) {
+        webSocketManager.send(message)
+    }
+
+    public static func disconnectWebSocket() {
+        webSocketManager.disconnect()
+    }
 }
 
 private extension Comparable {
