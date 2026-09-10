@@ -1253,6 +1253,14 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 val message = java.net.URLDecoder.decode(parts.getOrElse(1) { "" }, "UTF-8")
                 webSocketService?.send(message)
             }
+            "wsjoinroom" -> {
+                val room = java.net.URLDecoder.decode(parts.getOrElse(1) { "" }, "UTF-8")
+                webSocketService?.joinRoom(room)
+            }
+            "wsleaveroom" -> {
+                val room = java.net.URLDecoder.decode(parts.getOrElse(1) { "" }, "UTF-8")
+                webSocketService?.leaveRoom(room)
+            }
             "wsdisconnect" -> {
                 webSocketService?.disconnect()
                 if (webSocketBound) {
