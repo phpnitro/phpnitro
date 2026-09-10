@@ -882,6 +882,14 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 fieldValues[parts.getOrElse(1) { "hotspot_out" }] = deviceBridge.hotspotState()
                 refetch(action = null, includeFields = true)
             }
+            "wallpaper" -> {
+                val url = java.net.URLDecoder.decode(parts.getOrElse(1) { "" }, "UTF-8")
+                val outputField = parts.getOrElse(2) { "wallpaper_out" }
+                deviceBridge.setWallpaper(url) { result ->
+                    fieldValues[outputField] = result
+                    refetch(action = null, includeFields = true)
+                }
+            }
             "securestore" -> {
                 val key = java.net.URLDecoder.decode(parts.getOrElse(1) { "demo_key" }, "UTF-8")
                 val value = java.net.URLDecoder.decode(parts.getOrElse(2) { "" }, "UTF-8")
