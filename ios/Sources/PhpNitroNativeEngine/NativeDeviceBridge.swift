@@ -5,6 +5,7 @@ import CoreMotion
 import EventKit
 import LocalAuthentication
 import Network
+import PhotosUI
 import Security
 import StoreKit
 import UIKit
@@ -584,6 +585,58 @@ public enum NativeDeviceBridge {
         default:
             return "Authentification biométrique indisponible."
         }
+    }
+
+    // MARK: - Image picker (gallery)
+
+    /// Retained for the lifetime of one picker presentation —
+    /// PHPickerViewControllerDelegate only ever reports back on a still-
+    /// alive delegate, same "must outlive the async call" reasoning as
+    /// every other holder in this file. Mirrors NativeDeviceBridge.kt's
+    /// own pickImage launcher, reusing PHPickerViewController the same
+    /// way WebAppInterface.swift's own pickImage() already does for the
+    /// WebView path — needs no NSPhotoLibraryUsageDescription at all,
+    /// unlike the legacy UIImagePickerController gallery mode.
+    private final class ImagePickerDelegate: NSObject, PHPickerViewControllerDelegate {
+        private let completion: (String) -> Void
+
+        init(completion: @escaping (String) -> Void) {
+            self.completion = completion
+        }
+
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            picker.dismiss(animated: true)
+            NativeDeviceBridge.pendingImagePicker = nil
+
+            guard let provider = results.first?.itemProvider, provider.canLoadObject(ofClass: UIImage.self) else {
+                completion("Annulé")
+                return
+            }
+            provider.loadObject(ofClass: UIImage.self) { [completion] object, _ in
+                DispatchQueue.main.async {
+                    guard let image = object as? UIImage, let data = image.jpegData(compressionQuality: 0.8) else {
+                        completion("Erreur")
+                        return
+                    }
+                    completion("Image sélectionnée (\(data.count) octets)")
+                }
+            }
+        }
+    }
+
+    private static var pendingImagePicker: ImagePickerDelegate?
+
+    public static func pickImage(from presenter: UIViewController, completion: @escaping (String) -> Void) {
+        var config = PHPickerConfiguration()
+        config.filter = .images
+        config.selectionLimit = 1
+
+        let delegate = ImagePickerDelegate(completion: completion)
+        pendingImagePicker = delegate
+
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = delegate
+        presenter.present(picker, animated: true)
     }
 }
 
