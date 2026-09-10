@@ -193,7 +193,7 @@ public final class NativeScreenViewController: UIViewController {
         // PHP can render it — `fetch(action: nil)` already sends every
         // non-empty fieldValues entry (see ScreenClient's own docblock),
         // so that's the whole "includeFields" equivalent here, no
-        // separate flag needed. Only these thirty exist so far
+        // separate flag needed. Only these thirty-one exist so far
         // (2026-09-10) of Android's ~40 — see NativeDeviceBridge.swift's
         // own docblock on why this is starting small.
         if action.hasPrefix("device:") {
@@ -353,6 +353,8 @@ public final class NativeScreenViewController: UIViewController {
                 screenStack = ["home"]
                 fieldValues = [:]
                 fetch(action: nil)
+            case "printpdf":
+                printCurrentScreen()
             default:
                 break
             }
@@ -426,6 +428,33 @@ public final class NativeScreenViewController: UIViewController {
                 }
             }
         }
+    }
+
+    /// Mirrors NativeRenderPocActivity.kt's own printCurrentScreen() in
+    /// effect, not mechanism — Android's NativePrintAdapter replays this
+    /// screen's own draw commands directly onto a PdfDocument.Page's
+    /// Canvas (real vector output, same fidelity as the screen itself).
+    /// UIPrintInteractionController has no equivalent "hand me a
+    /// CGContext to draw into" entry point for a plain UIView the way
+    /// PdfDocument.Page does — only a UIPrintFormatter (text/HTML/PDF-
+    /// data-backed, none of which fit a Core Graphics-drawn canvas) or a
+    /// rasterized image. A snapshot image is the pragmatic equivalent
+    /// here: same visible content, lower fidelity if scaled up (a real
+    /// platform tradeoff, not a bug) — reusing the system print dialog
+    /// is what actually matters for this demo, not pixel-perfect vector
+    /// output.
+    private func printCurrentScreen() {
+        let renderer = UIGraphicsImageRenderer(bounds: canvasView.bounds)
+        let image = renderer.image { context in
+            canvasView.layer.render(in: context.cgContext)
+        }
+        let controller = UIPrintInteractionController.shared
+        let info = UIPrintInfo(dictionary: nil)
+        info.outputType = .general
+        info.jobName = "PhpNitro-\(screenStack.last ?? "screen")"
+        controller.printInfo = info
+        controller.printingItem = image
+        controller.present(animated: true, completionHandler: nil)
     }
 }
 
