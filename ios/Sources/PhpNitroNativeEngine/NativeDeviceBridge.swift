@@ -1,6 +1,7 @@
 import AVFoundation
 import Contacts
 import EventKit
+import Network
 import Security
 import UIKit
 import UserNotifications
@@ -220,6 +221,30 @@ public enum NativeDeviceBridge {
     /// doesn't exist here.
     public static func setBrightness(_ level: Float) {
         UIScreen.main.brightness = CGFloat(level.clamped(to: 0.01...1.0))
+    }
+
+    // MARK: - Connectivity
+
+    /// Mirrors NativeDeviceBridge.kt's own isOnline() — real
+    /// NWPathMonitor status, not a guess from whether this very request
+    /// reached the server. NWPathMonitor is inherently async (it only
+    /// ever reports state via a callback), so this is too: a first
+    /// version blocked the calling thread on a semaphore instead, which
+    /// seemed safe on paper (the first update normally arrives in well
+    /// under a millisecond) but actually froze the UI thread for up to
+    /// its full 1s timeout on a real device/simulator run, dropping the
+    /// very next tap — caught via UI test screenshots showing NO effect
+    /// at all from either this action or the one right after it, not a
+    /// coordinate problem like it first looked.
+    public static func isOnline(completion: @escaping (Bool) -> Void) {
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { path in
+            monitor.cancel()
+            DispatchQueue.main.async {
+                completion(path.status == .satisfied)
+            }
+        }
+        monitor.start(queue: DispatchQueue(label: "phpnitro.connectivity-check"))
     }
 }
 
