@@ -524,6 +524,21 @@ public enum NativeDeviceBridge {
             UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
                 DispatchQueue.main.async { completion(granted ? "granted" : "denied") }
             }
+        case "reminders":
+            // Same "check, never request as a side effect of reading"
+            // contract remindersCount() itself follows — this is the
+            // explicit, user-tapped counterpart that actually prompts,
+            // same relationship "calendar" above has with
+            // upcomingEventsCount().
+            if #available(iOS 17.0, *) {
+                EKEventStore().requestFullAccessToReminders { granted, _ in
+                    DispatchQueue.main.async { completion(granted ? "granted" : "denied") }
+                }
+            } else {
+                EKEventStore().requestAccess(to: .reminder) { granted, _ in
+                    DispatchQueue.main.async { completion(granted ? "granted" : "denied") }
+                }
+            }
         default:
             completion("unknown_permission")
         }
