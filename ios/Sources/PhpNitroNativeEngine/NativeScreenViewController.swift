@@ -185,8 +185,8 @@ public final class NativeScreenViewController: UIViewController {
         // PHP can render it — `fetch(action: nil)` already sends every
         // non-empty fieldValues entry (see ScreenClient's own docblock),
         // so that's the whole "includeFields" equivalent here, no
-        // separate flag needed. Only these four exist so far
-        // (2026-09-09) of Android's ~40 — see NativeDeviceBridge.swift's
+        // separate flag needed. Only these seven exist so far
+        // (2026-09-10) of Android's ~40 — see NativeDeviceBridge.swift's
         // own docblock on why this is starting small.
         if action.hasPrefix("device:") {
             let parts = action.dropFirst("device:".count).components(separatedBy: ":")
@@ -222,6 +222,11 @@ public final class NativeScreenViewController: UIViewController {
                 let outField = parts.count > 1 ? parts[1] : "contacts_out"
                 let count = NativeDeviceBridge.contactsCount()
                 fieldValues[outField] = count < 0 ? "Permission requise" : "\(count) contacts"
+                fetch(action: nil)
+            case "calendar":
+                let outField = parts.count > 1 ? parts[1] : "calendar_out"
+                let count = NativeDeviceBridge.upcomingEventsCount()
+                fieldValues[outField] = count < 0 ? "Permission requise" : "\(count) événements"
                 fetch(action: nil)
             default:
                 break

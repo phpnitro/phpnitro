@@ -1,5 +1,6 @@
 import AVFoundation
 import Contacts
+import EventKit
 import Security
 import UIKit
 
@@ -134,5 +135,27 @@ public enum NativeDeviceBridge {
         let request = CNContactFetchRequest(keysToFetch: [CNContactIdentifierKey as CNKeyDescriptor])
         try? CNContactStore().enumerateContacts(with: request) { _, _ in count += 1 }
         return count
+    }
+
+    // MARK: - Calendar (read-only count)
+
+    /// Mirrors NativeDeviceBridge.kt's own upcomingEventsCount() — same
+    /// 30-day window, same "check, never request" contract as
+    /// contactsCount() above.
+    public static func upcomingEventsCount() -> Int {
+        let status = EKEventStore.authorizationStatus(for: .event)
+        let isAuthorized: Bool
+        if #available(iOS 17.0, *) {
+            isAuthorized = status == .fullAccess
+        } else {
+            isAuthorized = status == .authorized
+        }
+        guard isAuthorized else { return -1 }
+
+        let store = EKEventStore()
+        let now = Date()
+        let in30Days = now.addingTimeInterval(30 * 24 * 60 * 60)
+        let predicate = store.predicateForEvents(withStart: now, end: in30Days, calendars: nil)
+        return store.events(matching: predicate).count
     }
 }
