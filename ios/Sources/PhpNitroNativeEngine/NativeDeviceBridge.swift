@@ -1,6 +1,7 @@
 import AVFoundation
 import Contacts
 import CoreLocation
+import CoreMotion
 import EventKit
 import Network
 import Security
@@ -467,6 +468,43 @@ public enum NativeDeviceBridge {
             }
         default:
             completion("unknown_permission")
+        }
+    }
+
+    // MARK: - Sensor
+
+    /// Held for the lifetime of one one-shot accelerometer read —
+    /// CMMotionManager's own deviceMotion/accelerometer updates only
+    /// ever arrive via a still-running instance's handler block, same
+    /// "must outlive the async call" reasoning as soundPlayer and
+    /// LocationPermissionRequester above.
+    private static var motionManager: CMMotionManager?
+
+    /// Mirrors NativeDeviceBridge.kt's own readSensor(TYPE_ACCELEROMETER)
+    /// — a single reading, not a stream, matching Sensors.php's own
+    /// docblock ("this pipeline's paint model is one render per
+    /// request"). CMMotionManager has no "give me exactly one sample"
+    /// call, only startAccelerometerUpdates(to:), so this starts it,
+    /// takes the first sample handed back, and immediately stops —
+    /// the Simulator (no real accelerometer) never calls the handler at
+    /// all, reported as "Capteur indisponible" the same way Android's
+    /// own missing-sensor branch is.
+    public static func readAccelerometer(completion: @escaping (String) -> Void) {
+        guard CMMotionManager().isAccelerometerAvailable else {
+            completion("Capteur indisponible")
+            return
+        }
+        let manager = CMMotionManager()
+        motionManager = manager
+        manager.accelerometerUpdateInterval = 0.1
+        manager.startAccelerometerUpdates(to: .main) { data, _ in
+            guard let data else { return }
+            manager.stopAccelerometerUpdates()
+            motionManager = nil
+            let x = String(format: "%.2f", data.acceleration.x)
+            let y = String(format: "%.2f", data.acceleration.y)
+            let z = String(format: "%.2f", data.acceleration.z)
+            completion("\(x), \(y), \(z)")
         }
     }
 }
