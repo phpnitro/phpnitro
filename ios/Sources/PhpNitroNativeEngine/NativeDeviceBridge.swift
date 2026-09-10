@@ -7,6 +7,7 @@ import CoreMotion
 import CoreNFC
 import EventKit
 import LocalAuthentication
+import Mantis
 import Network
 import PhotosUI
 import Security
@@ -1307,28 +1308,38 @@ extension NativeDeviceBridge {
     /// Retained for the lifetime of one picker presentation, same
     /// reasoning as every other picker delegate in this file. Mirrors
     /// NativeDeviceBridge.kt's own cropImage launcher (CanHub's
-    /// CropImageContract) in effect, not mechanism — Android needs a
-    /// third-party library because its own system picker has no crop
-    /// step at all (ImageCropper.php's own docblock: "this Canvas-based
-    /// pipeline has no 2D drag-a-rectangle-with-resize-handles
-    /// primitive"); iOS's UIImagePickerController already has one
-    /// built in (`allowsEditing = true` shows a real system move/zoom
-    /// crop overlay before returning), so this needs no external
-    /// dependency at all — a genuine platform difference in what's
-    /// already available, not a narrower reimplementation of CanHub's
-    /// own feature set (no aspect-ratio lock or freeform corner
-    /// handles, just the one system-provided crop rectangle).
-    private final class ImageCropperDelegate: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+    /// CropImageContract) in mechanism now, not just intent — the
+    /// original version here leaned on UIImagePickerController's own
+    /// `allowsEditing = true` overlay, which turned out to only let the
+    /// user pan/zoom the PHOTO inside a fixed-size crop rectangle, not
+    /// resize the rectangle itself (confirmed on a real iPhone, not
+    /// just assumed from the API name) — a materially narrower
+    /// capability than CanHub's own default `canChangeCropWindow =
+    /// true, fixAspectRatio = false` (verified straight from that
+    /// library's own CropImageOptions.kt source, not guessed). Mantis
+    /// is the direct replacement: same drag-any-corner/edge, no fixed
+    /// ratio, freeform rectangle by default, so this picks the photo
+    /// first (allowsEditing = false — no more use for the system
+    /// overlay), then hands it to Mantis's own crop screen.
+    private final class ImagePickerForCropDelegate: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        private let presenter: UIViewController
         private let completion: (String) -> Void
 
-        init(completion: @escaping (String) -> Void) {
+        init(presenter: UIViewController, completion: @escaping (String) -> Void) {
+            self.presenter = presenter
             self.completion = completion
         }
 
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
-            picker.dismiss(animated: true)
-            NativeDeviceBridge.pendingCropPicker = nil
-            completion(info[.editedImage] != nil ? "Image recadrée" : "Erreur")
+            guard let image = info[.originalImage] as? UIImage else {
+                picker.dismiss(animated: true)
+                NativeDeviceBridge.pendingCropPicker = nil
+                completion("Erreur")
+                return
+            }
+            picker.dismiss(animated: true) {
+                NativeDeviceBridge.presentMantisCropper(image: image, from: self.presenter, completion: self.completion)
+            }
         }
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
@@ -1338,15 +1349,58 @@ extension NativeDeviceBridge {
         }
     }
 
-    private static var pendingCropPicker: ImageCropperDelegate?
+    /// Bridges Mantis's delegate-object callback style into this file's
+    /// own completion-closure convention — same role
+    /// ImagePickerForCropDelegate plays for UIImagePickerController.
+    private final class MantisCropDelegate: NSObject, CropViewControllerDelegate {
+        private let completion: (String) -> Void
+
+        init(completion: @escaping (String) -> Void) {
+            self.completion = completion
+        }
+
+        func cropViewControllerDidCrop(_ cropViewController: CropViewController, cropped: UIImage, transformation: Transformation, cropInfo: CropInfo) {
+            cropViewController.dismiss(animated: true)
+            NativeDeviceBridge.pendingCropPicker = nil
+            completion("Image recadrée")
+        }
+
+        func cropViewControllerDidCancel(_ cropViewController: CropViewController, original: UIImage) {
+            cropViewController.dismiss(animated: true)
+            NativeDeviceBridge.pendingCropPicker = nil
+            completion("Annulé")
+        }
+
+        func cropViewControllerDidFailToCrop(_ cropViewController: CropViewController, original: UIImage) {
+            cropViewController.dismiss(animated: true)
+            NativeDeviceBridge.pendingCropPicker = nil
+            completion("Erreur")
+        }
+
+        func cropViewControllerDidBeginResize(_ cropViewController: CropViewController) {}
+        func cropViewControllerDidEndResize(_ cropViewController: CropViewController, original: UIImage, cropInfo: CropInfo) {}
+    }
+
+    private static var pendingCropPicker: NSObject?
+
+    @MainActor
+    private static func presentMantisCropper(image: UIImage, from presenter: UIViewController, completion: @escaping (String) -> Void) {
+        let delegate = MantisCropDelegate(completion: completion)
+        pendingCropPicker = delegate
+
+        let cropViewController = Mantis.cropViewController(image: image)
+        cropViewController.delegate = delegate
+        cropViewController.modalPresentationStyle = .fullScreen
+        presenter.present(cropViewController, animated: true)
+    }
 
     public static func cropImage(from presenter: UIViewController, completion: @escaping (String) -> Void) {
-        let delegate = ImageCropperDelegate(completion: completion)
+        let delegate = ImagePickerForCropDelegate(presenter: presenter, completion: completion)
         pendingCropPicker = delegate
 
         let picker = UIImagePickerController()
         picker.sourceType = .photoLibrary
-        picker.allowsEditing = true
+        picker.allowsEditing = false
         picker.delegate = delegate
         presenter.present(picker, animated: true)
     }
