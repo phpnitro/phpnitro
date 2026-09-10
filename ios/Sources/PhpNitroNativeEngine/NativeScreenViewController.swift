@@ -455,6 +455,12 @@ public final class NativeScreenViewController: UIViewController {
                 }
             case "filesapp":
                 NativeDeviceBridge.openFilesApp()
+            case "health":
+                let outField = parts.count > 1 ? parts[1] : "health_out"
+                NativeDeviceBridge.healthStepCount { [weak self] result in
+                    self?.fieldValues[outField] = result
+                    self?.fetch(action: nil)
+                }
             default:
                 break
             }
