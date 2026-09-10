@@ -1140,6 +1140,21 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 }
                 startActivity(Intent(Intent.ACTION_VIEW, geoUri))
             }
+            // Engine\Device\FilesApp — CATEGORY_APP_FILES is the
+            // documented Android way to jump straight to the system's
+            // default file manager (distinct from OpenFile above, which
+            // opens ONE specific file this app wrote, via a Uri +
+            // FileProvider). Not every OEM ships an app that registers
+            // for this category, hence the try/catch fallback below —
+            // same "no crash, just no-op" contract every other
+            // best-effort capability in this file follows.
+            "filesapp" -> {
+                try {
+                    startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_FILES))
+                } catch (e: android.content.ActivityNotFoundException) {
+                    // No app on this device registers for CATEGORY_APP_FILES.
+                }
+            }
             // Engine\Device\FileSaver — MediaStore.Downloads needs API 29+
             // (the scoped-storage way, no WRITE_EXTERNAL_STORAGE
             // permission); minSdk here is 24, hence the version gate.
