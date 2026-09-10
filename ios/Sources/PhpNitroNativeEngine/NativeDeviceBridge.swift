@@ -207,4 +207,24 @@ public enum NativeDeviceBridge {
         let activity = UIActivityViewController(activityItems: [text], applicationActivities: nil)
         presenter.present(activity, animated: true)
     }
+
+    // MARK: - Brightness
+
+    /// Mirrors NativeDeviceBridge.kt's own setBrightness() in effect,
+    /// not mechanism — Android overrides one Activity window's own
+    /// WindowManager.LayoutParams.screenBrightness, but iOS exposes no
+    /// per-window brightness at all: UIScreen.main.brightness is the
+    /// only lever, and it changes the SYSTEM-WIDE setting (visible in
+    /// Control Center, persists after leaving the app). A real platform
+    /// difference worth documenting, not a narrower port of an API that
+    /// doesn't exist here.
+    public static func setBrightness(_ level: Float) {
+        UIScreen.main.brightness = CGFloat(level.clamped(to: 0.01...1.0))
+    }
+}
+
+private extension Comparable {
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        min(max(self, range.lowerBound), range.upperBound)
+    }
 }
