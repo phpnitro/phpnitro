@@ -206,6 +206,8 @@ final class NativeDeviceScreen
                     new Text('WebSocket — connexion persistante réelle (survit à l\'arrière-plan)', Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
                     $row('Connecter (echo public)', WebSocket::connectAction('wss://ws.postman-echo.com/raw', 'ws_out')),
                     $row('Envoyer "Bonjour PhpNitro !"', WebSocket::sendAction('Bonjour PhpNitro !')),
+                    $row('Rejoindre room "lobby"', WebSocket::joinRoomAction('lobby')),
+                    $row('Quitter room "lobby"', WebSocket::leaveRoomAction('lobby')),
                     $row('Déconnecter', WebSocket::disconnectAction()),
                     ...($wsOut !== null ? [new Padding(EdgeInsets::only(top: Tokens::SPACE_SM), new Text("Reçu : {$wsOut}", Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true))] : []),
                     $row('Recadrer une image', ImageCropper::cropAction(), $cropOut),
