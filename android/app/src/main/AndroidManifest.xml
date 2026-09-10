@@ -29,6 +29,9 @@
          itself needs ACCESS_FINE_LOCATION too (already declared below)
          on API 27+; this alone is enough for the on/off state check. -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- WallpaperManager.setBitmap() for Engine\Device\Wallpaper — a
+         normal permission, always granted, no runtime prompt. -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
     <!-- Exact-time alarm scheduling for AlarmReceiver
          (Engine\Device\LocalNotification's scheduled variant), required on
          Android 12+ (API 31) alongside USE_EXACT_ALARM below. -->
