@@ -117,6 +117,7 @@ final class NativeDeviceScreen
         $locPermOut = Permission::result('loc_perm_out');
         $contactsPermOut = Permission::result('contacts_perm_out');
         $calendarPermOut = Permission::result('calendar_perm_out');
+        $remindersPermOut = Permission::result('reminders_perm_out');
         $qrOut = QrScanner::result();
         $connectivityOut = Connectivity::result();
         $appLinkOut = AppLinks::result();
@@ -170,6 +171,7 @@ final class NativeDeviceScreen
                     $row('Vérifier/demander la localisation', Permission::requestAction('location', 'loc_perm_out'), $locPermOut),
                     $row('Demander permission contacts', Permission::requestAction('contacts', 'contacts_perm_out'), $contactsPermOut),
                     $row('Demander permission calendrier', Permission::requestAction('calendar', 'calendar_perm_out'), $calendarPermOut),
+                    $row('Demander permission rappels', Permission::requestAction('reminders', 'reminders_perm_out'), $remindersPermOut),
                     $row('Scanner un QR code', QrScanner::scanAction(), $qrOut),
                     $row('Accéléromètre', Sensors::readAccelerometerAction(), $sensorOut),
                     $row('Écouter NFC', Nfc::startListeningAction()),
