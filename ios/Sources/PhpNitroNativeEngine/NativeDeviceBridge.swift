@@ -770,6 +770,32 @@ public enum NativeDeviceBridge {
         picker.delegate = delegate
         presenter.present(picker, animated: true)
     }
+
+    // MARK: - File saver
+
+    /// Mirrors NativeDeviceBridge.kt's own savefile in effect, not
+    /// mechanism — Android's MediaStore.Downloads (API 29+, scoped
+    /// storage, no WRITE_EXTERNAL_STORAGE) writes somewhere the Files
+    /// app/other apps can browse directly; iOS's own sandbox has no
+    /// equivalent shared "Downloads" location an app can write into
+    /// unprompted. The closest same-shape iOS analog is this app's own
+    /// Documents directory, made externally browsable via Info.plist's
+    /// UIFileSharingEnabled/LSSupportsOpeningDocumentsInPlace — a real
+    /// platform difference (only visible inside THIS app's own folder in
+    /// Files, not a device-wide Downloads folder), not a narrower port
+    /// of the same capability.
+    public static func saveFile(fileName: String, content: String) -> String {
+        guard let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return "Erreur d'enregistrement"
+        }
+        let fileURL = documentsURL.appendingPathComponent((fileName as NSString).lastPathComponent)
+        do {
+            try content.write(to: fileURL, atomically: true, encoding: .utf8)
+            return "Enregistré"
+        } catch {
+            return error.localizedDescription
+        }
+    }
 }
 
 private extension Comparable {
