@@ -52,6 +52,12 @@ targets:
         # usage-description string present at all, authorized or not.
         NSContactsUsageDescription: "Compte les contacts pour la démo NativeDeviceBridge — lecture seule."
         NSCalendarsUsageDescription: "Compte les événements à venir pour la démo NativeDeviceBridge — lecture seule."
+        # Required at BUILD time for bluetoothState() (NativeDeviceBridge.swift)
+        # to not crash the instant a CBCentralManager is created at all,
+        # even just to read state — unlike the CN/EK stores above, this
+        # crash isn't gated on the check actually running past
+        # authorization, it happens at CBCentralManager.init() itself.
+        NSBluetoothAlwaysUsageDescription: "Lit l'état du Bluetooth pour la démo NativeDeviceBridge."
         # Same "required at build time even for a check-only permission
         # request" constraint as Contacts/Calendar above — the "permission"
         # bridge's own camera/microphone/location branches
