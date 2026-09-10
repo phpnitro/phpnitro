@@ -158,4 +158,20 @@ public enum NativeDeviceBridge {
         let predicate = store.predicateForEvents(withStart: now, end: in30Days, calendars: nil)
         return store.events(matching: predicate).count
     }
+
+    // MARK: - Sound
+
+    /// Mirrors NativeDeviceBridge.kt's own playSound() — same
+    /// fire-and-forget MediaPlayer idea, AVPlayer here. Held in a static
+    /// var (not a local one) for the same reason
+    /// WebAppInterface.swift's own audioPlayer is an instance property:
+    /// an unretained AVPlayer is deallocated the instant this function
+    /// returns, stopping playback before it's even heard.
+    private static var soundPlayer: AVPlayer?
+
+    public static func playSound(_ urlString: String) {
+        guard let url = URL(string: urlString) else { return }
+        soundPlayer = AVPlayer(url: url)
+        soundPlayer?.play()
+    }
 }

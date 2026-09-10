@@ -37,8 +37,16 @@ public final class NativeScreenViewController: UIViewController {
     private let devTools = DevToolsOverlay()
     #endif
 
+    /// Kept alongside `client` (which keeps its own private copy) only
+    /// for building `device:sound:`'s default URL — the one action that
+    /// needs to know where "this app's own server" is.
+    private let host: String
+    private let port: Int
+
     public init(host: String, port: Int, screen: String = "home") {
         self.client = ScreenClient(host: host, port: port)
+        self.host = host
+        self.port = port
         self.screenStack = [screen]
         super.init(nibName: nil, bundle: nil)
     }
@@ -185,7 +193,7 @@ public final class NativeScreenViewController: UIViewController {
         // PHP can render it — `fetch(action: nil)` already sends every
         // non-empty fieldValues entry (see ScreenClient's own docblock),
         // so that's the whole "includeFields" equivalent here, no
-        // separate flag needed. Only these seven exist so far
+        // separate flag needed. Only these eight exist so far
         // (2026-09-10) of Android's ~40 — see NativeDeviceBridge.swift's
         // own docblock on why this is starting small.
         if action.hasPrefix("device:") {
@@ -228,6 +236,14 @@ public final class NativeScreenViewController: UIViewController {
                 let count = NativeDeviceBridge.upcomingEventsCount()
                 fieldValues[outField] = count < 0 ? "Permission requise" : "\(count) événements"
                 fetch(action: nil)
+            case "sound":
+                // "device:sound:<url>" — Engine\Device\Sound::playAction()
+                // rawurlencode()s the URL; falls back to this app's own
+                // demo asset when omitted, matching handleDeviceAction()'s
+                // own "sound" branch default exactly.
+                let urlString = (parts.count > 1 ? parts[1].removingPercentEncoding : nil)
+                    ?? "http://\(host):\(port)/assets/audio/beep.wav"
+                NativeDeviceBridge.playSound(urlString)
             default:
                 break
             }
