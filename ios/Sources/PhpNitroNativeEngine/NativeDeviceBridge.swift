@@ -6,6 +6,7 @@ import CoreLocation
 import CoreMotion
 import CoreNFC
 import EventKit
+import HealthKit
 import LocalAuthentication
 import Network
 import PhotosUI
@@ -1434,6 +1435,48 @@ extension NativeDeviceBridge {
     public static func openFilesApp() {
         guard let url = URL(string: "shareddocuments://"), UIApplication.shared.canOpenURL(url) else { return }
         UIApplication.shared.open(url)
+    }
+
+    // MARK: - Health
+
+    /// Mirrors NativeDeviceBridge.kt's own healthStepCount() in intent —
+    /// today's total step count, best-effort — but not in mechanism:
+    /// Android goes through the optional Health Connect app (often not
+    /// installed, its own "unsupported" branch); iOS has a built-in
+    /// framework (HealthKit) that's always present on iPhone, but
+    /// reading from it needs the com.apple.developer.healthkit
+    /// entitlement this project doesn't yet request (see HostApp's own
+    /// entitlements file) — requestAuthorization fails with that
+    /// missing, caught here the same "no crash, just unsupported" way
+    /// Android's own try/catch around HealthConnectClient handles a
+    /// missing provider. Same "check-only where possible" contract as
+    /// contactsCount()/upcomingEventsCount() isn't followed here on
+    /// purpose: HealthKit has no "is this authorized" state that means
+    /// anything before a request is actually made — .notDetermined and
+    /// "denied" are indistinguishable by design (Apple's own privacy
+    /// model), so a real read attempt is the only way to find out.
+    public static func healthStepCount(completion: @escaping (String) -> Void) {
+        guard HKHealthStore.isHealthDataAvailable(), let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount) else {
+            completion("unsupported")
+            return
+        }
+        let store = HKHealthStore()
+        store.requestAuthorization(toShare: [], read: [stepType]) { granted, _ in
+            guard granted else {
+                completion("unsupported")
+                return
+            }
+            let now = Date()
+            let startOfDay = Calendar.current.startOfDay(for: now)
+            let predicate = HKQuery.predicateForSamples(withStart: startOfDay, end: now)
+            let query = HKStatisticsQuery(quantityType: stepType, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, statistics, _ in
+                let steps = statistics?.sumQuantity()?.doubleValue(for: .count()) ?? 0
+                DispatchQueue.main.async {
+                    completion("\(Int(steps)) pas aujourd'hui")
+                }
+            }
+            store.execute(query)
+        }
     }
 }
 
