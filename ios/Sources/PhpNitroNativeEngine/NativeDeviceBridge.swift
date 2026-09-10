@@ -865,6 +865,59 @@ public enum NativeDeviceBridge {
         picker.delegate = delegate
         presenter.present(picker, animated: true)
     }
+
+    // MARK: - Microphone
+
+    /// Held for the lifetime of one timed recording — a local `let`
+    /// would be deallocated (and its underlying file/session torn down)
+    /// before the timer even fires, same "must outlive the async call"
+    /// reasoning as every other holder in this file.
+    private static var activeRecorder: AVAudioRecorder?
+
+    /// Mirrors NativeDeviceBridge.kt's own recordAudioClip() — unlike
+    /// contactsCount()/getLocation()/every other permission-gated read
+    /// in this file (check, never request), VoiceRecorder.php's own
+    /// docblock documents mic as the ONE capability whose Android
+    /// counterpart prompts for RECORD_AUDIO inline as part of this same
+    /// action, not a separate Permission::requestAction() step — this
+    /// mirrors that exact contract with AVAudioSession's own
+    /// requestRecordPermission(_:).
+    public static func recordAudioClip(durationMs: Int, completion: @escaping (String) -> Void) {
+        func startRecording() {
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("phpnitro-mic-\(UUID().uuidString).m4a")
+            let settings: [String: Any] = [
+                AVFormatIDKey: kAudioFormatMPEG4AAC,
+                AVSampleRateKey: 44100,
+                AVNumberOfChannelsKey: 1,
+            ]
+            guard let recorder = try? AVAudioRecorder(url: url, settings: settings) else {
+                completion("Erreur d'enregistrement")
+                return
+            }
+            activeRecorder = recorder
+            recorder.record()
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(durationMs) / 1000) {
+                recorder.stop()
+                activeRecorder = nil
+                completion("Enregistré (\(durationMs)ms)")
+            }
+        }
+
+        switch AVAudioSession.sharedInstance().recordPermission {
+        case .granted:
+            startRecording()
+        case .denied:
+            completion("permission_denied")
+        case .undetermined:
+            AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                DispatchQueue.main.async {
+                    granted ? startRecording() : completion("permission_denied")
+                }
+            }
+        @unknown default:
+            completion("permission_denied")
+        }
+    }
 }
 
 private extension Comparable {
