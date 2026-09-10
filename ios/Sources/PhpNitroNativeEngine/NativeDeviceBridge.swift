@@ -638,6 +638,25 @@ public enum NativeDeviceBridge {
         picker.delegate = delegate
         presenter.present(picker, animated: true)
     }
+
+    // MARK: - Map launcher
+
+    /// Mirrors NativeDeviceBridge.kt's own openWebView() call site's
+    /// sibling for MapLauncher — Android resolves a "geo:" Uri to
+    /// whichever maps app (or chooser) the OS has; Apple Maps' own
+    /// "maps://" URL scheme (or the https://maps.apple.com fallback,
+    /// which every device can open even without Apple Maps set as
+    /// default) is the direct iOS equivalent — no MapKit view needed,
+    /// this only ever hands off to an external app.
+    public static func openMap(latitude: Double, longitude: Double, label: String) {
+        var components = URLComponents(string: "https://maps.apple.com/")!
+        components.queryItems = [
+            URLQueryItem(name: "ll", value: "\(latitude),\(longitude)"),
+            URLQueryItem(name: "q", value: label.isEmpty ? "\(latitude),\(longitude)" : label),
+        ]
+        guard let url = components.url else { return }
+        UIApplication.shared.open(url)
+    }
 }
 
 private extension Comparable {
