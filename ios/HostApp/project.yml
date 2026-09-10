@@ -46,6 +46,14 @@ targets:
         # usage-description string present at all, authorized or not.
         NSContactsUsageDescription: "Compte les contacts pour la démo NativeDeviceBridge — lecture seule."
         NSCalendarsUsageDescription: "Compte les événements à venir pour la démo NativeDeviceBridge — lecture seule."
+        # Same "required at build time even for a check-only permission
+        # request" constraint as Contacts/Calendar above — the "permission"
+        # bridge's own camera/microphone/location branches
+        # (NativeDeviceBridge.swift's requestPermission()) crash without
+        # these present, granted or not.
+        NSCameraUsageDescription: "Démo de demande de permission caméra (NativeDeviceBridge)."
+        NSMicrophoneUsageDescription: "Démo de demande de permission microphone (NativeDeviceBridge)."
+        NSLocationWhenInUseUsageDescription: "Démo de demande de permission de localisation (NativeDeviceBridge)."
         # Alternate icon for device:appicon:alt (Engine\Device\DynamicIcon,
         # "Icône bleue" in NativeDeviceScreen.php) — NativeDeviceBridge.swift's
         # setAppIcon() calls UIApplication.setAlternateIconName("alt"), which
