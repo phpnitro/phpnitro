@@ -193,7 +193,7 @@ public final class NativeScreenViewController: UIViewController {
         // PHP can render it — `fetch(action: nil)` already sends every
         // non-empty fieldValues entry (see ScreenClient's own docblock),
         // so that's the whole "includeFields" equivalent here, no
-        // separate flag needed. Only these thirty-six exist so far
+        // separate flag needed. Only these thirty-nine exist so far
         // (2026-09-10) of Android's ~40 — see NativeDeviceBridge.swift's
         // own docblock on why this is starting small.
         if action.hasPrefix("device:") {
@@ -380,6 +380,18 @@ public final class NativeScreenViewController: UIViewController {
             case "geofenceremove":
                 let id = (parts.count > 1 ? parts[1].removingPercentEncoding : nil) ?? "paris_demo"
                 NativeDeviceBridge.removeGeofence(id: id)
+            case "wsconnect":
+                let url = (parts.count > 1 ? parts[1].removingPercentEncoding : nil) ?? ""
+                let outField = parts.count > 2 ? parts[2] : "ws_out"
+                NativeDeviceBridge.connectWebSocket(urlString: url) { [weak self] message in
+                    self?.fieldValues[outField] = message
+                    self?.fetch(action: nil)
+                }
+            case "wssend":
+                let message = (parts.count > 1 ? parts[1].removingPercentEncoding : nil) ?? ""
+                NativeDeviceBridge.sendWebSocket(message)
+            case "wsdisconnect":
+                NativeDeviceBridge.disconnectWebSocket()
             default:
                 break
             }
