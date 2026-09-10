@@ -18,6 +18,7 @@ use Engine\Device\Contacts;
 use Engine\Device\DeviceId;
 use Engine\Device\EmailSender;
 use Engine\Device\FileSaver;
+use Engine\Device\FilesApp;
 use Engine\Device\FileSelector;
 use Engine\Device\Fingerprint;
 use Engine\Device\DynamicIcon;
@@ -181,6 +182,7 @@ final class NativeDeviceScreen
                     $row('Dernier lien entrant', AppLinks::lastLinkAction(), $appLinkOut),
                     $row('Réglages de l\'app', AppSettings::openAction('app')),
                     $row('Ouvrir un fichier', OpenFile::openAction('Bonjour depuis PhpNitro !')),
+                    $row('Ouvrir l\'app Fichiers', FilesApp::openAction()),
                     $row('Vérifier les mises à jour', InAppUpdate::checkAction(), $updateOut),
                     $row('Choisir un fichier', FileSelector::pickAction(), $fileOut),
                     $row('Ouvrir Paris dans Maps', MapLauncher::openAction(48.8566, 2.3522, 'Paris')),
