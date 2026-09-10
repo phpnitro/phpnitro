@@ -45,6 +45,8 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Lit l'état du Bluetooth pour la démo NativeDeviceBridge.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>Compte les événements à venir pour la démo NativeDeviceBridge — lecture seule.</string>
 	<key>NSCameraUsageDescription</key>

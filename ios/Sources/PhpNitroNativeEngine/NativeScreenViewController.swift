@@ -193,7 +193,7 @@ public final class NativeScreenViewController: UIViewController {
         // PHP can render it — `fetch(action: nil)` already sends every
         // non-empty fieldValues entry (see ScreenClient's own docblock),
         // so that's the whole "includeFields" equivalent here, no
-        // separate flag needed. Only these forty-four exist so far
+        // separate flag needed. Only these forty-five exist so far
         // (2026-09-10) of Android's ~40 — see NativeDeviceBridge.swift's
         // own docblock on why this is starting small.
         if action.hasPrefix("device:") {
@@ -213,6 +213,12 @@ public final class NativeScreenViewController: UIViewController {
                 let outField = parts.count > 1 ? parts[1] : "device_id_out"
                 fieldValues[outField] = NativeDeviceBridge.deviceId()
                 fetch(action: nil)
+            case "bluetooth":
+                let outField = parts.count > 1 ? parts[1] : "bt_out"
+                NativeDeviceBridge.bluetoothState { [weak self] result in
+                    self?.fieldValues[outField] = result
+                    self?.fetch(action: nil)
+                }
             case "securestore":
                 // "device:securestore:<key>:<value>" — both rawurlencode()d
                 // PHP-side (Engine\Device\SecureStorage::storeAction()).
