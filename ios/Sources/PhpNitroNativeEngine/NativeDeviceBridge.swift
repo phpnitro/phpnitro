@@ -1,6 +1,7 @@
 import AVFoundation
 import Contacts
 import EventKit
+import Network
 import Security
 import UIKit
 import UserNotifications
@@ -200,5 +201,78 @@ public enum NativeDeviceBridge {
     public static func share(text: String, title: String, from presenter: UIViewController) {
         let activity = UIActivityViewController(activityItems: [text], applicationActivities: nil)
         presenter.present(activity, animated: true)
+    }
+
+    // MARK: - Brightness / Connectivity / URL launcher / App icon
+
+    /// Mirrors NativeDeviceBridge.kt's own setBrightness() in effect,
+    /// not mechanism — Android overrides one Activity window's own
+    /// WindowManager.LayoutParams.screenBrightness, but iOS exposes no
+    /// per-window brightness at all: UIScreen.main.brightness is the
+    /// only lever, and it changes the SYSTEM-WIDE setting (visible in
+    /// Control Center, persists after leaving the app). A real platform
+    /// difference worth documenting, not a narrower port of an API that
+    /// doesn't exist here.
+    public static func setBrightness(_ level: Float) {
+        UIScreen.main.brightness = CGFloat(level.clamped(to: 0.01...1.0))
+    }
+
+    /// Mirrors NativeDeviceBridge.kt's own isOnline() — real
+    /// NWPathMonitor status, not a guess from whether this very request
+    /// reached the server. NWPathMonitor is inherently async (it only
+    /// ever reports state via a callback), so this is too: a first
+    /// version blocked the calling thread on a semaphore instead, which
+    /// seemed safe on paper (the first update normally arrives in well
+    /// under a millisecond) but actually froze the UI thread for up to
+    /// its full 1s timeout on a real device/simulator run, dropping the
+    /// very next tap — caught via UI test screenshots showing NO effect
+    /// at all from either this action or the one right after it, not a
+    /// coordinate problem like it first looked.
+    public static func isOnline(completion: @escaping (Bool) -> Void) {
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { path in
+            monitor.cancel()
+            DispatchQueue.main.async {
+                completion(path.status == .satisfied)
+            }
+        }
+        monitor.start(queue: DispatchQueue(label: "phpnitro.connectivity-check"))
+    }
+
+    /// Mirrors NativeDeviceBridge.kt's own openWebView() call site's
+    /// sibling — Engine\Device\UrlLauncher::openAction() targets any
+    /// scheme the OS can resolve (http/https/tel/mailto/sms/geo/...),
+    /// same as Android's Intent.ACTION_VIEW; UIApplication.open(_:) is
+    /// the direct iOS equivalent. Must run on the main thread (UIKit
+    /// requirement) — safe here since handle(action:rect:) itself
+    /// always runs on the main thread already.
+    public static func openURL(_ urlString: String) {
+        guard let url = URL(string: urlString) else { return }
+        UIApplication.shared.open(url)
+    }
+
+    /// Mirrors NativeDeviceBridge.kt's own setAppIcon() in intent, not
+    /// mechanism — Android enables/disables manifest-declared
+    /// activity-aliases, iOS uses UIApplication's own alternate-icon
+    /// API (setAlternateIconName(_:)), which needs every variant
+    /// declared as CFBundleAlternateIcons in Info.plist at build time —
+    /// the same real "every icon file must be shipped up front" OS
+    /// constraint DynamicIcon.php's own docblock already calls out for
+    /// Android, not a narrower iOS-only limitation. `iconKey` "default"
+    /// (or empty) resets to the primary icon; anything else is looked
+    /// up by that exact key in CFBundleAlternateIcons (see
+    /// HostApp/project.yml's own Info.plist entry for the one variant
+    /// this demo ships: "blue").
+    public static func setAppIcon(_ iconKey: String) {
+        guard UIApplication.shared.supportsAlternateIcons else { return }
+        let name = (iconKey.isEmpty || iconKey == "default") ? nil : iconKey
+        guard UIApplication.shared.alternateIconName != name else { return }
+        UIApplication.shared.setAlternateIconName(name)
+    }
+}
+
+private extension Comparable {
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        min(max(self, range.lowerBound), range.upperBound)
     }
 }
