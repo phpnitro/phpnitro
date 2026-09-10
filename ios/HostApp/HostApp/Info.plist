@@ -42,6 +42,8 @@
 	<string>Démo de demande de permission caméra (NativeDeviceBridge).</string>
 	<key>NSContactsUsageDescription</key>
 	<string>Compte les contacts pour la démo NativeDeviceBridge — lecture seule.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Confirme ton identité pour la démo NativeDeviceBridge.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Démo de demande de permission de localisation (NativeDeviceBridge).</string>
 	<key>NSMicrophoneUsageDescription</key>

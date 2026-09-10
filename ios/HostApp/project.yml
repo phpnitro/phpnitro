@@ -54,6 +54,10 @@ targets:
         NSCameraUsageDescription: "Démo de demande de permission caméra (NativeDeviceBridge)."
         NSMicrophoneUsageDescription: "Démo de demande de permission microphone (NativeDeviceBridge)."
         NSLocationWhenInUseUsageDescription: "Démo de demande de permission de localisation (NativeDeviceBridge)."
+        # Face ID (not Touch ID) is the one biometric mode that crashes
+        # without a usage description at all — Fingerprint::authenticateAction()'s
+        # authenticateBiometric() below.
+        NSFaceIDUsageDescription: "Confirme ton identité pour la démo NativeDeviceBridge."
         # Alternate icon for device:appicon:alt (Engine\Device\DynamicIcon,
         # "Icône bleue" in NativeDeviceScreen.php) — NativeDeviceBridge.swift's
         # setAppIcon() calls UIApplication.setAlternateIconName("alt"), which

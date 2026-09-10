@@ -3,7 +3,9 @@ import Contacts
 import CoreLocation
 import CoreMotion
 import EventKit
+import LocalAuthentication
 import Network
+import PhotosUI
 import Security
 import StoreKit
 import UIKit
@@ -550,6 +552,125 @@ public enum NativeDeviceBridge {
     public static func requestInAppReview(from presenter: UIViewController) {
         guard let scene = presenter.view.window?.windowScene else { return }
         SKStoreReviewController.requestReview(in: scene)
+    }
+
+    // MARK: - Biometric (Face ID / Touch ID)
+
+    /// Mirrors NativeDeviceBridge.kt's own showBiometricPrompt() — reuses
+    /// the exact LAContext.evaluatePolicy() approach
+    /// PhpNitroWebViewBridge's own WebAppInterface.swift already has for
+    /// the WebView path (WKWebView implements no platform authenticator,
+    /// same reason that path needed this natively too), just reported
+    /// back through fieldValues/refetch instead of a JS callback.
+    public static func authenticateBiometric(completion: @escaping (Bool, String) -> Void) {
+        let context = LAContext()
+        var error: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
+            completion(false, biometricUnavailableReason(error))
+            return
+        }
+        context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: "Confirme ton identité") { success, evaluationError in
+            DispatchQueue.main.async {
+                completion(success, success ? "" : (evaluationError?.localizedDescription ?? "Authentification échouée."))
+            }
+        }
+    }
+
+    private static func biometricUnavailableReason(_ error: NSError?) -> String {
+        switch error?.code {
+        case LAError.biometryNotEnrolled.rawValue:
+            return "Aucune empreinte/visage enregistré sur ce téléphone."
+        case LAError.biometryNotAvailable.rawValue:
+            return "Ce device n'a pas de capteur biométrique."
+        default:
+            return "Authentification biométrique indisponible."
+        }
+    }
+
+    // MARK: - Image picker (gallery)
+
+    /// Retained for the lifetime of one picker presentation —
+    /// PHPickerViewControllerDelegate only ever reports back on a still-
+    /// alive delegate, same "must outlive the async call" reasoning as
+    /// every other holder in this file. Mirrors NativeDeviceBridge.kt's
+    /// own pickImage launcher, reusing PHPickerViewController the same
+    /// way WebAppInterface.swift's own pickImage() already does for the
+    /// WebView path — needs no NSPhotoLibraryUsageDescription at all,
+    /// unlike the legacy UIImagePickerController gallery mode.
+    private final class ImagePickerDelegate: NSObject, PHPickerViewControllerDelegate {
+        private let completion: (String) -> Void
+
+        init(completion: @escaping (String) -> Void) {
+            self.completion = completion
+        }
+
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            picker.dismiss(animated: true)
+            NativeDeviceBridge.pendingImagePicker = nil
+
+            guard let provider = results.first?.itemProvider, provider.canLoadObject(ofClass: UIImage.self) else {
+                completion("Annulé")
+                return
+            }
+            provider.loadObject(ofClass: UIImage.self) { [completion] object, _ in
+                DispatchQueue.main.async {
+                    guard let image = object as? UIImage, let data = image.jpegData(compressionQuality: 0.8) else {
+                        completion("Erreur")
+                        return
+                    }
+                    completion("Image sélectionnée (\(data.count) octets)")
+                }
+            }
+        }
+    }
+
+    private static var pendingImagePicker: ImagePickerDelegate?
+
+    public static func pickImage(from presenter: UIViewController, completion: @escaping (String) -> Void) {
+        var config = PHPickerConfiguration()
+        config.filter = .images
+        config.selectionLimit = 1
+
+        let delegate = ImagePickerDelegate(completion: completion)
+        pendingImagePicker = delegate
+
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = delegate
+        presenter.present(picker, animated: true)
+    }
+
+    // MARK: - Map launcher
+
+    /// Mirrors NativeDeviceBridge.kt's own openWebView() call site's
+    /// sibling for MapLauncher — Android resolves a "geo:" Uri to
+    /// whichever maps app (or chooser) the OS has; Apple Maps' own
+    /// "maps://" URL scheme (or the https://maps.apple.com fallback,
+    /// which every device can open even without Apple Maps set as
+    /// default) is the direct iOS equivalent — no MapKit view needed,
+    /// this only ever hands off to an external app.
+    public static func openMap(latitude: Double, longitude: Double, label: String) {
+        var components = URLComponents(string: "https://maps.apple.com/")!
+        components.queryItems = [
+            URLQueryItem(name: "ll", value: "\(latitude),\(longitude)"),
+            URLQueryItem(name: "q", value: label.isEmpty ? "\(latitude),\(longitude)" : label),
+        ]
+        guard let url = components.url else { return }
+        UIApplication.shared.open(url)
+    }
+
+    // MARK: - In-app update
+
+    /// Mirrors NativeDeviceBridge.kt's own checkupdate — Android checks
+    /// Play Core's AppUpdateManager, which always reports
+    /// 'update_not_available' outside a real Play Store install
+    /// (InAppUpdate.php's own docblock). iOS has no equivalent of Play
+    /// Core's own update-availability API at all (App Store Connect
+    /// exposes no public "is a newer version available" check) — this
+    /// always reports the same 'update_not_available' Android's own
+    /// wrapper reports in every non-Play-Store dev/test scenario, which
+    /// covers every real run of this demo either way.
+    public static func checkForUpdate() -> String {
+        "update_not_available"
     }
 }
 
