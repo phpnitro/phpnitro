@@ -31,6 +31,19 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         window.rootViewController = UINavigationController(rootViewController: root)
         window.makeKeyAndVisible()
         self.window = window
+
+        // device:applink (Engine\Device\AppLinks) — a "phpnitro://" URL
+        // that launched this process cold arrives here, not through
+        // application(_:open:options:) below (that one only fires for a
+        // link opened while already running).
+        if let url = launchOptions?[.url] as? URL {
+            NativeDeviceBridge.recordAppLink(url)
+        }
+        return true
+    }
+
+    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        NativeDeviceBridge.recordAppLink(url)
         return true
     }
 }

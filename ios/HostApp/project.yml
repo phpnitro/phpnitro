@@ -38,6 +38,12 @@ targets:
           UIApplicationSupportsMultipleScenes: false
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
+        # device:applink (Engine\Device\AppLinks) — AppDelegate's own
+        # recordAppLink(_:) calls only ever fire for a URL matching a
+        # scheme this app has actually registered.
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - phpnitro
         # Required at BUILD time for contactsCount()/upcomingEventsCount()
         # (NativeDeviceBridge.swift) to not crash on an actual fetch once
         # authorized — Android's own contactsCount()/upcomingEventsCount()
