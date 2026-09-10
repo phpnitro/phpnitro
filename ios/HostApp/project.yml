@@ -72,6 +72,7 @@ targets:
           - com.phpnitro.hostapp.ping
         UIBackgroundModes:
           - fetch
+        NFCReaderUsageDescription: "Lit les tags NFC pour la démo NativeDeviceBridge."
         # Makes this app's own Documents directory (where saveFile()
         # below writes) browsable from the Files app — the closest iOS
         # gets to Android's own MediaStore.Downloads visibility.
@@ -94,6 +95,12 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.phpnitro.hostapp
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # device:nfcstart — CoreNFC needs this App ID capability declared
+        # both here (so Xcode signs with the right entitlement) and in
+        # the Apple Developer portal itself for a real device; Automatic
+        # signing regenerates the provisioning profile to match once
+        # this exists, same as every other capability change so far.
+        CODE_SIGN_ENTITLEMENTS: HostApp/HostApp.entitlements
   HostAppUITests:
     type: bundle.ui-testing
     platform: iOS
