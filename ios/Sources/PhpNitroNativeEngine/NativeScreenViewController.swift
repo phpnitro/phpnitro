@@ -446,6 +446,13 @@ public final class NativeScreenViewController: UIViewController {
                 let outField = parts.count > 1 ? parts[1] : "hotspot_out"
                 fieldValues[outField] = NativeDeviceBridge.hotspotState()
                 fetch(action: nil)
+            case "wallpaper":
+                let url = (parts.count > 1 ? parts[1].removingPercentEncoding : nil) ?? ""
+                let outField = parts.count > 2 ? parts[2] : "wallpaper_out"
+                NativeDeviceBridge.setWallpaper(imageUrl: url) { [weak self] result in
+                    self?.fieldValues[outField] = result
+                    self?.fetch(action: nil)
+                }
             default:
                 break
             }
