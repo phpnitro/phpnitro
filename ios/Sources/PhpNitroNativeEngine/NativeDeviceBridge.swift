@@ -363,6 +363,23 @@ public enum NativeDeviceBridge {
         guard let url = components.url else { return }
         UIApplication.shared.open(url)
     }
+
+    // MARK: - App settings
+
+    /// Mirrors NativeDeviceBridge.kt's own appsettings — Android maps a
+    /// small whitelist ('app'/'wifi'/'location'/'notifications'/
+    /// 'bluetooth') to distinct Settings screens; iOS only exposes ONE
+    /// public deep link at all (UIApplication.openSettingsURLString,
+    /// this app's own permissions page) — every per-category Settings
+    /// screen Android can jump to directly has no iOS equivalent
+    /// UIApplication is allowed to open. A real platform gap, not a
+    /// narrower implementation of the same capability: `screen` is
+    /// accepted for call-shape parity with AppSettings::openAction() but
+    /// always opens the same page here.
+    public static func openAppSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
+    }
 }
 
 private extension Comparable {
