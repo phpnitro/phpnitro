@@ -55,6 +55,8 @@
 	<string>Compte les contacts pour la démo NativeDeviceBridge — lecture seule.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Confirme ton identité pour la démo NativeDeviceBridge.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Lit le nombre de pas du jour pour la démo NativeDeviceBridge — lecture seule.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Démo de demande de permission de localisation (NativeDeviceBridge).</string>
 	<key>NSMicrophoneUsageDescription</key>
