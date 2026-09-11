@@ -5,7 +5,9 @@ namespace Engine\App;
 use Engine\Native\CrossAxisAlignment;
 use Engine\Native\EdgeInsets;
 use Engine\Native\AppBar;
+use Engine\Native\BottomNavigation;
 use Engine\Native\ListTile;
+use Engine\Native\NestedScroll;
 use Engine\Native\Scaffold;
 use Engine\Native\Container;
 use Engine\Native\Flex;
@@ -24,10 +26,36 @@ final class NativeWidgetsIndexScreen
 {
     public static function build(float $screenWidth, float $screenHeight): Widget
     {
+        // Real bug found the first time this screen ever ran tall enough
+        // to matter (a physical Mac, PhpNitroMacApp — a resizable desktop
+        // window, unlike a phone's fixed-height screen): with 19 rows and
+        // no bounded viewport, this body's real height (~1450px) far
+        // exceeds any reasonable window/screen height. The page-level
+        // hit-test (see rust/phpnitro-render/src/hittest.rs's own
+        // top-level `hitRegions[]` loop, or NativeCanvasView.kt's
+        // identical `handleTap()`) never bounds-checks a region against
+        // what's actually visible — only `vScroll`'s own branch does
+        // that (`tap_x < vx || ... || touch_y > vy + vh { continue }`) —
+        // so an OFF-SCREEN row (never painted, since the renderer's own
+        // output buffer is exactly `bounds.height` tall) still WINS a tap
+        // at whatever screen coordinate its own unclipped, un-scrolled
+        // absolute position happens to fall on — confirmed for real:
+        // tapping the bottom nav's "Device" button hit the "Stepper" row
+        // instead, because that row's absolute y-range happened to
+        // overlap the nav bar's fixed screen position. `NestedScroll`
+        // (already proven in NativeWidgetsFormsScreen.php's own small
+        // demo list) gives this list a real, bounded viewport instead —
+        // its own `vScroll` branch DOES exclude anything outside that
+        // viewport from hit-testing.
+        // Minus the Padding::all(SPACE_XL) wrapping the NestedScroll
+        // below too — that padding shrinks its actual available height
+        // by 2×SPACE_XL, not just its width.
+        $viewportHeight = $screenHeight - AppBar::HEIGHT - BottomNavigation::HEIGHT - 2 * Tokens::SPACE_XL;
+
         $body = new Container(
             new Padding(
                 EdgeInsets::all(Tokens::SPACE_XL),
-                Flex::column([
+                new NestedScroll('widgets-index-list', Flex::column([
                     new Text("Chaque catégorie montre les widgets natifs disponibles.", Tokens::TEXT_BODY_SMALL, Tokens::inkMuted()->toHex()),
                     new Padding(
                         EdgeInsets::only(top: Tokens::SPACE_XL),
@@ -97,7 +125,7 @@ final class NativeWidgetsIndexScreen
                         EdgeInsets::only(top: Tokens::SPACE_MD),
                         new ListTile('Async (Isolates)', 'Calcul lourd dans un vrai processus séparé', 'bolt', trailingIcon: 'chevron_right', action: 'navigate:widgets-async'),
                     ),
-                ], crossAxisAlignment: CrossAxisAlignment::STRETCH),
+                ], crossAxisAlignment: CrossAxisAlignment::STRETCH), $viewportHeight),
             ),
             width: $screenWidth,
             background: Tokens::surfaceMuted(),
