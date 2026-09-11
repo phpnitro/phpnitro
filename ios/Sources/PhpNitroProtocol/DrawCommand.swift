@@ -279,12 +279,28 @@ public struct SliderCommand: Decodable {
 
 /// Mirrors one entry of Canvas::toJson()'s "hitRegions" array — see
 /// Tappable.php/Canvas::hitRegion() on the PHP side. `meta` models every
-/// real usage found in `packages/ui/src/Native/*.php` (Checkbox/
-/// NumberPicker/Drawer's `next`, AlertButton/ConfirmButton's `message`/
-/// `title`/etc, GestureDetector's `onDoubleClick`/…) — all flat
-/// string-valued maps — as `[String: String]?` rather than a fully
-/// generic JSON value, which `ScreenNavigation.reduce(_:_:metaJson:)`
-/// only ever re-parses looking for a `"next"` key anyway.
+/// real usage found in `packages/ui/src/Native/*.php` that iOS actually
+/// consumes today (Checkbox/NumberPicker/Drawer's `next`, AlertButton/
+/// ConfirmButton's `message`/`title`/etc, GestureDetector's
+/// `onDoubleClick`/…) — all flat string-valued maps — as
+/// `[String: String]?` rather than a fully generic JSON value, which
+/// `ScreenNavigation.reduce(_:_:metaJson:)` only ever re-parses looking
+/// for a `"next"` key anyway.
+///
+/// NOT every real `meta` is string-valued, though — `SelectBox.php`'s
+/// own hit region carries `['options' => array<string,string>, ...]`, a
+/// nested object. A plain `Decodable` synthesis would fail to decode
+/// THAT one hit region and, since `hitRegions` is a required array,
+/// fail the ENTIRE payload for any screen containing a `SelectBox` —
+/// a real bug found reproducing this app's own Settings screen (its
+/// "Couleur d'accent" row) on a physical iPhone: a perfectly valid
+/// `{"commands":[...]}` response shown as raw text because decoding
+/// silently threw. `select:`/`dialog:` aren't wired up on iOS yet (no
+/// code here reads a non-string meta value at all), so the pragmatic
+/// fix is degrading gracefully — `try?` drops just this one hit
+/// region's `meta` to `nil` on a type mismatch, not the whole payload —
+/// same "drop what can't be handled rather than crash" precedent
+/// `phpx_embed_capture_write`'s own OOM handling already sets.
 public struct HitRegion: Decodable {
     public let x: Double
     public let y: Double
@@ -293,6 +309,21 @@ public struct HitRegion: Decodable {
     public let action: String
     public let fixed: Bool?
     public let meta: [String: String]?
+
+    private enum CodingKeys: String, CodingKey {
+        case x, y, width, height, action, fixed, meta
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        x = try container.decode(Double.self, forKey: .x)
+        y = try container.decode(Double.self, forKey: .y)
+        width = try container.decode(Double.self, forKey: .width)
+        height = try container.decode(Double.self, forKey: .height)
+        action = try container.decode(String.self, forKey: .action)
+        fixed = try container.decodeIfPresent(Bool.self, forKey: .fixed)
+        meta = try? container.decodeIfPresent([String: String].self, forKey: .meta)
+    }
 }
 
 /// One entry of the envelope's own top-level `sliderRegions[]` — a
