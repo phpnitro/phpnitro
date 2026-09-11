@@ -2732,6 +2732,24 @@ function runOnIosDevice(string $udid, string $label): void
 }
 
 /**
+ * `.phpnitro/rust/phpnitro-render` in a scaffolded project (see
+ * cmdNew()'s own docblock for why it's hidden there), bare
+ * `rust/phpnitro-render` in this monorepo's own checkout (never
+ * relocated — only scaffolded copies are). Real bug found running a
+ * freshly scaffolded project's `phpx run` on macOS: nobody had ever
+ * run `cargo build --release` for its own copy of the crate, and the
+ * hidden `.phpnitro/` path gives a user no obvious place to look for
+ * "where do I build this" — `runOnMacos()` below now builds it
+ * automatically instead of assuming it already exists.
+ */
+function rustRenderCrateDir(): string
+{
+    $scaffolded = PHPX_ROOT . '/.phpnitro/rust/phpnitro-render';
+
+    return is_dir($scaffolded) ? $scaffolded : PHPX_ROOT . '/rust/phpnitro-render';
+}
+
+/**
  * Foreground, Ctrl+C-to-stop, same shape as `runOnLinuxDesktop()`
  * below — `PhpNitroMacApp` is a real GUI app that stays running until
  * killed, not a fire-and-forget launch like `simctl launch`/`devicectl
@@ -2745,6 +2763,8 @@ function runOnIosDevice(string $udid, string $label): void
 function runOnMacos(): void
 {
     $macosDir = PHPX_ROOT . '/macos';
+    echo "Build du moteur de rendu Rust (cargo build --release)...\n";
+    passthruOrFail('cd ' . escapeshellarg(rustRenderCrateDir()) . ' && cargo build --release');
     echo "Build (swift build -c release)...\n";
     passthruOrFail('cd ' . escapeshellarg($macosDir) . ' && swift build -c release');
 
