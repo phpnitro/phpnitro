@@ -107,7 +107,8 @@ export SQLITE_LIBS="-L$IOS_SDK/usr/lib -lsqlite3"
   --disable-cli --disable-cgi --disable-phpdbg --enable-embed=static \
   --without-pcre-jit --enable-session=static \
   --enable-pdo=static --with-pdo-sqlite=static --with-sqlite3=static \
-  --enable-filter=static
+  --enable-filter=static \
+  --enable-mbstring=static --disable-mbregex
 make -j"$(sysctl -n hw.ncpu)"
 ```
 
@@ -160,6 +161,31 @@ guessed up front):
   (dom/simplexml/xml/xmlreader/xmlwriter/phar/phpdbg) and keeps
   everything else, `ext/filter` included, at its normal default-enabled
   state.
+- **`--enable-mbstring=static --disable-mbregex`**: `packages/countries`,
+  `packages/format`, `packages/ui` genuinely call `mb_chr()`/
+  `mb_str_split()`/`mb_strlen()`/`mb_strtolower()`/`mb_substr()` — found
+  by proactively grepping the real bundled code for other
+  extension-gated functions after the `ext/filter` miss above, not from
+  a crash yet. Plain `--enable-mbstring=static` fails to configure on
+  its own: the multibyte-*regex* half (`mb_ereg*`, never called by this
+  app's own code) needs `oniguruma`, and cross-compiling hits the exact
+  same pkg-config-can't-see-the-iOS-SDK failure `sqlite3` did above —
+  `--disable-mbregex` removes that dependency entirely instead of
+  vendoring `oniguruma` for a feature nothing here calls.
+
+**Known gap, deliberately not addressed here**: `curl_*`
+(`packages/payments/src/Feexpay.php`), `openssl_*`
+(`packages/firebase`, `packages/socialauth`), and `Intl*`
+(`packages/format`) are also real calls in bundled code this xcframework
+can't satisfy yet — unlike `filter`/`mbstring`, these need actual
+third-party static libraries cross-compiled for iOS first (`libcurl`,
+OpenSSL, ICU's data files), the same scale of work
+`android/php-ndk-patch/Dockerfile`'s own OpenSSL 3.0.15 static build
+already had to do for Android (see `android/README.md`'s own
+CURLOPT_POST/openssl wrapper story) — not a `configure` flag away.
+Whichever of those three a screen touches first will surface its own
+`Undefined function`/`Undefined constant` error, same shape as the two
+above, until someone does that vendoring work for iOS too.
 
 Consumers must link `-lsqlite3` alongside the already-required
 `-lresolv -liconv -lm` (see `Package.swift`'s own `CPhpEmbed` target)
