@@ -17,8 +17,8 @@ Two architecture slices, one per iOS target this project builds for:
 - simulator (`arm64-apple-ios15.0-simulator`) — iOS Simulator on Apple Silicon
 
 Both built from PHP `8.3.15` (`php/php-src` tag `php-8.3.15`), `--enable-embed=static`,
-`--disable-all` (only the embed SAPI + the always-mandatory `ext/standard`/`Zend`/`TSRM`
-core — no extensions beyond what PHP itself requires to build at all).
+`--disable-all` plus a short list of extensions the real app actually needs on top of
+`ext/standard`/`Zend`/`TSRM`'s always-mandatory core — see "Runtime extensions" below.
 
 ## Reproducing this build
 
@@ -75,13 +75,54 @@ export CXX="xcrun -sdk iphoneos clang++ -arch arm64"
 export CFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
 export CXXFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
 export LDFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
+export SQLITE_CFLAGS="-I$IOS_SDK/usr/include"
+export SQLITE_LIBS="-L$IOS_SDK/usr/lib -lsqlite3"
 ./configure --host=aarch64-apple-darwin --disable-all --without-pear \
-  --disable-cli --disable-cgi --disable-phpdbg --enable-embed=static
+  --disable-cli --disable-cgi --disable-phpdbg --enable-embed=static \
+  --without-pcre-jit --enable-session=static \
+  --enable-pdo=static --with-pdo-sqlite=static --with-sqlite3=static
 make -j"$(sysctl -n hw.ncpu)"
 ```
 
 Simulator build: same steps, swap every `iphoneos`/`-mios-version-min`
-for `iphonesimulator`/`-mios-simulator-version-min`.
+for `iphonesimulator`/`-mios-simulator-version-min` (and `IOS_SDK`'s own
+`--sdk` accordingly — `SQLITE_CFLAGS`/`SQLITE_LIBS` must point at
+whichever SDK is actually being targeted).
+
+## Runtime extensions: not just the bare embed SAPI
+
+`--disable-all` alone produces a runtime too bare for the real app —
+each of the three flags below was added after a **real** crash or
+error reproducing the actual app's `public/index.php` on-device (never
+guessed up front):
+
+- **`--without-pcre-jit`**: PCRE2's JIT tries to `mmap` executable
+  memory at runtime (`sljit_malloc_exec`) the moment any `preg_match()`
+  runs — forbidden for third-party apps on iOS, and not caught at
+  build time at all. Confirmed via an `lldb` backtrace on a real
+  Simulator crash (Bus error, signal 10) pinpointing
+  `sljit_malloc_exec` ← `php_pcre2_jit_compile` ← `preg_match`.
+  Without this flag, the FIRST regex evaluated anywhere in the app's
+  request path (Symfony's router, Doctrine, etc.) hard-crashes the
+  process.
+- **`--enable-session=static`**: `--disable-all` also drops the session
+  extension — `session_start()` (called by the real app) is undefined
+  without it, a real `Call to undefined function` error, not
+  speculative.
+- **`--enable-pdo=static --with-pdo-sqlite=static --with-sqlite3=static`**:
+  Doctrine DBAL's SQLite driver needs the `PDO` class — without these,
+  a real `Class "PDO" not found` error the first time the app touches
+  its database. Cross-compiling `sqlite3` support hits its own
+  pkg-config failure (`configure: error: ... pkg-config script could
+  not be found or is too old`) since pkg-config can't detect the iOS
+  SDK's system `libsqlite3` when cross-compiling — worked around by
+  setting `SQLITE_CFLAGS`/`SQLITE_LIBS` explicitly (see the configure
+  invocation above) instead of relying on pkg-config auto-detection.
+
+Consumers must link `-lsqlite3` alongside the already-required
+`-lresolv -liconv -lm` (see `Package.swift`'s own `CPhpEmbed` target)
+now that `ext/pdo_sqlite`/`ext/sqlite3` are statically enabled — the
+static archive itself doesn't bundle it, same split as those three.
 
 ## Headers: flattened, not the raw build-tree layout
 
@@ -131,7 +172,7 @@ xcodebuild -create-xcframework \
 ```
 
 `libtool`'s own build already links in what PHP's `sapi/embed` needs
-beyond libc — `-lresolv -liconv -lm` at the consumer's link step is
-still required (these are system libraries the static archive doesn't
-bundle, same as android/README.md's own `libsqlite3.so` needing to sit
-alongside `libphp.so`, not inside it).
+beyond libc — `-lresolv -liconv -lm -lsqlite3` at the consumer's link
+step is still required (these are system libraries the static archive
+doesn't bundle, same as android/README.md's own `libsqlite3.so`
+needing to sit alongside `libphp.so`, not inside it).
