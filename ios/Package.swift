@@ -183,11 +183,16 @@ let package = Package(
             path: "Tests/RustNativeRendererTests"
         ),
 
-        // vendor/php/libphp.xcframework: PHP 8.3.15's embed SAPI,
+        // vendor/php/libphp.xcframework: PHP 8.4.2's embed SAPI,
         // cross-compiled for both iOS targets this project builds for
-        // (device + Simulator) — see vendor/php/README.md for the full
-        // build recipe and why it's committed rather than rebuilt (same
-        // reasoning as android/README.md's own libphp.so). An
+        // (device + Simulator) — matching Android's own libphp.so
+        // exactly, not arbitrarily: this project's Symfony 8.x
+        // dependency genuinely needs 8.4's property hooks syntax (real
+        // parser support, not just a declared composer.json floor) —
+        // see vendor/php/README.md for the real "Parse error" this
+        // fixed on a physical iPhone, and for the full build recipe and
+        // why it's committed rather than rebuilt (same reasoning as
+        // android/README.md's own libphp.so). An
         // xcframework (not a raw .a + unsafeFlags, unlike
         // RustNativeRenderer above) specifically BECAUSE it needs a
         // device AND a Simulator slice — SPM's `.binaryTarget` +

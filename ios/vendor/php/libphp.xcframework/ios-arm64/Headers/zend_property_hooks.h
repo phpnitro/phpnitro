@@ -12,23 +12,31 @@
    | obtain it through the world-wide-web, please send a note to          |
    | license@zend.com so we can mail you a copy immediately.              |
    +----------------------------------------------------------------------+
-   | Authors: Andi Gutmans <andi@php.net>                                 |
-   |          Zeev Suraski <zeev@php.net>                                 |
+   | Authors: Ilija Tovilo <ilutov@php.net>                               |
    +----------------------------------------------------------------------+
 */
 
-#ifndef _ZEND_STDIOSTREAM
-#define _ZEND_STDIOSTREAM
+#ifndef ZEND_PROPERTY_HOOKS_H
+#define ZEND_PROPERTY_HOOKS_H
 
-#if defined(ZTS) && !defined(HAVE_CLASS_ISTDIOSTREAM)
-class istdiostream : public istream
-{
-private:
-	stdiobuf _file;
-public:
-	istdiostream (FILE* __f) : istream(), _file(__f) { init(&_file); }
-	stdiobuf* rdbuf()/* const */ { return &_file; }
-};
-#endif
+#include "zend_portability.h"
 
-#endif
+BEGIN_EXTERN_C()
+
+typedef struct _zend_array zend_array;
+typedef struct _zend_class_entry zend_class_entry;
+typedef struct _zend_object zend_object;
+typedef struct _zend_object_iterator zend_object_iterator;
+typedef struct _zval_struct zval;
+
+typedef enum {
+	ZEND_PROPERTY_HOOK_GET = 0,
+	ZEND_PROPERTY_HOOK_SET = 1,
+} zend_property_hook_kind;
+
+ZEND_API zend_object_iterator *zend_hooked_object_get_iterator(zend_class_entry *ce, zval *object, int by_ref);
+ZEND_API zend_array *zend_hooked_object_build_properties(zend_object *zobj);
+
+END_EXTERN_C()
+
+#endif /* ZEND_PROPERTY_HOOKS_H */

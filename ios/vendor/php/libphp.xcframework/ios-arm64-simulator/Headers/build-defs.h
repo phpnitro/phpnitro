@@ -14,17 +14,15 @@
    +----------------------------------------------------------------------+
 */
 
-#define CONFIGURE_COMMAND " './configure'  '--host=aarch64-apple-darwin' '--disable-all' '--without-pear' '--disable-cli' '--disable-cgi' '--disable-phpdbg' '--without-pcre-jit' '--enable-session=static' '--enable-pdo=static' '--with-pdo-sqlite=static' '--with-sqlite3=static' '--enable-embed=static' 'host_alias=aarch64-apple-darwin' 'SQLITE_CFLAGS=-I/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk/usr/include' 'SQLITE_LIBS=-L/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk/usr/lib -lsqlite3'"
+#define CONFIGURE_COMMAND " './configure'  '--host=aarch64-apple-darwin' '--disable-all' '--without-pear' '--disable-cli' '--disable-cgi' '--disable-phpdbg' '--enable-embed=static' '--without-pcre-jit' '--enable-session=static' '--enable-pdo=static' '--with-pdo-sqlite=static' '--with-sqlite3=static' 'host_alias=aarch64-apple-darwin' 'SQLITE_CFLAGS=-I/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk/usr/include' 'SQLITE_LIBS=-L/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk/usr/lib -lsqlite3'"
 #define PHP_ODBC_CFLAGS	""
 #define PHP_ODBC_LFLAGS		""
 #define PHP_ODBC_LIBS		""
 #define PHP_ODBC_TYPE		""
-#define PHP_OCI8_DIR			""
-#define PHP_OCI8_ORACLE_VERSION		""
 #define PHP_PROG_SENDMAIL	"/usr/sbin/sendmail"
 #define PEAR_INSTALLDIR         ""
 #define PHP_INCLUDE_PATH	".:"
-#define PHP_EXTENSION_DIR       "/usr/local/lib/php/extensions/no-debug-non-zts-20230831"
+#define PHP_EXTENSION_DIR       "/usr/local/lib/php/extensions/no-debug-non-zts-20240924"
 #define PHP_PREFIX              "/usr/local"
 #define PHP_BINDIR              "/usr/local/bin"
 #define PHP_SBINDIR             "/usr/local/sbin"
