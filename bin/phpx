@@ -3099,6 +3099,89 @@ function cmdDoctor(): void
     }
 }
 
+/**
+ * Real, verified drift found by hand (not guessed): `packages/*` here
+ * is the actual development source, but each one is ALSO published as
+ * its own standalone repo + Packagist package (`phpnitro/<name>`, see
+ * https://github.com/phpnitro) — a completely separate publish step,
+ * with NO automation anywhere in this file or `.github/workflows/`
+ * connecting the two before this command existed. Confirmed via the
+ * GitHub API: `phpnitro/payments` had 1 of 6 real gateway files,
+ * `phpnitro/jwt` 1 of 3, `phpnitro/ui`'s own `Device/` had 19 of 48 —
+ * every file added since whoever last ran the manual sync (around
+ * 2026-08-06) was simply never pushed. Anyone doing `composer require
+ * phpnitro/ui` was missing most of `Engine\Device\*` as a result.
+ *
+ * Only `src/` and `tests/` (whichever exist locally) are synced —
+ * `composer.json`/`README.md`/`LICENSE` are repo-specific metadata
+ * that only ever lived in the published repo, never duplicated into
+ * this monorepo's own `packages/<name>/` (confirmed: no
+ * `packages/*\/composer.json` exists locally at all).
+ *
+ * `rsync --delete` (not a plain copy) so a file removed here also
+ * disappears from the published repo — otherwise a rename/removal
+ * would silently leave the old file live in the public package
+ * forever. Skips (rather than opening an empty PR) when nothing
+ * actually changed — `git status --porcelain` is the real signal, not
+ * "did this function run", since the previous publish might have
+ * already been current for a given package.
+ *
+ * Opens a real PR (`gh pr create`) rather than pushing straight to
+ * `main` — every published package repo requires a reviewed PR on
+ * `main` (confirmed the hard way: a first version of this command
+ * pushed directly and GitHub logged "Bypassed rule violations...
+ * Changes must be made through a pull request" — this token happens to
+ * have admin rights on these repos, which CAN silently override that
+ * requirement, but doing so isn't this command's call to make).
+ */
+function cmdPublishPackages(?string $only): void
+{
+    $packagesDir = PHPX_ROOT . '/packages';
+    $names = $only !== null ? [$only] : array_values(array_diff(scandir($packagesDir) ?: [], ['.', '..']));
+
+    foreach ($names as $name) {
+        $localDir = "{$packagesDir}/{$name}";
+        if (!is_dir($localDir)) {
+            phpxFail("packages/{$name} n'existe pas.");
+        }
+        if (!is_dir("{$localDir}/src")) {
+            phpxFail("packages/{$name}/src n'existe pas — pas un package publiable ?");
+        }
+
+        echo "== {$name} ==\n";
+        $tmpDir = sys_get_temp_dir() . '/phpx-publish-' . $name . '-' . uniqid();
+        passthruOrFail('git clone --quiet ' . escapeshellarg("git@github.com:phpnitro/{$name}.git") . ' ' . escapeshellarg($tmpDir));
+
+        passthruOrFail('rsync -a --delete ' . escapeshellarg("{$localDir}/src/") . ' ' . escapeshellarg("{$tmpDir}/src/"));
+        if (is_dir("{$localDir}/tests")) {
+            passthruOrFail('rsync -a --delete ' . escapeshellarg("{$localDir}/tests/") . ' ' . escapeshellarg("{$tmpDir}/tests/"));
+        }
+
+        $diff = trim((string) shell_exec('cd ' . escapeshellarg($tmpDir) . ' && git status --porcelain 2>/dev/null'));
+        if ($diff === '') {
+            echo "  déjà à jour.\n";
+            passthruOrFail('rm -rf ' . escapeshellarg($tmpDir));
+            continue;
+        }
+
+        $branch = 'sync/phpnitro-phpnitro-' . date('Y-m-d');
+        passthruOrFail(
+            'cd ' . escapeshellarg($tmpDir)
+            . ' && git checkout --quiet -b ' . escapeshellarg($branch)
+            . ' && git add -A && git commit --quiet -m ' . escapeshellarg("sync: rattrape phpnitro/phpnitro (packages/{$name})")
+            . ' && git push --quiet -u origin ' . escapeshellarg($branch)
+        );
+        $prBody = "Resynchronise src/" . (is_dir("{$localDir}/tests") ? '+tests/ ' : ' ') . "depuis packages/{$name} du monorepo phpnitro/phpnitro — voir `phpx publish:packages`.";
+        passthruOrFail(
+            'cd ' . escapeshellarg($tmpDir)
+            . ' && gh pr create --title ' . escapeshellarg("sync: rattrape phpnitro/phpnitro (packages/{$name})")
+            . ' --body ' . escapeshellarg($prBody)
+        );
+        echo "  PR ouverte sur https://github.com/phpnitro/{$name}\n";
+        passthruOrFail('rm -rf ' . escapeshellarg($tmpDir));
+    }
+}
+
 $command = $argv[1] ?? null;
 
 switch ($command) {
@@ -3164,6 +3247,9 @@ switch ($command) {
         break;
     case 'doctor':
         cmdDoctor();
+        break;
+    case 'publish:packages':
+        cmdPublishPackages($argv[2] ?? null);
         break;
     default:
         printPhpxUsage();
