@@ -45,7 +45,27 @@ Troisième produit de ce package (`Sources/PhpNitroMacApp/`) — un exécutable 
 
 ## Vérification
 
-**Aucun Mac disponible pour écrire ni vérifier ce port** — même situation que le reste d'`ios/` jusqu'ici. Le job CI `macos-build` (`.github/workflows/ci.yml`, runner `macos-14`) :
+**Premier run réel effectué le 11/09** — `swift build -c release` puis
+`./macos/.build/release/PhpNitroMacApp <project_dir> <screen>` lancé
+directement sur un vrai Mac. Deux bugs réels trouvés et corrigés dès ce
+premier lancement (voir leurs propres commits) :
+
+1. Tout l'écran s'affichait retourné verticalement — `RustScreenView.draw(_:)`
+   dessinait son `CGImage` via `context.draw(_:in:)` dans une `NSView`
+   `isFlipped=true` sans compenser la convention bas-gauche native de
+   Core Graphics pour le dessin d'image (contrairement au dessin de
+   chemins/texte, qui suit correctement la CTM retournée par AppKit).
+2. Taper sur "Device" dans la barre de navigation du bas déclenchait
+   "Stepper" à la place — un item de liste invisible (hors du buffer
+   de rendu) mais toujours "tapable", `NativeWidgetsIndexScreen.php`
+   n'enveloppant jamais ses 19 lignes dans un `NestedScroll`. Bug
+   partagé par les 3 plateformes (même logique de hit-test exacte
+   côté Kotlin/Rust), jamais remarqué avant faute d'un écran assez
+   long pour l'exposer sur un téléphone.
+
+Avant cela, seule la compilation CI (job `macos-build`,
+`.github/workflows/ci.yml`, runner `macos-14`) avait jamais vérifié quoi
+que ce soit sur ce port :
 
 1. `cargo build --release` pour `rust/phpnitro-render`.
 2. `xcodebuild -list` — 3 produits maintenant (`PhpNitroMacEngine`, `RustMacRenderer`, `PhpNitroMacApp`), donc un scheme agrégé `PhpNitroMacEngine-Package` en plus des schemes par cible — confirmé par ce `-list`, pas supposé par analogie.
@@ -55,7 +75,14 @@ Troisième produit de ce package (`Sources/PhpNitroMacApp/`) — un exécutable 
 
 ## Ce qui manque encore, dans l'ordre de priorité
 
-1. **Rien n'a jamais tourné/cliqué sur un vrai Mac** — seule la compilation est vérifiée (CI), pas l'exécution interactive.
+1. ~~Rien n'a jamais tourné/cliqué sur un vrai Mac~~ — corrigé le 11/09
+   (voir la section "Vérification" ci-dessus pour les deux bugs réels
+   trouvés et corrigés dès ce premier lancement). `MacScreenViewController`
+   (le chemin Core Graphics, pas encore lancé pour de vrai contrairement
+   à `PhpNitroMacApp`/Rust) a par ailleurs le même défaut d'origine que
+   celui qu'iOS a eu (`NativeScreenViewController.handle(action:rect:)`
+   ne passe jamais `meta` à `ScreenNavigation.reduce()`) — probablement
+   un `toggle:`/Drawer cassé là aussi, jamais vérifié.
 2. ~~Pas de saisie clavier~~ — corrigé, sur les DEUX chemins (Core Graphics et Rust) : `focus:[multiline:][secure:]name` (`TextField.php`/`PasswordField.php`) crée un vrai `NSTextField`/`NSSecureTextField` positionné par-dessus le rect+text statique déjà peint dessous (`MacCanvasView.showTextInput`/`RustScreenView.showTextInput`), chaque frappe (`NSTextFieldDelegate.controlTextDidChange`) met à jour `fieldValues` immédiatement.
 3. **`clientPanel`/`hScroll`/`vScroll`/`slider` côté Core Graphics** (`MacCanvasView`) se décodent et se dessinent (rendu statique), sans interactivité de drag/tab côté client (le `focus:`/TextField ci-dessus est une exception, déjà branché) — côté Rust (`rust/phpnitro-render` et `PhpNitroMacApp`), cette limite est désormais levée (voir plus haut et le propre README du moteur), mais le chemin Core Graphics de ce port reste tel quel pour le reste, sans régression.
 4. ~~Aucun overlay pour VideoPlayer~~ — corrigé, sur les DEUX chemins : `video:play:<url>` (`VideoPlayer.php`) crée un vrai `AVPlayer`/`AVPlayerLayer` positionné par-dessus la boîte "lecture" statique déjà peinte dessous (`MacCanvasView.showVideoOverlay`/`RustScreenView.showVideoOverlay`), lecture automatique dès l'affichage, pas de barre de transport. ~~Aucun overlay pour MapView~~ — corrigé, sur les DEUX chemins : `map:open:<lat>:<lon>:<zoom>` (`MapView.php`) crée un vrai `MKMapView` centré sur la position (pan/zoom déjà inclus par `MapKit`, aucune clé d'API requise) — `MacCanvasView.showMapOverlay`/`RustScreenView.showMapOverlay`. Lottie demanderait une vraie dépendance tierce (`lottie-ios`), décision pas encore prise.
