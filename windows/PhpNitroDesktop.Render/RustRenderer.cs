@@ -85,13 +85,28 @@ internal static class NativeMethods
             yield return overridePath;
         }
 
-        var crateTargetDir = Path.Combine(RepoRoot(), "rust", "phpnitro-render", "target");
-        foreach (var profile in new[] { "release", "debug" })
+        // ".phpnitro/rust/phpnitro-render" in a project scaffolded by
+        // `phpx new` (see bin/phpx's cmdNew() docblock for why it's
+        // hidden there), bare "rust/phpnitro-render" in this monorepo's
+        // own checkout (never relocated — only scaffolded copies are).
+        // Checking both, in this order, closes a real gap: `phpx new`
+        // started hiding the crate under ".phpnitro/" without this
+        // resolver ever learning the new path.
+        var crateDirs = new[]
         {
-            var profileDir = Path.Combine(crateTargetDir, profile);
-            yield return Path.Combine(profileDir, "libphpnitro_render.so");
-            yield return Path.Combine(profileDir, "libphpnitro_render.dylib");
-            yield return Path.Combine(profileDir, "phpnitro_render.dll");
+            Path.Combine(RepoRoot(), ".phpnitro", "rust", "phpnitro-render"),
+            Path.Combine(RepoRoot(), "rust", "phpnitro-render"),
+        };
+        foreach (var crateDir in crateDirs)
+        {
+            var crateTargetDir = Path.Combine(crateDir, "target");
+            foreach (var profile in new[] { "release", "debug" })
+            {
+                var profileDir = Path.Combine(crateTargetDir, profile);
+                yield return Path.Combine(profileDir, "libphpnitro_render.so");
+                yield return Path.Combine(profileDir, "libphpnitro_render.dylib");
+                yield return Path.Combine(profileDir, "phpnitro_render.dll");
+            }
         }
     }
 

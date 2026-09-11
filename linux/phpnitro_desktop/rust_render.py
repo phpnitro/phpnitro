@@ -37,10 +37,22 @@ def _candidate_library_paths() -> list[Path]:
     # here = .../linux/phpnitro_desktop/rust_render.py
     # repo root = here.parents[2]
     repo_root = here.parents[2]
-    crate_dir = repo_root / "rust" / "phpnitro-render"
+    # `.phpnitro/rust/phpnitro-render` in a project scaffolded by `phpx
+    # new` (see bin/phpx's cmdNew() docblock for why it's hidden there),
+    # bare `rust/phpnitro-render` in this monorepo's own checkout (never
+    # relocated — only scaffolded copies are). Checking both, in this
+    # order, closes a real gap: `phpx new` started hiding the crate under
+    # `.phpnitro/` without this module ever learning the new path, so a
+    # scaffolded project's real Rust library silently could never be
+    # found here even once built.
+    crate_dirs = [
+        repo_root / ".phpnitro" / "rust" / "phpnitro-render",
+        repo_root / "rust" / "phpnitro-render",
+    ]
     candidates = [
-        crate_dir / "target" / "release" / "libphpnitro_render.so",
-        crate_dir / "target" / "debug" / "libphpnitro_render.so",
+        crate_dir / "target" / profile / "libphpnitro_render.so"
+        for crate_dir in crate_dirs
+        for profile in ("release", "debug")
     ]
     override = os.environ.get("PHPNITRO_RUST_RENDER_LIB")
     if override:
