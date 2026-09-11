@@ -40,11 +40,12 @@ from .draw_command import (  # noqa: E402
 
 
 def parse_color(hex_value: Optional[str]) -> Optional[tuple[float, float, float, float]]:
-    """Parses "#RRGGBB" or "#RRGGBBAA" — the exact two shapes every
-    Engine\\Color::toHex()/Tokens color constant on the PHP side
-    produces. Returns None (never raises) on anything else — same
-    "malformed input degrades gracefully" contract UIColor(hex:) (iOS)
-    and Color.parseColor (Android, wrapped in a try/catch there) follow.
+    """Parses "#RRGGBB" (opaque, every Engine\\Color::toHex()/Tokens color
+    constant on the PHP side) or "#AARRGGBB" — Android's Color.parseColor()
+    byte order, which the one real 8-digit caller (Drawer.php's scrim
+    '#66000000') was written for. Returns None (never raises) on anything
+    else — same "malformed input degrades gracefully" contract UIColor(hex:)
+    (iOS) and Color.parseColor (Android, wrapped in a try/catch there) follow.
     """
     if hex_value is None:
         return None
@@ -56,8 +57,11 @@ def parse_color(hex_value: Optional[str]) -> Optional[tuple[float, float, float,
     except ValueError:
         return None
 
-    r, g, b = parts[0] / 255, parts[1] / 255, parts[2] / 255
-    a = parts[3] / 255 if len(parts) == 4 else 1.0
+    if len(parts) == 4:
+        a, r, g, b = parts[0] / 255, parts[1] / 255, parts[2] / 255, parts[3] / 255
+    else:
+        r, g, b = parts[0] / 255, parts[1] / 255, parts[2] / 255
+        a = 1.0
     return (r, g, b, a)
 
 
@@ -158,13 +162,27 @@ def _draw_rect(ctx, c: RectCommand) -> None:
     if fill:
         ctx.set_source_rgba(*fill)
         ctx.fill_preserve()
+    ctx.new_path()
     border = parse_color(c.border_color)
-    if border and (c.border_width or 0) > 0:
+    border_width = c.border_width or 0
+    if border and border_width > 0:
+        # Inset by half the stroke width so the border is fully contained
+        # within the box the layout engine computed — matches
+        # NativeCanvasView.kt's own drawRectCommand() (a centered stroke,
+        # Cairo's own default, used to bleed border_width/2 past every
+        # edge, a visible 1px halo over neighboring rows).
+        inset = border_width / 2
+        _rounded_rect_path(
+            ctx,
+            c.x + inset,
+            c.y + inset,
+            max(c.width - border_width, 0),
+            max(c.height - border_width, 0),
+            radius,
+        )
         ctx.set_source_rgba(*border)
-        ctx.set_line_width(c.border_width)
+        ctx.set_line_width(border_width)
         ctx.stroke()
-    else:
-        ctx.new_path()
     ctx.restore()
 
 

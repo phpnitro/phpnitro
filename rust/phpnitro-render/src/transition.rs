@@ -87,20 +87,20 @@ fn lerp_opt(a: Option<f64>, b: Option<f64>, t: f32) -> Option<f64> {
 /// `ArgbEvaluator.evaluate()`'s exact formula — straight per-channel linear
 /// blend in normalized float space, `+0.5` round-half-up before truncating.
 /// Colors are re-parsed/re-formatted through THIS crate's own
-/// `#RRGGBB`/`#RRGGBBAA` (alpha-LAST) convention throughout — the wire
-/// protocol's own format (see `raster::parse_color`'s doc), not Android's
-/// `Color.parseColor` (alpha-FIRST `#AARRGGBB`), since the blended string
-/// is only ever re-parsed by this crate's own parser, never Android's.
+/// `#RRGGBB`/`#AARRGGBB` (alpha-FIRST, matching Android's own
+/// `Color.parseColor` — see `raster::parse_color`'s doc) convention
+/// throughout, since the blended string is only ever re-parsed by this
+/// crate's own parser, never Android's.
 fn blend_color(from_hex: &str, to_hex: &str, t: f32) -> String {
     let from = parse_color(from_hex);
     let to = parse_color(to_hex);
     let channel = |a: f32, b: f32| -> u8 { ((a + (b - a) * t) * 255.0 + 0.5).floor().clamp(0.0, 255.0) as u8 };
     format!(
         "#{:02X}{:02X}{:02X}{:02X}",
+        channel(from.alpha(), to.alpha()),
         channel(from.red(), to.red()),
         channel(from.green(), to.green()),
         channel(from.blue(), to.blue()),
-        channel(from.alpha(), to.alpha()),
     )
 }
 fn blend_color_opt(from: &Option<String>, to: &Option<String>, t: f32) -> Option<String> {
@@ -382,10 +382,10 @@ mod tests {
 
     #[test]
     fn blend_color_reproduces_argb_evaluator_at_the_midpoint() {
-        // #FF0000FF (opaque red) -> #0000FFFF (opaque blue) at t=0.5
+        // #FFFF0000 (opaque red) -> #FF0000FF (opaque blue) at t=0.5
         // should land exactly on opaque, evenly-mixed purple.
-        let blended = blend_color("#FF0000FF", "#0000FFFF", 0.5);
-        assert_eq!(blended, "#800080FF");
+        let blended = blend_color("#FFFF0000", "#FF0000FF", 0.5);
+        assert_eq!(blended, "#FF800080");
     }
 
     #[test]
@@ -463,7 +463,7 @@ mod tests {
                 assert_eq!(r.y, 10.0);
                 assert_eq!(r.width, 20.0);
                 assert_eq!(r.height, 20.0);
-                assert_eq!(r.color.as_deref(), Some("#800080FF"));
+                assert_eq!(r.color.as_deref(), Some("#FF800080"));
             }
             other => panic!("expected Rect, got {other:?}"),
         }

@@ -15,6 +15,16 @@ final class MacRenderingSupportTests: XCTestCase {
         XCTAssertNil(NSColor(hex: "not-a-color"))
     }
 
+    /// 8-digit hex is #AARRGGBB (Android's Color.parseColor() order) —
+    /// Drawer.php's scrim ('#66000000') was only ever correctly opaque-ish
+    /// on Android until every backend agreed on this byte order.
+    func testEightDigitHexIsAlphaFirst() {
+        let color = NSColor(hex: "#8000FF00")
+        XCTAssertEqual(color?.alphaComponent ?? -1, 0x80 / 255, accuracy: 0.01)
+        XCTAssertEqual(color?.greenComponent ?? -1, 1.0, accuracy: 0.01)
+        XCTAssertEqual(color?.redComponent ?? -1, 0.0, accuracy: 0.01)
+    }
+
     func testImageLoaderDecodesADataUriWithoutNetworkAccess() {
         let expectation = expectation(description: "data: URI decodes synchronously enough to load")
         let pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
