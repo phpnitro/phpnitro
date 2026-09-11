@@ -98,6 +98,7 @@ let package = Package(
             name: "PhpNitroNativeEngine",
             dependencies: [
                 "PhpNitroProtocol",
+                "CPhpEmbed",
                 .product(name: "Mantis", package: "Mantis-spm"),
             ],
             path: "Sources/PhpNitroNativeEngine",
@@ -166,6 +167,45 @@ let package = Package(
             name: "RustNativeRendererTests",
             dependencies: ["RustNativeRenderer"],
             path: "Tests/RustNativeRendererTests"
+        ),
+
+        // vendor/php/libphp.xcframework: PHP 8.3.15's embed SAPI,
+        // cross-compiled for both iOS targets this project builds for
+        // (device + Simulator) — see vendor/php/README.md for the full
+        // build recipe and why it's committed rather than rebuilt (same
+        // reasoning as android/README.md's own libphp.so). An
+        // xcframework (not a raw .a + unsafeFlags, unlike
+        // RustNativeRenderer above) specifically BECAUSE it needs a
+        // device AND a Simulator slice — SPM's `.binaryTarget` +
+        // xcframework is the one mechanism that picks the right slice
+        // automatically per build destination; a hand-written `-L/-l`
+        // unsafeFlags pair (RustNativeRenderer's own approach) has no
+        // way to do that, it always points at one fixed path.
+        .binaryTarget(name: "libphp", path: "vendor/php/libphp.xcframework"),
+
+        // The thin C shim (phpx_embed.h/.c) making the embed SAPI
+        // callable from Swift at all — see that header's own docblock
+        // for why (PHP_EMBED_START_BLOCK/END_BLOCK are C macros using
+        // setjmp-based zend_first_try/zend_catch, which Swift cannot
+        // call, and zend_eval_string()'s own output goes through a SAPI
+        // callback meant for a real request/response cycle, not
+        // returned as a value). -lresolv/-liconv/-lm: system libraries
+        // php-src's own embed SAPI needs beyond libc that the static
+        // archive doesn't bundle (same libtool-vs-consumer split
+        // vendor/php/README.md documents).
+        .target(
+            name: "CPhpEmbed",
+            dependencies: ["libphp"],
+            path: "Sources/CPhpEmbed",
+            publicHeadersPath: "include",
+            cSettings: [
+                .define("ZEND_ENABLE_STATIC_TSRMLS_CACHE", to: "1"),
+            ],
+            linkerSettings: [
+                .linkedLibrary("resolv"),
+                .linkedLibrary("iconv"),
+                .linkedLibrary("m"),
+            ]
         ),
     ]
 )
