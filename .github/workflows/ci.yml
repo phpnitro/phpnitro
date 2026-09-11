@@ -686,3 +686,121 @@ jobs:
         run: |
           ./embed_smoke_test | tee smoke_output.txt
           grep -q "hello from embed SAPI" smoke_output.txt || (echo "embed SAPI did not produce expected output" && exit 1)
+
+  php-embed-step3:
+    name: "iOS PHP embed — step 3: embed SAPI smoke test (iOS Simulator target)"
+    # Step 3 combines what step 1 and step 2 each proved separately:
+    # step 1 showed the embed SAPI cross-compiles for iOS at all (device
+    # target, arm64-apple-ios); step 2 showed the embed SAPI's own C API
+    # actually runs correctly (native macOS target). Neither proved both
+    # at once — a device-target binary from step 1 cannot run on this
+    # runner (no physical iPhone in CI), which is exactly why step 2
+    # deliberately used a native build instead of trying to execute
+    # step 1's own artifact.
+    #
+    # The iOS SIMULATOR target closes that gap without needing a real
+    # device at all: unlike a device binary, one built for
+    # arm64-apple-ios15.0-simulator runs as an ordinary native process
+    # directly on this Apple-Silicon runner's own kernel — the whole
+    # point of how the Simulator works (same darwin kernel, different
+    # SDK/frameworks, no emulation) — so it can just be executed from
+    # the shell like step 2's binary was, no xcodebuild/XCTest/simulator
+    # boot required for this smoke test specifically. That real Xcode
+    # SPM-target wiring (ios/Package.swift, xcodebuild test against a
+    # booted simulator) is deferred to a later step, once this raw
+    # cross-compiled smoke test itself is proven — same "isolate one
+    # variable at a time" reasoning as step 1 vs step 2.
+    runs-on: macos-14
+    continue-on-error: true
+    steps:
+      - name: Checkout php-src
+        uses: actions/checkout@v4
+        with:
+          repository: php/php-src
+          ref: php-8.3.15
+          path: php-src
+
+      - name: Install autoconf/bison/re2c (Apple's system bison is too old for PHP)
+        run: |
+          brew install autoconf bison re2c
+          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
+
+      - name: buildconf (generate ./configure)
+        working-directory: php-src
+        run: ./buildconf --force
+
+      # Same ext/standard/config.m4 patch step 1 needed — applied here
+      # too rather than waiting for a red run to confirm it: the iOS
+      # Simulator SDK marks posix_spawn_file_actions_addchdir_np
+      # unavailable for the same reason the device SDK does (both are
+      # "iOS" as far as that availability annotation cares, simulator
+      # vs device isn't the axis it's keyed on).
+      - name: Patch config.m4 — skip posix_spawn_file_actions_addchdir_np probe (unavailable on iOS)
+        working-directory: php-src
+        run: |
+          sed -i '' '/PHP_CHECK_FUNC(posix_spawn_file_actions_addchdir_np)/d' ext/standard/config.m4
+
+      - name: configure (cross-compile for iOS Simulator, arm64)
+        working-directory: php-src
+        run: |
+          export SIM_SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
+          export CC="xcrun -sdk iphonesimulator clang -arch arm64"
+          export CXX="xcrun -sdk iphonesimulator clang++ -arch arm64"
+          export CFLAGS="-isysroot $SIM_SDK -mios-simulator-version-min=15.0"
+          export CXXFLAGS="-isysroot $SIM_SDK -mios-simulator-version-min=15.0"
+          export LDFLAGS="-isysroot $SIM_SDK -mios-simulator-version-min=15.0"
+          ./configure \
+            --host=aarch64-apple-darwin \
+            --disable-all \
+            --without-pear \
+            --disable-cli \
+            --disable-cgi \
+            --disable-phpdbg \
+            --enable-embed=static
+
+      - name: make
+        working-directory: php-src
+        run: make -j"$(sysctl -n hw.ncpu)" 2>&1 | tail -200
+
+      - name: Check for libphp.a
+        working-directory: php-src
+        run: |
+          find . -name "libphp.a" -exec ls -la {} \;
+          test -f libs/libphp.a || (echo "libphp.a not produced" && exit 1)
+
+      - name: Write embed SAPI smoke test (C)
+        working-directory: php-src
+        run: |
+          cat > embed_smoke_test.c <<'EOF'
+          #include <sapi/embed/php_embed.h>
+
+          int main(int argc, char **argv) {
+              PHP_EMBED_START_BLOCK(argc, argv)
+              zend_eval_string("echo 'hello from embed SAPI (iOS Simulator target)';", NULL, "embed_smoke_test");
+              PHP_EMBED_END_BLOCK()
+              return 0;
+          }
+          EOF
+
+      - name: Compile + link smoke test against the Simulator-target libphp.a
+        working-directory: php-src
+        run: |
+          export SIM_SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
+          xcrun -sdk iphonesimulator clang embed_smoke_test.c -o embed_smoke_test \
+            -isysroot "$SIM_SDK" -mios-simulator-version-min=15.0 -arch arm64 \
+            -I. -Imain -IZend -ITSRM -Iinclude \
+            -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 \
+            libs/libphp.a \
+            -lresolv -liconv -lm
+
+      # No simctl/xcodebuild involved — this IS the point being tested:
+      # a Simulator-target binary is a directly runnable native process
+      # on this host, not something that needs a booted simulator at
+      # all. If this step fails to even launch (as opposed to running
+      # and producing wrong output), that assumption was wrong and
+      # would itself be a real, useful finding.
+      - name: Run smoke test directly on the runner (no simulator boot needed)
+        working-directory: php-src
+        run: |
+          ./embed_smoke_test | tee smoke_output.txt
+          grep -q "hello from embed SAPI" smoke_output.txt || (echo "embed SAPI did not produce expected output" && exit 1)
