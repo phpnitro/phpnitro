@@ -65,7 +65,7 @@ public final class NativeCanvasView: UIView {
     /// `NativeRenderPocActivity.kt`'s own `onAction?.invoke(action,
     /// region.rect, meta)`, which always passes the rect too, not just
     /// for `focus:` specifically.
-    public var onAction: ((_ action: String, _ rect: CGRect) -> Void)?
+    public var onAction: ((_ action: String, _ rect: CGRect, _ meta: [String: String]?) -> Void)?
 
     /// Flutter DevTools' "Select Widget Mode", scoped to what's actually
     /// available here — mirrors NativeRenderPocActivity.kt's own
@@ -428,7 +428,7 @@ public final class NativeCanvasView: UIView {
             return
         }
 
-        onAction?(region.action, viewRect)
+        onAction?(region.action, viewRect, region.meta)
     }
 
     // MARK: - Page scroll (drag + fling)

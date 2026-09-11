@@ -117,7 +117,7 @@ public final class NativeScreenViewController: UIViewController {
         view.backgroundColor = .white
 
         canvasView.translatesAutoresizingMaskIntoConstraints = false
-        canvasView.onAction = { [weak self] action, rect in self?.handle(action: action, rect: rect) }
+        canvasView.onAction = { [weak self] action, rect, meta in self?.handle(action: action, rect: rect, meta: meta) }
         canvasView.onFieldValueChanged = { [weak self] name, value in self?.setFieldValue(value, forName: name) }
         #if DEBUG
         canvasView.onInspect = { [weak self] action, rect in self?.showInspectResult(action: action, rect: rect) }
@@ -197,7 +197,7 @@ public final class NativeScreenViewController: UIViewController {
         fieldValues[name] = value
     }
 
-    private func handle(action: String, rect: CGRect) {
+    private func handle(action: String, rect: CGRect, meta: [String: String]? = nil) {
         // focus: never reaches ScreenNavigation.reduce (no fetch at all,
         // entirely client-side — same "not funneled through the generic
         // reducer" treatment clientTab: gets) — matches
@@ -549,16 +549,20 @@ public final class NativeScreenViewController: UIViewController {
             return
         }
 
-        switch ScreenNavigation.reduce(action: action, stack: screenStack) {
+        let metaJson = meta.flatMap { try? JSONSerialization.data(withJSONObject: $0) }
+            .flatMap { String(data: $0, encoding: .utf8) }
+
+        switch ScreenNavigation.reduce(action: action, stack: screenStack, metaJson: metaJson) {
         case .clientTabOnly(let key, let index):
             canvasView.setClientTab(key, index: index)
-        case .fieldUpdate:
-            // Never produced here — this call site never passes
-            // `metaJson` to `reduce()` (NativeCanvasView.onAction carries
-            // no meta at all), so `toggle:` always falls through to the
-            // `.fetch` case below instead, unchanged from before this
-            // case existed. See ScreenNavigation.swift's own doc comment.
-            break
+        case .fieldUpdate(let key, let value):
+            // toggle:<key> (Checkbox/NumberPicker/Drawer's own hamburger
+            // icon, etc) — mirrors NativeRenderPocActivity.kt's own
+            // `toggle:` branch exactly: write the new value, then refetch
+            // the same screen with it included, same as any other field
+            // (see fieldValues' own docblock).
+            fieldValues[key] = value
+            fetch(action: nil)
         case .fetch(let stack, let fetchAction):
             screenStack = stack
             fetch(action: fetchAction)
