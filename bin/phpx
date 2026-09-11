@@ -1271,20 +1271,23 @@ function cmdNew(string $directory, bool $all = false): void
         echo "Copied {$part}/ to {$destination}\n";
     }
 
-    // rust/phpnitro-render — the shared Rust render core NONE of the
-    // three targets that actually link against it can do without: real
-    // bug found the hard way, `phpx new` never copied this AT ALL
-    // before, in the DEFAULT (android+ios) scaffold, not just under
-    // --all — Android's own :engine (cargo-ndk into jniLibs, see
-    // android/README.md) and iOS's own RustNativeRenderer target both
-    // resolve `../rust/phpnitro-render` relative to their own
-    // Package.swift/build.gradle.kts, so neither could ever have built
-    // in ANY project `phpx new` ever scaffolded. `target/` skipped —
-    // Cargo's own build output, gitignored, cheap to rebuild fresh
-    // (`cargo build`), copying it would ship a stale prebuilt binary
-    // plus tens/hundreds of MB nobody asked for.
-    copyDirectory(PHPX_TOOL_ROOT . '/rust', "{$targetDir}/rust", ['target']);
-    echo "Copied rust/ to {$targetDir}/rust\n";
+    // rust/phpnitro-render — under .phpnitro/, NOT a bare top-level
+    // rust/ (real feedback: a user scaffolding a project had no idea
+    // why a raw Rust crate sat next to their own android/ios/lib/ —
+    // NativeCanvasView.swift/.kt (Core Graphics/plain Canvas) are the
+    // real rendering path for both HostApp and the Android app; the
+    // only actually-shipped consumer is macOS's own PhpNitroMacApp
+    // (RustScreenView), confirmed by the published phpnitro/android-engine
+    // itself never bundling a Rust .so at all, only libphp.so/libsqlite3.so).
+    // Still copied unconditionally (not gated behind --all) rather than
+    // patch two more Package.swift/.build.gradle.kts targets (iOS's own
+    // RustNativeRenderer, Android's :engine own smoke test) to stop
+    // depending on it — same ".dart_tool/-style hidden tooling
+    // directory" idea Flutter itself uses for what a project references
+    // but never hand-edits. `target/` skipped — Cargo's own build
+    // output, gitignored, cheap to rebuild fresh (`cargo build`).
+    copyDirectory(PHPX_TOOL_ROOT . '/rust', "{$targetDir}/.phpnitro/rust", ['target']);
+    echo "Copied rust/ to {$targetDir}/.phpnitro/rust\n";
 
     // ios/ copied separately from the loop above, deliberately NOT
     // skipping 'vendor' — real bug found the hard way (a fresh
@@ -1306,6 +1309,18 @@ function cmdNew(string $directory, bool $all = false): void
         'node_modules', '.build', '.swiftpm', 'xcuserdata', 'www', 'var',
     ]);
     echo "Copied ios/ to {$targetDir}/ios\n";
+
+    // Package.swift's own `#filePath`-relative computation assumes the
+    // sibling top-level `rust/` this monorepo itself uses — patched
+    // here, in the SCAFFOLDED copy only, to the `.phpnitro/rust/` path
+    // this function actually copies into (see that copy's own docblock
+    // for why it isn't a bare `rust/`). This monorepo's own
+    // ios/Package.swift is never touched.
+    patchInFile(
+        "{$targetDir}/ios/Package.swift",
+        '../rust/phpnitro-render/target/aarch64-apple-ios-sim/release',
+        '../.phpnitro/rust/phpnitro-render/target/aarch64-apple-ios-sim/release',
+    );
 
     // android/ is NOT copied wholesale — android/engine/ is the compiled
     // com.phpnitro:android-engine library (published via JitPack from
@@ -1388,15 +1403,19 @@ function cmdNew(string $directory, bool $all = false): void
     }
 
     // --all: the three desktop platforms, opt-in — unlike android/ios
-    // (a real production-ready target for most apps), linux/macos/windows
-    // are each still pre-alpha (see their own README.md: macOS/Windows have
-    // no consuming app yet, only library projects; Linux has a real running
-    // app but no PyPI package to reference instead). Wholesale copy, same
-    // treatment `ios` already gets above — there's no "reference a
-    // published package" option for any of them yet, so copying the actual
-    // source is the only way a scaffolded project gets working code at all.
-    // Skipped by default so a plain `phpx new` stays exactly what it always
-    // was: an Android + iOS project, not a 5-platform one nobody asked for.
+    // (a real production-ready target for most apps), linux/windows are
+    // still pre-alpha (see their own README.md: Windows has no
+    // consuming app yet, only a library project; Linux has a real
+    // running app but no PyPI package to reference instead). macOS DOES
+    // now have a real, physically-verified consuming app
+    // (PhpNitroMacApp, see macos/README.md's own "premier run réel"
+    // section) — still opt-in here regardless, same "a plain `phpx new`
+    // stays exactly what it always was" reasoning below. Wholesale
+    // copy, same treatment `ios` already gets above — there's no
+    // "reference a published package" option for any of the three yet,
+    // so copying the actual source is the only way a scaffolded project
+    // gets working code at all. Skipped by default so a plain `phpx new`
+    // stays an Android + iOS project, not a 5-platform one nobody asked for.
     if ($all) {
         foreach (['linux', 'macos', 'windows'] as $part) {
             $source = PHPX_TOOL_ROOT . '/' . $part;
@@ -1408,6 +1427,15 @@ function cmdNew(string $directory, bool $all = false): void
             ]);
             echo "Copied {$part}/ to {$destination}\n";
         }
+
+        // Same `.phpnitro/rust/` relocation as ios/Package.swift's own
+        // patch above — macOS's real app (PhpNitroMacApp) is the one
+        // platform that genuinely can't build without this crate.
+        patchInFile(
+            "{$targetDir}/macos/Package.swift",
+            '../rust/phpnitro-render/target/release',
+            '../.phpnitro/rust/phpnitro-render/target/release',
+        );
     }
 
     // package.json/package-lock.json aren't copied — the only reason a Node
@@ -1912,6 +1940,24 @@ function nativeHomeScreenTemplate(): string
 /**
  * @param string[] $skip Directory/file names to skip entirely.
  */
+/**
+ * A find-and-replace that fails loudly instead of silently doing
+ * nothing — `str_replace()` alone can't tell "0 replacements because
+ * the search string is already gone" from "0 replacements because
+ * something upstream (a copied file's own content) changed out from
+ * under this exact literal string", and a scaffolded project silently
+ * keeping a stale/wrong path is far worse than `phpx new` itself
+ * refusing to finish.
+ */
+function patchInFile(string $path, string $search, string $replace): void
+{
+    $contents = file_get_contents($path);
+    if ($contents === false || !str_contains($contents, $search)) {
+        phpxFail("expected to find " . var_export($search, true) . " in {$path} — did the copied source change?");
+    }
+    file_put_contents($path, str_replace($search, $replace, $contents));
+}
+
 /**
  * $minifyPhp is off by default (used as-is by cmdNew(), which is scaffolding
  * a project a developer is meant to read/edit — minifying there would be
@@ -2720,8 +2766,8 @@ function runOnLinuxDesktop(): void
  */
 function cmdBuildAndroid(string $variant): void
 {
-    if (!in_array($variant, ['debug', 'release'], true)) {
-        phpxFail("unknown build variant: {$variant} (expected debug or release)");
+    if (!in_array($variant, ['debug', 'release', 'bundle'], true)) {
+        phpxFail("unknown build variant: {$variant} (expected debug, release, or bundle)");
     }
 
     // Must happen BEFORE resolveOrInstallGradle() — that function's own
@@ -2739,6 +2785,35 @@ function cmdBuildAndroid(string $variant): void
     ensureLocalProperties($sdkRoot);
 
     cmdBundleAndroid();
+
+    // `bundle` (an .aab, via Gradle's own `:app:bundleRelease` task, NOT
+    // `assembleRelease`) is what the Play Store actually wants uploaded
+    // — real, measured difference found comparing the two on this exact
+    // app: a universal `assembleRelease` APK bundles `libphp.so` for
+    // BOTH arm64-v8a AND armeabi-v7a in the same file (~38MB combined,
+    // see android/README.md's own per-ABI sizes) because there's no
+    // other way to hand a single APK to every possible device; an .aab
+    // uploaded to Play Console instead lets Play's own Dynamic
+    // Delivery generate a PER-DEVICE APK at install time containing
+    // ONLY that one device's own ABI slice — roughly half the download,
+    // zero functionality lost, nothing in this app's own code needs to
+    // change for it. `phpx build:android release` (a raw universal APK)
+    // is still worth keeping for sideloading/CI smoke-testing/anywhere
+    // outside the Play Store, where there's no Dynamic Delivery to do
+    // this split for you.
+    if ($variant === 'bundle') {
+        echo "Running gradle :app:bundleRelease...\n";
+        passthruOrFail(sprintf(
+            '%s :app:bundleRelease --console=plain --project-dir=%s',
+            escapeshellarg($gradleBin),
+            escapeshellarg(PHPX_ROOT . '/android'),
+        ));
+        $aabPath = 'android/app/build/outputs/bundle/release/app-release.aab';
+        echo "Built: {$aabPath}\n";
+        echo "Upload this .aab to Play Console — it, not a universal APK, is what lets Play's own Dynamic Delivery ship each device only its own CPU architecture's slice of libphp.so.\n";
+
+        return;
+    }
 
     echo "Running gradle :app:assemble" . ucfirst($variant) . "...\n";
     passthruOrFail(sprintf(
