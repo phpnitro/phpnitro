@@ -610,13 +610,16 @@ extension NSColor {
         if value.hasPrefix("#") { value.removeFirst() }
         guard value.count == 6 || value.count == 8, let intValue = UInt64(value, radix: 16) else { return nil }
 
+        // 8-digit hex is #AARRGGBB (Android's Color.parseColor() order —
+        // the one real caller, Drawer.php's scrim '#66000000', was only
+        // ever correct on Android until this matched it here too).
         let hasAlpha = value.count == 8
         let r, g, b, a: UInt64
         if hasAlpha {
-            r = (intValue >> 24) & 0xFF
-            g = (intValue >> 16) & 0xFF
-            b = (intValue >> 8) & 0xFF
-            a = intValue & 0xFF
+            a = (intValue >> 24) & 0xFF
+            r = (intValue >> 16) & 0xFF
+            g = (intValue >> 8) & 0xFF
+            b = intValue & 0xFF
         } else {
             r = (intValue >> 16) & 0xFF
             g = (intValue >> 8) & 0xFF

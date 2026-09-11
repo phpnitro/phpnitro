@@ -63,12 +63,21 @@ impl TextRenderer {
     }
 
     pub fn render_text(&mut self, pixmap: &mut Pixmap, command: &TextCommand) {
-        let weight = if command.bold { Weight::BOLD } else { Weight::NORMAL };
-        let attrs = Attrs::new().family(Family::Name(BODY_FAMILY)).weight(weight);
+        // Only Roboto-Regular.ttf is bundled (no bold variant, see this
+        // module's own docblock) — requesting Weight::BOLD from
+        // cosmic-text's font matching against a family with no bold face
+        // just silently resolves back to Regular, so `bold: true` used to
+        // render visually identical to plain text (unlike
+        // NativeCanvasView.kt's Typeface.create(..., BOLD) and
+        // NativeCanvasView.swift's .traitBold, which DO synthesize a
+        // heavier weight). `synthetic_bold` below does the same thing by
+        // hand: drawing the glyph run twice, offset by ~1 device pixel.
+        let attrs = Attrs::new().family(Family::Name(BODY_FAMILY)).weight(Weight::NORMAL);
         self.draw_line(
             pixmap,
             &command.text,
             attrs,
+            command.bold,
             Baseline {
                 font_size: command.size as f32,
                 x: command.x as f32,
@@ -79,13 +88,15 @@ impl TextRenderer {
     }
 
     /// `icon.x/y` is the box's top-left corner (unlike `text`, which gets
-    /// an explicit baseline) — approximated here as
-    /// `baseline_y = y + size * 0.88`, matching how square icon-font
-    /// glyphs (their ink filling most of the em box, near-zero descent)
-    /// are typically positioned. Not yet cross-checked against a real
-    /// Android render, since there is no reference image to diff against
-    /// in this environment — worth revisiting once Phase 2 can compare
-    /// against a live screenshot.
+    /// an explicit baseline) — centered here on the glyph's own real ink
+    /// bounds (swash's `Placement`), the same "measure the actual glyph
+    /// and center it" approach NativeCanvasView.swift's drawIconCommand()
+    /// and Linux's `_draw_icon()` take, rather than a fixed baseline-ratio
+    /// approximation: a chevron/arrow's ink sits far from the vertical
+    /// center of its em box, so a fixed ratio (Android's own
+    /// `size * 0.86`) drifts several px for those glyphs specifically.
+    /// Falls back to the same fixed-ratio guess only if shaping produces
+    /// no glyph at all (should not happen for a valid codepoint).
     pub fn render_icon(&mut self, pixmap: &mut Pixmap, command: &IconCommand) {
         let Some(glyph) = char::from_u32(command.codepoint) else {
             return;
@@ -96,12 +107,30 @@ impl TextRenderer {
             MATERIAL_ICONS_FAMILY
         };
         let attrs = Attrs::new().family(Family::Name(family));
-        let baseline_y = command.y as f32 + command.size as f32 * 0.88;
+        let font_size = command.size as f32;
         let mut buf = [0u8; 4];
+        let text = glyph.encode_utf8(&mut buf);
+
+        let mut baseline_y = command.y as f32 + font_size * 0.88;
+        let metrics = Metrics::new(font_size, font_size * 1.2);
+        let mut measure_buffer = Buffer::new(&mut self.font_system, metrics);
+        measure_buffer.set_text(&mut self.font_system, text, attrs, Shaping::Advanced);
+        if let Some(run) = measure_buffer.layout_runs().next() {
+            if let Some(g) = run.glyphs.first() {
+                let physical = g.physical((0.0, 0.0), 1.0);
+                if let Some(image) = self.swash_cache.get_image(&mut self.font_system, physical.cache_key) {
+                    let ink_height = image.placement.height as f32;
+                    let top = image.placement.top as f32;
+                    baseline_y = command.y as f32 + (command.size as f32 - ink_height) / 2.0 + top;
+                }
+            }
+        }
+
         self.draw_line(
             pixmap,
-            glyph.encode_utf8(&mut buf),
+            text,
             attrs,
+            false,
             Baseline {
                 font_size: command.size as f32,
                 x: command.x as f32,
@@ -111,7 +140,7 @@ impl TextRenderer {
         );
     }
 
-    fn draw_line(&mut self, pixmap: &mut Pixmap, text: &str, attrs: Attrs, at: Baseline) {
+    fn draw_line(&mut self, pixmap: &mut Pixmap, text: &str, attrs: Attrs, bold: bool, at: Baseline) {
         if text.is_empty() || at.font_size <= 0.0 {
             return;
         }
@@ -123,25 +152,37 @@ impl TextRenderer {
         let base_rgb = (base_rgb.0 as u8, base_rgb.1 as u8, base_rgb.2 as u8);
         let base_color = cosmic_text::Color::rgba(base_rgb.0, base_rgb.1, base_rgb.2, 255);
 
+        // Synthetic ("faux") bold: only Roboto-Regular.ttf is bundled (see
+        // TextRenderer::new()'s own docblock), so there is no real bold
+        // face to shape against. Drawing the same glyph run twice, offset
+        // by ~1 device pixel, fattens the strokes the same way browsers/
+        // Skia fall back to a "faux bold" when a font family has no bold
+        // variant — matches NativeCanvasView.kt's Typeface.create(...,
+        // BOLD) and NativeCanvasView.swift's .traitBold visually, where
+        // this used to render identically to plain text.
+        let x_offsets: &[i32] = if bold { &[0, (at.font_size / 16.0).max(1.0) as i32] } else { &[0] };
+
         for run in buffer.layout_runs() {
             for glyph in run.glyphs.iter() {
                 let physical_glyph = glyph.physical((0.0, 0.0), 1.0);
                 let origin_x = at.x as i32 + physical_glyph.x;
                 let origin_y = at.y as i32 + physical_glyph.y;
-                self.swash_cache.with_pixels(
-                    &mut self.font_system,
-                    physical_glyph.cache_key,
-                    base_color,
-                    |dx, dy, pixel_color| {
-                        blend_pixel(
-                            pixmap,
-                            origin_x + dx,
-                            origin_y + dy,
-                            (pixel_color.r(), pixel_color.g(), pixel_color.b()),
-                            pixel_color.a(),
-                        );
-                    },
-                );
+                for &x_offset in x_offsets {
+                    self.swash_cache.with_pixels(
+                        &mut self.font_system,
+                        physical_glyph.cache_key,
+                        base_color,
+                        |dx, dy, pixel_color| {
+                            blend_pixel(
+                                pixmap,
+                                origin_x + x_offset + dx,
+                                origin_y + dy,
+                                (pixel_color.r(), pixel_color.g(), pixel_color.b()),
+                                pixel_color.a(),
+                            );
+                        },
+                    );
+                }
             }
         }
     }
@@ -206,6 +247,35 @@ mod tests {
         };
         renderer.render_text(&mut pixmap, &command);
         assert!(any_painted_pixel(&pixmap), "expected Roboto to actually rasterize glyphs");
+    }
+
+    #[test]
+    fn bold_text_paints_more_pixels_than_regular() {
+        // Only Roboto-Regular.ttf is bundled — without synthetic bold,
+        // `bold: true` used to shape identically to `bold: false` and
+        // paint the exact same pixel count. The double-draw-with-offset
+        // fallback in draw_line() must visibly fatten the glyph strokes.
+        fn painted_pixel_count(bold: bool) -> usize {
+            let mut renderer = TextRenderer::new();
+            let mut pixmap = Pixmap::new(200, 60).unwrap();
+            let command = TextCommand {
+                x: 4.0,
+                y: 40.0,
+                text: "Bonjour".to_string(),
+                color: "#111827".to_string(),
+                size: 24.0,
+                bold,
+                letter_spacing: None,
+                font_family: None,
+                tags: CommandTags::default(),
+            };
+            renderer.render_text(&mut pixmap, &command);
+            pixmap.pixels().iter().filter(|p| p.alpha() > 0).count()
+        }
+        assert!(
+            painted_pixel_count(true) > painted_pixel_count(false),
+            "synthetic bold must paint strictly more covered pixels than regular weight"
+        );
     }
 
     #[test]

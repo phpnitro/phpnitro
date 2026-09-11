@@ -48,8 +48,10 @@ class ParseColorTests(unittest.TestCase):
         self.assertEqual(parse_color("#111827"), (0x11 / 255, 0x18 / 255, 0x27 / 255, 1.0))
 
     def test_parses_eight_digit_hex_with_alpha(self):
-        r, g, b, a = parse_color("#11182780")
+        # #AARRGGBB — alpha comes first (Android's Color.parseColor() order).
+        r, g, b, a = parse_color("#80111827")
         self.assertAlmostEqual(a, 0x80 / 255, places=4)
+        self.assertAlmostEqual(r, 0x11 / 255, places=4)
 
     def test_returns_none_for_malformed_input(self):
         self.assertIsNone(parse_color("not-a-color"))

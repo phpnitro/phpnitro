@@ -581,16 +581,64 @@ public final class NativeCanvasView: UIView {
         // the call that consumes it, never leaving one dangling.
         context.saveGState()
 
-        if let color = command.color, let uiColor = UIColor(hex: color) {
+        // Mirrors NativeCanvasView.kt's setShadowLayer(elevation * 2.2, 0,
+        // elevation * 0.9, ...) — blur scales 2.2x elevation, offset is
+        // vertical-only at 0.9x elevation, alpha scales with elevation up
+        // to a cap of 140/255. Reset right after the fill (below) so it
+        // never also casts onto the border stroke, matching Android's
+        // single-paint scope for the shadow.
+        let elevation = command.elevation ?? 0
+        if elevation > 0 {
+            let shadowAlpha = min(40 + elevation * 5, 140) / 255
+            context.setShadow(
+                offset: CGSize(width: 0, height: elevation * 0.9),
+                blur: elevation * 2.2,
+                color: UIColor(white: 0, alpha: shadowAlpha).cgColor
+            )
+        }
+
+        if let gradientFrom = command.gradientFrom, let fromColor = UIColor(hex: gradientFrom) {
+            let toColor = command.gradientTo.flatMap(UIColor.init(hex:)) ?? fromColor
+            context.saveGState()
+            context.addPath(path)
+            context.clip()
+            if let gradient = CGGradient(
+                colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                colors: [fromColor.cgColor, toColor.cgColor] as CFArray,
+                locations: [0, 1]
+            ) {
+                context.drawLinearGradient(
+                    gradient,
+                    start: CGPoint(x: rect.minX, y: rect.minY),
+                    end: CGPoint(x: rect.maxX, y: rect.maxY),
+                    options: []
+                )
+            }
+            context.restoreGState()
+        } else if let color = command.color, let uiColor = UIColor(hex: color) {
             context.addPath(path)
             context.setFillColor(uiColor.cgColor)
             context.fillPath()
         }
 
-        if let borderColor = command.borderColor, let uiColor = UIColor(hex: borderColor), (command.borderWidth ?? 0) > 0 {
-            context.addPath(path)
+        if elevation > 0 {
+            context.setShadow(offset: .zero, blur: 0, color: nil)
+        }
+
+        if let borderColor = command.borderColor, let uiColor = UIColor(hex: borderColor), let borderWidth = command.borderWidth, borderWidth > 0 {
+            // Inset by half the stroke width so the border is fully
+            // contained within the box the layout engine computed —
+            // matches NativeCanvasView.kt's own drawRectCommand() (a
+            // centered stroke elsewhere used to bleed borderWidth/2 past
+            // every edge, a visible 1px halo over neighboring rows).
+            let inset = borderWidth / 2
+            let strokeRect = rect.insetBy(dx: inset, dy: inset)
+            let strokePath = radius > 0
+                ? UIBezierPath(roundedRect: strokeRect, cornerRadius: radius).cgPath
+                : UIBezierPath(rect: strokeRect).cgPath
+            context.addPath(strokePath)
             context.setStrokeColor(uiColor.cgColor)
-            context.setLineWidth(command.borderWidth ?? 1)
+            context.setLineWidth(borderWidth)
             context.strokePath()
         }
 
@@ -943,13 +991,16 @@ public extension UIColor {
         if value.hasPrefix("#") { value.removeFirst() }
         guard value.count == 6 || value.count == 8, let intValue = UInt64(value, radix: 16) else { return nil }
 
+        // 8-digit hex is #AARRGGBB (Android's Color.parseColor() order —
+        // the one real caller, Drawer.php's scrim '#66000000', was only
+        // ever correct on Android until this matched it here too).
         let hasAlpha = value.count == 8
         let r, g, b, a: UInt64
         if hasAlpha {
-            r = (intValue >> 24) & 0xFF
-            g = (intValue >> 16) & 0xFF
-            b = (intValue >> 8) & 0xFF
-            a = intValue & 0xFF
+            a = (intValue >> 24) & 0xFF
+            r = (intValue >> 16) & 0xFF
+            g = (intValue >> 8) & 0xFF
+            b = intValue & 0xFF
         } else {
             r = (intValue >> 16) & 0xFF
             g = (intValue >> 8) & 0xFF

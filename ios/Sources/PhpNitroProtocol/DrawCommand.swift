@@ -101,6 +101,18 @@ public struct RectCommand: Decodable {
     public let borderColor: String?
     public let borderWidth: Double?
     public let fixed: Bool?
+    /// Drop-shadow strength — see NativeCanvasView.swift's own draw(_:in:)
+    /// for the exact blur/offset/alpha formula, mirrored from
+    /// NativeCanvasView.kt's setShadowLayer() call and Rust's
+    /// draw_elevation_shadow() so a Card/Fab/Drawer/AppBar/BottomNavigation
+    /// reads the same "lifted surface" on every platform, not just Android.
+    public let elevation: Double?
+    /// A linear top-left -> bottom-right gradient fill, taking priority
+    /// over `color` when present — mirrors NativeCanvasView.kt's
+    /// drawRectCommand() and Rust's raster.rs (gradientTo falls back to
+    /// gradientFrom itself when absent).
+    public let gradientFrom: String?
+    public let gradientTo: String?
 }
 
 public struct TextCommand: Decodable {

@@ -31,20 +31,22 @@ use tiny_skia::{
     Point, PremultipliedColorU8, Rect, SpreadMode, Stroke, Transform,
 };
 
-/// Parses `#RRGGBB` or `#RRGGBBAA` (the only two forms `Canvas.php` emits)
-/// into a `tiny_skia::Color`. Falls back to opaque black on anything else
-/// rather than panicking — a malformed color shouldn't take down a whole
-/// frame's render.
+/// Parses `#RRGGBB` or `#AARRGGBB` (Android's `Color.parseColor()` order —
+/// the one real 8-digit caller, Drawer.php's scrim `'#66000000'`, was only
+/// ever correct on Android until every backend matched this order) into a
+/// `tiny_skia::Color`. Falls back to opaque black on anything else rather
+/// than panicking — a malformed color shouldn't take down a whole frame's
+/// render.
 pub fn parse_color(hex: &str) -> Color {
     let hex = hex.trim_start_matches('#');
     let channel = |slice: &str| u8::from_str_radix(slice, 16).unwrap_or(0);
     match hex.len() {
         6 => Color::from_rgba8(channel(&hex[0..2]), channel(&hex[2..4]), channel(&hex[4..6]), 255),
         8 => Color::from_rgba8(
-            channel(&hex[0..2]),
             channel(&hex[2..4]),
             channel(&hex[4..6]),
             channel(&hex[6..8]),
+            channel(&hex[0..2]),
         ),
         _ => Color::BLACK,
     }
@@ -166,8 +168,19 @@ fn draw_rect(pixmap: &mut Pixmap, rect: &RectCommand) {
 
     if let Some(border_color) = &rect.border_color {
         if rect.border_width > 0.0 {
-            let stroke = stroke_of(rect.border_width as f32);
-            pixmap.stroke_path(&path, &solid_paint(parse_color(border_color)), &stroke, Transform::identity(), None);
+            // Inset by half the stroke width so the border is fully
+            // contained within the box the layout engine computed —
+            // matches NativeCanvasView.kt's own drawRectCommand() (a
+            // centered stroke elsewhere used to bleed border_width/2 past
+            // every edge, a visible 1px halo over neighboring rows).
+            let border_width = rect.border_width as f32;
+            let inset = border_width / 2.0;
+            if let Some(stroke_path) =
+                rounded_rect_path(x + inset, y + inset, (w - border_width).max(0.0), (h - border_width).max(0.0), radius)
+            {
+                let stroke = stroke_of(border_width);
+                pixmap.stroke_path(&stroke_path, &solid_paint(parse_color(border_color)), &stroke, Transform::identity(), None);
+            }
         }
     }
 }
@@ -619,7 +632,8 @@ mod tests {
     #[test]
     fn parses_six_and_eight_digit_hex_colors() {
         assert_eq!(parse_color("#FF0000"), Color::from_rgba8(255, 0, 0, 255));
-        assert_eq!(parse_color("#00FF0080"), Color::from_rgba8(0, 255, 0, 128));
+        // #AARRGGBB: alpha 0x80, green 0xFF.
+        assert_eq!(parse_color("#8000FF00"), Color::from_rgba8(0, 255, 0, 128));
     }
 
     #[test]
@@ -670,6 +684,36 @@ mod tests {
         // The center must be fully painted.
         let (_, _, _, a) = pixel_at(&pixmap, 30, 30);
         assert_eq!(a, 255);
+    }
+
+    #[test]
+    fn border_stroke_is_inset_not_centered() {
+        // A 20x20 box at (10,10) with a 10px border: a CENTERED stroke
+        // (tiny-skia/CGContext's own default) straddles the path itself,
+        // bleeding 5px outside the box's own declared bounds on every
+        // side — down to x=5. Insetting the path by border_width/2 first
+        // (matching NativeCanvasView.kt's drawRectCommand()) keeps the
+        // whole stroke within [10, 30], the box's own bounds.
+        let mut pixmap = Pixmap::new(40, 40).unwrap();
+        let rect = RectCommand {
+            x: 10.0,
+            y: 10.0,
+            width: 20.0,
+            height: 20.0,
+            color: None,
+            radius: 0.0,
+            border_color: Some("#000000".to_string()),
+            border_width: 10.0,
+            elevation: None,
+            gradient_from: None,
+            gradient_to: None,
+            tags: Default::default(),
+        };
+        draw_rect(&mut pixmap, &rect);
+        let (_, _, _, a) = pixel_at(&pixmap, 7, 20);
+        assert_eq!(a, 0, "an inset border must not bleed past the box's own declared bounds");
+        let (_, _, _, a) = pixel_at(&pixmap, 15, 20);
+        assert_eq!(a, 255, "the inset border must still cover its own stroke band");
     }
 
     #[test]
