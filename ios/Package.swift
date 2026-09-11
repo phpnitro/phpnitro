@@ -203,10 +203,12 @@ let package = Package(
         // setjmp-based zend_first_try/zend_catch, which Swift cannot
         // call, and zend_eval_string()'s own output goes through a SAPI
         // callback meant for a real request/response cycle, not
-        // returned as a value). -lresolv/-liconv/-lm: system libraries
-        // php-src's own embed SAPI needs beyond libc that the static
-        // archive doesn't bundle (same libtool-vs-consumer split
-        // vendor/php/README.md documents).
+        // returned as a value). -lresolv/-liconv/-lm/-lsqlite3: system
+        // libraries php-src's own embed SAPI (sqlite3 specifically:
+        // ext/pdo_sqlite + ext/sqlite3, both statically enabled at
+        // configure time — see vendor/php/README.md) needs beyond libc
+        // that the static archive doesn't bundle (same libtool-vs-
+        // consumer split that README documents).
         .target(
             name: "CPhpEmbed",
             dependencies: ["libphp"],
@@ -219,6 +221,7 @@ let package = Package(
                 .linkedLibrary("resolv"),
                 .linkedLibrary("iconv"),
                 .linkedLibrary("m"),
+                .linkedLibrary("sqlite3"),
             ]
         ),
     ]
