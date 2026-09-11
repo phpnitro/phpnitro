@@ -1,16 +1,20 @@
 # PHP embed SAPI, vendored for iOS
 
-`libphp.a` + the headers needed to link against it, committed as-is —
-same convention `android/README.md` already documents for
-`android/engine/src/main/jniLibs/<abi>/libphp.so`: cross-compiling PHP
-from source needs a whole toolchain (bison ≥3.0, re2c, autoconf, the
-iOS SDK) most contributors won't have set up, so the built artifact is
-checked in rather than rebuilt on every `xcodebuild`.
+`libphp.xcframework` — the two architecture slices this project needs
+(real device + Simulator) packaged into one `.xcframework`, the
+standard SPM/Xcode mechanism for "same API, different binary per
+platform variant", consumed directly as a `.binaryTarget` from
+`Package.swift`. Committed as-is, same convention `android/README.md`
+already documents for `android/engine/src/main/jniLibs/<abi>/libphp.so`:
+cross-compiling PHP from source needs a whole toolchain (bison ≥3.0,
+re2c, autoconf, the iOS SDK) most contributors won't have set up, so
+the built artifact is checked in rather than rebuilt on every
+`xcodebuild`.
 
 Two architecture slices, one per iOS target this project builds for:
 
-- `ios-arm64/` — real iPhone (`arm64-apple-ios15.0`)
-- `ios-arm64-simulator/` — iOS Simulator on Apple Silicon (`arm64-apple-ios15.0-simulator`)
+- device (`arm64-apple-ios15.0`) — a real iPhone
+- simulator (`arm64-apple-ios15.0-simulator`) — iOS Simulator on Apple Silicon
 
 Both built from PHP `8.3.15` (`php/php-src` tag `php-8.3.15`), `--enable-embed=static`,
 `--disable-all` (only the embed SAPI + the always-mandatory `ext/standard`/`Zend`/`TSRM`
@@ -79,15 +83,51 @@ make -j"$(sysctl -n hw.ncpu)"
 Simulator build: same steps, swap every `iphoneos`/`-mios-version-min`
 for `iphonesimulator`/`-mios-simulator-version-min`.
 
-Headers committed here are copied straight out of that build tree —
-`main/`, `Zend/`, `TSRM/`, `sapi/embed/` (`*.h` only, ~3.8MB per
-target) — everything `#include`d transitively from `sapi/embed/php_embed.h`.
-Consumers need all four of `main/`, `Zend/`, `TSRM/` and this
-directory itself on the include search path (headers `#include` each
-other by bare filename, e.g. `"zend.h"`, not `"Zend/zend.h"`):
+## Headers: flattened, not the raw build-tree layout
 
+The headers actually needed are everything `#include`d transitively
+from `sapi/embed/php_embed.h` — `main/*.h`, `Zend/*.h`, `TSRM/*.h`,
+`sapi/embed/*.h` (~3.8MB per target) — but they are **not** copied
+into this xcframework preserving that directory structure. An
+`.xcframework`'s `HeadersPath` only ever contributes ONE `-I` for its
+whole `Headers/` folder (unlike a hand-written `-I<a> -I<b> -I<c>`
+command line, which a `.binaryTarget` consumer has no way to
+replicate) — so all four directories' `*.h` files are copied flat into
+one directory instead, `cp`'d by filename only (verified first: no two
+of the 151 headers share a basename, so this can't silently shadow one
+file with another).
+
+Flattening breaks a handful of `#include`s that assumed the original
+nested layout — a directory-qualified quote/angle include (`"streams/
+php_stream_context.h"`, `<main/php.h>`, `"../TSRM/TSRM.h"`, etc.) has
+no matching path once everything sits in one flat directory. These are
+patched, in the copied headers only (never touching php-src's own
+source), to the bare filename form that resolves correctly once flat:
+
+```sh
+# run against BOTH per-target header copies before packaging into the xcframework
+sed -i '' 's#include "streams/#include "#' php_streams.h
+sed -i '' 's#include <main/php.h>#include "php.h"#' php_embed.h
+sed -i '' 's#include <\.\./main/php_config.h>#include "php_config.h"#' zend_config.h
+sed -i '' 's#include <\.\./main/config\.w32\.h>#include "config.w32.h"#' zend_config.w32.h
+sed -i '' 's#include "\.\./TSRM/TSRM.h"#include "TSRM.h"#' zend_alloc.h zend_portability.h
+sed -i '' 's#include "main/php_config.h"#include "php_config.h"#; s#include "zend_config.w32.h"#include "zend_config.w32.h"#' TSRM.h
+perl -pi -e 's{(#\s*include\s*)([<"])(?:main|Zend|TSRM|sapi/embed)/([^">]+)([">])}{$1$2$3$4}g' php_embed.h php.h
 ```
--I<target>/include -I<target>/include/main -I<target>/include/Zend -I<target>/include/TSRM
+
+(Re-run `grep -rnE '#[[:space:]]*include[[:space:]]*[<"](main|Zend|TSRM|sapi)/'`
+over the flattened copy after patching — it must come back empty
+before packaging; a leftover qualified include is a silent build
+failure waiting for whoever next has to regenerate this artifact.)
+
+Packaging the two flattened, patched header sets + the two `libphp.a`
+slices into the committed xcframework:
+
+```sh
+xcodebuild -create-xcframework \
+  -library ios-arm64/lib/libphp.a       -headers ios-arm64/include \
+  -library ios-arm64-simulator/lib/libphp.a -headers ios-arm64-simulator/include \
+  -output libphp.xcframework
 ```
 
 `libtool`'s own build already links in what PHP's `sapi/embed` needs
