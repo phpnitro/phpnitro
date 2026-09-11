@@ -50,7 +50,13 @@ public final class ScreenClient {
     /// beyond just text fields) is always sent when non-empty, unlike
     /// Android's explicit `includeFields` toggle — sending it costs
     /// nothing when there's nothing to send.
-    static func url(
+    /// `public`, not `internal` — reused as-is by
+    /// `EmbeddedScreenDataSource` (PhpNitroNativeEngine, a different
+    /// module) to build the exact same `REQUEST_URI` PHP would see over
+    /// a real HTTP round-trip, so both sources parse identical
+    /// `$_GET`/query-string encoding rather than two hand-rolled copies
+    /// that could silently drift apart.
+    public static func url(
         host: String,
         port: Int,
         screen: String,
@@ -136,3 +142,5 @@ public final class ScreenClient {
         }.resume()
     }
 }
+
+extension ScreenClient: ScreenDataSource {}
