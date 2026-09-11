@@ -113,10 +113,39 @@ class PhpServer(private val context: Context) {
 
     private fun findFreePort(): Int = ServerSocket(0).use { it.localPort }
 
+    /**
+     * Real bug found on a physical iPhone (this method's own iOS
+     * counterpart, `PhpEmbedRuntime.stageWritableWwwDirectory()`, had the
+     * identical unconditional wipe): `lib/backend/var/data.sqlite` —
+     * `Engine\Preferences\Preferences`'s own backing store, meant to
+     * survive app restarts "like SharedPreferences" per that class's own
+     * docblock — used to get deleted and recreated empty on every single
+     * launch, because it lives INSIDE the same `www` tree this method
+     * wipes wholesale to pick up fresh app code. `var/` (database,
+     * session files, uploads — everything actually generated at runtime,
+     * never shipped in `assets/www` itself) is now preserved across the
+     * wipe: moved aside first, restored after the fresh code copy lands.
+     * Every other file still refreshes on every launch, same as before —
+     * only user/app DATA persists, not the code itself.
+     */
     private fun copyAssets(): File {
         val target = File(context.filesDir, "www")
+        val varDir = File(target, "lib/backend/var")
+        val preservedVarDir = File(context.filesDir, "www-var-preserved")
+
+        if (varDir.exists()) {
+            preservedVarDir.deleteRecursively()
+            varDir.renameTo(preservedVarDir)
+        }
+
         target.deleteRecursively()
         copyAssetDir("www", target)
+
+        if (preservedVarDir.exists()) {
+            varDir.deleteRecursively()
+            varDir.parentFile?.mkdirs()
+            preservedVarDir.renameTo(varDir)
+        }
 
         return target
     }
