@@ -45,12 +45,22 @@ public final class PhpEmbedRuntime {
     /// Mirrors `copyAssets()`'s exact fix: copy the whole `www` tree out
     /// of the read-only bundle into a real writable, app-private
     /// directory (`Application Support`, iOS's counterpart to
-    /// `context.filesDir`) before ever pointing PHP at it. Deleted and
-    /// re-copied fresh on every call — same "once per launch, no
-    /// carry-over" behavior `copyAssets()` already has (its own
-    /// `target.deleteRecursively()`), not a regression introduced here:
-    /// this demo app's local SQLite data was never meant to persist
-    /// across launches on Android either.
+    /// `context.filesDir`) before ever pointing PHP at it.
+    ///
+    /// Real bug found on a physical iPhone: a full app close + reopen
+    /// reset the home screen's counter (`Engine\Preferences\Preferences`,
+    /// backed by `lib/backend/var/data.sqlite`) back to 0, even though
+    /// that class's own docblock explicitly promises it "survives across
+    /// app restarts" like Flutter's shared_preferences — because this
+    /// method unconditionally deleted and re-copied the ENTIRE `www` tree
+    /// on every launch, `var/` (the only part actually written to at
+    /// runtime — everything else is read-only app code) included. `var/`
+    /// is now preserved across the wipe: moved aside first, restored
+    /// after the fresh code copy lands, same fix applied to
+    /// `copyAssets()`'s own identical unconditional wipe on Android.
+    /// Everything else still refreshes on every launch (this app's own
+    /// PHP code, picked up fresh each time) — only runtime-generated data
+    /// persists, not the code itself.
     public static func stageWritableWwwDirectory() -> URL? {
         guard let bundleWwwURL = wwwDirectoryURL,
               let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -58,13 +68,30 @@ public final class PhpEmbedRuntime {
             return nil
         }
 
+        let fm = FileManager.default
         let target = appSupport.appendingPathComponent("www")
+        let varDir = target.appendingPathComponent("lib/backend/var")
+        let preservedVarDir = appSupport.appendingPathComponent("www-var-preserved")
+
         do {
-            if FileManager.default.fileExists(atPath: target.path) {
-                try FileManager.default.removeItem(at: target)
+            try fm.createDirectory(at: appSupport, withIntermediateDirectories: true)
+
+            if fm.fileExists(atPath: varDir.path) {
+                try? fm.removeItem(at: preservedVarDir)
+                try fm.moveItem(at: varDir, to: preservedVarDir)
             }
-            try FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
-            try FileManager.default.copyItem(at: bundleWwwURL, to: target)
+
+            if fm.fileExists(atPath: target.path) {
+                try fm.removeItem(at: target)
+            }
+            try fm.copyItem(at: bundleWwwURL, to: target)
+
+            if fm.fileExists(atPath: preservedVarDir.path) {
+                try? fm.removeItem(at: varDir)
+                try fm.createDirectory(at: varDir.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try fm.moveItem(at: preservedVarDir, to: varDir)
+            }
+
             return target
         } catch {
             return nil
