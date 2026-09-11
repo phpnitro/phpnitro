@@ -1,4 +1,4 @@
-# macOS — réutilise Core Graphics/le protocole d'iOS, jamais compilé (comme le reste d'iOS)
+# macOS — réutilise Core Graphics/le protocole d'iOS, vérifié pour de vrai sur un Mac physique
 
 Ce dossier est un Swift Package **séparé** de `ios/` (voir son propre `Package.swift` pour le pourquoi de cette séparation — en résumé : `ios/`'s aggregate scheme `-Package` construirait aussi les cibles UIKit-only si on essayait de le cibler pour macOS, ce qui casserait tout ; un package séparé évite ce risque complètement, sans toucher une seule ligne du code iOS déjà vérifié).
 
@@ -21,7 +21,7 @@ Les appels Core Graphics eux-mêmes (`context.addPath`, `fillPath`, `strokePath`
 
 ## La vraie différence structurelle : pas de PHP embarqué à construire, comme sur Linux
 
-`Process` (l'équivalent Foundation de `NSTask`) **n'existe pas sur iOS** (restriction du bac à sable Apple) — c'est précisément ce qui bloque le PHP embarqué côté iOS (`PhpEmbedBridge.swift`, jamais terminé). Sur macOS, `Process` existe et fonctionne normalement pour une app non distribuée via le sandboxing du Mac App Store. `MacPhpProcess.swift` en profite exactement comme `linux/phpnitro_desktop/php_process.py` : lance le `php` système en sous-processus contre le `public/` du projet, aucun binaire cross-compilé à embarquer.
+`Process` (l'équivalent Foundation de `NSTask`) **n'existe pas sur iOS** (restriction du bac à sable Apple) — c'est précisément pour ça qu'iOS embarque PHP différemment : `PhpEmbedRuntime.swift` lie l'embed SAPI en process (pas de sous-processus séparé), vérifié pour de vrai sur simulateur et sur un iPhone physique (voir `docs/mobile-builds.md`). Sur macOS, `Process` existe et fonctionne normalement pour une app non distribuée via le sandboxing du Mac App Store. `MacPhpProcess.swift` en profite exactement comme `linux/phpnitro_desktop/php_process.py` : lance le `php` système en sous-processus contre le `public/` du projet, aucun binaire cross-compilé à embarquer.
 
 ## Le moteur de rendu partagé Rust : `RustMacRenderer`
 
@@ -31,7 +31,7 @@ Différence structurelle avec les deux autres : ici la liaison se fait **au mome
 
 **Compilation native, pas de cross-compilation** : le runner CI `macos-14` est déjà la cible (arm64 macOS), donc `cargo build --release` compile directement pour cet hôte — aucun `rustup target add` nécessaire, contrairement à ce qu'il faudra pour iOS (Simulator) ou pour Android (NDK).
 
-Ceci n'a, comme le reste de ce port, **jamais tourné sur un vrai Mac** — écrit et relu à la main.
+Voir la section "Vérification" plus bas : ceci tourne désormais pour de vrai sur un Mac physique, deux bugs réels trouvés et corrigés au premier lancement.
 
 ## `PhpNitroMacApp` — la vraie app, Rust-only
 
@@ -72,6 +72,8 @@ que ce soit sur ce port :
 3. `brew install php` (télécharge sur le réseau du runner CI, pas celui de la machine qui a écrit ce code).
 4. `xcodebuild -scheme PhpNitroMacEngine ... build`, `-scheme RustMacRenderer ... build`, **`-scheme PhpNitroMacApp ... build`** (nouveau) — chaque produit individuellement, build seulement (pas d'exécution : aucun serveur d'affichage en CI pour cliquer une vraie fenêtre).
 5. `xcodebuild -scheme PhpNitroMacEngine-Package -destination 'platform=macOS' test` — le scheme agrégé : `MacRenderingSupportTests`/`MacPhpProcessTests`/`RustMacRendererTests` (rendu pixel réel, hit-test réel, mêmes fixtures dorées que `rust/phpnitro-render` et les deux autres ports).
+
+**Audit de cohérence pixel-perfect (2026-09-11)** — `rust/phpnitro-render` (le moteur que `PhpNitroMacApp` utilise réellement) a reçu 4 corrections partagées avec Windows : couleur 8 chiffres alignée sur `#AARRGGBB` (le voile du `Drawer` était invisible sur macOS avant ça), bordure insérée au lieu de centrée, gras synthétique (une seule police, Roboto-Regular, est embarquée), icônes centrées sur leur encre réelle. Voir la PR correspondante pour le détail des 6 backends audités.
 
 ## Ce qui manque encore, dans l'ordre de priorité
 

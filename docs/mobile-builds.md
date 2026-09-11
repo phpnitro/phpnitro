@@ -2,7 +2,7 @@
 
 ## Android — vérifié de bout en bout sur device réel
 
-L'app Android embarque un **vrai PHP cross-compilé** (via le NDK, `armeabi-v7a` et `arm64-v8a` déjà fournis dans `android/engine/src/main/jniLibs/` — **aucun Docker ni compilation requise** pour builder l'app). Au lancement, `PhpServer.kt` copie l'app PHP vers `filesDir`, démarre le binaire embarqué sur un port choisi dynamiquement, et la WebView s'y connecte : **PHP tourne réellement sur le téléphone**, pas sur un serveur distant.
+L'app Android embarque un **vrai PHP cross-compilé** (via le NDK, `armeabi-v7a` et `arm64-v8a` déjà fournis dans `android/engine/src/main/jniLibs/` — **aucun Docker ni compilation requise** pour builder l'app). Au lancement, `PhpServer.kt` copie l'app PHP vers `filesDir`, démarre le binaire embarqué sur un port choisi dynamiquement, et `NativeRenderPocActivity` s'y connecte en HTTP pour récupérer les commandes de dessin JSON, rejouées sur un vrai `android.graphics.Canvas` (pas de WebView dans ce chemin — voir `PhpNitroWebViewBridge`/`MainActivity.kt` plus bas pour l'ancien repli historique) : **PHP tourne réellement sur le téléphone**, pas sur un serveur distant.
 
 Un vrai splash screen natif (Android 12+ SplashScreen API) reste affiché jusqu'à ce que le serveur PHP ait démarré et que la page ait fini de charger.
 
