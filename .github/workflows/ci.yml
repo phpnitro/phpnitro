@@ -541,6 +541,23 @@ jobs:
       # the real CI log is the point, not a guess about what it'll say.
       - name: configure (cross-compile for iOS device, arm64)
         working-directory: php-src
+        # ac_cv_func_posix_spawn_file_actions_addchdir_np=no: this
+        # project's own first real run of this job got past ./configure
+        # cleanly (bison/re2c fix worked) but then failed IN make, at
+        # ext/standard/proc_open.c: "'posix_spawn_file_actions_addchdir_np'
+        # is unavailable: not available on iOS". Root cause confirmed by
+        # reading php-src's own proc_open.c: configure's AC_CHECK_FUNCS
+        # only checks that the symbol is DECLARED (it links a prototype,
+        # never executes anything a cross-compile couldn't run anyway) —
+        # it has no way to know the iOS SDK header marks that same
+        # declared symbol unavailable for this deployment target, so it
+        # wrongly detects HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR_NP as
+        # available. Pre-seeding the autoconf cache variable a plain
+        # AC_CHECK_FUNCS(posix_spawn_file_actions_addchdir_np) sets
+        # (ac_cv_func_<name>) is the standard, no-source-patch way to
+        # override one specific cross-compile misdetection like this —
+        # it falls back to proc_open.c's own portable fork()+exec() path
+        # instead, which needs no iOS-unavailable API at all.
         run: |
           export IOS_SDK=$(xcrun --sdk iphoneos --show-sdk-path)
           export CC="xcrun -sdk iphoneos clang -arch arm64"
@@ -548,6 +565,7 @@ jobs:
           export CFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
           export CXXFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
           export LDFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
+          export ac_cv_func_posix_spawn_file_actions_addchdir_np=no
           ./configure \
             --host=aarch64-apple-darwin \
             --disable-all \
