@@ -596,3 +596,93 @@ jobs:
         with:
           name: libphp-ios-arm64-step1
           path: php-src/libs/libphp.a
+
+  php-embed-step2:
+    name: "iOS PHP embed — step 2: embed SAPI smoke test (native macOS host)"
+    # Step 2 of the same incremental plan step 1 started — see that
+    # job's own docblock. Step 1 proved php-src's ./configure + make can
+    # produce a libphp.a when cross-compiled for iOS at all; it did NOT
+    # prove the embed SAPI's own C API (php_embed_init/zend_eval_string/
+    # php_embed_shutdown) actually WORKS the way this project needs it
+    # to (running a script string and capturing its output) — an iOS
+    # cross-compiled binary can't be executed on this runner (no
+    # physical device in CI, and even the simulator target isn't set up
+    # yet — that's step 3), so this isolates that separate risk by
+    # building the SAME embed SAPI natively for macOS (this runner's own
+    # arch/OS — build == host, no cross-compiling at all) and actually
+    # RUNNING the result here. Deliberately independent of step1 (own
+    # fresh php-src checkout, own build) — a native macOS build has
+    # nothing in common with step 1's iOS-specific SDK/sysroot/config.m4
+    # patch, so reusing step 1's artifact would test the wrong thing.
+    runs-on: macos-14
+    continue-on-error: true
+    steps:
+      - name: Checkout php-src
+        uses: actions/checkout@v4
+        with:
+          repository: php/php-src
+          ref: php-8.3.15
+          path: php-src
+
+      - name: Install bison/re2c (Apple's system bison is too old for PHP)
+        run: |
+          brew install bison re2c
+          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
+
+      - name: buildconf (generate ./configure)
+        working-directory: php-src
+        run: ./buildconf --force
+
+      # No --host, no CC/CFLAGS override at all — build machine IS the
+      # target, so every ./configure check can actually execute a real
+      # test binary (the normal, non-cross-compiling autoconf path).
+      # --disable-all keeps this to embed only, same reasoning as step1.
+      - name: configure (native macOS build, embed SAPI only)
+        working-directory: php-src
+        run: |
+          ./configure \
+            --disable-all \
+            --without-pear \
+            --disable-cli \
+            --disable-cgi \
+            --disable-phpdbg \
+            --enable-embed=static
+
+      - name: make
+        working-directory: php-src
+        run: make -j"$(sysctl -n hw.ncpu)" 2>&1 | tail -200
+
+      - name: Write embed SAPI smoke test (C)
+        working-directory: php-src
+        run: |
+          cat > embed_smoke_test.c <<'EOF'
+          #include <sapi/embed/php_embed.h>
+
+          int main(int argc, char **argv) {
+              PHP_EMBED_START_BLOCK(argc, argv)
+              zend_eval_string("echo 'hello from embed SAPI';", NULL, "embed_smoke_test");
+              PHP_EMBED_END_BLOCK()
+              return 0;
+          }
+          EOF
+
+      # Same include set php-src's own make invocation already used for
+      # every ext/ .c file in step 1's real compile log (main/Zend/TSRM/
+      # include, plus the source root for generated headers) — no
+      # php-config available here (--disable-cli means it's never
+      # generated), so these paths are read directly off that known-good
+      # invocation rather than guessed fresh.
+      - name: Compile + link smoke test against libphp.a
+        working-directory: php-src
+        run: |
+          clang embed_smoke_test.c -o embed_smoke_test \
+            -I. -Imain -IZend -ITSRM -Iinclude \
+            -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 \
+            libs/libphp.a \
+            -lresolv -liconv -lm
+
+      - name: Run smoke test — expect "hello from embed SAPI" in stdout
+        working-directory: php-src
+        run: |
+          ./embed_smoke_test | tee smoke_output.txt
+          grep -q "hello from embed SAPI" smoke_output.txt || (echo "embed SAPI did not produce expected output" && exit 1)
