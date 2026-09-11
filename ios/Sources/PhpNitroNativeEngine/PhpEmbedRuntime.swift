@@ -32,6 +32,45 @@ public final class PhpEmbedRuntime {
         Bundle.module.url(forResource: "www", withExtension: nil)
     }
 
+    /// `wwwDirectoryURL` sits inside the app bundle — **read-only** on a
+    /// real device/Simulator, exactly like Android's own APK assets/
+    /// (see `PhpServer.kt`'s own `copyAssets()`). `public/index.php`
+    /// writes real files there at runtime — `Database::useSqlitePath()`
+    /// (see `public/index.php`) opens `lib/backend/var/data.sqlite` for
+    /// read/write, and PHP's own session handler writes session files —
+    /// both fail with an uncaught `PDOException` ("unable to open
+    /// database file") the instant a screen touches the database,
+    /// confirmed on a real physical iPhone the first time this ran.
+    ///
+    /// Mirrors `copyAssets()`'s exact fix: copy the whole `www` tree out
+    /// of the read-only bundle into a real writable, app-private
+    /// directory (`Application Support`, iOS's counterpart to
+    /// `context.filesDir`) before ever pointing PHP at it. Deleted and
+    /// re-copied fresh on every call — same "once per launch, no
+    /// carry-over" behavior `copyAssets()` already has (its own
+    /// `target.deleteRecursively()`), not a regression introduced here:
+    /// this demo app's local SQLite data was never meant to persist
+    /// across launches on Android either.
+    public static func stageWritableWwwDirectory() -> URL? {
+        guard let bundleWwwURL = wwwDirectoryURL,
+              let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        else {
+            return nil
+        }
+
+        let target = appSupport.appendingPathComponent("www")
+        do {
+            if FileManager.default.fileExists(atPath: target.path) {
+                try FileManager.default.removeItem(at: target)
+            }
+            try FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
+            try FileManager.default.copyItem(at: bundleWwwURL, to: target)
+            return target
+        } catch {
+            return nil
+        }
+    }
+
     public init() {}
 
     public func start() {
