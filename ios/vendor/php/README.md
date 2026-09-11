@@ -16,8 +16,27 @@ Two architecture slices, one per iOS target this project builds for:
 - device (`arm64-apple-ios15.0`) — a real iPhone
 - simulator (`arm64-apple-ios15.0-simulator`) — iOS Simulator on Apple Silicon
 
-Both built from PHP `8.3.15` (`php/php-src` tag `php-8.3.15`), `--enable-embed=static`,
-`--disable-all` plus a short list of extensions the real app actually needs on top of
+Both built from PHP `8.4.2` (`php/php-src` tag `php-8.4.2`) — matching
+Android's own cross-compiled `libphp.so` exactly (see
+`android/php-ndk-patch/Dockerfile`'s own `ARG PHP_VERSION=8.4.2`), for
+a real reason discovered the hard way, not for consistency's own sake:
+this project's own `composer.json` uses Symfony 8.x, whose
+`Request.php` genuinely uses PHP 8.4's **property hooks**
+(`public ParameterBag $attributes { set { ... } } }`) — a real language
+construct the parser itself rejects on anything older, not merely a
+declared `composer.json` floor (`--ignore-platform-req=php` in `phpx
+bundle:ios`/`bundle:android` bypasses THAT, but can't do anything about
+actual syntax the target interpreter can't parse). Confirmed on a real
+physical iPhone: this xcframework was originally built as PHP 8.3.15
+(the exact version that got the whole embed-SAPI proof-of-concept
+working first, see git history), and the very first screen touching
+`Symfony\Component\HttpFoundation\Request` crashed with `Parse error:
+syntax error, unexpected token "{"` pointing straight at that
+property-hook declaration — Android never hit this because it was
+8.4.2 from the start.
+
+`--enable-embed=static`, `--disable-all` plus a short list of
+extensions the real app actually needs on top of
 `ext/standard`/`Zend`/`TSRM`'s always-mandatory core — see "Runtime extensions" below.
 
 ## Reproducing this build
@@ -41,32 +60,39 @@ either and the build silently mis-cross-compiles or fails outright:
    ```
 
 2. **`posix_spawn_file_actions_addchdir_np`**: `ext/standard/proc_open.c`
-   calls this function when its own `configure`-time check
-   (`ext/standard/config.m4`'s `PHP_CHECK_FUNC(posix_spawn_file_actions_addchdir_np)`)
-   detects it as available — which it wrongly does on iOS: the SDK
-   header declares it, but marks it `unavailable` for iOS deployment
-   targets specifically, something a plain "is this symbol declared"
-   autoconf check has no way to know. Setting the standard
+   calls this function when its own `configure`-time check detects it
+   as available — which it wrongly does on iOS: the SDK header declares
+   it, but marks it `unavailable` for iOS deployment targets
+   specifically, something a plain "is this symbol declared" autoconf
+   check has no way to know. Setting the standard
    `ac_cv_func_posix_spawn_file_actions_addchdir_np=no` autoconf cache
-   override does **NOT** work here — PHP's own `PHP_CHECK_FUNC` macro
-   (`build/php.m4`) explicitly `unset`s that exact cache variable
-   before testing, discarding any pre-seeded value on purpose. The only
-   fix is removing the probe from the source, applied fresh on each
-   checkout (never vendored as a permanent php-src patch, since this
-   directory only keeps the *build output*, not php-src itself) —
+   override does **NOT** work here — PHP's own `PHP_CHECK_FUNC`/
+   `AC_CHECK_FUNCS` machinery discards any pre-seeded value on purpose.
+   The only fix is removing the probe from the source, applied fresh on
+   each checkout (never vendored as a permanent php-src patch, since
+   this directory only keeps the *build output*, not php-src itself) —
    **before** `./buildconf`, not after (`buildconf` regenerates
    `./configure` from the `.m4` sources, so patching afterward has no
-   effect on the already-generated script):
+   effect on the already-generated script). **The exact line changed
+   between PHP 8.3 and 8.4** — 8.3's `ext/standard/config.m4` called
+   `PHP_CHECK_FUNC(posix_spawn_file_actions_addchdir_np)` as its own
+   standalone line (a plain line-delete sufficed); 8.4 batched it into
+   `AC_CHECK_FUNCS([posix_spawn_file_actions_addchdir_np elf_aux_info])`
+   instead (confirmed the hard way: reusing 8.3's `sed` verbatim against
+   8.4's tree matched nothing, silently no-opped, and reproduced the
+   exact original compile error against `proc_open.c`) — check
+   `ext/standard/config.m4` itself first if this ever needs redoing
+   against a newer PHP tag, rather than assuming either form:
    ```sh
-   sed -i '' '/PHP_CHECK_FUNC(posix_spawn_file_actions_addchdir_np)/d' ext/standard/config.m4
+   sed -i '' 's/AC_CHECK_FUNCS(\[posix_spawn_file_actions_addchdir_np elf_aux_info\])/AC_CHECK_FUNCS([elf_aux_info])/' ext/standard/config.m4
    ```
 
 Device build:
 
 ```sh
-git clone --depth 1 --branch php-8.3.15 https://github.com/php/php-src.git
+git clone --depth 1 --branch php-8.4.2 https://github.com/php/php-src.git
 cd php-src
-sed -i '' '/PHP_CHECK_FUNC(posix_spawn_file_actions_addchdir_np)/d' ext/standard/config.m4
+sed -i '' 's/AC_CHECK_FUNCS(\[posix_spawn_file_actions_addchdir_np elf_aux_info\])/AC_CHECK_FUNCS([elf_aux_info])/' ext/standard/config.m4
 export PATH="/opt/homebrew/opt/bison/bin:$PATH"
 ./buildconf --force
 export IOS_SDK=$(xcrun --sdk iphoneos --show-sdk-path)
@@ -80,7 +106,8 @@ export SQLITE_LIBS="-L$IOS_SDK/usr/lib -lsqlite3"
 ./configure --host=aarch64-apple-darwin --disable-all --without-pear \
   --disable-cli --disable-cgi --disable-phpdbg --enable-embed=static \
   --without-pcre-jit --enable-session=static \
-  --enable-pdo=static --with-pdo-sqlite=static --with-sqlite3=static
+  --enable-pdo=static --with-pdo-sqlite=static --with-sqlite3=static \
+  --enable-filter=static
 make -j"$(sysctl -n hw.ncpu)"
 ```
 
@@ -92,8 +119,8 @@ whichever SDK is actually being targeted).
 ## Runtime extensions: not just the bare embed SAPI
 
 `--disable-all` alone produces a runtime too bare for the real app —
-each of the three flags below was added after a **real** crash or
-error reproducing the actual app's `public/index.php` on-device (never
+each of the flags below was added after a **real** crash or error
+reproducing the actual app's `public/index.php` on-device (never
 guessed up front):
 
 - **`--without-pcre-jit`**: PCRE2's JIT tries to `mmap` executable
@@ -118,6 +145,21 @@ guessed up front):
   SDK's system `libsqlite3` when cross-compiling — worked around by
   setting `SQLITE_CFLAGS`/`SQLITE_LIBS` explicitly (see the configure
   invocation above) instead of relying on pkg-config auto-detection.
+- **`--enable-filter=static`**: `ext/filter` (`filter_var()`, the
+  `FILTER_*` constants) is what `--disable-all` disables least
+  obviously — Symfony's own `ParameterBag` (`http-foundation`, used by
+  every `Backend\Kernel` request) calls `filter_var(..., FILTER_VALIDATE_INT)`
+  internally for its typed getters, so `Undefined constant
+  "FILTER_VALIDATE_INT"` surfaces the FIRST time ANY code touches a
+  `Request`/`ParameterBag`, not something exotic. Confirmed on
+  Simulator reproducing this app's own "Backend" screen
+  (`NativeApiScreen.php`, a real `Backend\Kernel::handle()` in-process
+  call). Never hit on Android for a structural reason, not luck: its
+  own build (`android/php-ndk-patch/Dockerfile`) never starts from
+  `--disable-all` at all — it disables a short explicit list
+  (dom/simplexml/xml/xmlreader/xmlwriter/phar/phpdbg) and keeps
+  everything else, `ext/filter` included, at its normal default-enabled
+  state.
 
 Consumers must link `-lsqlite3` alongside the already-required
 `-lresolv -liconv -lm` (see `Package.swift`'s own `CPhpEmbed` target)
@@ -128,15 +170,21 @@ static archive itself doesn't bundle it, same split as those three.
 
 The headers actually needed are everything `#include`d transitively
 from `sapi/embed/php_embed.h` — `main/*.h`, `Zend/*.h`, `TSRM/*.h`,
-`sapi/embed/*.h` (~3.8MB per target) — but they are **not** copied
-into this xcframework preserving that directory structure. An
-`.xcframework`'s `HeadersPath` only ever contributes ONE `-I` for its
-whole `Headers/` folder (unlike a hand-written `-I<a> -I<b> -I<c>`
-command line, which a `.binaryTarget` consumer has no way to
-replicate) — so all four directories' `*.h` files are copied flat into
-one directory instead, `cp`'d by filename only (verified first: no two
-of the 151 headers share a basename, so this can't silently shadow one
-file with another).
+`sapi/embed/*.h`, **plus two easy-to-miss one-level-deeper
+subdirectories** `main/streams/*.h` (`php_stream_context.h` and
+friends) and `Zend/Optimizer/*.h` (`zend_call_graph.h`, `zend_cfg.h`,
+etc — pulled in transitively via `zend_compile.h`) — a `find -maxdepth 1`
+over just the four top-level directories silently under-copies by ~18
+headers, confirmed by diffing a fresh copy's file list against a
+previously-vendored one rather than guessing the set is complete. Not
+copied into this xcframework preserving that directory structure,
+though: an `.xcframework`'s `HeadersPath` only ever contributes ONE
+`-I` for its whole `Headers/` folder (unlike a hand-written
+`-I<a> -I<b> -I<c>` command line, which a `.binaryTarget` consumer has
+no way to replicate) — so all six directories' `*.h` files are copied
+flat into one directory instead, `cp`'d by filename only (verified
+first: no two headers share a basename across any of them, so this
+can't silently shadow one file with another).
 
 Flattening breaks a handful of `#include`s that assumed the original
 nested layout — a directory-qualified quote/angle include (`"streams/
