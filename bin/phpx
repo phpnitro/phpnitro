@@ -3387,13 +3387,24 @@ function cmdPublishPackages(?string $only): void
             . ' && git add -A && git commit --quiet -m ' . escapeshellarg("sync: rattrape phpnitro/phpnitro (packages/{$name})")
             . ' && git push --quiet -u origin ' . escapeshellarg($branch)
         );
-        $prBody = "Resynchronise src/" . (is_dir("{$localDir}/tests") ? '+tests/ ' : ' ') . "depuis packages/{$name} du monorepo phpnitro/phpnitro — voir `phpx publish:packages`.";
+        // Real incident (2026-09): 5 packages got this exact sync PR
+        // merged and then NOTHING else — Packagist resolves by git tag,
+        // not by main's HEAD, so every `composer require` kept installing
+        // last month's code for weeks with zero indication anything was
+        // wrong (no error, no warning — just silently stale). Merging
+        // the PR is necessary but not sufficient; this reminder is the
+        // only thing standing between "fixed on GitHub" and "fixed for
+        // anyone who actually uses this package".
+        $prBody = "Resynchronise src/" . (is_dir("{$localDir}/tests") ? '+tests/ ' : ' ') . "depuis packages/{$name} du monorepo phpnitro/phpnitro — voir `phpx publish:packages`."
+            . "\n\n⚠️ **Après avoir mergé cette PR : tague une nouvelle release** (`gh release create vX.Y.0 --repo phpnitro/{$name} --target main`)."
+            . " Composer/Packagist résolvent par tag, pas par HEAD de main — sans un nouveau tag, ce correctif reste invisible pour tout `composer require phpnitro/{$name}`.";
         passthruOrFail(
             'cd ' . escapeshellarg($tmpDir)
             . ' && gh pr create --title ' . escapeshellarg("sync: rattrape phpnitro/phpnitro (packages/{$name})")
             . ' --body ' . escapeshellarg($prBody)
         );
         echo "  PR ouverte sur https://github.com/phpnitro/{$name}\n";
+        echo "  ⚠️  Une fois mergée : gh release create vX.Y.0 --repo phpnitro/{$name} --target main (sinon Packagist ne verra jamais ce changement)\n";
         passthruOrFail('rm -rf ' . escapeshellarg($tmpDir));
     }
 }
