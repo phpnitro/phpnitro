@@ -26,6 +26,12 @@ import PhpNitroProtocol
 /// finishes before the next starts, same as a real single-worker PHP
 /// server would.
 public final class EmbeddedScreenDataSource: ScreenDataSource {
+    /// The real app's own instance — its `PhpEmbedRuntime` is never
+    /// `shutdown()`, by design (matches `PhpEmbedRuntime`'s own "one
+    /// instance for the process' entire lifetime" invariant: HostApp
+    /// itself never calls `shutdown()` either). `init(runtime:)` below
+    /// exists specifically so tests DON'T have to share this permanent,
+    /// never-torn-down instance — see that initializer's own docblock.
     public static let shared = EmbeddedScreenDataSource()
 
     /// `{"error":{"message":...}}` — the same envelope shape
@@ -39,12 +45,25 @@ public final class EmbeddedScreenDataSource: ScreenDataSource {
         let error: ServerError
     }
 
-    private let runtime = PhpEmbedRuntime()
+    private let runtime: PhpEmbedRuntime
     private let queue = DispatchQueue(label: "com.phpnitro.embedded-screen-source")
     private var started = false
     private var indexPath: String?
 
-    private init() {}
+    /// `runtime` is injectable specifically so a test can own a
+    /// throwaway `PhpEmbedRuntime` it `start()`s/`shutdown()`s itself
+    /// (exactly like `PhpEmbedRuntimeTests`' own tests already do),
+    /// instead of reaching into `.shared`'s permanent, process-lifetime
+    /// instance — only ONE embed SAPI instance may ever be `start()`ed
+    /// per process (see `PhpEmbedRuntime`'s own docblock), so a test
+    /// that shares `.shared` alongside sibling tests creating their own
+    /// fresh instances would crash on whichever tries to `start()`
+    /// second, depending purely on XCTest's test-ordering — confirmed
+    /// the hard way the first time `EmbeddedScreenDataSourceTests` and
+    /// `PhpEmbedRuntimeTests` ran in the same process.
+    public init(runtime: PhpEmbedRuntime = PhpEmbedRuntime()) {
+        self.runtime = runtime
+    }
 
     public func fetchScreen(
         _ screen: String,
@@ -72,13 +91,18 @@ public final class EmbeddedScreenDataSource: ScreenDataSource {
                 started = true
             }
             if indexPath == nil {
-                guard let wwwURL = PhpEmbedRuntime.wwwDirectoryURL else {
+                // The read-only app-bundle copy of www/ can't be used
+                // directly — public/index.php writes real files at
+                // runtime (SQLite database, PHP sessions), which fails
+                // there (see stageWritableWwwDirectory()'s own docblock
+                // for the real PDOException this fixes).
+                guard let writableWwwURL = PhpEmbedRuntime.stageWritableWwwDirectory() else {
                     DispatchQueue.main.async {
-                        completion(.failure(.network("Resources/www not staged — run `phpx bundle:ios` first")))
+                        completion(.failure(.network("Resources/www not staged, or couldn't copy it to a writable directory — run `phpx bundle:ios` first")))
                     }
                     return
                 }
-                indexPath = wwwURL.appendingPathComponent("public/index.php").path
+                indexPath = writableWwwURL.appendingPathComponent("public/index.php").path
             }
 
             let requestPhp = """
