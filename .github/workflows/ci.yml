@@ -586,7 +586,9 @@ jobs:
             --enable-pdo=static \
             --with-pdo-sqlite=static \
             --with-sqlite3=static \
-            --enable-filter=static
+            --enable-filter=static \
+            --enable-mbstring=static \
+            --disable-mbregex
 
       - name: make (embed SAPI only)
         working-directory: php-src
@@ -778,7 +780,9 @@ jobs:
             --enable-pdo=static \
             --with-pdo-sqlite=static \
             --with-sqlite3=static \
-            --enable-filter=static
+            --enable-filter=static \
+            --enable-mbstring=static \
+            --disable-mbregex
 
       - name: make
         working-directory: php-src
@@ -915,7 +919,9 @@ jobs:
             --enable-pdo=static \
             --with-pdo-sqlite=static \
             --with-sqlite3=static \
-            --enable-filter=static
+            --enable-filter=static \
+            --enable-mbstring=static \
+            --disable-mbregex
 
       - name: make
         working-directory: php-src
