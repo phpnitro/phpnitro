@@ -830,3 +830,116 @@ jobs:
         run: |
           xcrun simctl spawn "$SIMULATOR_UDID" "$PWD/embed_smoke_test" | tee smoke_output.txt
           grep -q "hello from embed SAPI" smoke_output.txt || (echo "embed SAPI did not produce expected output" && exit 1)
+
+  php-embed-step4:
+    name: "iOS PHP embed — step 4: link smoke test for a real iOS device (build-only)"
+    # Step 4 closes the remaining gap between step 1 (proved libphp.a
+    # cross-compiles for the iOS DEVICE sysroot) and step 3 (proved the
+    # smoke test binary both compiles AND actually runs, but only
+    # against the iOS SIMULATOR sysroot, since that's the one target
+    # this CI runner can execute without a physical device). This job
+    # reruns step 1's own exact device cross-compile, then adds step 3's
+    # smoke-test compile+link step against it — but stops there, on
+    # purpose: unlike a simulator binary, a device binary is built for
+    # real Apple Silicon-in-an-iPhone, not this runner's own arm64
+    # macOS kernel, so it cannot be executed here no matter what dyld
+    # wiring is attempted (this isn't a Simulator-style "same kernel,
+    # different SDK" situation — it's a genuinely different OS/ABI
+    # combination, same reason android/README.md's own libphp.so needed
+    # a real Android device to actually verify runtime behavior, not
+    # just a successful cross-compile). Execution on a real iPhone is a
+    # manual step for whoever has one physically in hand, mirroring how
+    # this whole repo's own iOS device-only work (RustNativeRenderer's
+    # device slice, `-host` LAN testing, etc.) has always been verified.
+    runs-on: macos-14
+    continue-on-error: true
+    steps:
+      - name: Checkout php-src
+        uses: actions/checkout@v4
+        with:
+          repository: php/php-src
+          ref: php-8.3.15
+          path: php-src
+
+      - name: Install autoconf/bison/re2c (Apple's system bison is too old for PHP)
+        run: |
+          brew install autoconf bison re2c
+          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
+
+      - name: Patch config.m4 — skip posix_spawn_file_actions_addchdir_np probe (unavailable on iOS)
+        working-directory: php-src
+        run: |
+          sed -i '' '/PHP_CHECK_FUNC(posix_spawn_file_actions_addchdir_np)/d' ext/standard/config.m4
+
+      - name: buildconf (generate ./configure)
+        working-directory: php-src
+        run: ./buildconf --force
+
+      - name: configure (cross-compile for iOS device, arm64)
+        working-directory: php-src
+        run: |
+          export IOS_SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          export CC="xcrun -sdk iphoneos clang -arch arm64"
+          export CXX="xcrun -sdk iphoneos clang++ -arch arm64"
+          export CFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
+          export CXXFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
+          export LDFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
+          ./configure \
+            --host=aarch64-apple-darwin \
+            --disable-all \
+            --without-pear \
+            --disable-cli \
+            --disable-cgi \
+            --disable-phpdbg \
+            --enable-embed=static
+
+      - name: make
+        working-directory: php-src
+        run: make -j"$(sysctl -n hw.ncpu)" 2>&1 | tail -200
+
+      - name: Check for libphp.a
+        working-directory: php-src
+        run: |
+          find . -name "libphp.a" -exec ls -la {} \;
+          test -f libs/libphp.a || (echo "libphp.a not produced" && exit 1)
+
+      - name: Write embed SAPI smoke test (C)
+        working-directory: php-src
+        run: |
+          cat > embed_smoke_test.c <<'EOF'
+          #include <sapi/embed/php_embed.h>
+
+          int main(int argc, char **argv) {
+              PHP_EMBED_START_BLOCK(argc, argv)
+              zend_eval_string("echo 'hello from embed SAPI (iOS device target)';", NULL, "embed_smoke_test");
+              PHP_EMBED_END_BLOCK()
+              return 0;
+          }
+          EOF
+
+      # Build-only, deliberately no run step here — see this job's own
+      # docblock for why a device binary can never execute on this
+      # runner regardless of how it's invoked.
+      - name: Compile + link smoke test against the device-target libphp.a
+        working-directory: php-src
+        run: |
+          export IOS_SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          xcrun -sdk iphoneos clang embed_smoke_test.c -o embed_smoke_test \
+            -isysroot "$IOS_SDK" -mios-version-min=15.0 -arch arm64 \
+            -I. -Imain -IZend -ITSRM -Iinclude \
+            -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 \
+            libs/libphp.a \
+            -lresolv -liconv -lm
+
+      - name: Confirm a real iOS-device Mach-O binary was produced
+        working-directory: php-src
+        run: file embed_smoke_test
+
+      - name: Upload the device-target smoke test binary + libphp.a
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: embed-smoke-test-ios-device-arm64
+          path: |
+            php-src/embed_smoke_test
+            php-src/libs/libphp.a
