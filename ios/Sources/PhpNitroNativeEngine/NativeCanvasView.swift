@@ -52,6 +52,20 @@ public final class NativeCanvasView: UIView {
     /// — icons are few and cheap per screen, and this is the one
     /// approach confirmed to survive restart, in-app navigation, and
     /// revisiting a screen.
+    ///
+    /// The repeat happens right after EACH command's own first paint
+    /// (not as one separate pass over the whole command list at the
+    /// end) — a real bug found reproducing the Drawer opening on a
+    /// physical device: a single trailing "repaint every icon" pass
+    /// redraws an EARLIER command's icon (the AppBar's own hamburger)
+    /// strictly after a LATER command already painted opaquely on top
+    /// of it (the Drawer's own panel, meant to fully occlude the
+    /// AppBar underneath — see Scaffold::paint()'s own "painted last,
+    /// on top of everything" comment), punching that icon back through
+    /// on top of the panel it should be hidden behind. Interleaving the
+    /// repeat with each command preserves the original paint order —
+    /// the AppBar's icon gets its second coat immediately after the
+    /// AppBar itself, still strictly before the Drawer paints over it.
 
     /// Fired from handleTap(_:) when a tap lands inside one of the
     /// current payload's hitRegions — the caller (whatever eventually
@@ -349,21 +363,26 @@ public final class NativeCanvasView: UIView {
         context.saveGState()
         context.translateBy(x: 0, y: -scrollY)
         for command in scrollableCommands {
-            drawCommand(command, in: context)
-        }
-        // See the doc comment above this class's own properties for why
-        // this unconditionally repeats on every pass. Walks into
-        // clientPanel/hScroll/vScroll's own nested `commands` too — an
-        // icon inside one of those is just as affected as a top-level one.
-        for icon in Self.allIconCommands(in: scrollableCommands) {
-            draw(icon, in: context)
+            drawCommandRepaintingIcons(command, in: context)
         }
         context.restoreGState()
 
         for command in fixedCommands {
-            drawCommand(command, in: context)
+            drawCommandRepaintingIcons(command, in: context)
         }
-        for icon in Self.allIconCommands(in: fixedCommands) {
+    }
+
+    /// Draws one command, then immediately repaints just its own icon(s)
+    /// a second time (see this class's own doc comment on `payload`'s
+    /// neighboring properties for why) — never as a separate pass over
+    /// the whole command list, which would repaint an earlier command's
+    /// icon strictly after a later, occluding command already painted
+    /// over it. Walks into clientPanel/hScroll/vScroll's own nested
+    /// `commands` too — an icon inside one of those is just as affected
+    /// as a top-level one.
+    private func drawCommandRepaintingIcons(_ command: DrawCommand, in context: CGContext) {
+        drawCommand(command, in: context)
+        for icon in Self.allIconCommands(in: [command]) {
             draw(icon, in: context)
         }
     }
