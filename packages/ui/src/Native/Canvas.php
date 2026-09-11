@@ -89,6 +89,41 @@ final class Canvas
     private bool $confetti = false;
     private ?string $pullToRefreshAction = null;
 
+    /**
+     * A screen's own build() runs BEFORE any Canvas instance exists (the
+     * router creates one only after the whole widget tree is laid out),
+     * so a widget can't call setScrollFollow() on "the" Canvas the way a
+     * route can — there isn't one yet. LazyList's own constructor calls
+     * requestScrollFollow() instead; the router applies it to the real
+     * instance once created (`if (Canvas::scrollFollowWasRequested())
+     * $canvas->setScrollFollow();`). Same "static, reset once at the top
+     * of the request, read after build()" shape MediaQuery::init()/
+     * Tokens::init() already use — safe for the same reason their own
+     * docblocks give (a fresh reset before every request, not something
+     * carried over from the last one). Without this, a scaffolded
+     * project's own minimal router would need a per-screen
+     * `if ($screen === 'x') $canvas->setScrollFollow();` just to make
+     * LazyList actually page in more items on scroll — silently
+     * contradicting "you never need to edit this file" for the one
+     * widget that most needs it.
+     */
+    private static bool $scrollFollowRequested = false;
+
+    public static function resetRequests(): void
+    {
+        self::$scrollFollowRequested = false;
+    }
+
+    public static function requestScrollFollow(): void
+    {
+        self::$scrollFollowRequested = true;
+    }
+
+    public static function scrollFollowWasRequested(): bool
+    {
+        return self::$scrollFollowRequested;
+    }
+
     /** @var array{message: string, durationMs: int}|null */
     private ?array $snackbar = null;
 

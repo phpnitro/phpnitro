@@ -54,6 +54,12 @@ final class LazyList implements Widget
         private readonly float $bufferViewports = 2.0,
     ) {
         $this->size = Size::zero();
+        // See Canvas::requestScrollFollow()'s own docblock — a screen
+        // that builds a LazyList at all wants scroll-follow, full stop;
+        // no reason to also make every caller remember a separate
+        // `$canvas->setScrollFollow()` call at the router layer just to
+        // get scrolling near the loaded edge to actually page in more.
+        Canvas::requestScrollFollow();
     }
 
     public function layout(Constraints $constraints): Size
