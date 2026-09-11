@@ -1864,15 +1864,17 @@ function minimalLayoutDemoRoute(): string
     return <<<'PHP'
     if ($path === '/native/layout-demo') {
         header('Content-Type: application/json');
-        // Without this, a fatal error anywhere below (a screen's build(),
-        // a typo'd class name, a missing use import) falls through to
-        // whatever HTML error handler the app bootstrap installed earlier
-        // — the Content-Type header above is already locked in, so the
-        // client receives an HTML body labeled application/json, fails to
-        // parse it, and shows nothing with zero indication of why. This
-        // replaces the handler for the rest of this request and gives
-        // callers (NativeRenderPocActivity, PhpNitro Studio's Design mode)
-        // a real {"error": {...}} shape to detect and display instead.
+        // The top-level handler above always emits an HTML page — useless
+        // for this route, which only ever speaks JSON. Without this, an
+        // uncaught exception anywhere below (a screen's build(), a
+        // Repository call...) would still get caught by that HTML
+        // handler, but the Content-Type set one line above is already
+        // locked in — the client would receive an HTML body labeled
+        // "application/json" and fail to parse it with zero indication
+        // anything went wrong. This replaces the handler for the rest of
+        // this request and returns a real `{"error": {...}}` shape
+        // instead. Full file/line/trace only in debug mode — a
+        // production build shouldn't leak filesystem paths to a caller.
         set_exception_handler(static function (\Throwable $e) use ($debug): void {
             http_response_code(500);
             $error = ['class' => $e::class, 'message' => $e->getMessage()];
@@ -1884,13 +1886,14 @@ function minimalLayoutDemoRoute(): string
             echo json_encode(['error' => $error], JSON_THROW_ON_ERROR);
         });
 
-        // Only ever set by the embedded PhpServer.kt that runs this exact
-        // php -S process on a real device — never by phpx serve (dev/CLI)
-        // or PhpNitro Studio/Go, so this never blocks local development.
-        // See PhpServer.kt's own accessToken docblock for the full threat
-        // model this closes (another app on the SAME phone port-scanning
-        // 127.0.0.1 and driving every action behind this one route with
-        // zero prior knowledge otherwise).
+        // PHPNITRO_ACCESS_TOKEN is only ever set by the native app itself
+        // when it runs this exact `php -S` process on a real device — a
+        // fresh random secret per app launch, never logged. Absent under
+        // `phpx serve` (dev/CLI), so this never blocks local development
+        // — it only activates on-device, where every screen's action
+        // lives behind this one route, and PHP binding 127.0.0.1 alone
+        // wouldn't stop another app already installed on the same phone
+        // from port-scanning it.
         $expectedToken = getenv('PHPNITRO_ACCESS_TOKEN');
         if ($expectedToken !== false && $expectedToken !== '') {
             $providedToken = $_SERVER['HTTP_X_PHPNITRO_TOKEN'] ?? '';

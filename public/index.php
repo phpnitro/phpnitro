@@ -8,12 +8,9 @@ use Engine\Native\Canvas;
 use Symfony\Component\Dotenv\Dotenv;
 
 /**
- * The app has no WebView content pages left (see git history for the last
- * one, WidgetsLayoutPage.php/SettingsPage.php/WidgetsIndexPage.php — all
- * removed once their native conversions reached full parity), so this is
- * plain HTML, not a styled Tailwind page — nothing legitimate should ever
- * hit this route; NativeRenderPocActivity never links here, it only talks
- * to /native/layout-demo.
+ * Every real screen is served by /native/layout-demo below — nothing in
+ * the app should ever link here, so this route only ever fires for a
+ * stray/unknown request.
  */
 function renderNotFound(): never
 {
@@ -80,47 +77,22 @@ if ($path === '/api' || str_starts_with($path, '/api/')) {
     exit;
 }
 
-// Phase 0 of docs/proposals/moteur-rendu-natif.md — a parallel, experimental
-// rendering path that bypasses the HTML pipeline entirely: raw JSON draw
-// commands, fetched and replayed by NativeCanvasView.kt against a real
-// Android Canvas.
-if ($path === '/native/demo') {
-    header('Content-Type: application/json');
-    echo \Engine\NativeDrawCommand::make()
-        ->rect(40, 200, 300, 120, '#2563EB', 24)
-        ->text(60, 260, 'Rendu natif (Canvas)', '#FFFFFF', 22)
-        ->text(60, 300, 'Phase 0 — pas de WebView ici', '#DBEAFE', 14)
-        ->toJson();
-    exit;
-}
-
-// Phase 2: a real widget tree (Column/Row/Container/Text, flex, padding,
-// text wrapping) run through the packages/ui/src/Native layout engine —
-// proves the constraint-based layout algorithm itself, not just that a
-// hardcoded rect/text pair can reach a Canvas. See
-// docs/proposals/moteur-rendu-natif.md for the phased plan this belongs to.
+// The app's real rendering path: each screen in lib/pages/ is laid out
+// server-side (packages/ui/src/Native's constraint-based layout engine)
+// and sent back as JSON draw commands, replayed by the native app against
+// a real platform Canvas — no WebView/HTML involved.
 if ($path === '/native/layout-demo') {
     header('Content-Type: application/json');
-    // The top-level handler installed above always emits an HTML page —
-    // fine for a browser hitting this by accident, useless for
-    // NativeRenderPocActivity, which only ever speaks JSON. Without this,
-    // an uncaught exception ANYWHERE below (a screen's build(), a
-    // Repository call, MediaQuery::init()...) would still get caught by
-    // that HTML handler, but the Content-Type header set one line above
-    // is already locked in — the client would receive an HTML body
-    // labeled "application/json", fail to parse it (a plain
-    // JSONException, silently logged — see NativeCanvasView.kt's
-    // setCommands()), and just show whatever was already on screen with
-    // zero indication anything went wrong. This handler REPLACES the
-    // HTML one for the rest of this request (this route always exit;s at
-    // its end, so there's no "restore the old handler" concern) and
-    // gives NativeRenderPocActivity's fetchDrawCommands() a real
-    // `{"error": {...}}` shape to detect and show its own error card
-    // for — see that method's own handling and showScreenErrorOverlay().
-    // Full file/line/trace only in debug mode, same gating the HTML
-    // handler above already uses — a production build shouldn't leak
-    // filesystem paths or internal call structure to whoever's
-    // network-adjacent.
+    // The top-level handler above always emits an HTML page — useless for
+    // this route, which only ever speaks JSON. Without this, an uncaught
+    // exception anywhere below (a screen's build(), a Repository call...)
+    // would still get caught by that HTML handler, but the Content-Type
+    // set one line above is already locked in — the client would receive
+    // an HTML body labeled "application/json" and fail to parse it with
+    // zero indication anything went wrong. This replaces the handler for
+    // the rest of this request and returns a real `{"error": {...}}`
+    // shape instead. Full file/line/trace only in debug mode — a
+    // production build shouldn't leak filesystem paths to a caller.
     set_exception_handler(static function (\Throwable $e) use ($debug): void {
         http_response_code(500);
         $error = ['class' => $e::class, 'message' => $e->getMessage()];
@@ -132,18 +104,13 @@ if ($path === '/native/layout-demo') {
         echo json_encode(['error' => $error], JSON_THROW_ON_ERROR);
     });
 
-    // PHPNITRO_ACCESS_TOKEN is only ever set by the embedded PhpServer.kt
-    // that runs this exact php -S process on a real device (see its own
-    // accessToken docblock) — a fresh random secret per app launch, never
-    // logged, never written anywhere another app could read it from.
-    // Absent entirely under `phpx serve` (dev/CLI, and PhpNitro Go's LAN
-    // mode reaching a `phpx serve` on someone's dev machine), so this
-    // never blocks local development — it only ever activates on-device,
-    // where every action for every screen (login, register, payments,
-    // reorder...) already lives behind this one route, and PHP binding
-    // 127.0.0.1 only stops a remote attacker but not another app already
-    // installed on the SAME phone, which can still port-scan localhost
-    // and reach it with zero prior knowledge otherwise.
+    // PHPNITRO_ACCESS_TOKEN is only ever set by the native app itself when
+    // it runs this exact `php -S` process on a real device — a fresh
+    // random secret per app launch, never logged. Absent under `phpx
+    // serve` (dev/CLI), so this never blocks local development — it only
+    // activates on-device, where every screen's action lives behind this
+    // one route, and PHP binding 127.0.0.1 alone wouldn't stop another
+    // app already installed on the same phone from port-scanning it.
     $expectedToken = getenv('PHPNITRO_ACCESS_TOKEN');
     if ($expectedToken !== false && $expectedToken !== '') {
         $providedToken = $_SERVER['HTTP_X_PHPNITRO_TOKEN'] ?? '';
@@ -726,10 +693,7 @@ if ($debug && $path === '/_dev/version') {
     exit;
 }
 
-// No WebView content pages left (see the removal of
-// SettingsPage.php/WidgetsIndexPage.php/WidgetsLayoutPage.php once their
-// native conversions reached full parity) — every request past this
-// point is either a stray link to a route that no longer exists, or a
-// crawler/probe. NativeRenderPocActivity only ever talks to
-// /native/layout-demo above.
+// Every request past this point is either a stray link to a route that
+// doesn't exist, or a crawler/probe — the app only ever talks to
+// /native/layout-demo and /api above.
 renderNotFound();
