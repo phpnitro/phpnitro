@@ -725,20 +725,26 @@ jobs:
           brew install autoconf bison re2c
           echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
 
-      - name: buildconf (generate ./configure)
-        working-directory: php-src
-        run: ./buildconf --force
-
       # Same ext/standard/config.m4 patch step 1 needed — applied here
       # too rather than waiting for a red run to confirm it: the iOS
       # Simulator SDK marks posix_spawn_file_actions_addchdir_np
       # unavailable for the same reason the device SDK does (both are
       # "iOS" as far as that availability annotation cares, simulator
-      # vs device isn't the axis it's keyed on).
+      # vs device isn't the axis it's keyed on). MUST run before
+      # buildconf, not after — buildconf regenerates ./configure FROM
+      # the .m4 sources, so a patch applied afterward has no effect at
+      # all on the generated script (confirmed the hard way: this step
+      # was originally placed after buildconf here, and the resulting
+      # ./configure still probed for and found the symbol, reproducing
+      # step 1's exact original failure despite the "successful" sed).
       - name: Patch config.m4 — skip posix_spawn_file_actions_addchdir_np probe (unavailable on iOS)
         working-directory: php-src
         run: |
           sed -i '' '/PHP_CHECK_FUNC(posix_spawn_file_actions_addchdir_np)/d' ext/standard/config.m4
+
+      - name: buildconf (generate ./configure)
+        working-directory: php-src
+        run: ./buildconf --force
 
       - name: configure (cross-compile for iOS Simulator, arm64)
         working-directory: php-src
