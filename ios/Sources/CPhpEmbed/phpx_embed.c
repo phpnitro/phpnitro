@@ -72,7 +72,18 @@ char *phpx_embed_eval(const char *php_code)
     }
 
     zend_result result = zend_eval_string_ex(php_code, NULL, "phpx_embed_eval", /* handle_exceptions */ true);
-    if (result == FAILURE) {
+
+    /* A real app script routinely ends with exit/die once it has
+     * written its response (this app's own public/index.php does,
+     * after echoing its JSON draw-command payload) — that unwinds via
+     * zend_bailout, which zend_eval_string_ex reports as FAILURE even
+     * though the script ran to completion and every byte it wrote is
+     * already sitting in g_output_buffer (confirmed by a real repro: a
+     * raw C harness against this exact index.php produced FAILURE yet
+     * a complete, valid 6KB JSON payload). So FAILURE alone doesn't
+     * mean "nothing usable" — only FAILURE with an empty buffer does
+     * (a genuine parse error or a fatal before any output at all). */
+    if (result == FAILURE && !g_output_buffer) {
         return NULL;
     }
 
