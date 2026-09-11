@@ -13,7 +13,7 @@ import UIKit
 /// ScreenClient's own docblock and ios/README.md for what's real,
 /// separate follow-up work.
 public final class NativeScreenViewController: UIViewController {
-    private let client: ScreenClient
+    private let client: ScreenDataSource
     private var screenStack: [String]
     private let canvasView = NativeCanvasView()
 
@@ -38,11 +38,32 @@ public final class NativeScreenViewController: UIViewController {
     #endif
 
     /// Kept alongside `client` (which keeps its own private copy) only
-    /// for building `device:sound:`'s default URL — the one action that
-    /// needs to know where "this app's own server" is.
-    private let host: String
-    private let port: Int
+    /// for building `device:sound:`'s default URL and `bgschedule`'s
+    /// real background HTTP endpoint — nil when `client` is an
+    /// `EmbeddedScreenDataSource`, since there is no "this app's own
+    /// server" to point at (see `defaultSoundURL`/`bgschedule` below for
+    /// how each of those two call sites degrades instead of crashing).
+    private let host: String?
+    private let port: Int?
 
+    /// The real, per-project app's own path: talk to `PhpEmbedRuntime`
+    /// in-process (see `EmbeddedScreenDataSource`'s own docblock for why
+    /// `.shared`) — no developer machine running `phpx serve` required
+    /// at all. This is what `HostApp` (not `GoHostApp`) is built to use.
+    public init(embeddedScreen screen: String = "home") {
+        self.client = EmbeddedScreenDataSource.shared
+        self.host = nil
+        self.port = nil
+        self.screenStack = [screen]
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    /// The companion-client path: a real HTTP round-trip to a `phpx
+    /// serve` running somewhere on the LAN — no PHP bundled into this
+    /// app at all. This is what `PhpNitroGo`/`GoHostApp` uses (see
+    /// `ConnectViewController`) — a project-agnostic "point me at any
+    /// running phpx serve" tool, deliberately never switched to the
+    /// embedded path the way `HostApp` is above.
     public init(host: String, port: Int, screen: String = "home") {
         self.client = ScreenClient(host: host, port: port)
         self.host = host
@@ -52,7 +73,26 @@ public final class NativeScreenViewController: UIViewController {
     }
 
     public required init?(coder: NSCoder) {
-        fatalError("NativeScreenViewController is always created with a host/port, not from a storyboard.")
+        fatalError("NativeScreenViewController is always created with init(embeddedScreen:) or init(host:port:screen:), not from a storyboard.")
+    }
+
+    /// "device:sound:" with no explicit URL — a real `http://host:port/…`
+    /// URL when `client` talks to a real server, or the exact same
+    /// bundled asset `phpx bundle:ios` already stages into
+    /// `Resources/www/public/assets/audio/beep.wav` (see
+    /// `PhpEmbedRuntime.wwwDirectoryURL`) played straight from disk via
+    /// `file://` when there's no server to fetch it from at all —
+    /// `AVPlayer` (`NativeDeviceBridge.playSound`) plays a local file URL
+    /// exactly the same way it plays a remote one.
+    private var defaultSoundURLString: String {
+        if let host, let port {
+            return "http://\(host):\(port)/assets/audio/beep.wav"
+        }
+        guard let assetURL = PhpEmbedRuntime.wwwDirectoryURL?
+            .appendingPathComponent("public/assets/audio/beep.wav") else {
+            return ""
+        }
+        return assetURL.absoluteString
     }
 
     override public func viewWillAppear(_ animated: Bool) {
@@ -248,7 +288,7 @@ public final class NativeScreenViewController: UIViewController {
                 // demo asset when omitted, matching handleDeviceAction()'s
                 // own "sound" branch default exactly.
                 let urlString = (parts.count > 1 ? parts[1].removingPercentEncoding : nil)
-                    ?? "http://\(host):\(port)/assets/audio/beep.wav"
+                    ?? defaultSoundURLString
                 NativeDeviceBridge.playSound(urlString)
             case "notify":
                 let title = (parts.count > 1 ? parts[1].removingPercentEncoding : nil) ?? "PhpNitro"
@@ -411,9 +451,22 @@ public final class NativeScreenViewController: UIViewController {
                     self?.fetch(action: nil)
                 }
             case "bgschedule":
-                let endpoint = (parts.count > 1 ? parts[1].removingPercentEncoding : nil) ?? "/api/ping"
-                let intervalMinutes = parts.count > 2 ? Int(parts[2]) ?? 15 : 15
-                NativeDeviceBridge.scheduleBackgroundTask(endpoint: endpoint, intervalMinutes: intervalMinutes, host: host, port: port)
+                // BGTaskScheduler wakes THIS app in the background to run
+                // a real HTTP fetch against `host:port` — meaningless
+                // without one (see `host`/`port`'s own docblock): there
+                // is no separate server to poll when `client` is an
+                // EmbeddedScreenDataSource, and waking the embedded
+                // runtime itself in the background is real, separate
+                // follow-up work (it CAN run in-process while suspended-
+                // then-woken, unlike a remote fetch, but wiring that up
+                // is untested territory this change doesn't attempt) —
+                // so this degrades to a no-op rather than crash on the
+                // force-unwrap a `host`/`port`-taking call would need.
+                if let host, let port {
+                    let endpoint = (parts.count > 1 ? parts[1].removingPercentEncoding : nil) ?? "/api/ping"
+                    let intervalMinutes = parts.count > 2 ? Int(parts[2]) ?? 15 : 15
+                    NativeDeviceBridge.scheduleBackgroundTask(endpoint: endpoint, intervalMinutes: intervalMinutes, host: host, port: port)
+                }
             case "bgcancel":
                 NativeDeviceBridge.cancelBackgroundTask()
             case "nfcstart":
