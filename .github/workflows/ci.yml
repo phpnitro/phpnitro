@@ -804,9 +804,17 @@ jobs:
       # on this host, not something that needs a booted simulator at
       # all. If this step fails to even launch (as opposed to running
       # and producing wrong output), that assumption was wrong and
-      # would itself be a real, useful finding.
+      # would itself be a real, useful finding. Confirmed by this job's
+      # own real run: it DID launch directly (no "Bad CPU type"/exec
+      # failure at all — the core hypothesis holds), but dyld refused to
+      # resolve the simulator-specific system libraries without being
+      # told where the simulator SDK root is — DYLD_ROOT_PATH is exactly
+      # that, normally set for you by Xcode/simctl when launching a
+      # simulator binary through the ordinary path, which running this
+      # binary directly from a shell bypasses entirely.
       - name: Run smoke test directly on the runner (no simulator boot needed)
         working-directory: php-src
         run: |
+          export DYLD_ROOT_PATH=$(xcrun --sdk iphonesimulator --show-sdk-path)
           ./embed_smoke_test | tee smoke_output.txt
           grep -q "hello from embed SAPI" smoke_output.txt || (echo "embed SAPI did not produce expected output" && exit 1)
