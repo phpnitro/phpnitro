@@ -344,14 +344,20 @@ function repositoryTemplate(string $className, string $table): string
 
         private function ensureSchema(): void
         {
+            // Double-quoted identifier: {$table} could be a SQL reserved
+            // word (an "Order" entity is the obvious real-world case —
+            // ORDER is reserved in every SQL dialect) and would otherwise
+            // produce a syntax error. update()/insert() below don't need
+            // this — Doctrine DBAL already quotes the table name itself
+            // for those; only raw SQL strings do.
             Database::connection()->executeStatement(
-                'CREATE TABLE IF NOT EXISTS {$table} (id INTEGER PRIMARY KEY AUTOINCREMENT)',
+                'CREATE TABLE IF NOT EXISTS "{$table}" (id INTEGER PRIMARY KEY AUTOINCREMENT)',
             );
         }
 
         public function find(int \$id): ?{$className}
         {
-            \$row = Database::connection()->fetchAssociative('SELECT * FROM {$table} WHERE id = ?', [\$id]);
+            \$row = Database::connection()->fetchAssociative('SELECT * FROM "{$table}" WHERE id = ?', [\$id]);
 
             return \$row === false ? null : new {$className}(id: (int) \$row['id']);
         }
