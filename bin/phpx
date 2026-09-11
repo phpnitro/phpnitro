@@ -2659,15 +2659,20 @@ function isAndroidAppInstalled(string $pkg): bool
  * resulting .app actually landed — DerivedData's own path includes a
  * hash suffix xcodebuild picks per-checkout, nothing this script could
  * predict or glob for reliably, so this asks xcodebuild directly
- * instead of guessing. `phpx bundle:ios` first: Package.swift's own
- * `.copy("Resources/www")` rule makes SPM refuse to even resolve the
- * package graph without it (see ci.yml's own `ios-build` job for the
- * exact "Invalid Resource 'Resources/www': File not found" this
- * prevents).
+ * instead of guessing. `cmdBundleIos()` called directly (in-process,
+ * not shelled out) first: Package.swift's own `.copy("Resources/www")`
+ * rule makes SPM refuse to even resolve the package graph without it
+ * (see ci.yml's own `ios-build` job for the exact "Invalid Resource
+ * 'Resources/www': File not found" this prevents). Real bug found the
+ * hard way: shelling out to `php PHPX_ROOT/bin/phpx bundle:ios`
+ * silently assumed a scaffolded project has its own bin/phpx — it
+ * never does (phpx installs once, globally, see cmdNew()'s own
+ * docblock), so `phpx run` on iOS failed on every real project outside
+ * this monorepo's own checkout.
  */
 function buildIosHostApp(string $destination): string
 {
-    passthruOrFail('php ' . escapeshellarg(PHPX_ROOT . '/bin/phpx') . ' bundle:ios');
+    cmdBundleIos();
 
     $project = escapeshellarg(PHPX_ROOT . '/ios/HostApp/HostApp.xcodeproj');
     $destinationArg = escapeshellarg($destination);
