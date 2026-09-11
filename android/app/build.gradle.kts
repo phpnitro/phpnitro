@@ -26,7 +26,7 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = 1
-        versionName = "0.1"
+        versionName = "1.0.0"
         // Real on-device UI tests (src/androidTest) — see this module's
         // own docblock on why UI Automator, not Espresso: every screen is
         // one NativeCanvasView.onDraw() call, not a real Android View per

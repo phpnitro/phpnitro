@@ -669,40 +669,68 @@ function syncManifestToAndroidVersion(string $androidAppDir): void
 }
 
 /**
- * iOS equivalent of syncManifestToAndroidVersion() — rewrites
- * ios/App/Info.plist's CFBundleVersion/CFBundleShortVersionString, same
- * "1.0.0+3" manifest format. Unlike Android, nothing in phpx drives a
- * real iOS build yet (no `phpx build:ios` — see docs/mobile-builds.md),
- * so this only ever runs from the explicit `phpx sync`, never
- * automatically before a build.
+ * iOS equivalent of syncManifestToAndroidVersion() + syncManifestToAndroidStrings()
+ * combined — rewrites ios/HostApp/HostApp/Info.plist's CFBundleVersion/
+ * CFBundleShortVersionString (same "1.0.0+3" manifest format) AND
+ * CFBundleDisplayName (the OS-level launcher label, Android's app_name
+ * equivalent — inserted right after CFBundleName if the plist doesn't
+ * have one yet, since a bare HostApp/GoHostApp Xcode template never
+ * generates one). Only ios/HostApp/HostApp — the real per-project app,
+ * matching android/app — is touched; ios/HostApp/GoHostApp keeps its
+ * own generic "PhpNitro Go" identity, same as android/go's own
+ * hardcoded name/version never being manifest-synced (it's phpx's own
+ * companion tool, not a per-project app).
+ *
+ * Unlike Android, nothing in phpx drives a real iOS build yet (no
+ * `phpx build:ios`/`bundle:ios` calls this automatically — see
+ * docs/mobile-builds.md), so this only ever runs from the explicit
+ * `phpx sync`, never automatically before a build.
  */
 function syncManifestToIosPlist(): void
 {
     $manifest = loadManifest();
-    if (!isset($manifest['version'])) {
-        return;
-    }
 
-    $plistPath = PHPX_ROOT . '/ios/App/Info.plist';
+    $plistPath = PHPX_ROOT . '/ios/HostApp/HostApp/Info.plist';
     if (!is_file($plistPath)) {
         return;
     }
 
-    [$versionName, $versionCode] = parseManifestVersion($manifest);
-
     $plist = file_get_contents($plistPath);
-    $plist = preg_replace(
-        '#(<key>CFBundleVersion</key>\s*<string>)[^<]*(</string>)#',
-        '${1}' . $versionCode . '${2}',
-        $plist,
-        1,
-    );
-    $plist = preg_replace(
-        '#(<key>CFBundleShortVersionString</key>\s*<string>)[^<]*(</string>)#',
-        '${1}' . htmlspecialchars($versionName, ENT_XML1 | ENT_QUOTES) . '${2}',
-        $plist,
-        1,
-    );
+
+    if (isset($manifest['version'])) {
+        [$versionName, $versionCode] = parseManifestVersion($manifest);
+
+        $plist = preg_replace(
+            '#(<key>CFBundleVersion</key>\s*<string>)[^<]*(</string>)#',
+            '${1}' . $versionCode . '${2}',
+            $plist,
+            1,
+        );
+        $plist = preg_replace(
+            '#(<key>CFBundleShortVersionString</key>\s*<string>)[^<]*(</string>)#',
+            '${1}' . htmlspecialchars($versionName, ENT_XML1 | ENT_QUOTES) . '${2}',
+            $plist,
+            1,
+        );
+    }
+
+    if (isset($manifest['name'])) {
+        $displayName = htmlspecialchars($manifest['name'], ENT_XML1 | ENT_QUOTES);
+
+        $plist = str_contains($plist, '<key>CFBundleDisplayName</key>')
+            ? preg_replace(
+                '#(<key>CFBundleDisplayName</key>\s*<string>)[^<]*(</string>)#',
+                '${1}' . $displayName . '${2}',
+                $plist,
+                1,
+            )
+            : preg_replace(
+                '#(<key>CFBundleName</key>\s*<string>[^<]*</string>)#',
+                "\${1}\n\t<key>CFBundleDisplayName</key>\n\t<string>{$displayName}</string>",
+                $plist,
+                1,
+            );
+    }
 
     file_put_contents($plistPath, $plist);
 }
@@ -1119,7 +1147,7 @@ function cmdSync(): void
         syncManifestIcon($androidResDir);
     }
 
-    $syncedIos = is_file(PHPX_ROOT . '/ios/App/Info.plist');
+    $syncedIos = is_file(PHPX_ROOT . '/ios/HostApp/HostApp/Info.plist');
     if ($syncedIos) {
         syncManifestToIosPlist();
     }
@@ -2006,6 +2034,7 @@ function cmdBundleIos(): void
 {
     syncAssets();
     syncManifestToEnv();
+    syncManifestToIosPlist();
 
     $staging = PHPX_ROOT . '/ios/Sources/PhpNitroNativeEngine/Resources/www';
 

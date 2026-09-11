@@ -3,11 +3,12 @@ description: Démo du framework — écrans, widgets, capacités device, backend
 # Convention identique à pubspec.yaml de Flutter : "1.0.0+3" = versionName/
 # CFBundleShortVersionString "1.0.0" + versionCode/CFBundleVersion 3 (le
 # "+N" est optionnel, vaut 1 par défaut). Seule source de vérité — édite
-# ce champ, pas android/app/build.gradle.kts ni ios/App/Info.plist
-# directement. `phpx bundle:android` (donc `phpx build:android` aussi) le
-# synchronise automatiquement avant chaque vrai build ; `phpx sync` fait
-# de même pour Android + iOS à la demande (utile avant d'ouvrir Xcode,
-# qui n'a pas de commande phpx équivalente pour l'instant).
+# ce champ, pas android/app/build.gradle.kts ni
+# ios/HostApp/HostApp/Info.plist directement. `phpx bundle:android`
+# (donc `phpx build:android` aussi) et `phpx bundle:ios` le
+# synchronisent automatiquement avant chaque vrai build ; `phpx sync`
+# fait de même pour Android + iOS à la demande (utile avant d'ouvrir
+# Xcode sans relancer tout bundle:ios).
 version: 1.0.0
 php: ">=8.1"
 
