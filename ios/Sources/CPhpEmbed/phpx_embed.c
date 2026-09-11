@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -45,10 +46,18 @@ static size_t phpx_embed_capture_write(const char *str, size_t str_length)
     return str_length;
 }
 
+/* php_embed_init() itself already opens the first request (its last
+ * internal step is a php_request_startup()) — tracked here so
+ * phpx_embed_handle_request()/phpx_embed_shutdown() know there's
+ * already one open the very first time they run, without either of
+ * them needing to special-case "is this the first call". */
+static bool g_request_open = false;
+
 void phpx_embed_start(void)
 {
     php_embed_module.ub_write = phpx_embed_capture_write;
     php_embed_init(0, NULL);
+    g_request_open = true;
 }
 
 char *phpx_embed_eval(const char *php_code)
@@ -86,6 +95,21 @@ char *phpx_embed_eval(const char *php_code)
     return copy;
 }
 
+char *phpx_embed_handle_request(const char *php_code)
+{
+    if (g_request_open) {
+        php_request_shutdown(NULL);
+    }
+    g_request_open = false;
+
+    if (php_request_startup() == FAILURE) {
+        return NULL;
+    }
+    g_request_open = true;
+
+    return phpx_embed_eval(php_code);
+}
+
 void phpx_embed_free_string(char *str)
 {
     free(str);
@@ -93,6 +117,17 @@ void phpx_embed_free_string(char *str)
 
 void phpx_embed_shutdown(void)
 {
+    /* php_embed_shutdown() itself already closes whatever request is
+     * currently open (its own PHP_EMBED_END_BLOCK-documented behavior
+     * assumes exactly one open request, matching embed SAPI's
+     * originally-intended "one process, one request" lifecycle) — an
+     * explicit php_request_shutdown() call here first double-frees the
+     * SAME request's resources, confirmed by a real crash
+     * ("zend_mm_heap corrupted") the very first time multiple
+     * phpx_embed_handle_request() calls were exercised end-to-end
+     * before this fix. g_request_open is not touched here for exactly
+     * that reason — nothing left open for this function to close
+     * itself. */
     php_embed_shutdown();
     free(g_output_buffer);
     g_output_buffer = NULL;

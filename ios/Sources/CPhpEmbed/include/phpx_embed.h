@@ -37,6 +37,22 @@ void phpx_embed_start(void);
  */
 char *phpx_embed_eval(const char *php_code);
 
+/*
+ * Like phpx_embed_eval(), but first closes whatever request is
+ * currently open (php_request_shutdown()) and opens a brand new one
+ * (php_request_startup()) — the same per-request state reset a real
+ * PHP SAPI (mod_php, FPM) gives every incoming HTTP request for free.
+ * Without this, a second phpx_embed_eval() that `require`s the same
+ * script a first one already required (e.g. this app's own
+ * public/index.php, needed once per "screen fetch") fails with
+ * "Cannot redeclare class/function" — PHP's engine only tracks
+ * declared symbols and included files per request, not per process.
+ * phpx_embed_start() itself already opens the FIRST request (as part
+ * of what php_embed_init() does internally) — this is for every
+ * request after that one.
+ */
+char *phpx_embed_handle_request(const char *php_code);
+
 void phpx_embed_free_string(char *str);
 
 /* Shuts the embed SAPI down. Safe to call even if never started. */
