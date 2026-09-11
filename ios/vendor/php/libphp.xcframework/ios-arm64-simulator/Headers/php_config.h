@@ -1048,7 +1048,7 @@
 /* #undef HAVE_MBREGEX */
 
 /* Define to 1 if the PHP extension 'mbstring' is available. */
-/* #undef HAVE_MBSTRING */
+#define HAVE_MBSTRING 1
 
 /* Define to 1 if you have the 'memcntl' function. */
 /* #undef HAVE_MEMCNTL */
