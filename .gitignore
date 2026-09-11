@@ -21,6 +21,7 @@ composer.lock
 /android/go/keystore.properties
 /android/.kotlin/
 /android/app/src/main/assets/www/
+/ios/Sources/PhpNitroNativeEngine/Resources/www/
 /dist/
 /phpx.phar
 /.box/
