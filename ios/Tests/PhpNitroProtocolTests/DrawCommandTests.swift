@@ -85,6 +85,51 @@ final class DrawCommandTests: XCTestCase {
         XCTAssertEqual(payload.hitRegions[0].action, "submit:demo")
     }
 
+    /// Regression test for a real bug found on a physical iPhone: a
+    /// perfectly valid `{"commands":[...]}` response (this app's own
+    /// Settings screen) showed as raw text instead of rendering — the
+    /// `SelectBox.php` hit region's own `meta` (`['options' =>
+    /// array<string,string>, 'selected' => string]`, see SelectBox.php's
+    /// own docblock) has a NESTED object value, which a strict
+    /// `[String: String]` decode rejects, which failed the whole
+    /// `hitRegions` array, which failed the whole payload. `meta` must
+    /// degrade to nil for just that one region, not throw.
+    func testHitRegionWithNestedObjectMetaDegradesMetaToNilInsteadOfThrowing() throws {
+        let json = """
+        {
+            "commands": [],
+            "hitRegions": [
+                {"x":20,"y":160,"width":350,"height":60,"action":"select:accent_color","meta":{"options":{"blue":"Bleu","purple":"Violet"},"selected":"blue"}}
+            ],
+            "contentHeight": 0
+        }
+        """
+        let payload = try JSONDecoder().decode(DrawCommandPayload.self, from: Data(json.utf8))
+
+        XCTAssertEqual(payload.hitRegions.count, 1)
+        XCTAssertEqual(payload.hitRegions[0].action, "select:accent_color")
+        XCTAssertNil(payload.hitRegions[0].meta)
+    }
+
+    /// The companion case: a hit region whose `meta` IS flat string
+    /// values (Checkbox/NumberPicker/Drawer's own shape) must still
+    /// decode normally — the fix above must not make `meta` silently
+    /// nil for the common case too.
+    func testHitRegionWithFlatStringMetaDecodesNormally() throws {
+        let json = """
+        {
+            "commands": [],
+            "hitRegions": [
+                {"x":0,"y":0,"width":36,"height":36,"action":"toggle:drawer_open","meta":{"next":"1"}}
+            ],
+            "contentHeight": 0
+        }
+        """
+        let payload = try JSONDecoder().decode(DrawCommandPayload.self, from: Data(json.utf8))
+
+        XCTAssertEqual(payload.hitRegions[0].meta, ["next": "1"])
+    }
+
     func testEmptyHitRegionsArrayDecodesNotThrows() throws {
         let json = """
         {"commands":[],"hitRegions":[],"contentHeight":0}
