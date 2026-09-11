@@ -624,9 +624,9 @@ jobs:
           ref: php-8.3.15
           path: php-src
 
-      - name: Install bison/re2c (Apple's system bison is too old for PHP)
+      - name: Install autoconf/bison/re2c (Apple's system bison is too old for PHP)
         run: |
-          brew install bison re2c
+          brew install autoconf bison re2c
           echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
 
       - name: buildconf (generate ./configure)
