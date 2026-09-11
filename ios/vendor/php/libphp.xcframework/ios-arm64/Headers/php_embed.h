@@ -17,7 +17,7 @@
 #ifndef _PHP_EMBED_H_
 #define _PHP_EMBED_H_
 
-#include "php.h"
+#include <php.h>
 #include <SAPI.h>
 #include <php_main.h>
 #include <php_variables.h>

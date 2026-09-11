@@ -14,7 +14,7 @@
    +----------------------------------------------------------------------+
 */
 
-#define CONFIGURE_COMMAND " './configure'  '--host=aarch64-apple-darwin' '--disable-all' '--without-pear' '--disable-cli' '--disable-cgi' '--disable-phpdbg' '--enable-embed=static' 'host_alias=aarch64-apple-darwin'"
+#define CONFIGURE_COMMAND " './configure'  '--host=aarch64-apple-darwin' '--disable-all' '--without-pear' '--disable-cli' '--disable-cgi' '--disable-phpdbg' '--without-pcre-jit' '--enable-session=static' '--enable-pdo=static' '--with-pdo-sqlite=static' '--with-sqlite3=static' '--enable-embed=static' 'host_alias=aarch64-apple-darwin' 'SQLITE_CFLAGS=-I/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk/usr/include' 'SQLITE_LIBS=-L/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk/usr/lib -lsqlite3'"
 #define PHP_ODBC_CFLAGS	""
 #define PHP_ODBC_LFLAGS		""
 #define PHP_ODBC_LIBS		""

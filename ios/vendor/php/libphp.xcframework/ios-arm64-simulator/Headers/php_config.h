@@ -1224,7 +1224,7 @@
 /* #undef HAVE_PATHCONF */
 
 /* */
-#define HAVE_PCRE_JIT_SUPPORT 1
+/* #undef HAVE_PCRE_JIT_SUPPORT */
 
 /* */
 /* #undef HAVE_PCRE_VALGRIND_SUPPORT */
@@ -1239,7 +1239,7 @@
 /* #undef HAVE_PDO_PGSQL */
 
 /* Define to 1 if you have the pdo_sqlite extension enabled. */
-/* #undef HAVE_PDO_SQLITELIB */
+#define HAVE_PDO_SQLITELIB 1
 
 /* Whether to build PostgreSQL support or not */
 /* #undef HAVE_PGSQL */
@@ -1260,7 +1260,7 @@
 /* #undef HAVE_PHPDBG_READLINE */
 
 /* */
-/* #undef HAVE_PHP_SESSION */
+#define HAVE_PHP_SESSION 1
 
 /* Define to 1 if you have the 'poll' function. */
 #define HAVE_POLL 1
@@ -1512,19 +1512,19 @@
 /* #undef HAVE_SQLEXT_H */
 
 /* Define to 1 if you have the sqlite3 extension enabled. */
-/* #undef HAVE_SQLITE3 */
+#define HAVE_SQLITE3 1
 
 /* have sqlite3_close_v2 */
-/* #undef HAVE_SQLITE3_CLOSE_V2 */
+#define HAVE_SQLITE3_CLOSE_V2 1
 
 /* have sqlite3_column_table_name */
-/* #undef HAVE_SQLITE3_COLUMN_TABLE_NAME */
+#define HAVE_SQLITE3_COLUMN_TABLE_NAME 1
 
 /* have sqlite3_errstr function */
-/* #undef HAVE_SQLITE3_ERRSTR */
+#define HAVE_SQLITE3_ERRSTR 1
 
 /* have sqlite3_expanded_sql function */
-/* #undef HAVE_SQLITE3_EXPANDED_SQL */
+#define HAVE_SQLITE3_EXPANDED_SQL 1
 
 /* */
 /* #undef HAVE_SQLTYPES_H */
@@ -2122,7 +2122,7 @@
 #define SIZEOF_SSIZE_T 8
 
 /* have sqlite3 with extension support */
-/* #undef SQLITE_OMIT_LOAD_EXTENSION */
+#define SQLITE_OMIT_LOAD_EXTENSION 1
 
 /* Needed in sqlunix.h for wchar defs */
 /* #undef SS_FBX */
