@@ -1,5 +1,17 @@
 <?php
 
+/**
+ * Point d'entrée technique — tu n'as normalement jamais besoin d'y toucher.
+ *
+ *   - Nouvel écran   -> `phpx make:page NomEcran` crée lib/pages/NomEcran.php,
+ *                        accessible immédiatement, sans rien ajouter ici.
+ *   - Nouvel endpoint -> ajoute un Controller dans
+ *                        lib/backend/src/Controller/, même principe.
+ *
+ * Ce fichier ne fait que le démarrage (session, .env, gestion d'erreurs) et
+ * les deux routes qui dispatchent vers ces dossiers par convention.
+ */
+
 require __DIR__ . '/../vendor/autoload.php';
 
 use Engine\Database\Database;
