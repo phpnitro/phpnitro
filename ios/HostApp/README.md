@@ -8,11 +8,15 @@ seulement ses tests unitaires. C'est ce qui a permis de trouver et vérifier
 le correctif de `NativeCanvasView.swift` (icônes invisibles au tout premier
 rendu — voir son historique git).
 
-Pointe vers `NativeScreenViewController(host:port:screen:)` :
-lance `php bin/phpx serve 8090` à la racine du monorepo avant de builder.
-`AppDelegate.swift` lit deux arguments de lancement optionnels :
-`-screen <nom>` (écran PHP initial, défaut `"home"`) et `-host <ip>`
-(défaut `"127.0.0.1"`).
+Sert son propre `public/index.php` bundlé (staged par `phpx bundle:ios`,
+voir `PhpEmbedRuntime`/`EmbeddedScreenDataSource`) via `NativeScreenViewController(embeddedScreen:)`
+— PHP tourne en process, aucun `phpx serve` requis. `AppDelegate.swift`
+lit deux arguments de lancement optionnels : `-screen <nom>` (écran PHP
+initial, défaut `"home"`) et `-host <ip>` — passer `-host` bascule sur
+l'ancien chemin réseau (`NativeScreenViewController(host:port:screen:)`)
+pour comparer contre un vrai `phpx serve 8090` tournant sur cette IP,
+utile pour un test A/B réseau-vs-embarqué mais plus le chemin par
+défaut.
 
 ```bash
 xcodegen generate   # régénère HostApp.xcodeproj depuis project.yml si besoin
