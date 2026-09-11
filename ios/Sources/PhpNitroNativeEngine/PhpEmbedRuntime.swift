@@ -1,4 +1,5 @@
 import CPhpEmbed
+import Foundation
 
 /// The Swift face of CPhpEmbed's phpx_embed_* C shim — the first real,
 /// working piece of on-device PHP for iOS in this repo (see
@@ -20,6 +21,17 @@ import CPhpEmbed
 /// header already documents — start() must be called exactly once
 /// before any eval(_:), and shutdown() at most once after.
 public final class PhpEmbedRuntime {
+    /// The app's own public/ + lib/ + packages/*/src + vendor/, staged by
+    /// `phpx bundle:ios` (see Package.swift's own `.copy("Resources/www")`
+    /// rule) — `Bundle.module` only resolves to the right bundle from
+    /// code that actually lives IN the PhpNitroNativeEngine target itself
+    /// (a test target or app target gets its OWN `Bundle.module`/
+    /// `Bundle.main`), which is the whole reason this lives here instead
+    /// of being computed at each call site.
+    public static var wwwDirectoryURL: URL? {
+        Bundle.module.url(forResource: "www", withExtension: nil)
+    }
+
     public init() {}
 
     public func start() {
