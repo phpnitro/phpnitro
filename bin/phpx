@@ -2237,76 +2237,88 @@ function latestMtime(array $dirs): int
  * detectRunTargets()'s own comment on why macOS/Windows aren't offered
  * here yet even when their folders exist).
  */
+/**
+ * Flutter-style: one flat list across every platform this machine can
+ * currently reach — not one entry per PLATFORM (that older design
+ * needed its own separate "which Android device" sub-prompt once
+ * `phpx run` learned to see more than one at a time, see
+ * listConnectedAndroidDevices()'s own docblock). Exactly one device
+ * total, of any kind, launches immediately with no prompt at all —
+ * only ever asks when there's a real choice to make.
+ */
 function cmdRun(): void
 {
-    $targets = detectRunTargets();
-    if ($targets === []) {
+    $devices = detectRunDevices();
+    if ($devices === []) {
         phpxFail(
             "aucune cible de lancement détectée.\n" .
             "  - Android : connecte un device ou lance un émulateur (adb devices doit en montrer au moins un), puis relance.\n" .
+            "  - iOS : connecte un iPhone/iPad, ou démarre un Simulator (xcrun simctl boot ...), puis relance. macOS uniquement.\n" .
+            "  - macOS desktop : lance directement depuis une machine Mac.\n" .
             "  - Linux desktop : ce projet doit avoir été scaffoldé avec `phpx new --all` (dossier linux/ présent) et tourner sur une machine Linux avec un affichage réel.\n" .
-            "macOS/Windows desktop ne sont pas encore branchés à `run` — aucun des deux n'a jamais tourné une seule fois sur cette plateforme, voir leur propre README.md."
+            "Windows desktop n'est pas encore branché à `run` — jamais lancé interactivement sur cette plateforme, voir son propre README.md."
         );
     }
 
-    $target = count($targets) === 1 ? $targets[0] : promptForRunTarget($targets);
+    $device = count($devices) === 1 ? $devices[0] : promptForRunTarget($devices);
 
-    if ($target['type'] === 'android') {
-        selectAndroidDeviceIfAmbiguous();
-    }
-
-    match ($target['type']) {
-        'android' => runOnAndroid(),
+    match ($device['type']) {
+        'android' => runOnAndroid($device['serial']),
+        'ios-simulator' => runOnIosSimulator($device['udid'], $device['label']),
+        'ios-device' => runOnIosDevice($device['udid'], $device['label']),
+        'macos' => runOnMacos(),
         'linux' => runOnLinuxDesktop(),
     };
 }
 
 /**
- * Only offers what's actually been run for real at least once — Android
- * (production use, real-device tests all session) and Linux desktop (99
- * real tests, GTK4 confirmed constructible/exercisable without a
- * display, but the actual window has never been opened on a real
- * screen). macOS has never compiled on a real Mac; Windows has never
- * been launched interactively even once (CI only ever runs `dotnet
- * build`, never the app) — deliberately NOT offered here yet rather
- * than guessing a launch command for a target nobody has verified even
- * starts.
+ * Only offers what's actually been run for real at least once —
+ * Android (production use, real-device tests all session), iOS
+ * (physical iPhone + Simulator, see ios/vendor/php/README.md and this
+ * session's own PR history), macOS (PhpNitroMacApp, first real run
+ * documented in macos/README.md), and Linux desktop (99 real tests,
+ * GTK4 confirmed constructible/exercisable without a display, but the
+ * actual window has never been opened on a real screen). Windows has
+ * never been launched interactively even once (CI only ever runs
+ * `dotnet build`, never the app) — deliberately NOT offered here yet
+ * rather than guessing a launch command for a target nobody has
+ * verified even starts.
+ *
+ * @return list<array{type: string, label: string, serial?: string, udid?: string}>
  */
-function detectRunTargets(): array
+function detectRunDevices(): array
 {
-    $targets = [];
+    $devices = [];
 
-    if (resolveAdb() !== '' && hasConnectedAndroidDevice()) {
-        $targets[] = ['type' => 'android', 'label' => 'Android (device/émulateur connecté)'];
-    }
-
-    if (PHP_OS_FAMILY === 'Linux' && is_dir(PHPX_ROOT . '/linux')) {
-        $targets[] = ['type' => 'linux', 'label' => 'Linux desktop (' . PHPX_ROOT . '/linux)'];
-    }
-
-    return $targets;
-}
-
-function hasConnectedAndroidDevice(): bool
-{
-    $output = shell_exec('adb devices 2>/dev/null');
-    if ($output === null) {
-        return false;
-    }
-    foreach (explode("\n", trim($output)) as $line) {
-        if (preg_match('/\tdevice$/', trim($line)) === 1) {
-            return true;
+    if (resolveAdb() !== '') {
+        foreach (listConnectedAndroidDevices() as $android) {
+            $devices[] = ['type' => 'android', 'label' => "Android — {$android['label']}", 'serial' => $android['serial']];
         }
     }
 
-    return false;
+    if (PHP_OS_FAMILY === 'Darwin') {
+        foreach (listConnectedIosDevices() as $ios) {
+            $devices[] = ['type' => 'ios-device', 'label' => "iOS — {$ios['label']}", 'udid' => $ios['udid']];
+        }
+        foreach (listBootedIosSimulators() as $sim) {
+            $devices[] = ['type' => 'ios-simulator', 'label' => "iOS Simulator — {$sim['label']}", 'udid' => $sim['udid']];
+        }
+        if (is_dir(PHPX_ROOT . '/macos')) {
+            $devices[] = ['type' => 'macos', 'label' => 'macOS (cette machine)'];
+        }
+    }
+
+    if (PHP_OS_FAMILY === 'Linux' && is_dir(PHPX_ROOT . '/linux')) {
+        $devices[] = ['type' => 'linux', 'label' => 'Linux desktop (' . PHPX_ROOT . '/linux)'];
+    }
+
+    return $devices;
 }
 
 /**
- * `adb devices -l` (not the plain form `hasConnectedAndroidDevice()`
- * above uses) for the `model:`/`device:` fields — a bare serial number
- * means nothing to a human picking between, say, a physical phone and
- * an emulator both plugged in at once.
+ * `adb devices -l` for the `model:`/`device:` fields — a bare serial
+ * number means nothing to a human picking between, say, a physical
+ * phone and an emulator both plugged in at once.
  *
  * @return list<array{serial: string, label: string}>
  */
@@ -2335,40 +2347,68 @@ function listConnectedAndroidDevices(): array
 }
 
 /**
- * `phpx run`'s own device picker was requested after a user asked why
- * it never let them choose between devices — until now, every `adb`
- * call in `runOnAndroid()`/`cmdDevPush()` has no `-s <serial>` at all,
- * so a plain `adb` command with more than one device connected (a
- * well-documented, standard adb behavior, not something specific to
- * this project) refuses to guess and fails outright
- * ("error: more than one device/emulator") with no prompt ever telling
- * the user that's even the problem. Rather than thread a serial through
- * every one of `runOnAndroid()`'s/`cmdDevPush()`'s many individual
- * `adb ...` calls, this sets the standard `ANDROID_SERIAL` environment
- * variable instead — every `adb` invocation already honors it
- * automatically as its own implicit `-s`, so nothing else in this file
- * needs to change. A no-op when 0 or 1 device is connected (0 is
- * `cmdRun()`'s own "no target" error to report, already handled before
- * this is ever called; 1 is unambiguous, nothing to choose).
+ * `xcrun xctrace list devices` — real, connected iOS/iPadOS hardware
+ * only, under its own `== Devices ==` header. That header ALSO lists
+ * this very Mac itself (e.g. "MacBook Pro (<UDID>)") — a real device
+ * gets a SECOND parenthesized group, the OS version
+ * ("iPhone (26.2) (<UDID>)"), the host machine's own entry never does,
+ * which is what the regex below actually keys on rather than
+ * name-matching "Mac"/"MacBook" (fragile — would also wrongly exclude
+ * a real device someone literally named "MacBook" in Settings > General
+ * > About > Name).
+ *
+ * @return list<array{udid: string, label: string}>
  */
-function selectAndroidDeviceIfAmbiguous(): void
+function listConnectedIosDevices(): array
 {
-    $devices = listConnectedAndroidDevices();
-    if (count($devices) <= 1) {
-        return;
+    $output = shell_exec('xcrun xctrace list devices 2>/dev/null');
+    if ($output === null) {
+        return [];
     }
 
-    echo "Plusieurs devices Android connectés :\n";
-    foreach ($devices as $index => $device) {
-        echo '  [' . ($index + 1) . "] {$device['label']}\n";
-    }
-    echo 'Choix (1-' . count($devices) . ') : ';
-    $choice = (int) trim((string) fgets(STDIN));
-    if ($choice < 1 || $choice > count($devices)) {
-        phpxFail('choix invalide.');
+    if (!preg_match('/== Devices ==\n(.*?)\n\n== Simulators ==/s', $output, $section)) {
+        return [];
     }
 
-    putenv('ANDROID_SERIAL=' . $devices[$choice - 1]['serial']);
+    $devices = [];
+    foreach (explode("\n", trim($section[1])) as $line) {
+        if (!preg_match('/^(.+) \(([\d.]+)\) \(([0-9A-Fa-f-]{8,40})\)\s*$/', trim($line), $matches)) {
+            continue;
+        }
+        [, $name, $osVersion, $udid] = $matches;
+        $devices[] = ['udid' => $udid, 'label' => "{$name} ({$osVersion}, {$udid})"];
+    }
+
+    return $devices;
+}
+
+/**
+ * `xcrun simctl list devices booted` — only ALREADY-RUNNING simulators,
+ * same "connected" spirit `listConnectedAndroidDevices()` already has
+ * (a stopped simulator that could theoretically be booted isn't
+ * "connected" any more than an Android device sitting in a drawer is).
+ * A user who wants a specific, not-yet-running simulator boots it
+ * themselves first (`xcrun simctl boot <name-or-udid>`) — `phpx run`
+ * doesn't guess which one to boot out of dozens of installed runtimes.
+ *
+ * @return list<array{udid: string, label: string}>
+ */
+function listBootedIosSimulators(): array
+{
+    $output = shell_exec('xcrun simctl list devices booted 2>/dev/null');
+    if ($output === null) {
+        return [];
+    }
+
+    $devices = [];
+    foreach (explode("\n", $output) as $line) {
+        if (!preg_match('/^\s+(.+) \(([0-9A-Fa-f-]{8,40})\) \(Booted\)\s*$/', $line, $matches)) {
+            continue;
+        }
+        $devices[] = ['udid' => $matches[2], 'label' => "{$matches[1]} ({$matches[2]})"];
+    }
+
+    return $devices;
 }
 
 function promptForRunTarget(array $targets): array
@@ -2412,8 +2452,17 @@ function promptForRunTarget(array $targets): array
  * own (Ctrl+C to stop), same as `flutter run` staying attached for hot
  * reload.
  */
-function runOnAndroid(): void
+function runOnAndroid(string $serial): void
 {
+    // Every `adb` call in this function and in cmdDevPush() below reads
+    // this automatically as its own implicit `-s <serial>` — the
+    // standard adb environment variable, not something this project
+    // invented — so nothing else needs a serial threaded through it.
+    // `cmdRun()`'s own device already carries this exact serial (picked
+    // from `listConnectedAndroidDevices()`, real hardware if more than
+    // one Android target is connected at once).
+    putenv("ANDROID_SERIAL={$serial}");
+
     $pkg = readApplicationId();
     if (!isAndroidAppInstalled($pkg)) {
         echo "App non installée sur le device — build + installation (phpx build:android)...\n";
@@ -2446,6 +2495,121 @@ function isAndroidAppInstalled(string $pkg): bool
     $output = shell_exec('adb shell pm list packages ' . escapeshellarg($pkg) . ' 2>/dev/null');
 
     return $output !== null && str_contains($output, "package:{$pkg}");
+}
+
+/**
+ * `xcodebuild build` for HostApp against the given `-destination`, then
+ * `-showBuildSettings` for that SAME destination to find where the
+ * resulting .app actually landed — DerivedData's own path includes a
+ * hash suffix xcodebuild picks per-checkout, nothing this script could
+ * predict or glob for reliably, so this asks xcodebuild directly
+ * instead of guessing. `phpx bundle:ios` first: Package.swift's own
+ * `.copy("Resources/www")` rule makes SPM refuse to even resolve the
+ * package graph without it (see ci.yml's own `ios-build` job for the
+ * exact "Invalid Resource 'Resources/www': File not found" this
+ * prevents).
+ */
+function buildIosHostApp(string $destination): string
+{
+    passthruOrFail('php ' . escapeshellarg(PHPX_ROOT . '/bin/phpx') . ' bundle:ios');
+
+    $project = escapeshellarg(PHPX_ROOT . '/ios/HostApp/HostApp.xcodeproj');
+    $destinationArg = escapeshellarg($destination);
+    passthruOrFail("xcodebuild -project {$project} -scheme HostApp -destination {$destinationArg} build");
+
+    $settings = shell_exec("xcodebuild -project {$project} -scheme HostApp -destination {$destinationArg} -showBuildSettings 2>/dev/null");
+    if ($settings === null
+        || !preg_match('/TARGET_BUILD_DIR = (.+)/', $settings, $dirMatch)
+        || !preg_match('/FULL_PRODUCT_NAME = (.+)/', $settings, $nameMatch)
+    ) {
+        phpxFail('impossible de déterminer où xcodebuild a construit HostApp.app.');
+    }
+
+    return trim($dirMatch[1]) . '/' . trim($nameMatch[1]);
+}
+
+/**
+ * Read straight from the just-built .app's own Info.plist rather than
+ * hardcoding "com.phpnitro.hostapp" — a scaffolded project can rename
+ * this (see ios/HostApp/README.md's own PRODUCT_BUNDLE_IDENTIFIER
+ * note), so the built artifact itself is the only source of truth.
+ */
+function iosBundleIdentifier(string $appPath): string
+{
+    $id = trim((string) shell_exec(
+        '/usr/libexec/PlistBuddy -c ' . escapeshellarg('Print :CFBundleIdentifier')
+        . ' ' . escapeshellarg("{$appPath}/Info.plist") . ' 2>/dev/null'
+    ));
+    if ($id === '') {
+        phpxFail("impossible de lire CFBundleIdentifier depuis {$appPath}/Info.plist.");
+    }
+
+    return $id;
+}
+
+function runOnIosSimulator(string $udid, string $label): void
+{
+    echo "Build + lancement sur {$label}...\n";
+    $appPath = buildIosHostApp("platform=iOS Simulator,id={$udid}");
+    passthruOrFail('xcrun simctl install ' . escapeshellarg($udid) . ' ' . escapeshellarg($appPath));
+    passthruOrFail('xcrun simctl launch ' . escapeshellarg($udid) . ' ' . escapeshellarg(iosBundleIdentifier($appPath)));
+}
+
+/**
+ * `devicectl` (not `simctl`) for a real device — Apple's own current
+ * replacement for the old `ios-deploy`/Xcode-9-era workflow, same tool
+ * this session's own manual device testing already used throughout
+ * (see git history: every physical-iPhone verification this whole port
+ * relied on `devicectl device install app` + `... process launch`).
+ */
+function runOnIosDevice(string $udid, string $label): void
+{
+    echo "Build + lancement sur {$label}...\n";
+    $appPath = buildIosHostApp("platform=iOS,id={$udid}");
+    passthruOrFail('xcrun devicectl device install app --device ' . escapeshellarg($udid) . ' ' . escapeshellarg($appPath));
+    passthruOrFail('xcrun devicectl device process launch --device ' . escapeshellarg($udid) . ' ' . escapeshellarg(iosBundleIdentifier($appPath)));
+}
+
+/**
+ * Foreground, Ctrl+C-to-stop, same shape as `runOnLinuxDesktop()`
+ * below — `PhpNitroMacApp` is a real GUI app that stays running until
+ * killed, not a fire-and-forget launch like `simctl launch`/`devicectl
+ * process launch` above (which hand off to iOS/the Simulator's own
+ * process supervisor once the app starts). `swift build` (not `xcodebuild`):
+ * this package's real, primary entry point (`swift run
+ * PhpNitroMacApp <project_dir>`, see macos/README.md) already IS a
+ * plain SPM executable, no .xcodeproj involved for this specific
+ * product.
+ */
+function runOnMacos(): void
+{
+    $macosDir = PHPX_ROOT . '/macos';
+    echo "Build (swift build -c release)...\n";
+    passthruOrFail('cd ' . escapeshellarg($macosDir) . ' && swift build -c release');
+
+    echo "Lancement de PhpNitroMacApp (Ctrl+C pour arrêter)...\n";
+    $binary = "{$macosDir}/.build/release/PhpNitroMacApp";
+    $process = proc_open(
+        [$binary, PHPX_ROOT],
+        [0 => STDIN, 1 => STDOUT, 2 => STDERR],
+        $pipes,
+    );
+    if ($process === false) {
+        phpxFail("impossible de lancer {$binary}.");
+    }
+
+    if (extension_loaded('pcntl')) {
+        pcntl_async_signals(true);
+        $terminate = static function () use ($process): void {
+            proc_terminate($process);
+        };
+        pcntl_signal(SIGINT, $terminate);
+        pcntl_signal(SIGTERM, $terminate);
+    }
+
+    while (proc_get_status($process)['running'] ?? false) {
+        usleep(200_000);
+    }
 }
 
 /**
