@@ -571,6 +571,8 @@ jobs:
           export CFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
           export CXXFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
           export LDFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
+          export SQLITE_CFLAGS="-I$IOS_SDK/usr/include"
+          export SQLITE_LIBS="-L$IOS_SDK/usr/lib -lsqlite3"
           ./configure \
             --host=aarch64-apple-darwin \
             --disable-all \
@@ -578,7 +580,12 @@ jobs:
             --disable-cli \
             --disable-cgi \
             --disable-phpdbg \
-            --enable-embed=static
+            --enable-embed=static \
+            --without-pcre-jit \
+            --enable-session=static \
+            --enable-pdo=static \
+            --with-pdo-sqlite=static \
+            --with-sqlite3=static
 
       - name: make (embed SAPI only)
         working-directory: php-src
@@ -679,7 +686,7 @@ jobs:
             -I. -Imain -IZend -ITSRM -Iinclude \
             -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 \
             libs/libphp.a \
-            -lresolv -liconv -lm
+            -lresolv -liconv -lm -lsqlite3
 
       - name: Run smoke test — expect "hello from embed SAPI" in stdout
         working-directory: php-src
@@ -755,6 +762,8 @@ jobs:
           export CFLAGS="-isysroot $SIM_SDK -mios-simulator-version-min=15.0"
           export CXXFLAGS="-isysroot $SIM_SDK -mios-simulator-version-min=15.0"
           export LDFLAGS="-isysroot $SIM_SDK -mios-simulator-version-min=15.0"
+          export SQLITE_CFLAGS="-I$SIM_SDK/usr/include"
+          export SQLITE_LIBS="-L$SIM_SDK/usr/lib -lsqlite3"
           ./configure \
             --host=aarch64-apple-darwin \
             --disable-all \
@@ -762,7 +771,12 @@ jobs:
             --disable-cli \
             --disable-cgi \
             --disable-phpdbg \
-            --enable-embed=static
+            --enable-embed=static \
+            --without-pcre-jit \
+            --enable-session=static \
+            --enable-pdo=static \
+            --with-pdo-sqlite=static \
+            --with-sqlite3=static
 
       - name: make
         working-directory: php-src
@@ -797,7 +811,7 @@ jobs:
             -I. -Imain -IZend -ITSRM -Iinclude \
             -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 \
             libs/libphp.a \
-            -lresolv -liconv -lm
+            -lresolv -liconv -lm -lsqlite3
 
       # Two real runs of this job corrected the original plan here: a
       # first attempt tried running the binary directly from the shell
@@ -884,6 +898,8 @@ jobs:
           export CFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
           export CXXFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
           export LDFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
+          export SQLITE_CFLAGS="-I$IOS_SDK/usr/include"
+          export SQLITE_LIBS="-L$IOS_SDK/usr/lib -lsqlite3"
           ./configure \
             --host=aarch64-apple-darwin \
             --disable-all \
@@ -891,7 +907,12 @@ jobs:
             --disable-cli \
             --disable-cgi \
             --disable-phpdbg \
-            --enable-embed=static
+            --enable-embed=static \
+            --without-pcre-jit \
+            --enable-session=static \
+            --enable-pdo=static \
+            --with-pdo-sqlite=static \
+            --with-sqlite3=static
 
       - name: make
         working-directory: php-src
@@ -929,7 +950,7 @@ jobs:
             -I. -Imain -IZend -ITSRM -Iinclude \
             -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 \
             libs/libphp.a \
-            -lresolv -liconv -lm
+            -lresolv -liconv -lm -lsqlite3
 
       - name: Confirm a real iOS-device Mach-O binary was produced
         working-directory: php-src
