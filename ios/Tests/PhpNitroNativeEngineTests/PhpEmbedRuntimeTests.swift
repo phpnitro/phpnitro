@@ -34,4 +34,37 @@ final class PhpEmbedRuntimeTests: XCTestCase {
 
         XCTAssertEqual(runtime.eval("$x = 1 + 1;"), "")
     }
+
+    /// The real problem handleRequest(_:) exists to solve: requiring
+    /// the SAME script more than once in one process — exactly what
+    /// serving multiple screen fetches from one embedded PHP runtime
+    /// needs — fails with "Cannot redeclare class" via plain eval(_:),
+    /// since PHP only resets declared-symbol tracking at a request
+    /// boundary. Written to a real temp file (not inline PHP) because
+    /// the failure mode this guards against is specifically about
+    /// `require`, which plain `eval`-style code sharing a process never
+    /// exercises the same way.
+    func testHandleRequestAllowsRequiringTheSameScriptTwice() throws {
+        let scriptURL = FileManager.default.temporaryDirectory.appendingPathComponent("phpx_embed_test_script.php")
+        let script = """
+        <?php
+        class Greeter {
+            public static function hello(string $name): string {
+                return "Hello, {$name}!";
+            }
+        }
+        echo Greeter::hello($_GET['name'] ?? 'world');
+        """
+        try script.write(to: scriptURL, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: scriptURL) }
+
+        let runtime = PhpEmbedRuntime()
+        runtime.start()
+        defer { runtime.shutdown() }
+
+        let requirePhp = "require '\(scriptURL.path)';"
+        XCTAssertEqual(runtime.handleRequest("$_GET['name'] = 'Alice'; \(requirePhp)"), "Hello, Alice!")
+        XCTAssertEqual(runtime.handleRequest("$_GET['name'] = 'Bob'; \(requirePhp)"), "Hello, Bob!")
+        XCTAssertEqual(runtime.handleRequest("$_GET['name'] = 'Carol'; \(requirePhp)"), "Hello, Carol!")
+    }
 }

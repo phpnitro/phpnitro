@@ -37,6 +37,20 @@ public final class PhpEmbedRuntime {
         return String(cString: cString)
     }
 
+    /// Like eval(_:), but usable more than once per app launch — see
+    /// CPhpEmbed's own phpx_embed_handle_request() docblock for why a
+    /// plain eval(_:) can't just be called again for a second "screen
+    /// fetch": PHP only resets declared classes/functions/included
+    /// files at a request boundary, not for free between two
+    /// zend_eval_string() calls in the same process.
+    public func handleRequest(_ phpCode: String) -> String? {
+        guard let cString = phpx_embed_handle_request(phpCode) else {
+            return nil
+        }
+        defer { phpx_embed_free_string(cString) }
+        return String(cString: cString)
+    }
+
     public func shutdown() {
         phpx_embed_shutdown()
     }
