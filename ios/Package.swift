@@ -113,7 +113,21 @@ let package = Package(
             resources: [
                 .copy("Resources/MaterialIcons-Regular.ttf"),
                 .copy("Resources/FontAwesome-Solid.ttf"),
-                .copy("Resources/Roboto-Regular.ttf")
+                .copy("Resources/Roboto-Regular.ttf"),
+                // public/ + lib/ + packages/*/src + composer.json +
+                // vendor/, staged by `phpx bundle:ios` (never committed —
+                // see .gitignore, same "regenerated at build time"
+                // convention android/README.md's own assets/www already
+                // documents). Whole-directory `.copy` (not `.process`,
+                // same reasoning as the fonts above): these need to reach
+                // Bundle.module byte-for-byte, PHP source untouched by
+                // any resource pipeline. Must exist before `swift build`/
+                // `xcodebuild` even starts resolving this package — SPM
+                // validates every resource path up front, so `phpx
+                // bundle:ios` is a hard prerequisite, not an optional
+                // nice-to-have, exactly like `bundle:android` already is
+                // for `gradle assemble` on the other platform.
+                .copy("Resources/www"),
             ]
         ),
         .testTarget(
