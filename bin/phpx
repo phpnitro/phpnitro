@@ -125,6 +125,7 @@ function printPhpxUsage(): void
         'new <directory> [--all]' => 'Crée un nouveau projet (android/ ios/ par défaut, +linux/ macos/ windows/ avec --all)',
         'bundle:android' => "Copie public/ + lib/ + packages/ + .env dans l'app Android",
         'build:android [debug|release]' => 'bundle:android + gradle assemble (installe Gradle si besoin)',
+        'bundle:ios' => "Copie public/ + lib/ + packages/ + .env dans ios/Sources/PhpNitroNativeEngine/Resources/www (PHP embarqué)",
         'dev:push [--watch]' => "Pousse le PHP directement sur un device connecté, sans rebuild",
         'run' => "Détecte une cible disponible (device Android, desktop Linux) et lance dessus",
         'payments' => 'Liste les moyens de paiement déclarés dans phpnitro.yml',
@@ -1989,6 +1990,61 @@ function cmdBundleAndroid(): void
 }
 
 /**
+ * cmdBundleAndroid()'s iOS counterpart — same staged copy (public/,
+ * lib/pages, lib/backend/src, lib/lang, packages/*\/src, composer.json,
+ * .env as "env", a fresh `composer install --no-dev`), destination is
+ * the one difference: ios/Sources/PhpNitroNativeEngine/Resources/www
+ * instead of an Android assets/ folder, so Package.swift's own
+ * `.copy("Resources/www")` resource rule (see ios/Package.swift) picks
+ * it straight up — no APK-style asset-extraction step needed at
+ * runtime, unlike Android: an iOS app bundle's Resources are already
+ * plain files on a real filesystem path the moment the app launches
+ * (Bundle.module.resourceURL), never a special asset-stream API to
+ * extract from first.
+ */
+function cmdBundleIos(): void
+{
+    syncAssets();
+    syncManifestToEnv();
+
+    $staging = PHPX_ROOT . '/ios/Sources/PhpNitroNativeEngine/Resources/www';
+
+    if (is_dir($staging)) {
+        passthruOrFail('rm -rf ' . escapeshellarg($staging));
+    }
+    mkdir($staging, 0777, true);
+
+    copyDirectory(PHPX_ROOT . '/public', "{$staging}/public", minifyPhp: true);
+    copyDirectory(PHPX_ROOT . '/lib/pages', "{$staging}/lib/pages", minifyPhp: true);
+    copyDirectory(PHPX_ROOT . '/lib/backend/src', "{$staging}/lib/backend/src", minifyPhp: true);
+    if (is_dir(PHPX_ROOT . '/lib/lang')) {
+        copyDirectory(PHPX_ROOT . '/lib/lang', "{$staging}/lib/lang", minifyPhp: false);
+    }
+    foreach (glob(PHPX_ROOT . '/packages/*/src', GLOB_ONLYDIR) ?: [] as $packageSrcDir) {
+        $packageName = basename(dirname($packageSrcDir));
+        copyDirectory($packageSrcDir, "{$staging}/packages/{$packageName}/src", minifyPhp: true);
+    }
+    copy(PHPX_ROOT . '/composer.json', "{$staging}/composer.json");
+
+    // "env" without the dot: not a technical requirement on iOS the way
+    // it is for Android's AAPT (which silently drops hidden files from
+    // assets) — kept anyway so public/index.php's own
+    // `foreach ([__DIR__ . '/../.env', __DIR__ . '/../env'] as $envFile)`
+    // lookup (see that file) finds the exact same second candidate on
+    // both platforms, rather than needing a third iOS-specific path
+    // added there just for this.
+    $env = file_get_contents(PHPX_ROOT . '/.env');
+    file_put_contents($staging . '/env', $env);
+
+    passthruOrFail(
+        'composer install --no-dev --no-interaction --quiet --working-dir=' . escapeshellarg($staging),
+    );
+    passthruOrFail('rm -f ' . escapeshellarg($staging . '/composer.lock'));
+
+    echo "Bundled into {$staging}\n";
+}
+
+/**
  * Reads applicationId straight out of android/app/build.gradle.kts — same
  * "never hardcode what a config file already declares" reasoning as
  * resolveOrInstallAndroidSdk() reading compileSdk from the same file.
@@ -2768,6 +2824,9 @@ switch ($command) {
         break;
     case 'bundle:android':
         cmdBundleAndroid();
+        break;
+    case 'bundle:ios':
+        cmdBundleIos();
         break;
     case 'dev:push':
         cmdDevPush(in_array('--watch', $argv, true));
