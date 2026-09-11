@@ -258,7 +258,24 @@ public final class RustScreenView: NSView {
             return
         }
         guard let image = Self.cgImage(from: frame) else { return }
+
+        // Real bug found the very first time this app ever ran on a
+        // physical Mac: the whole screen rendered upside down (mirrored
+        // top-to-bottom). `isFlipped == true` above makes AppKit set up
+        // this context's CTM so ordinary path/text drawing behaves with
+        // a top-left origin like iOS/Android — but `CGContext.draw(_:in:)`
+        // doesn't participate in that convention at all: it always
+        // treats row 0 of the CGImage as Core Graphics' own native
+        // bottom-left origin, so in an already-flipped context an image
+        // drawn this way comes out inverted. Flipping the transform back
+        // just for this one draw call (then restoring it) is the
+        // standard fix — the tiny-skia buffer's row 0 (its own top row)
+        // ends up at this view's top again.
+        context.saveGState()
+        context.translateBy(x: 0, y: bounds.height)
+        context.scaleBy(x: 1, y: -1)
         context.draw(image, in: bounds)
+        context.restoreGState()
     }
 
     public override func mouseDown(with event: NSEvent) {
