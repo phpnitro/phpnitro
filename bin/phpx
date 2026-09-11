@@ -2251,6 +2251,10 @@ function cmdRun(): void
 
     $target = count($targets) === 1 ? $targets[0] : promptForRunTarget($targets);
 
+    if ($target['type'] === 'android') {
+        selectAndroidDeviceIfAmbiguous();
+    }
+
     match ($target['type']) {
         'android' => runOnAndroid(),
         'linux' => runOnLinuxDesktop(),
@@ -2298,6 +2302,75 @@ function hasConnectedAndroidDevice(): bool
     return false;
 }
 
+/**
+ * `adb devices -l` (not the plain form `hasConnectedAndroidDevice()`
+ * above uses) for the `model:`/`device:` fields — a bare serial number
+ * means nothing to a human picking between, say, a physical phone and
+ * an emulator both plugged in at once.
+ *
+ * @return list<array{serial: string, label: string}>
+ */
+function listConnectedAndroidDevices(): array
+{
+    $output = shell_exec('adb devices -l 2>/dev/null');
+    if ($output === null) {
+        return [];
+    }
+
+    $devices = [];
+    foreach (explode("\n", trim($output)) as $line) {
+        $line = trim($line);
+        if (!preg_match('/^(\S+)\s+device\s+(.*)$/', $line, $matches)) {
+            continue;
+        }
+        $serial = $matches[1];
+        $model = null;
+        if (preg_match('/model:(\S+)/', $matches[2], $modelMatch)) {
+            $model = str_replace('_', ' ', $modelMatch[1]);
+        }
+        $devices[] = ['serial' => $serial, 'label' => $model !== null ? "{$model} ({$serial})" : $serial];
+    }
+
+    return $devices;
+}
+
+/**
+ * `phpx run`'s own device picker was requested after a user asked why
+ * it never let them choose between devices — until now, every `adb`
+ * call in `runOnAndroid()`/`cmdDevPush()` has no `-s <serial>` at all,
+ * so a plain `adb` command with more than one device connected (a
+ * well-documented, standard adb behavior, not something specific to
+ * this project) refuses to guess and fails outright
+ * ("error: more than one device/emulator") with no prompt ever telling
+ * the user that's even the problem. Rather than thread a serial through
+ * every one of `runOnAndroid()`'s/`cmdDevPush()`'s many individual
+ * `adb ...` calls, this sets the standard `ANDROID_SERIAL` environment
+ * variable instead — every `adb` invocation already honors it
+ * automatically as its own implicit `-s`, so nothing else in this file
+ * needs to change. A no-op when 0 or 1 device is connected (0 is
+ * `cmdRun()`'s own "no target" error to report, already handled before
+ * this is ever called; 1 is unambiguous, nothing to choose).
+ */
+function selectAndroidDeviceIfAmbiguous(): void
+{
+    $devices = listConnectedAndroidDevices();
+    if (count($devices) <= 1) {
+        return;
+    }
+
+    echo "Plusieurs devices Android connectés :\n";
+    foreach ($devices as $index => $device) {
+        echo '  [' . ($index + 1) . "] {$device['label']}\n";
+    }
+    echo 'Choix (1-' . count($devices) . ') : ';
+    $choice = (int) trim((string) fgets(STDIN));
+    if ($choice < 1 || $choice > count($devices)) {
+        phpxFail('choix invalide.');
+    }
+
+    putenv('ANDROID_SERIAL=' . $devices[$choice - 1]['serial']);
+}
+
 function promptForRunTarget(array $targets): array
 {
     echo "Plusieurs cibles disponibles :\n";
@@ -2316,13 +2389,25 @@ function promptForRunTarget(array $targets): array
 /**
  * build:android + install only when the app isn't already on the
  * device — same "don't redo expensive work that's still valid" spirit
- * as stageForDevPush()'s own composer-install skip. Launches via
- * `monkey -c android.intent.category.LAUNCHER` rather than a hardcoded
- * activity/alias name — this project's own dynamic-icon mechanism
+ * as stageForDevPush()'s own composer-install skip.
+ *
+ * Launches via `cmd package resolve-activity` + `am start -n
+ * <resolved component>`, NOT `monkey -c android.intent.category.LAUNCHER`
+ * (a real, reproduced bug: on a real Android 15/API 35 emulator image,
+ * `adb shell monkey --help` itself throws a raw
+ * `java.lang.ArrayIndexOutOfBoundsException` — this specific `monkey`
+ * binary is simply broken on that image, confirmed the hard way, not a
+ * multi-device ambiguity or a stale-component-state issue). `am start
+ * -p <pkg>` (package-only, no explicit component) was tried as the
+ * obvious `am`-based replacement and ALSO failed ("unable to resolve
+ * Intent") on the very same device even with the intended launcher
+ * alias still enabled — `resolve-activity` doesn't share that
+ * ambiguity. Resolving first keeps the exact property `monkey` was
+ * originally chosen for: this project's own dynamic-icon mechanism
  * (AndroidManifest.xml's DynamicIconDefault/DynamicIconAlt) means
  * whichever alias is CURRENTLY enabled is the real launch target, not
- * necessarily the one this scaffold shipped with; `monkey` resolves
- * that live, the exact same way tapping the home-screen icon would.
+ * necessarily the one this scaffold shipped with — `resolve-activity`
+ * finds that live, the same way tapping the home-screen icon would.
  * Ends in cmdDevPush(true) — once launched, this never returns on its
  * own (Ctrl+C to stop), same as `flutter run` staying attached for hot
  * reload.
@@ -2338,7 +2423,20 @@ function runOnAndroid(): void
     }
 
     echo "Lancement...\n";
-    passthruOrFail('adb shell monkey -p ' . escapeshellarg($pkg) . ' -c android.intent.category.LAUNCHER 1 > /dev/null');
+    $resolved = trim((string) shell_exec(
+        'adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN'
+        . ' -c android.intent.category.LAUNCHER ' . escapeshellarg($pkg) . ' 2>/dev/null'
+    ));
+    // resolve-activity's own --brief output is two lines: a flags/match
+    // summary line, then the actual "pkg/.Component" line this needs —
+    // always the LAST one, confirmed against a real device's real
+    // output rather than assumed from the (undocumented) command's name.
+    $lines = explode("\n", $resolved);
+    $component = trim((string) end($lines));
+    if ($component === '' || !str_contains($component, '/')) {
+        phpxFail("impossible de résoudre l'activité de lancement pour {$pkg} — l'app est-elle bien installée ?");
+    }
+    passthruOrFail('adb shell am start -n ' . escapeshellarg($component) . ' > /dev/null');
 
     cmdDevPush(true);
 }
