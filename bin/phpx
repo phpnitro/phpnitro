@@ -1779,6 +1779,15 @@ function resetPagesForNewProject(string $targetDir): void
     }
     file_put_contents("{$targetDir}/lib/backend/src/Kernel.php", minimalKernelTemplate());
 
+    // lib/lang/{fr,en}.php hold this demo's own translation keys
+    // (login.*, register.*, home.documents_title...) for screens just
+    // deleted above — none of them are read by anything a fresh scaffold
+    // ships (NativeHomeScreen.php/pageTemplate() write their strings
+    // inline, not through Translator::t() yet), so left as-is they're
+    // pure dead weight a new dev has no reason to see.
+    file_put_contents("{$targetDir}/lib/lang/fr.php", minimalLangTemplate());
+    file_put_contents("{$targetDir}/lib/lang/en.php", minimalLangTemplate());
+
     // assets/audio/beep.wav only exists for NativeWidgetsMediaScreen.php's
     // AudioPlayer demo, just deleted above along with every other demo
     // screen — assets/README.md (the actual generic guidance) stays.
@@ -1841,6 +1850,28 @@ function minimalKernelTemplate(): string
             return (new $controllers[$key]())->handle($request);
         }
     }
+
+    PHP;
+}
+
+/**
+ * lib/lang/{fr,en}.php — same "no demo content to inherit" treatment as
+ * Kernel.php just above. Both locale files get this identical stub:
+ * fr.php is the one Translator::t() falls back to for a missing key in
+ * any other locale, so it's the one that must never be empty of intent —
+ * this docblock is that intent until a real key gets added.
+ */
+function minimalLangTemplate(): string
+{
+    return <<<'PHP'
+    <?php
+
+    // Translator::t('some.key') looks it up here first; fr.php specifically
+    // is also the last-resort fallback for any OTHER locale file missing a
+    // key (there's nothing beneath it to fall back to further). Add keys as
+    // your own screens need them — nothing reads this file until you do.
+    return [
+    ];
 
     PHP;
 }
