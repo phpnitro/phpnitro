@@ -2036,8 +2036,24 @@ function cmdBundleIos(): void
     $env = file_get_contents(PHPX_ROOT . '/.env');
     file_put_contents($staging . '/env', $env);
 
+    // --ignore-platform-req=php: this project's own composer.json only
+    // requires PHP >=8.1, but the LATEST installable versions of
+    // symfony/dotenv and symfony/http-foundation (both used directly by
+    // public/index.php) declare >=8.4.1 — a constraint about what PHP
+    // is running `composer install` right now (this machine's system
+    // PHP, likely much newer), completely unrelated to what will
+    // actually RUN this code: the embedded libphp.xcframework is PHP
+    // 8.3.15 (see ios/vendor/php/README.md). Without this flag,
+    // Composer's own generated vendor/composer/platform_check.php
+    // throws a RuntimeException the instant public/index.php requires
+    // vendor/autoload.php, confirmed by hand the first time this ran —
+    // real error, not a guess. Verified after adding this flag: the
+    // real public/index.php (screen=home) requires/runs/produces valid
+    // JSON end-to-end against the embedded 8.3.15 interpreter, so
+    // Symfony's own >=8.4.1 floor is conservative here, not code that
+    // actually needs 8.4-only syntax to parse or run.
     passthruOrFail(
-        'composer install --no-dev --no-interaction --quiet --working-dir=' . escapeshellarg($staging),
+        'composer install --no-dev --no-interaction --quiet --ignore-platform-req=php --working-dir=' . escapeshellarg($staging),
     );
     passthruOrFail('rm -f ' . escapeshellarg($staging . '/composer.lock'));
 
