@@ -67,4 +67,43 @@ final class PhpEmbedRuntimeTests: XCTestCase {
         XCTAssertEqual(runtime.handleRequest("$_GET['name'] = 'Bob'; \(requirePhp)"), "Hello, Bob!")
         XCTAssertEqual(runtime.handleRequest("$_GET['name'] = 'Carol'; \(requirePhp)"), "Hello, Carol!")
     }
+
+    /// The actual point of all of this: not a toy script, but this
+    /// app's own real public/index.php (staged by `phpx bundle:ios`,
+    /// see Package.swift's own `.copy("Resources/www")`), hit the exact
+    /// same way NativeScreenViewController's network client currently
+    /// does — REQUEST_URI = /native/layout-demo, $_GET = screen/width/
+    /// height/etc — producing the exact same JSON draw-command payload
+    /// a real `phpx serve` round-trip would. If `phpx bundle:ios`
+    /// hasn't been run, wwwDirectoryURL is nil and this test is skipped
+    /// rather than failing the whole suite for an environment gap
+    /// unrelated to a real code regression — this project's own
+    /// android-build CI job has the same "bundle first" prerequisite,
+    /// just enforced by SPM's own resource-path validation instead of
+    /// a runtime skip there.
+    func testHandleRequestServesTheRealHomeScreenAsJson() throws {
+        guard let wwwURL = PhpEmbedRuntime.wwwDirectoryURL else {
+            throw XCTSkip("Resources/www not staged — run `php bin/phpx bundle:ios` first")
+        }
+        let indexPath = wwwURL.appendingPathComponent("public/index.php").path
+
+        let runtime = PhpEmbedRuntime()
+        runtime.start()
+        defer { runtime.shutdown() }
+
+        let requestPhp = """
+        $_SERVER['REQUEST_URI'] = '/native/layout-demo?screen=home&width=390&height=844';
+        $_GET = ['screen' => 'home', 'width' => '390', 'height' => '844'];
+        require '\(indexPath)';
+        """
+        guard let output = runtime.handleRequest(requestPhp) else {
+            XCTFail("handleRequest returned nil — index.php raised an uncaught exception")
+            return
+        }
+
+        let json = try XCTUnwrap(output.data(using: .utf8))
+        let decoded = try JSONSerialization.jsonObject(with: json) as? [String: Any]
+        XCTAssertNotNil(decoded, "expected valid JSON, got: \(output.prefix(500))")
+        XCTAssertNil(decoded?["error"], "expected a real draw-command payload, got an error: \(output.prefix(500))")
+    }
 }
