@@ -255,6 +255,24 @@ jobs:
         working-directory: ios
     steps:
       - uses: actions/checkout@v4
+      # Package.swift's own `.copy("Resources/www")` rule (PhpNitroNativeEngine
+      # target) makes SPM validate that path exists the moment it resolves
+      # the package GRAPH — which happens for every scheme in this package,
+      # not just PhpNitroNativeEngine's own, so even the unrelated
+      # PhpNitroWebViewBridge build below needs it staged first. Missed
+      # for a while (a real "Invalid Resource 'Resources/www': File not
+      # found" failure on this exact step, on a PR unrelated to iOS
+      # bundling, is what surfaced it) — `phpx bundle:ios` is the same
+      # hard prerequisite `bundle:android` already is for the Android job.
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, pdo_sqlite
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+        working-directory: .
+      - run: php bin/phpx bundle:ios
+        working-directory: .
       # rust/phpnitro-render cross-compiled for the iOS SIMULATOR target
       # (aarch64-apple-ios-sim — this runner is Apple Silicon, so its
       # simulator runs the arm64 slice, not x86_64; see ios/Package.swift's
