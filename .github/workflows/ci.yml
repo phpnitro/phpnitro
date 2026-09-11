@@ -520,6 +520,29 @@ jobs:
           brew install bison re2c
           echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
 
+      # This project's own 3rd real run of this job proved a plain
+      # `ac_cv_func_posix_spawn_file_actions_addchdir_np=no` env override
+      # (tried in an earlier commit) does NOT work here: PHP's own
+      # PHP_CHECK_FUNC autoconf macro (build/php.m4) explicitly runs
+      # `unset ac_cv_func_$1` before checking, deliberately discarding
+      # any pre-seeded cache value — unlike a plain standard-autoconf
+      # AC_CHECK_FUNCS, which does honor one. Confirmed straight from
+      # that macro's own source, not guessed a second time. Since the
+      # cache-variable escape hatch is closed off on purpose, the actual
+      # fix has to remove ext/standard/config.m4's own
+      # `PHP_CHECK_FUNC(posix_spawn_file_actions_addchdir_np)` call
+      # entirely — one line, applied here (not vendored as a permanent
+      # source patch, since nothing else in this job keeps php-src
+      # checked out between runs) — so the symbol is never even probed,
+      # and proc_open.c's own already-portable fork()+exec() fallback
+      # compiles instead (the same path taken on any platform where
+      # posix_spawn_file_actions_addchdir_np plain doesn't exist at all).
+      - name: Patch config.m4 — skip posix_spawn_file_actions_addchdir_np probe (unavailable on iOS)
+        working-directory: php-src
+        run: |
+          sed -i '' '/PHP_CHECK_FUNC(posix_spawn_file_actions_addchdir_np)/d' ext/standard/config.m4
+          grep -c "posix_spawn_file_actions_addchdir_np" ext/standard/config.m4 || echo "line removed, 0 occurrences left"
+
       - name: buildconf (generate ./configure)
         working-directory: php-src
         run: |
@@ -541,23 +564,6 @@ jobs:
       # the real CI log is the point, not a guess about what it'll say.
       - name: configure (cross-compile for iOS device, arm64)
         working-directory: php-src
-        # ac_cv_func_posix_spawn_file_actions_addchdir_np=no: this
-        # project's own first real run of this job got past ./configure
-        # cleanly (bison/re2c fix worked) but then failed IN make, at
-        # ext/standard/proc_open.c: "'posix_spawn_file_actions_addchdir_np'
-        # is unavailable: not available on iOS". Root cause confirmed by
-        # reading php-src's own proc_open.c: configure's AC_CHECK_FUNCS
-        # only checks that the symbol is DECLARED (it links a prototype,
-        # never executes anything a cross-compile couldn't run anyway) —
-        # it has no way to know the iOS SDK header marks that same
-        # declared symbol unavailable for this deployment target, so it
-        # wrongly detects HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR_NP as
-        # available. Pre-seeding the autoconf cache variable a plain
-        # AC_CHECK_FUNCS(posix_spawn_file_actions_addchdir_np) sets
-        # (ac_cv_func_<name>) is the standard, no-source-patch way to
-        # override one specific cross-compile misdetection like this —
-        # it falls back to proc_open.c's own portable fork()+exec() path
-        # instead, which needs no iOS-unavailable API at all.
         run: |
           export IOS_SDK=$(xcrun --sdk iphoneos --show-sdk-path)
           export CC="xcrun -sdk iphoneos clang -arch arm64"
@@ -565,7 +571,6 @@ jobs:
           export CFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
           export CXXFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
           export LDFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
-          export ac_cv_func_posix_spawn_file_actions_addchdir_np=no
           ./configure \
             --host=aarch64-apple-darwin \
             --disable-all \
