@@ -18,6 +18,7 @@
 		B2A8BD13FFDFBC063273B0CA /* GoConnectTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E1BF367FD444B6CCC067658 /* GoConnectTests.swift */; };
 		BEAFC379C9A83362EC84FB8D /* DeviceBatch4Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F3B61D3203F3FD5EEDA404 /* DeviceBatch4Tests.swift */; };
 		DC1E17B648E691F24F63DA94 /* DeviceBatch5Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191957D0CBAB4E64DFE3B54C /* DeviceBatch5Tests.swift */; };
+		882DAF3D8148457D8087E02A /* DrawerToggleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED15A96EE14E420AAB95C47F /* DrawerToggleTests.swift */; };
 		275B0BAA5A0FF5B83A071B31 /* DeviceBatch6Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F701A779847F25C0B57CB4D /* DeviceBatch6Tests.swift */; };
 		E3FF7BB59AE86815633E37F6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 409749CDBBFAB6D81943B688 /* Assets.xcassets */; };
 		E4EE27E758833556B2403203 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E88FE46BCBADF56395B96D03 /* AppDelegate.swift */; };
@@ -44,6 +45,7 @@
 /* Begin PBXFileReference section */
 		0E1BF367FD444B6CCC067658 /* GoConnectTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoConnectTests.swift; sourceTree = "<group>"; };
 		191957D0CBAB4E64DFE3B54C /* DeviceBatch5Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceBatch5Tests.swift; sourceTree = "<group>"; };
+		ED15A96EE14E420AAB95C47F /* DrawerToggleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawerToggleTests.swift; sourceTree = "<group>"; };
 		0F701A779847F25C0B57CB4D /* DeviceBatch6Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceBatch6Tests.swift; sourceTree = "<group>"; };
 		211509AC2089AD9BD91E2B10 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		409749CDBBFAB6D81943B688 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -120,6 +122,7 @@
 				E7B737607D0200AED2C93DE6 /* DeviceBatch3Tests.swift */,
 				74F3B61D3203F3FD5EEDA404 /* DeviceBatch4Tests.swift */,
 				191957D0CBAB4E64DFE3B54C /* DeviceBatch5Tests.swift */,
+				ED15A96EE14E420AAB95C47F /* DrawerToggleTests.swift */,
 				0F701A779847F25C0B57CB4D /* DeviceBatch6Tests.swift */,
 				949C000EBB7BBD97D3B8AB49 /* DeviceVibrateTests.swift */,
 				F17395A4DF2B81A070CAB66B /* NavigationRoundTripTests.swift */,
@@ -344,6 +347,7 @@
 				EB3187D0CD5B40E9B2C00215 /* DeviceBatch3Tests.swift in Sources */,
 				BEAFC379C9A83362EC84FB8D /* DeviceBatch4Tests.swift in Sources */,
 				DC1E17B648E691F24F63DA94 /* DeviceBatch5Tests.swift in Sources */,
+				882DAF3D8148457D8087E02A /* DrawerToggleTests.swift in Sources */,
 				275B0BAA5A0FF5B83A071B31 /* DeviceBatch6Tests.swift in Sources */,
 				3B298E321BB08E36F414E2F9 /* DeviceVibrateTests.swift in Sources */,
 				87118DF82A865D74ACD3CD9E /* NavigationRoundTripTests.swift in Sources */,

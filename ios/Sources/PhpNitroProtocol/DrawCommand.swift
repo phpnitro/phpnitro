@@ -278,10 +278,13 @@ public struct SliderCommand: Decodable {
 }
 
 /// Mirrors one entry of Canvas::toJson()'s "hitRegions" array — see
-/// Tappable.php/Canvas::hitRegion() on the PHP side. `meta` (extra data
-/// a specific action needs, like SelectBox's own options) isn't modeled
-/// yet — this is enough to answer "what did this tap hit", not yet
-/// enough to fully replicate every action type's own handling.
+/// Tappable.php/Canvas::hitRegion() on the PHP side. `meta` models every
+/// real usage found in `packages/ui/src/Native/*.php` (Checkbox/
+/// NumberPicker/Drawer's `next`, AlertButton/ConfirmButton's `message`/
+/// `title`/etc, GestureDetector's `onDoubleClick`/…) — all flat
+/// string-valued maps — as `[String: String]?` rather than a fully
+/// generic JSON value, which `ScreenNavigation.reduce(_:_:metaJson:)`
+/// only ever re-parses looking for a `"next"` key anyway.
 public struct HitRegion: Decodable {
     public let x: Double
     public let y: Double
@@ -289,6 +292,7 @@ public struct HitRegion: Decodable {
     public let height: Double
     public let action: String
     public let fixed: Bool?
+    public let meta: [String: String]?
 }
 
 /// One entry of the envelope's own top-level `sliderRegions[]` — a
