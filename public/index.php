@@ -149,6 +149,7 @@ if ($path === '/native/layout-demo') {
     // $screenHeight as an explicit parameter — see MediaQuery::init()'s
     // docblock for why this is safe as a static here.
     \Engine\Native\MediaQuery::init($screenWidth, $screenHeight);
+    \Engine\Native\Canvas::resetRequests();
     // Follows the device's real system dark-mode setting by default (see
     // NativeRenderPocActivity.kt's own dark param, read from
     // Configuration.uiMode) — same "system, not a separate in-app toggle
@@ -623,7 +624,12 @@ if ($path === '/native/layout-demo') {
 
     $canvas = new Canvas();
     $canvas->setContentHeight($contentSize->height);
-    if ($screen === 'widgets-lazylist') {
+    // LazyList's own constructor already requests this generically (see
+    // Canvas::requestScrollFollow()'s docblock) — the explicit
+    // widgets-lazylist check below predates that and is now redundant,
+    // left in place as a harmless no-op rather than risk touching a
+    // screen this demo already relies on.
+    if ($screen === 'widgets-lazylist' || \Engine\Native\Canvas::scrollFollowWasRequested()) {
         $canvas->setScrollFollow();
     }
     if ($screen === 'widgets-forms') {

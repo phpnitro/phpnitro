@@ -1946,6 +1946,7 @@ function minimalLayoutDemoRoute(): string
         $screenWidth = (float) ($_GET['width'] ?? 360);
         $screenHeight = (float) ($_GET['height'] ?? 720);
         \Engine\Native\MediaQuery::init($screenWidth, $screenHeight);
+        \Engine\Native\Canvas::resetRequests();
         $screen = $_GET['screen'] ?? 'home';
         $action = $_GET['action'] ?? null;
         $scrollY = (float) ($_GET['scroll_y'] ?? 0);
@@ -1963,6 +1964,9 @@ function minimalLayoutDemoRoute(): string
 
         $canvas = new Canvas();
         $canvas->setContentHeight($contentSize->height);
+        if (\Engine\Native\Canvas::scrollFollowWasRequested()) {
+            $canvas->setScrollFollow();
+        }
         $tree->paint($canvas, 0, 0);
         $canvas->setRenderTimeMs((microtime(true) - $renderStart) * 1000);
 
