@@ -2513,36 +2513,59 @@ function listConnectedAndroidDevices(): array
 }
 
 /**
- * `xcrun xctrace list devices` — real, connected iOS/iPadOS hardware
- * only, under its own `== Devices ==` header. That header ALSO lists
- * this very Mac itself (e.g. "MacBook Pro (<UDID>)") — a real device
- * gets a SECOND parenthesized group, the OS version
- * ("iPhone (26.2) (<UDID>)"), the host machine's own entry never does,
- * which is what the regex below actually keys on rather than
- * name-matching "Mac"/"MacBook" (fragile — would also wrongly exclude
- * a real device someone literally named "MacBook" in Settings > General
- * > About > Name).
+ * `xcrun devicectl list devices` — real, connected iOS/iPadOS hardware
+ * only, queried as JSON (`--json-output`, written to a temp file — this
+ * subcommand has no stdout JSON mode) instead of the fixed-width text
+ * table, whose columns misalign the moment a device reports an empty
+ * Name (a real, observed case: an unpaired device's row has a blank
+ * Name column, shifting every subsequent column left).
+ *
+ * Deliberately NOT `xcrun xctrace list devices` (an earlier version of
+ * this function used that instead) — real bug found running `phpx run`
+ * against a physical iPhone: xctrace's own UDID is NOT always the same
+ * identifier `devicectl device install/launch --device <id>` needs
+ * (confirmed directly: the same iPhone showed
+ * `d1184a35109cb6f3e6dd67f1d07c245fef6efd1b` under xctrace but
+ * `3C089F5E-E309-549A-B1B9-3685CF89C656` under `devicectl list
+ * devices`) — passing xctrace's UDID to devicectl failed outright with
+ * "The specified device was not found." Sourcing discovery from
+ * devicectl itself, the same tool `runOnIosDevice()` below already
+ * uses for install/launch, means there is only ever one identifier
+ * space to keep straight, not two to cross-reference.
  *
  * @return list<array{udid: string, label: string}>
  */
 function listConnectedIosDevices(): array
 {
-    $output = shell_exec('xcrun xctrace list devices 2>/dev/null');
-    if ($output === null) {
+    $jsonPath = tempnam(sys_get_temp_dir(), 'phpx-devicectl-');
+    shell_exec('xcrun devicectl list devices --json-output ' . escapeshellarg($jsonPath) . ' 2>/dev/null');
+    $raw = is_file($jsonPath) ? file_get_contents($jsonPath) : false;
+    if (is_file($jsonPath)) {
+        unlink($jsonPath);
+    }
+    if ($raw === false) {
         return [];
     }
 
-    if (!preg_match('/== Devices ==\n(.*?)\n\n== Simulators ==/s', $output, $section)) {
-        return [];
-    }
+    $data = json_decode($raw, true);
+    $entries = $data['result']['devices'] ?? [];
 
     $devices = [];
-    foreach (explode("\n", trim($section[1])) as $line) {
-        if (!preg_match('/^(.+) \(([\d.]+)\) \(([0-9A-Fa-f-]{8,40})\)\s*$/', trim($line), $matches)) {
+    foreach ($entries as $entry) {
+        // "connected" only — devicectl also lists devices it merely
+        // remembers pairing with in the past but that aren't physically
+        // attached right now ("unavailable"), which install/launch
+        // would just fail against.
+        if (($entry['connectionProperties']['tunnelState'] ?? null) !== 'connected') {
             continue;
         }
-        [, $name, $osVersion, $udid] = $matches;
-        $devices[] = ['udid' => $udid, 'label' => "{$name} ({$osVersion}, {$udid})"];
+        $identifier = $entry['identifier'] ?? null;
+        $name = $entry['deviceProperties']['name'] ?? 'iPhone';
+        $osVersion = $entry['deviceProperties']['osVersionNumber'] ?? '?';
+        if ($identifier === null) {
+            continue;
+        }
+        $devices[] = ['udid' => $identifier, 'label' => "{$name} ({$osVersion}, {$identifier})"];
     }
 
     return $devices;
