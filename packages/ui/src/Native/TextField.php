@@ -53,6 +53,17 @@ final class TextField implements Widget
      *                       from being tapped again, PHP re-validates on every submit
      *                       the same way it always has.
      */
+    /**
+     * @param string $keyboardType One of 'text' (default), 'phone',
+     *                             'number', 'email', 'url' — picks the
+     *                             matching native keyboard (numeric keypad
+     *                             for 'phone'/'number', @-key layout for
+     *                             'email'...) instead of always opening the
+     *                             plain alphabetic one regardless of what
+     *                             the field actually collects. Ignored when
+     *                             $obscure or $multiline is true (those
+     *                             already pick their own InputType).
+     */
     public function __construct(
         string $name,
         string $value = '',
@@ -62,6 +73,7 @@ final class TextField implements Widget
         float $height = 52.0,
         ?float $width = null,
         ?string $error = null,
+        string $keyboardType = 'text',
     ) {
         $resolvedHeight = $multiline ? max($height, 120.0) : $height;
         $hasValue = $value !== '';
@@ -71,9 +83,16 @@ final class TextField implements Widget
 
         $box = new Container(
             new Padding(
+                // Real bug found testing a fresh scaffold: no right
+                // padding at all before this — a typed value long
+                // enough to reach the field's own width ran right up to
+                // (and visually past, unclipped) the border, the exact
+                // "no interior margin" symptom reported. Symmetric on
+                // both sides now, matching the multiline case, which
+                // already had this right.
                 $multiline
                     ? EdgeInsets::all(Tokens::SPACE_MD)
-                    : EdgeInsets::only(left: Tokens::SPACE_MD, top: $resolvedHeight / 2 - Tokens::TEXT_BODY * 0.6),
+                    : EdgeInsets::symmetric(horizontal: Tokens::SPACE_MD, vertical: $resolvedHeight / 2 - Tokens::TEXT_BODY * 0.6),
                 new Text($displayText, Tokens::TEXT_BODY, $displayColor->toHex()),
             ),
             width: $width,
@@ -84,7 +103,8 @@ final class TextField implements Widget
             borderWidth: $hasError ? 1.5 : 1.0,
         );
 
-        $action = 'focus:' . ($multiline ? 'multiline:' : '') . ($obscure ? 'secure:' : '') . $name;
+        $keyboardSegment = $keyboardType !== 'text' ? "keyboard:{$keyboardType}:" : '';
+        $action = 'focus:' . ($multiline ? 'multiline:' : '') . ($obscure ? 'secure:' : '') . $keyboardSegment . $name;
         $tappableBox = new Tappable($box, $action);
 
         $this->content = $hasError

@@ -241,7 +241,7 @@ public final class NativeCanvasView: UIView {
     /// command list, just visually covered while focused), styled by
     /// hand from `Tokens.php`'s own constants since none of this is sent
     /// over the wire.
-    public func showTextInput(fieldName: String, initialValue: String, rect: CGRect, multiline: Bool, secure: Bool) {
+    public func showTextInput(fieldName: String, initialValue: String, rect: CGRect, multiline: Bool, secure: Bool, keyboardType: String = "text") {
         clearTextInput()
 
         let ink = UIColor(red: 0x11 / 255, green: 0x18 / 255, blue: 0x27 / 255, alpha: 1)
@@ -262,6 +262,22 @@ public final class NativeCanvasView: UIView {
             textField.font = .systemFont(ofSize: 15)
             textField.textColor = ink
             textField.borderStyle = .none
+            // Real gap found testing a fresh scaffold: every TextField
+            // opened the same plain alphabetic keyboard regardless of
+            // content (a phone number field had no numeric keypad) —
+            // mirrors NativeRenderPocActivity.kt's own InputType mapping.
+            switch keyboardType {
+            case "phone":
+                textField.keyboardType = .phonePad
+            case "number":
+                textField.keyboardType = .decimalPad
+            case "email":
+                textField.keyboardType = .emailAddress
+            case "url":
+                textField.keyboardType = .URL
+            default:
+                textField.keyboardType = .default
+            }
             textField.addTarget(self, action: #selector(textFieldChanged(_:)), for: .editingChanged)
             textInput = textField
         }

@@ -209,8 +209,19 @@ public final class NativeScreenViewController: UIViewController {
             if multiline { rest = rest.dropFirst("multiline:".count) }
             let secure = rest.hasPrefix("secure:")
             if secure { rest = rest.dropFirst("secure:".count) }
+            // "keyboard:<type>:" — Engine\Native\TextField::$keyboardType,
+            // same optional-prefix-chain shape multiline:/secure: already
+            // use. Mirrors NativeRenderPocActivity.kt's own parsing.
+            var keyboardType = "text"
+            if rest.hasPrefix("keyboard:") {
+                let afterPrefix = rest.dropFirst("keyboard:".count)
+                if let colonIndex = afterPrefix.firstIndex(of: ":") {
+                    keyboardType = String(afterPrefix[afterPrefix.startIndex..<colonIndex])
+                    rest = afterPrefix[afterPrefix.index(after: colonIndex)...]
+                }
+            }
             let fieldName = String(rest)
-            canvasView.showTextInput(fieldName: fieldName, initialValue: fieldValues[fieldName] ?? "", rect: rect, multiline: multiline, secure: secure)
+            canvasView.showTextInput(fieldName: fieldName, initialValue: fieldValues[fieldName] ?? "", rect: rect, multiline: multiline, secure: secure, keyboardType: keyboardType)
             return
         }
 
