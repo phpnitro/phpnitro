@@ -434,25 +434,62 @@ public final class NativeCanvasView: UIView {
     /// neighboring properties for why) — never as a separate pass over
     /// the whole command list, which would repaint an earlier command's
     /// icon strictly after a later, occluding command already painted
-    /// over it. Walks into clientPanel/hScroll/vScroll's own nested
-    /// `commands` too — an icon inside one of those is just as affected
-    /// as a top-level one.
+    /// over it.
     private func drawCommandRepaintingIcons(_ command: DrawCommand, in context: CGContext) {
         drawCommand(command, in: context)
-        for icon in Self.allIconCommands(in: [command]) {
-            draw(icon, in: context)
-        }
+        repaintIcons(in: command, context: context)
     }
 
-    private static func allIconCommands(in commands: [DrawCommand]) -> [IconCommand] {
-        commands.flatMap { command -> [IconCommand] in
-            switch command {
-            case .icon(let icon): return [icon]
-            case .clientPanel(let panel): return allIconCommands(in: panel.commands)
-            case .hScroll(let scroll): return allIconCommands(in: scroll.commands)
-            case .vScroll(let scroll): return allIconCommands(in: scroll.commands)
-            default: return []
-            }
+    /// Real bug found testing VideoPlayer inside a NestedScroll on a
+    /// physical device: this used to flatten every nested icon (walking
+    /// into clientPanel/hScroll/vScroll's own `commands`) into a flat
+    /// list, then repaint each one directly against the CURRENT context
+    /// — but by the time drawCommandRepaintingIcons's first
+    /// drawCommand(_:) call returns, that command's own save/translate/
+    /// restore around its nested content is long gone. A nested icon's
+    /// x/y are LOCAL to its vScroll/hScroll/clientPanel (painted from
+    /// (0, 0) — see draw(_:VScrollCommand)'s own docblock), so
+    /// repainting it against the OUTER, untranslated context landed it
+    /// at that small local offset in PAGE space instead of its real
+    /// on-screen position — a stray "ghost" icon near the list's own
+    /// origin, exactly the misplaced play-button circle reported
+    /// testing the `media` example app's episode list. Recursing with
+    /// the SAME translate/clip every nested draw(_:...) method already
+    /// applies (mirrored here rather than shared, same as those
+    /// methods' own duplication of each other) keeps the repaint in the
+    /// coordinate space its command.x/y actually assume.
+    private func repaintIcons(in command: DrawCommand, context: CGContext) {
+        switch command {
+        case .icon(let icon):
+            draw(icon, in: context)
+
+        case .clientPanel(let panel):
+            guard clientTabState[panel.key] == panel.index else { return }
+            context.saveGState()
+            context.translateBy(x: CGFloat(panel.x), y: CGFloat(panel.y))
+            for nested in panel.commands { repaintIcons(in: nested, context: context) }
+            context.restoreGState()
+
+        case .hScroll(let scroll):
+            let offset = hScrollOffsets[scroll.key] ?? 0
+            let rect = CGRect(x: scroll.x, y: scroll.y, width: scroll.width, height: scroll.height)
+            context.saveGState()
+            context.clip(to: rect)
+            context.translateBy(x: CGFloat(scroll.x) - offset, y: CGFloat(scroll.y))
+            for nested in scroll.commands { repaintIcons(in: nested, context: context) }
+            context.restoreGState()
+
+        case .vScroll(let scroll):
+            let offset = vScrollOffsets[scroll.key] ?? 0
+            let rect = CGRect(x: scroll.x, y: scroll.y, width: scroll.width, height: scroll.height)
+            context.saveGState()
+            context.clip(to: rect)
+            context.translateBy(x: CGFloat(scroll.x), y: CGFloat(scroll.y) - offset)
+            for nested in scroll.commands { repaintIcons(in: nested, context: context) }
+            context.restoreGState()
+
+        default:
+            break
         }
     }
 
