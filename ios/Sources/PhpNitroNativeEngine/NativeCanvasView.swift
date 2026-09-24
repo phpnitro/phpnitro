@@ -116,6 +116,16 @@ public final class NativeCanvasView: UIView {
     private var activeVideoPlayer: AVPlayer?
     private var activeVideoContainer: UIView?
     private var activeVideoLoopObserver: NSObjectProtocol?
+    private var activeVideoPlayerViewController: AVPlayerViewController?
+
+    /// Set once by NativeScreenViewController.viewDidLoad() — the one
+    /// real UIViewController that owns this canvas as a subview, needed
+    /// so showVideoOverlay(showControls: true) can properly parent an
+    /// AVPlayerViewController via addChild(_:)/didMove(toParent:)
+    /// instead of just adding its view as a bare subview (see that
+    /// method's own docblock for why the bare-subview version silently
+    /// rendered a black box).
+    public weak var hostViewController: UIViewController?
 
     // MapView.php's "map:open:<lat>:<lon>:<zoom>" commit destination —
     // one real MKMapView at a time, mirroring
@@ -350,15 +360,17 @@ public final class NativeCanvasView: UIView {
     /// `VideoView`'s own `setOnPreparedListener { it.start() }`).
     ///
     /// `showControls` swaps the bare `AVPlayerLayer` for a real
-    /// `AVPlayerViewController.view`, added as a plain subview rather
-    /// than through proper child-view-controller containment — this
-    /// class is a `UIView`, not a `UIViewController`, and has no
-    /// containing view controller of its own to add a child to (same
-    /// "no DOM/VC concept server-side" boundary every other overlay
-    /// here already lives inside). Playback/scrub controls render and
-    /// work fine without containment; only VC-lifecycle-dependent
-    /// behavior (fullscreen transition chrome tied to a presenting VC)
-    /// would need real containment, not attempted here.
+    /// `AVPlayerViewController`, parented via real `addChild(_:)`/
+    /// `didMove(toParent:)` containment against `hostViewController`.
+    /// Real bug found testing this on a physical device: adding just
+    /// `controller.view` as a plain subview (no containment at all,
+    /// this class being a `UIView` with no view controller of its own)
+    /// rendered a solid black box — AVKit never ran the controller's own
+    /// view lifecycle, so its internal video layer/transport bar never
+    /// actually got built. `hostViewController` (set once by
+    /// `NativeScreenViewController.viewDidLoad()`) is the one real VC
+    /// that owns this canvas, close enough to a real presenting VC for
+    /// AVKit's own internals despite not being canvasView's OWN VC.
     ///
     /// `playInBackground` only takes effect if `HostApp/Info.plist`
     /// declares the `audio` UIBackgroundMode (added to the scaffold
@@ -383,6 +395,11 @@ public final class NativeCanvasView: UIView {
             let controller = AVPlayerViewController()
             controller.player = player
             controller.view.frame = rect
+            if let hostViewController {
+                hostViewController.addChild(controller)
+                controller.didMove(toParent: hostViewController)
+            }
+            activeVideoPlayerViewController = controller
             container = controller.view
         } else {
             let playerLayer = AVPlayerLayer(player: player)
@@ -416,6 +433,12 @@ public final class NativeCanvasView: UIView {
             activeVideoLoopObserver = nil
         }
         activeVideoPlayer?.pause()
+        if let controller = activeVideoPlayerViewController {
+            controller.willMove(toParent: nil)
+            controller.view.removeFromSuperview()
+            controller.removeFromParent()
+            activeVideoPlayerViewController = nil
+        }
         activeVideoContainer?.removeFromSuperview()
         activeVideoPlayer = nil
         activeVideoContainer = nil
