@@ -2759,6 +2759,35 @@ function isAndroidAppInstalled(string $pkg): bool
 }
 
 /**
+ * Real bug found verifying a native iOS fix (a NestedScroll rendering
+ * bug) on a scaffolded example app: `cmdNew()`'s own `ios/` copy (see
+ * that function's own docblock) only ever runs ONCE, at scaffold time
+ * — unlike Android, where `android/engine/` is a real, versioned
+ * JitPack dependency a project references rather than vendors, iOS has
+ * no such distribution story yet, so a framework-level Swift fix in
+ * `ios/Sources/*` silently never reached an already-scaffolded
+ * project's own frozen copy, even after a real merge + real build.
+ * Confirmed the hard way: a merged, build-verified fix still showed
+ * the exact same bug on a real device until this function's own copy
+ * was done by hand.
+ *
+ * Re-copies just `ios/Sources/` (the actual reusable engine code —
+ * CPhpEmbed/PhpNitroProtocol/PhpNitroNativeEngine/...), never
+ * `ios/HostApp/` (the per-project Xcode project: bundle ID, icons,
+ * entitlements — a scaffolded project's own customizations, which a
+ * wholesale re-copy would silently clobber) nor `ios/vendor` (the
+ * large committed `libphp.xcframework` binary, unrelated to a Swift
+ * source fix and not worth re-copying every run). `www` skipped for
+ * the same reason `cmdNew()`'s own copy skips it — that's
+ * `cmdBundleIos()`'s build output for THIS project, called right after
+ * this, not the framework's own currently-bundled demo content.
+ */
+function syncIosEngineSources(): void
+{
+    copyDirectory(PHPX_TOOL_ROOT . '/ios/Sources', PHPX_ROOT . '/ios/Sources', ['www', '.build', '.swiftpm']);
+}
+
+/**
  * `xcodebuild build` for HostApp against the given `-destination`, then
  * `-showBuildSettings` for that SAME destination to find where the
  * resulting .app actually landed — DerivedData's own path includes a
@@ -2777,6 +2806,7 @@ function isAndroidAppInstalled(string $pkg): bool
  */
 function buildIosHostApp(string $destination): string
 {
+    syncIosEngineSources();
     cmdBundleIos();
 
     $project = escapeshellarg(PHPX_ROOT . '/ios/HostApp/HostApp.xcodeproj');
