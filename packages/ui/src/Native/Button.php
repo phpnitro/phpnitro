@@ -48,10 +48,34 @@ final class Button implements Widget
             new Padding(EdgeInsets::only(left: Tokens::SPACE_SM), $labelNode),
         ], mainAxisAlignment: MainAxisAlignment::CENTER, crossAxisAlignment: CrossAxisAlignment::CENTER);
 
+        // Real bug found testing a fresh scaffold: EVERY width-less
+        // Button silently stretched to its parent's full available
+        // width instead of hugging its label — contradicting this
+        // class's own docblock ("no stretch-to-parent shortcut without
+        // an explicit $width"). Root cause traced to Center/Flex both
+        // filling any BOUNDED constraint they're handed, not just a
+        // TIGHT one (Flutter-faithful for a bounded-and-intended-to-fill
+        // slot, wrong for "as much as you're allowed, not as much as you
+        // need") — a core layout-engine behavior too widely relied upon
+        // elsewhere to change safely without full visual regression
+        // testing across every screen. Fixed here instead, self-
+        // contained to Button: when no $width is given, lay the content
+        // out once against fully unbounded constraints to measure its
+        // true hug size, then use that measurement as Container's real
+        // width — this scratch layout() call's internal state is
+        // harmlessly overwritten by the real layout() pass the normal
+        // render pipeline performs afterward (paint() only ever runs
+        // after that real pass, never after this measurement one).
+        $resolvedWidth = $width;
+        if ($resolvedWidth === null) {
+            $resolvedWidth = $inner->layout(new Constraints(0.0, Constraints::INFINITY, 0.0, Constraints::INFINITY))->width
+                + 2 * Tokens::SPACE_XL;
+        }
+
         $this->content = new Tappable(
             new Container(
                 new Center($inner),
-                width: $width,
+                width: $resolvedWidth,
                 height: $height,
                 background: $background ?? Tokens::ink(),
                 radius: Tokens::RADIUS_PILL,
