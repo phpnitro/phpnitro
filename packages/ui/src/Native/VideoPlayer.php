@@ -46,8 +46,23 @@ final class VideoPlayer implements Widget
             new Padding(EdgeInsets::only(left: Tokens::SPACE_SM), new Text($label, Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true)),
         ], mainAxisAlignment: MainAxisAlignment::CENTER, crossAxisAlignment: CrossAxisAlignment::CENTER);
 
+        // "video-thumbnail:" prefix (not a real fetchable URL on its
+        // own) tells NativeCanvasView.swift's image draw handler to
+        // route this through VideoThumbnailLoader (AVAssetImageGenerator
+        // pulling one real frame from the video itself, same "no
+        // server-side asset needed" idea AVPlayer's own tap-to-play
+        // already relies on for playback) instead of ImageLoader's plain
+        // URLSession GET, which would just 404/fail to decode against an
+        // .mp4 — same "url.hasPrefix(...)" branching precedent
+        // ImageLoader.swift's own `data:` case already uses. Falls back
+        // to the plain muted box underneath until the frame loads (or on
+        // a platform/network that never produces one — Android hasn't
+        // got its own VideoThumbnailLoader.kt counterpart yet).
         $box = new Container(
-            new Center($inner),
+            new Stack([
+                new Image("video-thumbnail:{$url}", $width, $height, radius: Tokens::RADIUS_LG),
+                new Center($inner),
+            ]),
             width: $width,
             height: $height,
             background: Tokens::surfaceMuted(),
