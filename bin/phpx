@@ -2781,7 +2781,17 @@ function buildIosHostApp(string $destination): string
 
     $project = escapeshellarg(PHPX_ROOT . '/ios/HostApp/HostApp.xcodeproj');
     $destinationArg = escapeshellarg($destination);
-    passthruOrFail("xcodebuild -project {$project} -scheme HostApp -destination {$destinationArg} build");
+    // -allowProvisioningUpdates: real bug found running against an
+    // actual iPhone for the first time on a freshly scaffolded project
+    // — "No profiles for 'com.phpnitro.hostapp' were found... Automatic
+    // signing is disabled and unable to generate a profile." Xcode's
+    // GUI resolves this itself the first time you pick a team there and
+    // remembers it in the pbxproj; plain `xcodebuild` from the CLI never
+    // gets that chance, so it needs this flag to generate/renew a
+    // profile non-interactively using whichever Apple ID is already
+    // signed into Xcode. No-op for a simulator destination, which never
+    // needed a profile to begin with.
+    passthruOrFail("xcodebuild -project {$project} -scheme HostApp -destination {$destinationArg} -allowProvisioningUpdates build");
 
     $settings = shell_exec("xcodebuild -project {$project} -scheme HostApp -destination {$destinationArg} -showBuildSettings 2>/dev/null");
     if ($settings === null
