@@ -2566,12 +2566,25 @@ function listConnectedIosDevices(): array
         if (($entry['hardwareProperties']['reality'] ?? null) !== 'physical') {
             continue;
         }
-        // "connected" only — devicectl also lists devices it merely
-        // remembers pairing with in the past but that aren't physically
-        // attached right now ("unavailable"/"available (paired)" without
-        // an active tunnel), which install/launch would just fail
-        // against.
-        if (($entry['connectionProperties']['tunnelState'] ?? null) !== 'connected') {
+        // Real bug found the hard way: `tunnelState` is NOT a live
+        // "is this device reachable right now" flag — it only reads
+        // "connected" while a CoreDevice tunnel happens to be actively
+        // held open (during an install/launch already in flight), and
+        // reverts to "disconnected" the instant that operation ends,
+        // even with the phone still plugged in and unlocked (confirmed
+        // directly: a device install's own output opens with "Acquired
+        // tunnel connection to device" — the tunnel is negotiated
+        // ON DEMAND each time, not maintained idly). Filtering on it
+        // here meant a perfectly usable, currently-connected iPhone
+        // looked invisible to `phpx run` the moment nothing was
+        // mid-install. `pairingState` is the real "can this device be
+        // used at all" signal: "paired" for a trusted, actually-usable
+        // device, "unsupported" for e.g. a pre-iOS-17 device devicectl
+        // can never manage (see listConnectedIosDevices()'s own
+        // handling of an iPhone X on iOS 16 — still correctly excluded
+        // here), something else entirely while pairing is still
+        // in progress.
+        if (($entry['connectionProperties']['pairingState'] ?? null) !== 'paired') {
             continue;
         }
         $identifier = $entry['identifier'] ?? null;
