@@ -25,11 +25,18 @@ final class VideoPlayer implements Widget
 
     public function __construct(string $url, float $width, float $height = 200.0)
     {
+        // Real bug found testing this on a physical device: without an
+        // explicit mainAxisAlignment, Flex::row defaults to START — once
+        // it fills Center's bounded width (Flex fills any bounded
+        // constraint, not just a tight one), the icon+label sat at the
+        // row's own left edge instead of visually centered, the same
+        // "hug vs fill" pitfall Button.php's own inner row already
+        // guards against with the same fix.
         $box = new Container(
             new Center(Flex::row([
                 new Icon('play_circle', 32.0, Tokens::ink()->toHex()),
                 new Padding(EdgeInsets::only(left: Tokens::SPACE_SM), new Text('Lire la vidéo', Tokens::TEXT_BODY, Tokens::ink()->toHex(), bold: true)),
-            ], crossAxisAlignment: CrossAxisAlignment::CENTER)),
+            ], mainAxisAlignment: MainAxisAlignment::CENTER, crossAxisAlignment: CrossAxisAlignment::CENTER)),
             width: $width,
             height: $height,
             background: Tokens::surfaceMuted(),
