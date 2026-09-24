@@ -957,12 +957,34 @@ public final class NativeCanvasView: UIView {
     // Android-side inconsistency, not something to replicate on faith),
     // this always stretches the image to fill `rect`; a real aspect-fill
     // mode is real, separate follow-up work, not attempted here.
+    private static let videoThumbnailPrefix = "video-thumbnail:"
+
     private func draw(_ command: ImageCommand, in context: CGContext) {
+        // VideoPlayer.php's own "video-thumbnail:<url>" convention (see
+        // its docblock) — same url.hasPrefix(...) branching precedent
+        // ImageLoader.swift's own `data:` case already uses, routed to
+        // VideoThumbnailLoader (a real video frame) instead of
+        // ImageLoader (a plain image GET, which would just fail to
+        // decode an .mp4).
+        if command.url.hasPrefix(Self.videoThumbnailPrefix) {
+            let videoURL = String(command.url.dropFirst(Self.videoThumbnailPrefix.count))
+            guard let image = VideoThumbnailLoader.get(videoURL) else {
+                VideoThumbnailLoader.load(videoURL) { [weak self] in self?.setNeedsDisplay() }
+                return
+            }
+            drawImage(image, command: command, in: context)
+            return
+        }
+
         guard let image = ImageLoader.get(command.url) else {
             ImageLoader.load(command.url) { [weak self] in self?.setNeedsDisplay() }
             return
         }
 
+        drawImage(image, command: command, in: context)
+    }
+
+    private func drawImage(_ image: UIImage, command: ImageCommand, in context: CGContext) {
         let rect = CGRect(x: command.x, y: command.y, width: command.width, height: command.height)
         let radius = CGFloat(command.radius ?? 0)
 
