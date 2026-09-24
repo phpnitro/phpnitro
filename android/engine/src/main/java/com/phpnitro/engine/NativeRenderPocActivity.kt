@@ -513,8 +513,24 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 val multiline = rest.startsWith("multiline:")
                 if (multiline) rest = rest.removePrefix("multiline:")
                 val secure = rest.startsWith("secure:")
-                val fieldName = if (secure) rest.removePrefix("secure:") else rest
-                showTextInput(fieldName, regionDp, secure, multiline)
+                if (secure) rest = rest.removePrefix("secure:")
+                // "keyboard:<type>:" — Engine\Native\TextField::$keyboardType,
+                // same optional-prefix-chain shape multiline:/secure: already
+                // use. Real gap found testing a fresh scaffold: every
+                // TextField opened the same plain alphabetic keyboard
+                // regardless of content (a phone number field had no numeric
+                // keypad) — nothing upstream of this parse ever carried a
+                // type hint at all until now.
+                val keyboardType = if (rest.startsWith("keyboard:")) {
+                    val afterPrefix = rest.removePrefix("keyboard:")
+                    val type = afterPrefix.substringBefore(':')
+                    rest = afterPrefix.substringAfter(':')
+                    type
+                } else {
+                    "text"
+                }
+                val fieldName = rest
+                showTextInput(fieldName, regionDp, secure, multiline, keyboardType)
             }
             action.startsWith("submit:") -> {
                 clearTextInput()
@@ -1294,7 +1310,7 @@ class NativeRenderPocActivity : AppCompatActivity() {
     // the actual text-entry surface; NativeCanvasView just draws the
     // field's *shape* underneath it. One at a time: switching fields
     // removes the previous overlay first.
-    private fun showTextInput(fieldName: String, regionDp: RectF, secure: Boolean, multiline: Boolean = false) {
+    private fun showTextInput(fieldName: String, regionDp: RectF, secure: Boolean, multiline: Boolean = false, keyboardType: String = "text") {
         activeEditText?.let { rootLayout.removeView(it) }
 
         val density = resources.displayMetrics.density
@@ -1304,6 +1320,10 @@ class NativeRenderPocActivity : AppCompatActivity() {
             inputType = when {
                 secure -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
                 multiline -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                keyboardType == "phone" -> InputType.TYPE_CLASS_PHONE
+                keyboardType == "number" -> InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+                keyboardType == "email" -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+                keyboardType == "url" -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
                 else -> InputType.TYPE_CLASS_TEXT
             }
             gravity = if (multiline) {
