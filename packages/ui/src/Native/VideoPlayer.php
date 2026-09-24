@@ -24,12 +24,33 @@ final class VideoPlayer implements Widget
     private readonly Widget $content;
 
     /**
-     * @param ?string $label Set to null to show just the play icon, no
-     *                       caption — every existing call site keeps
-     *                       'Lire la vidéo' unless it opts out.
+     * @param ?string $label            Set to null to show just the play icon, no
+     *                                  caption — every existing call site keeps
+     *                                  'Lire la vidéo' unless it opts out.
+     * @param bool    $loop             Replay from the start once playback ends,
+     *                                  instead of stopping.
+     * @param bool    $muted            Start with the audio track muted.
+     * @param bool    $showControls     A real system transport bar (play/pause,
+     *                                  scrubber) instead of autoplay-only —
+     *                                  see NativeCanvasView.swift's own
+     *                                  showVideoOverlay() docblock for what
+     *                                  this actually swaps in per platform.
+     * @param bool    $playInBackground Keep playing (audio, at least) after the
+     *                                  app backgrounds — needs the host app's
+     *                                  own `audio` UIBackgroundMode/foreground-
+     *                                  service declaration, not just this flag
+     *                                  (see the same docblock).
      */
-    public function __construct(string $url, float $width, float $height = 200.0, ?string $label = 'Lire la vidéo')
-    {
+    public function __construct(
+        string $url,
+        float $width,
+        float $height = 200.0,
+        ?string $label = 'Lire la vidéo',
+        bool $loop = false,
+        bool $muted = false,
+        bool $showControls = false,
+        bool $playInBackground = false,
+    ) {
         $icon = new Icon('play_circle', 32.0, Tokens::ink()->toHex());
 
         // Real bug found testing this on a physical device: without an
@@ -69,7 +90,20 @@ final class VideoPlayer implements Widget
             radius: Tokens::RADIUS_LG,
         );
 
-        $this->content = new Tappable($box, "video:play:{$url}");
+        // Plain bool flags, not more prefix segments on the action
+        // string — Tappable's own $meta escape hatch (see its
+        // docblock), same as SelectBox's options or a dialog's
+        // message/title, reads cleaner than focus:'s own multiline:/
+        // secure:/keyboard: chain would past a couple of optional
+        // flags with no value of their own to carry.
+        $meta = array_filter([
+            'loop' => $loop ? 'true' : null,
+            'muted' => $muted ? 'true' : null,
+            'controls' => $showControls ? 'true' : null,
+            'background' => $playInBackground ? 'true' : null,
+        ]);
+
+        $this->content = new Tappable($box, "video:play:{$url}", $meta === [] ? null : $meta);
     }
 
     public function layout(Constraints $constraints): Size
