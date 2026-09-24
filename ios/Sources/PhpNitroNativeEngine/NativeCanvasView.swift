@@ -171,6 +171,10 @@ public final class NativeCanvasView: UIView {
 
     private var vScrollRegionsInfo: [VScrollRegionInfo] = []
 
+    /// The vScroll region (if any) the current pan gesture started
+    /// inside of — mirrors NativeCanvasView.kt's own `activeVScroll`.
+    private var activeVScrollKey: String?
+
     // MARK: - Page scroll (NativeCanvasView.kt's own scrollY)
     //
     // A real bug found comparing side-by-side against a booted Android
@@ -246,6 +250,7 @@ public final class NativeCanvasView: UIView {
             )
         }
         vScrollOffsets = [:]
+        activeVScrollKey = nil
         // A new payload just replaced whatever the current overlay (if
         // any) was positioned/typed against — NativeRenderPocActivity.kt
         // only tears its own overlay down on navigate:/tab:/back/submit:,
@@ -560,24 +565,76 @@ public final class NativeCanvasView: UIView {
     }
 
     @objc private func handlePan(_ recognizer: UIPanGestureRecognizer) {
-        let maxScroll = maxScrollY()
-        guard maxScroll > 0 else { return }
-
         switch recognizer.state {
         case .began:
             stopFling()
+            // Real bug found testing NestedScroll on a physical device:
+            // this whole method used to bail out immediately whenever
+            // the PAGE had nothing left to scroll (`maxScrollY() <= 0`)
+            // — true for HomePage.php's episode list, whose NestedScroll
+            // is sized to exactly fill the remaining screen with no
+            // outer page overflow at all. That early return ran before
+            // a NestedScroll region ever got a chance to claim the drag
+            // for itself, so its own content could never scroll either.
+            // A drag starting inside a vScroll's own rect now claims it
+            // regardless of the outer page's own scroll range — mirrors
+            // NativeCanvasView.kt's `pendingVScroll`/`activeVScroll`
+            // claim, just resolved once at .began instead of after
+            // touchSlop (no dismiss/hScroll/sheet gestures on iOS yet to
+            // disambiguate against).
+            let point = recognizer.location(in: self)
+            let contentPoint = CGPoint(x: point.x, y: point.y + scrollY)
+            activeVScrollKey = vScrollRegionsInfo.first(where: { $0.rect.contains(contentPoint) })?.key
 
         case .changed:
             // translation is CUMULATIVE since .began, so this recomputes
-            // scrollY from a fixed reference each call rather than
+            // the offset from a fixed reference each call rather than
             // accumulating a delta — recognizer.setTranslation(_: in:)
             // keeps that reference at the drag's start point.
             let translationY = recognizer.translation(in: self).y
+
+            if let key = activeVScrollKey, let info = vScrollRegionsInfo.first(where: { $0.key == key }) {
+                let maxOffset = max(0, info.contentHeight - info.viewportHeight)
+                let current = vScrollOffsets[key] ?? 0
+                let next = current - translationY
+                if next < 0 || next > maxOffset {
+                    // The nested region just hit its own top/bottom edge
+                    // — only the EXCESS beyond that edge (not the whole
+                    // delta) hands off to the outer page scroll, so there's
+                    // no dead zone at the handoff (mirrors
+                    // NativeCanvasView.kt's own vScroll/page-scroll
+                    // handoff, and the exact scope boundary Canvas::
+                    // verticalScroll()'s docblock documents). Once handed
+                    // off, the rest of this gesture stays with the page.
+                    let excess = next < 0 ? next : next - maxOffset
+                    vScrollOffsets[key] = next.clamped(to: 0...maxOffset)
+                    activeVScrollKey = nil
+                    scrollY = (scrollY + excess).clamped(to: 0...maxScrollY())
+                } else {
+                    vScrollOffsets[key] = next
+                }
+                recognizer.setTranslation(.zero, in: self)
+                setNeedsDisplay()
+                return
+            }
+
+            let maxScroll = maxScrollY()
+            guard maxScroll > 0 else { return }
             scrollY = (scrollY - translationY).clamped(to: 0...maxScroll)
             recognizer.setTranslation(.zero, in: self)
             setNeedsDisplay()
 
         case .ended, .cancelled:
+            // No fling for a nested region (mirrors NativeCanvasView.kt,
+            // which only ever flings the outer page) — just release the
+            // claim and let its offset sit wherever the drag left it.
+            let wasVScroll = activeVScrollKey != nil
+            activeVScrollKey = nil
+            guard !wasVScroll else { return }
+
+            let maxScroll = maxScrollY()
+            guard maxScroll > 0 else { return }
+
             // Mirrors NativeCanvasView.kt's own flingScroll(): velocity
             // in points/sec, a fixed 0.35 factor for total travel
             // distance, clamped to the scrollable range, eased out over
