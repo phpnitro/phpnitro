@@ -605,6 +605,26 @@ public final class NativeCanvasView: UIView {
         switch recognizer.state {
         case .began:
             stopFling()
+            // Real bug found testing VideoPlayer on a physical device:
+            // playing a video, then scrolling the list underneath it,
+            // left the real AVPlayerLayer overlay floating at its
+            // original screen rect — a one-shot UIView added as a
+            // sibling subview at tap time, with nothing anywhere
+            // repositioning (or tearing down) it when scrollY/
+            // vScrollOffsets change afterward, on either the page or a
+            // NestedScroll (confirmed the same gap exists in
+            // NativeRenderPocActivity.kt's own activeVideoView/
+            // activeTextInput/activeMapView — never Android-fixed
+            // either). Tearing every transient overlay down the instant
+            // an actual drag starts (not on a plain tap, which never
+            // reaches a pan recognizer's .began) is the same trade real
+            // apps make for a keyboard/video/map that can't follow
+            // scrolled content convincingly — cheaper and less
+            // surprising than chasing an per-overlay reposition for
+            // every scroll source.
+            clearTextInput()
+            clearVideoOverlay()
+            clearMapOverlay()
             // Real bug found testing NestedScroll on a physical device:
             // this whole method used to bail out immediately whenever
             // the PAGE had nothing left to scroll (`maxScrollY() <= 0`)
