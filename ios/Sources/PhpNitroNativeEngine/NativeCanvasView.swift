@@ -1,4 +1,5 @@
 import AVFoundation
+import AVKit
 import CoreLocation
 import MapKit
 import PhpNitroProtocol
@@ -108,13 +109,13 @@ public final class NativeCanvasView: UIView {
     private var activeFieldName: String?
 
     // VideoPlayer.php's "video:play:<url>" commit destination — one real
-    // AVPlayer/AVPlayerLayer at a time, mirroring
-    // NativeRenderPocActivity.kt's own single-nullable-field
-    // activeVideoView. No transport bar (unlike Android's system-
-    // provided MediaController) — autoplay only, a real, larger
-    // undertaking of its own, not attempted here.
+    // AVPlayer/AVPlayerLayer (or AVPlayerViewController when
+    // $showControls is on — see showVideoOverlay's own docblock) at a
+    // time, mirroring NativeRenderPocActivity.kt's own single-nullable-
+    // field activeVideoView.
     private var activeVideoPlayer: AVPlayer?
     private var activeVideoContainer: UIView?
+    private var activeVideoLoopObserver: NSObjectProtocol?
 
     // MapView.php's "map:open:<lat>:<lon>:<zoom>" commit destination —
     // one real MKMapView at a time, mirroring
@@ -343,20 +344,65 @@ public final class NativeCanvasView: UIView {
 
     /// `video:play:<url>` (VideoPlayer.php) — ports
     /// `NativeRenderPocActivity.kt`'s `showVideoOverlay()`: a real
-    /// `AVPlayerLayer` positioned over the static "play" box already
-    /// painted underneath, autoplaying immediately (mirrors `VideoView`'s
-    /// own `setOnPreparedListener { it.start() }`).
-    public func showVideoOverlay(url: String, rect: CGRect) {
+    /// `AVPlayerLayer` (or a real `AVPlayerViewController` when
+    /// `showControls` is on) positioned over the static "play" box
+    /// already painted underneath, autoplaying immediately (mirrors
+    /// `VideoView`'s own `setOnPreparedListener { it.start() }`).
+    ///
+    /// `showControls` swaps the bare `AVPlayerLayer` for a real
+    /// `AVPlayerViewController.view`, added as a plain subview rather
+    /// than through proper child-view-controller containment — this
+    /// class is a `UIView`, not a `UIViewController`, and has no
+    /// containing view controller of its own to add a child to (same
+    /// "no DOM/VC concept server-side" boundary every other overlay
+    /// here already lives inside). Playback/scrub controls render and
+    /// work fine without containment; only VC-lifecycle-dependent
+    /// behavior (fullscreen transition chrome tied to a presenting VC)
+    /// would need real containment, not attempted here.
+    ///
+    /// `playInBackground` only takes effect if `HostApp/Info.plist`
+    /// declares the `audio` UIBackgroundMode (added to the scaffold
+    /// template — see `phpx new`'s own `ios/HostApp` copy) — without
+    /// it, iOS suspends playback the instant the app backgrounds
+    /// regardless of the audio session category set here.
+    public func showVideoOverlay(url: String, rect: CGRect, loop: Bool = false, muted: Bool = false, showControls: Bool = false, playInBackground: Bool = false) {
         clearVideoOverlay()
 
         guard let videoURL = URL(string: url) else { return }
-        let player = AVPlayer(url: videoURL)
-        let playerLayer = AVPlayerLayer(player: player)
-        playerLayer.videoGravity = .resizeAspect
 
-        let container = UIView(frame: rect)
-        playerLayer.frame = container.bounds
-        container.layer.addSublayer(playerLayer)
+        if playInBackground {
+            try? AVAudioSession.sharedInstance().setCategory(.playback)
+            try? AVAudioSession.sharedInstance().setActive(true)
+        }
+
+        let player = AVPlayer(url: videoURL)
+        player.isMuted = muted
+
+        let container: UIView
+        if showControls {
+            let controller = AVPlayerViewController()
+            controller.player = player
+            controller.view.frame = rect
+            container = controller.view
+        } else {
+            let playerLayer = AVPlayerLayer(player: player)
+            playerLayer.videoGravity = .resizeAspect
+            let plainContainer = UIView(frame: rect)
+            playerLayer.frame = plainContainer.bounds
+            plainContainer.layer.addSublayer(playerLayer)
+            container = plainContainer
+        }
+
+        if loop {
+            activeVideoLoopObserver = NotificationCenter.default.addObserver(
+                forName: .AVPlayerItemDidPlayToEndTime,
+                object: player.currentItem,
+                queue: .main
+            ) { _ in
+                player.seek(to: .zero)
+                player.play()
+            }
+        }
 
         addSubview(container)
         player.play()
@@ -365,6 +411,10 @@ public final class NativeCanvasView: UIView {
     }
 
     private func clearVideoOverlay() {
+        if let observer = activeVideoLoopObserver {
+            NotificationCenter.default.removeObserver(observer)
+            activeVideoLoopObserver = nil
+        }
         activeVideoPlayer?.pause()
         activeVideoContainer?.removeFromSuperview()
         activeVideoPlayer = nil
