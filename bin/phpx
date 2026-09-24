@@ -2552,10 +2552,25 @@ function listConnectedIosDevices(): array
 
     $devices = [];
     foreach ($entries as $entry) {
+        // Real bug found running this against a booted simulator: once
+        // `xcrun simctl boot` starts a simulator, `devicectl` reports
+        // ITS tunnelState as "connected" too (simulators are always
+        // "sameMachine"-reachable) — with no reality check, that
+        // simulator's own UDID got returned here as if it were real
+        // hardware, and runOnIosDevice() then passed it to `xcodebuild
+        // -destination platform=iOS,id=<simulator UDID>`, which fails
+        // ("Unable to find a device matching the provided destination
+        // specifier") because that UDID only resolves under the "iOS
+        // Simulator" platform, not plain "iOS". Simulators belong to
+        // listBootedIosSimulators() below, never here.
+        if (($entry['hardwareProperties']['reality'] ?? null) !== 'physical') {
+            continue;
+        }
         // "connected" only — devicectl also lists devices it merely
         // remembers pairing with in the past but that aren't physically
-        // attached right now ("unavailable"), which install/launch
-        // would just fail against.
+        // attached right now ("unavailable"/"available (paired)" without
+        // an active tunnel), which install/launch would just fail
+        // against.
         if (($entry['connectionProperties']['tunnelState'] ?? null) !== 'connected') {
             continue;
         }
