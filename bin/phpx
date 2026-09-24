@@ -2676,7 +2676,51 @@ function runOnAndroid(string $serial): void
     }
     passthruOrFail('adb shell am start -n ' . escapeshellarg($component) . ' > /dev/null');
 
+    // Real gap found testing a fresh scaffold — launching an app left no
+    // way to see its logs at all. cmdDevPush(true) below already blocks
+    // in a hot-reload watch loop, so logcat has to stream concurrently
+    // in the background rather than block on its own turn — killed via
+    // the same SIGINT/SIGTERM forwarding runOnMacos()/runOnLinuxDesktop()
+    // already use, so Ctrl+C stops both the watch loop and this tail.
+    $pid = '';
+    for ($attempt = 0; $attempt < 10 && $pid === ''; $attempt++) {
+        usleep(300_000);
+        $pid = trim((string) shell_exec('adb shell pidof -s ' . escapeshellarg($pkg) . ' 2>/dev/null'));
+    }
+    $logcatProcess = null;
+    if ($pid !== '') {
+        echo "Logs de l'app ci-dessous...\n";
+        $logcatProcess = proc_open(
+            'adb logcat --pid=' . escapeshellarg($pid),
+            [0 => STDIN, 1 => STDOUT, 2 => STDERR],
+            $pipes,
+        );
+        if (extension_loaded('pcntl')) {
+            pcntl_async_signals(true);
+            // Without registering these, Ctrl+C during cmdDevPush()'s own
+            // watch loop below already terminates this whole script via
+            // PHP's default SIGINT behavior — registering a custom
+            // handler REPLACES that default, so it must call exit()
+            // itself too, or Ctrl+C would silently stop only logcat and
+            // leave the watch loop running forever.
+            $stopLogcat = static function () use ($logcatProcess): never {
+                if (is_resource($logcatProcess)) {
+                    proc_terminate($logcatProcess);
+                }
+                exit(0);
+            };
+            pcntl_signal(SIGINT, $stopLogcat);
+            pcntl_signal(SIGTERM, $stopLogcat);
+        }
+    } else {
+        echo "Impossible de trouver le PID de {$pkg} — logs indisponibles pour cette session.\n";
+    }
+
     cmdDevPush(true);
+
+    if (is_resource($logcatProcess)) {
+        proc_terminate($logcatProcess);
+    }
 }
 
 function isAndroidAppInstalled(string $pkg): bool
@@ -2746,7 +2790,13 @@ function runOnIosSimulator(string $udid, string $label): void
     echo "Build + lancement sur {$label}...\n";
     $appPath = buildIosHostApp("platform=iOS Simulator,id={$udid}");
     passthruOrFail('xcrun simctl install ' . escapeshellarg($udid) . ' ' . escapeshellarg($appPath));
-    passthruOrFail('xcrun simctl launch ' . escapeshellarg($udid) . ' ' . escapeshellarg(iosBundleIdentifier($appPath)));
+    // --console: real gap found testing a fresh scaffold — launching an
+    // app left no way to see its logs at all. Blocks until the app
+    // exits/Ctrl+C, bridging its stdout/stderr straight here — same
+    // foreground-until-stopped shape runOnMacos()/runOnLinuxDesktop()
+    // already use.
+    echo "Logs de l'app ci-dessous (Ctrl+C pour arrêter) :\n";
+    passthruOrFail('xcrun simctl launch --console ' . escapeshellarg($udid) . ' ' . escapeshellarg(iosBundleIdentifier($appPath)));
 }
 
 /**
@@ -2761,7 +2811,10 @@ function runOnIosDevice(string $udid, string $label): void
     echo "Build + lancement sur {$label}...\n";
     $appPath = buildIosHostApp("platform=iOS,id={$udid}");
     passthruOrFail('xcrun devicectl device install app --device ' . escapeshellarg($udid) . ' ' . escapeshellarg($appPath));
-    passthruOrFail('xcrun devicectl device process launch --device ' . escapeshellarg($udid) . ' ' . escapeshellarg(iosBundleIdentifier($appPath)));
+    // --console: same real gap/fix as runOnIosSimulator() above —
+    // bridges the app's stdout/stderr here and blocks until it exits.
+    echo "Logs de l'app ci-dessous (Ctrl+C pour arrêter) :\n";
+    passthruOrFail('xcrun devicectl device process launch --console --device ' . escapeshellarg($udid) . ' ' . escapeshellarg(iosBundleIdentifier($appPath)));
 }
 
 /**
