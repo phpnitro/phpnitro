@@ -117,6 +117,17 @@ public final class NativeScreenViewController: UIViewController {
         view.backgroundColor = .white
 
         canvasView.translatesAutoresizingMaskIntoConstraints = false
+        // Real bug found testing VideoPlayer(showControls: true) on a
+        // physical device: an AVPlayerViewController added as a plain
+        // subview (no containing view controller of its own to parent
+        // it to — see showVideoOverlay's own docblock) never ran its
+        // own view lifecycle, so its internal video layer/controls
+        // chrome never actually got built — a solid black box, nothing
+        // playing, no transport bar. hostViewController lets
+        // showVideoOverlay() do real addChild(_:)/didMove(toParent:)
+        // containment against the one UIViewController that actually
+        // owns this canvas.
+        canvasView.hostViewController = self
         canvasView.onAction = { [weak self] action, rect, meta in self?.handle(action: action, rect: rect, meta: meta) }
         canvasView.onFieldValueChanged = { [weak self] name, value in self?.setFieldValue(value, forName: name) }
         #if DEBUG
