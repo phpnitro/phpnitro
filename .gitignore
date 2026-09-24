@@ -61,3 +61,11 @@ composer.lock
 /ios/.swiftpm/
 /ios/HostApp/HostApp.xcodeproj/xcuserdata/
 /ios/HostApp/HostApp.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Local-only composer path-repo mirrors — used to test unreleased
+# packages/*/src changes against a Packagist-mode scaffolded project
+# (composer install fetches phpnitro/* fresh from Packagist even
+# inside this monorepo's own checkout, ignoring packages/*/src
+# entirely — see packages/*/'s own composer.json note). Personal dev
+# scaffolding, never meant to ship.
+/.local-composer-mirrors/
