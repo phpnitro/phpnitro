@@ -144,7 +144,32 @@ public final class NativeCanvasView: UIView {
     /// own docblock) — always 0 for now, so every hScroll command renders
     /// at its server-authored, undragged position.
     private let hScrollOffsets: [String: CGFloat] = [:]
-    private let vScrollOffsets: [String: CGFloat] = [:]
+
+    /// Real bug found testing NestedScroll (VideoPlayer's containing
+    /// list) on a physical device: unlike hScroll above, a vScroll
+    /// (NestedScroll) region needs to actually scroll — it's the ONLY
+    /// way to reach content past its own bounded viewportHeight, since
+    /// (unlike the outer page) there's no other path to it. Mirrors
+    /// NativeCanvasView.kt's own mutable `vScrollOffsets` map.
+    private var vScrollOffsets: [String: CGFloat] = [:]
+
+    /// One entry per top-level `vScroll` command in the current payload,
+    /// parsed once in setPayload(_:) — mirrors NativeCanvasView.kt's own
+    /// `parseVScrollRegions()`/`vScrollRegions`. `rect` is in the same
+    /// unscrolled PAGE content space every other non-fixed region here
+    /// uses; `hitRegions` are the nested content's own regions, in LOCAL
+    /// coordinates relative to that rect's origin (Canvas::
+    /// verticalScroll()'s own `$regionHitRegions`, painted from (0, 0) by
+    /// NestedScroll.php's `paint()`).
+    private struct VScrollRegionInfo {
+        let key: String
+        let rect: CGRect
+        let contentHeight: CGFloat
+        let viewportHeight: CGFloat
+        let hitRegions: [HitRegion]
+    }
+
+    private var vScrollRegionsInfo: [VScrollRegionInfo] = []
 
     // MARK: - Page scroll (NativeCanvasView.kt's own scrollY)
     //
@@ -210,6 +235,17 @@ public final class NativeCanvasView: UIView {
 
     public func setPayload(_ payload: DrawCommandPayload) {
         self.payload = payload
+        vScrollRegionsInfo = payload.commands.compactMap { command in
+            guard case .vScroll(let scroll) = command else { return nil }
+            return VScrollRegionInfo(
+                key: scroll.key,
+                rect: CGRect(x: scroll.x, y: scroll.y, width: scroll.width, height: scroll.height),
+                contentHeight: CGFloat(scroll.contentHeight),
+                viewportHeight: CGFloat(scroll.height),
+                hitRegions: scroll.hitRegions
+            )
+        }
+        vScrollOffsets = [:]
         // A new payload just replaced whatever the current overlay (if
         // any) was positioned/typed against — NativeRenderPocActivity.kt
         // only tears its own overlay down on navigate:/tab:/back/submit:,
@@ -446,7 +482,31 @@ public final class NativeCanvasView: UIView {
     }
 
     @objc private func handleTap(_ recognizer: UITapGestureRecognizer) {
-        guard let payload, let region = payload.region(at: recognizer.location(in: self), scrollY: scrollY) else { return }
+        let point = recognizer.location(in: self)
+        let contentPoint = CGPoint(x: point.x, y: point.y + scrollY)
+
+        // Real bug found testing VideoPlayer inside a NestedScroll on a
+        // physical device: payload.region(at:) only ever searched the
+        // top-level `hitRegions` array, never a vScroll command's own
+        // nested `hitRegions` (see VScrollCommand's docblock) — every tap
+        // landing inside a NestedScroll (the video's own play button,
+        // its download Button, ...) silently found nothing and did
+        // nothing. Checked FIRST, same "last drawn wins" precedent
+        // DrawCommandPayload.region(at:) itself documents, since nested
+        // content always paints on top of whatever's behind the
+        // NestedScroll's own viewport.
+        if let (contentRect, region) = nestedVScrollHitRegion(atContentPoint: contentPoint) {
+            let viewRect = contentRect.offsetBy(dx: 0, dy: -scrollY)
+            if inspectMode {
+                inspectMode = false
+                onInspect?(region.action, contentRect)
+                return
+            }
+            onAction?(region.action, viewRect, region.meta)
+            return
+        }
+
+        guard let payload, let region = payload.region(at: point, scrollY: scrollY) else { return }
         let contentRect = CGRect(x: region.x, y: region.y, width: region.width, height: region.height)
         // showTextInput/showVideoOverlay/showMapOverlay all use this
         // rect directly as a real subview's frame — VIEW space, not the
@@ -464,6 +524,31 @@ public final class NativeCanvasView: UIView {
         }
 
         onAction?(region.action, viewRect, region.meta)
+    }
+
+    /// Mirrors NativeCanvasView.kt's own `handleVScrollTap()`: a nested
+    /// region's `x`/`y` are LOCAL to its vScroll's own content (painted
+    /// from (0, 0) by NestedScroll.php), so the absolute PAGE-content-
+    /// space rect is the viewport's own origin, shifted up by the
+    /// region's current scroll offset, plus the nested region's local
+    /// offset.
+    private func nestedVScrollHitRegion(atContentPoint contentPoint: CGPoint) -> (rect: CGRect, region: HitRegion)? {
+        for info in vScrollRegionsInfo.reversed() {
+            guard info.rect.contains(contentPoint) else { continue }
+            let offset = vScrollOffsets[info.key] ?? 0
+            for region in info.hitRegions.reversed() {
+                let rect = CGRect(
+                    x: info.rect.minX + CGFloat(region.x),
+                    y: info.rect.minY - offset + CGFloat(region.y),
+                    width: CGFloat(region.width),
+                    height: CGFloat(region.height)
+                )
+                if rect.contains(contentPoint) {
+                    return (rect, region)
+                }
+            }
+        }
+        return nil
     }
 
     // MARK: - Page scroll (drag + fling)
