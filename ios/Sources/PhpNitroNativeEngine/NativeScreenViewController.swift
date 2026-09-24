@@ -227,9 +227,22 @@ public final class NativeScreenViewController: UIViewController {
 
         // video:play:<url> (VideoPlayer.php) — same "entirely
         // client-side, no fetch at all" treatment as focus: above.
+        // loop/muted/showControls/playInBackground travel as `meta`
+        // flags (Tappable's own escape hatch) rather than more prefix
+        // segments on the action string — focus:'s own multiline:/
+        // secure:/keyboard: chain already shows how quickly that gets
+        // hard to read past a couple of optional flags, and every one
+        // of these is a plain bool with no value of its own to carry.
         if action.hasPrefix("video:play:") {
             let url = String(action.dropFirst("video:play:".count))
-            canvasView.showVideoOverlay(url: url, rect: rect)
+            canvasView.showVideoOverlay(
+                url: url,
+                rect: rect,
+                loop: meta?["loop"] == "true",
+                muted: meta?["muted"] == "true",
+                showControls: meta?["controls"] == "true",
+                playInBackground: meta?["background"] == "true"
+            )
             return
         }
 
