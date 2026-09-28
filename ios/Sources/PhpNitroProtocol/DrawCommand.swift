@@ -53,13 +53,6 @@ public enum DrawCommand: Decodable {
         case type
     }
 
-    private struct DynamicKey: CodingKey {
-        var stringValue: String
-        init?(stringValue: String) { self.stringValue = stringValue }
-        var intValue: Int? { nil }
-        init?(intValue: Int) { nil }
-    }
-
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(String.self, forKey: .type)
@@ -80,11 +73,7 @@ public enum DrawCommand: Decodable {
         case "slider": self = .slider(try SliderCommand(from: decoder))
         default:
             if type.hasPrefix("custom:") {
-                let dynContainer = try decoder.container(keyedBy: DynamicKey.self)
-                var payload: [String: JSONValue] = [:]
-                for key in dynContainer.allKeys {
-                    payload[key.stringValue] = try dynContainer.decode(JSONValue.self, forKey: key)
-                }
+                let payload = (try? decodeJSONDictionary(from: decoder)) ?? [:]
                 self = .custom(type: String(type.dropFirst("custom:".count)), payload: payload)
             } else {
                 self = .unknown(type: type)
@@ -118,18 +107,51 @@ public enum DrawCommand: Decodable {
     }
 }
 
+/// A CodingKey with no fixed case set, needed anywhere this file decodes
+/// an object whose FIELD NAMES aren't known ahead of time — a
+/// `Canvas::custom()` payload's own arbitrary fields, or a `Tappable`
+/// hit region's `meta` (see `JSONValue`/`HitRegion.meta`'s own
+/// docblocks for the two real call sites).
+fileprivate struct DynamicCodingKey: CodingKey {
+    var stringValue: String
+    init?(stringValue: String) { self.stringValue = stringValue }
+    var intValue: Int? { nil }
+    init?(intValue: Int) { nil }
+}
+
+fileprivate func decodeJSONDictionary(from decoder: Decoder) throws -> [String: JSONValue] {
+    let container = try decoder.container(keyedBy: DynamicCodingKey.self)
+    var result: [String: JSONValue] = [:]
+    for key in container.allKeys {
+        result[key.stringValue] = try container.decode(JSONValue.self, forKey: key)
+    }
+    return result
+}
+
 /// A loosely-typed JSON value — just enough of one to carry a
-/// `Canvas::custom()` command's arbitrary field set (see
-/// `DrawCommand.custom`'s own docblock) without a dedicated Decodable
-/// struct per third-party widget type.
-public enum JSONValue: Decodable {
+/// `Canvas::custom()` command's arbitrary field set, or a `Tappable`
+/// hit region's `meta` (see `DrawCommand.custom`/`HitRegion.meta`'s own
+/// docblocks) without a dedicated Decodable struct per shape. Encodable
+/// too — `ScreenNavigation.reduce(_:_:metaJson:)` needs `meta` back as a
+/// plain JSON string, the same shape PHP originally sent, not a re-typed
+/// Swift structure.
+public enum JSONValue: Codable {
     case string(String)
     case double(Double)
     case bool(Bool)
     case array([JSONValue])
+    /// `SelectBox.php`'s own `meta: ['options' => $options, ...]` is the
+    /// real, concrete reason this case exists — `options` itself is a
+    /// nested value=>label object, not a flat scalar/array like every
+    /// other `meta`/`custom()` field seen so far.
+    case dictionary([String: JSONValue])
     case null
 
     public init(from decoder: Decoder) throws {
+        if let dictionary = try? decodeJSONDictionary(from: decoder) {
+            self = .dictionary(dictionary)
+            return
+        }
         let container = try decoder.singleValueContainer()
         if let value = try? container.decode(Double.self) {
             self = .double(value)
@@ -141,6 +163,18 @@ public enum JSONValue: Decodable {
             self = .array(value)
         } else {
             self = .null
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .string(let value): try container.encode(value)
+        case .double(let value): try container.encode(value)
+        case .bool(let value): try container.encode(value)
+        case .array(let value): try container.encode(value)
+        case .dictionary(let value): try container.encode(value)
+        case .null: try container.encodeNil()
         }
     }
 
@@ -156,6 +190,11 @@ public enum JSONValue: Decodable {
 
     public var arrayValue: [JSONValue]? {
         if case .array(let value) = self { return value }
+        return nil
+    }
+
+    public var dictionaryValue: [String: JSONValue]? {
+        if case .dictionary(let value) = self { return value }
         return nil
     }
 }
@@ -363,28 +402,28 @@ public struct SliderCommand: Decodable {
 
 /// Mirrors one entry of Canvas::toJson()'s "hitRegions" array — see
 /// Tappable.php/Canvas::hitRegion() on the PHP side. `meta` models every
-/// real usage found in `packages/ui/src/Native/*.php` that iOS actually
-/// consumes today (Checkbox/NumberPicker/Drawer's `next`, AlertButton/
-/// ConfirmButton's `message`/`title`/etc, GestureDetector's
-/// `onDoubleClick`/…) — all flat string-valued maps — as
-/// `[String: String]?` rather than a fully generic JSON value, which
-/// `ScreenNavigation.reduce(_:_:metaJson:)` only ever re-parses looking
-/// for a `"next"` key anyway.
+/// real usage found in `packages/ui/src/Native/*.php` — as
+/// `[String: JSONValue]?`, a loosely-typed JSON value (see its own
+/// docblock) rather than a dedicated struct per widget's own meta
+/// shape: Checkbox/NumberPicker/Drawer's `next` and AlertButton/
+/// ConfirmButton's `message`/`title`/etc are flat strings,
+/// `SelectBox.php`'s own hit region carries `['options' =>
+/// array<string,string>, ...]`, a nested object — no single flat-string
+/// map type covers both. `ScreenNavigation.reduce(_:_:metaJson:)` only
+/// ever re-parses looking for a `"next"` key, unaffected by this.
 ///
-/// NOT every real `meta` is string-valued, though — `SelectBox.php`'s
-/// own hit region carries `['options' => array<string,string>, ...]`, a
-/// nested object. A plain `Decodable` synthesis would fail to decode
-/// THAT one hit region and, since `hitRegions` is a required array,
-/// fail the ENTIRE payload for any screen containing a `SelectBox` —
-/// a real bug found reproducing this app's own Settings screen (its
-/// "Couleur d'accent" row) on a physical iPhone: a perfectly valid
+/// Real bug found reproducing this app's own Settings screen (its
+/// "Couleur d'accent" row) on a physical iPhone, from BEFORE `meta` was
+/// widened to `JSONValue`: a plain `[String: String]` synthesis failed
+/// to decode `SelectBox.php`'s own nested `options` value, and since
+/// `hitRegions` is a required array, failed the ENTIRE payload for any
+/// screen containing a `SelectBox` — a perfectly valid
 /// `{"commands":[...]}` response shown as raw text because decoding
-/// silently threw. `select:`/`dialog:` aren't wired up on iOS yet (no
-/// code here reads a non-string meta value at all), so the pragmatic
-/// fix is degrading gracefully — `try?` drops just this one hit
-/// region's `meta` to `nil` on a type mismatch, not the whole payload —
+/// silently threw. `decodeJSONDictionary(from:)` (see its own docblock)
+/// degrades a genuinely malformed `meta` object to `nil` via `try?`,
 /// same "drop what can't be handled rather than crash" precedent
-/// `phpx_embed_capture_write`'s own OOM handling already sets.
+/// `phpx_embed_capture_write`'s own OOM handling already sets — but no
+/// longer drops a perfectly valid nested one just for not being flat.
 public struct HitRegion: Decodable {
     public let x: Double
     public let y: Double
@@ -392,7 +431,7 @@ public struct HitRegion: Decodable {
     public let height: Double
     public let action: String
     public let fixed: Bool?
-    public let meta: [String: String]?
+    public let meta: [String: JSONValue]?
 
     private enum CodingKeys: String, CodingKey {
         case x, y, width, height, action, fixed, meta
@@ -406,7 +445,7 @@ public struct HitRegion: Decodable {
         height = try container.decode(Double.self, forKey: .height)
         action = try container.decode(String.self, forKey: .action)
         fixed = try container.decodeIfPresent(Bool.self, forKey: .fixed)
-        meta = try? container.decodeIfPresent([String: String].self, forKey: .meta)
+        meta = try? container.decodeIfPresent([String: JSONValue].self, forKey: .meta)
     }
 }
 
