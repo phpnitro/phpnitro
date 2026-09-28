@@ -2,13 +2,14 @@ import Foundation
 
 /// The iOS counterpart of the action-dispatch `when` block at the bottom
 /// of NativeRenderPocActivity.kt's own tap handling — deliberately the
-/// MINIMAL slice: `navigate:`/`tab:`/`back`/`clientTab:`/`toggle:` and the
-/// plain fallback (any other action refetches the current screen with
-/// it). Missing on purpose (real, separate follow-up work): deep links,
-/// dialogs, device-capability actions (vibrate, biometrics, ...), OAuth,
-/// `submit:`/date-time pickers — anything NativeRenderPocActivity itself
-/// handles via a native API this framework hasn't ported to iOS yet
-/// rather than via this navigation switch.
+/// MINIMAL slice: `navigate:`/`tab:`/`back`/`clientTab:`/`toggle:`/
+/// `submit:` and the plain fallback (any other action refetches the
+/// current screen with it). Missing on purpose (real, separate
+/// follow-up work): deep links, dialogs, device-capability actions
+/// (vibrate, biometrics, ...), OAuth, date-time pickers — anything
+/// NativeRenderPocActivity itself handles via a native API this
+/// framework hasn't ported to iOS yet rather than via this navigation
+/// switch.
 ///
 /// A pure function, not a method on NativeScreenViewController — same
 /// reasoning HostPort.parse(_:) already follows: the actual decision
@@ -77,6 +78,23 @@ public enum ScreenNavigation {
         if action == "back" {
             let newStack = stack.count > 1 ? Array(stack.dropLast()) : stack
             return .fetch(stack: newStack, action: nil)
+        }
+
+        // Real bug found testing the ecommerce example app's checkout
+        // page on a physical device: "submit:confirm_order" reached
+        // this generic fallback UNSTRIPPED, so PHP received
+        // `$_GET['action'] === "submit:confirm_order"` — never equal to
+        // the bare `'confirm_order'` every screen using submit: always
+        // checks against — the whole action silently never matched,
+        // "Confirmer la commande" looked like it did nothing at all.
+        // Mirrors NativeRenderPocActivity.kt's own `submit:` branch
+        // (`refetch(action.removePrefix("submit:"), includeFields =
+        // true)`) — `includeFields` has no separate iOS equivalent to
+        // set since `fetch()` already sends every current fieldValues
+        // entry unconditionally on every request (see its own
+        // docblock), so stripping the prefix is the one missing piece.
+        if action.hasPrefix("submit:") {
+            return .fetch(stack: stack, action: String(action.dropFirst("submit:".count)))
         }
 
         return .fetch(stack: stack, action: action)
