@@ -455,12 +455,22 @@ public final class NativeScreenViewController: UIViewController {
                 })
             }
             alert.addAction(UIAlertAction(title: "Annuler", style: .cancel))
-            // iPad presents an actionSheet as a popover and crashes
-            // without a real anchor — the tapped SelectBox's own rect
-            // (already in this view's coordinate space) is exactly that
-            // anchor; harmless on iPhone, which ignores popoverPresentationController entirely.
-            alert.popoverPresentationController?.sourceView = view
-            alert.popoverPresentationController?.sourceRect = rect
+            // Real regression found testing this on a physical iPhone
+            // 11 Pro Max: "harmless on iPhone, which ignores
+            // popoverPresentationController entirely" was wrong — just
+            // setting sourceView/sourceRect (even unused) was enough to
+            // make this whole actionSheet render as a tiny anchored
+            // popover bubble instead of the expected full-width sheet
+            // sliding from the bottom, right on top of the tapped
+            // SelectBox. iPad genuinely DOES need a real anchor (a
+            // plain .actionSheet crashes there with no
+            // popoverPresentationController target at all) — scoped to
+            // .pad only now, since that's the one idiom this anchor is
+            // actually for.
+            if UIDevice.current.userInterfaceIdiom == .pad {
+                alert.popoverPresentationController?.sourceView = view
+                alert.popoverPresentationController?.sourceRect = rect
+            }
             present(alert, animated: true)
             return
         }
