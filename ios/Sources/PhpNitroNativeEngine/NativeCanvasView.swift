@@ -186,6 +186,20 @@ public final class NativeCanvasView: UIView {
     /// inside of — mirrors NativeCanvasView.kt's own `activeVScroll`.
     private var activeVScrollKey: String?
 
+    /// See handlePan's own `.began` doc comment: overlays are only torn
+    /// down once THIS gesture is confirmed to actually move something
+    /// (first real scroll delta in `.changed`), not merely for having
+    /// started a drag — reset at the top of every new gesture.
+    private var overlaysClearedThisGesture = false
+
+    private func clearOverlaysOnScrollStartIfNeeded() {
+        guard !overlaysClearedThisGesture else { return }
+        overlaysClearedThisGesture = true
+        clearTextInput()
+        clearVideoOverlay()
+        clearMapOverlay()
+    }
+
     // MARK: - Page scroll (NativeCanvasView.kt's own scrollY)
     //
     // A real bug found comparing side-by-side against a booted Android
@@ -748,26 +762,19 @@ public final class NativeCanvasView: UIView {
         switch recognizer.state {
         case .began:
             stopFling()
-            // Real bug found testing VideoPlayer on a physical device:
-            // playing a video, then scrolling the list underneath it,
-            // left the real AVPlayerLayer overlay floating at its
-            // original screen rect — a one-shot UIView added as a
-            // sibling subview at tap time, with nothing anywhere
-            // repositioning (or tearing down) it when scrollY/
-            // vScrollOffsets change afterward, on either the page or a
-            // NestedScroll (confirmed the same gap exists in
-            // NativeRenderPocActivity.kt's own activeVideoView/
-            // activeTextInput/activeMapView — never Android-fixed
-            // either). Tearing every transient overlay down the instant
-            // an actual drag starts (not on a plain tap, which never
-            // reaches a pan recognizer's .began) is the same trade real
-            // apps make for a keyboard/video/map that can't follow
-            // scrolled content convincingly — cheaper and less
-            // surprising than chasing an per-overlay reposition for
-            // every scroll source.
-            clearTextInput()
-            clearVideoOverlay()
-            clearMapOverlay()
+            // Real regression found testing the social example app's
+            // Chat page on a physical device: tearing overlays down
+            // unconditionally right here, the instant ANY drag started
+            // (even a tiny, accidental finger wobble while trying to
+            // just tap away to dismiss the keyboard), wiped the message
+            // TextField's visible text on a page whose outer scrollY
+            // never actually has anywhere to go (ChatPage.php's own
+            // layout fills exactly one screen, no page overflow) — the
+            // drag never scrolled anything, yet the overlay still got
+            // torn down pre-emptively. overlaysClearedThisGesture below
+            // defers the actual teardown into `.changed`, only once a
+            // real scroll delta is about to be applied (see there).
+            overlaysClearedThisGesture = false
             // Real bug found testing NestedScroll on a physical device:
             // this whole method used to bail out immediately whenever
             // the PAGE had nothing left to scroll (`maxScrollY() <= 0`)
@@ -794,6 +801,7 @@ public final class NativeCanvasView: UIView {
             let translationY = recognizer.translation(in: self).y
 
             if let key = activeVScrollKey, let info = vScrollRegionsInfo.first(where: { $0.key == key }) {
+                clearOverlaysOnScrollStartIfNeeded()
                 let maxOffset = max(0, info.contentHeight - info.viewportHeight)
                 let current = vScrollOffsets[key] ?? 0
                 let next = current - translationY
@@ -821,6 +829,7 @@ public final class NativeCanvasView: UIView {
 
             let maxScroll = maxScrollY()
             guard maxScroll > 0 else { return }
+            clearOverlaysOnScrollStartIfNeeded()
             scrollY = (scrollY - translationY).clamped(to: 0...maxScroll)
             checkScrollFollow()
             recognizer.setTranslation(.zero, in: self)
