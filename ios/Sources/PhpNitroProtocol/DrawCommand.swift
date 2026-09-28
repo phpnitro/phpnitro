@@ -34,10 +34,30 @@ public enum DrawCommand: Decodable {
     case hScroll(HScrollCommand)
     case vScroll(VScrollCommand)
     case slider(SliderCommand)
+    /// `Canvas::custom($type, $data)` (BarChart/Sparkline/PieChart, or
+    /// any future third-party widget) — mirrors NativeCanvasView.kt's
+    /// own `registerCustomCommandHandler()` escape hatch, which this
+    /// engine had NEVER ported: every `"type": "custom:$type"` command
+    /// used to fall into `.unknown` below and paint nothing, silently
+    /// (see NativeCanvasView.swift's own `registerCustomCommandHandler`
+    /// docblock for the real bug this was found from — BarChart/
+    /// Sparkline rendering as blank white space on a physical device).
+    /// `payload` keeps every field PHP sent (`x`/`y`/`width`/`values`/…)
+    /// as loosely-typed `JSONValue`, exactly like Android's own handler
+    /// gets a raw `JSONObject` — a registered handler reads whichever
+    /// fields its own widget actually needs.
+    case custom(type: String, payload: [String: JSONValue])
     case unknown(type: String)
 
     private enum CodingKeys: String, CodingKey {
         case type
+    }
+
+    private struct DynamicKey: CodingKey {
+        var stringValue: String
+        init?(stringValue: String) { self.stringValue = stringValue }
+        var intValue: Int? { nil }
+        init?(intValue: Int) { nil }
     }
 
     public init(from decoder: Decoder) throws {
@@ -58,7 +78,17 @@ public enum DrawCommand: Decodable {
         case "hScroll": self = .hScroll(try HScrollCommand(from: decoder))
         case "vScroll": self = .vScroll(try VScrollCommand(from: decoder))
         case "slider": self = .slider(try SliderCommand(from: decoder))
-        default: self = .unknown(type: type)
+        default:
+            if type.hasPrefix("custom:") {
+                let dynContainer = try decoder.container(keyedBy: DynamicKey.self)
+                var payload: [String: JSONValue] = [:]
+                for key in dynContainer.allKeys {
+                    payload[key.stringValue] = try dynContainer.decode(JSONValue.self, forKey: key)
+                }
+                self = .custom(type: String(type.dropFirst("custom:".count)), payload: payload)
+            } else {
+                self = .unknown(type: type)
+            }
         }
     }
 
@@ -83,8 +113,50 @@ public enum DrawCommand: Decodable {
         case .image(let c): return c.fixed ?? false
         case .spinner(let c): return c.fixed ?? false
         case .skeleton(let c): return c.fixed ?? false
-        case .clientPanel, .hScroll, .vScroll, .slider, .unknown: return false
+        case .clientPanel, .hScroll, .vScroll, .slider, .custom, .unknown: return false
         }
+    }
+}
+
+/// A loosely-typed JSON value — just enough of one to carry a
+/// `Canvas::custom()` command's arbitrary field set (see
+/// `DrawCommand.custom`'s own docblock) without a dedicated Decodable
+/// struct per third-party widget type.
+public enum JSONValue: Decodable {
+    case string(String)
+    case double(Double)
+    case bool(Bool)
+    case array([JSONValue])
+    case null
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let value = try? container.decode(Double.self) {
+            self = .double(value)
+        } else if let value = try? container.decode(Bool.self) {
+            self = .bool(value)
+        } else if let value = try? container.decode(String.self) {
+            self = .string(value)
+        } else if let value = try? container.decode([JSONValue].self) {
+            self = .array(value)
+        } else {
+            self = .null
+        }
+    }
+
+    public var doubleValue: Double? {
+        if case .double(let value) = self { return value }
+        return nil
+    }
+
+    public var stringValue: String? {
+        if case .string(let value) = self { return value }
+        return nil
+    }
+
+    public var arrayValue: [JSONValue]? {
+        if case .array(let value) = self { return value }
+        return nil
     }
 }
 
