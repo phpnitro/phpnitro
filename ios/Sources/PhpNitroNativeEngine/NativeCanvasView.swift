@@ -328,7 +328,7 @@ public final class NativeCanvasView: UIView {
         setNeedsDisplay()
     }
 
-    public func setPayload(_ payload: DrawCommandPayload, preserveTextInput: Bool = false, preserveScroll: Bool = false) {
+    public func setPayload(_ payload: DrawCommandPayload, preserveTextInput: Bool = false, preserveScroll: Bool = true) {
         self.payload = payload
         vScrollRegionsInfo = payload.commands.compactMap { command in
             guard case .vScroll(let scroll) = command else { return nil }

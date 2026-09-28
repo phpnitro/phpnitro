@@ -39,7 +39,25 @@ public enum ScreenNavigationResult: Equatable {
     /// ScreenClient.fetchScreen(_:action:...) (nil for navigate:/tab:/
     /// back, which always fetch fresh; the original action string for
     /// the plain fallback case).
-    case fetch(stack: [String], action: String?)
+    ///
+    /// `isNavigation` is true only for navigate:/tab:/back. Real bug
+    /// found testing the ecommerce example app's new Rating widget (a
+    /// tappable star fires `toggle:rating`) on a physical device: every
+    /// same-screen refetch snapped the whole page back to scrollY=0,
+    /// so tapping a star buried mid-page while scrolled down visibly
+    /// yanked the view back up. NativeCanvasView.kt's own setCommands()
+    /// NEVER resets scrollY on any refetch — it only ever CLAMPS the
+    /// existing value (`scrollY.coerceIn(0f, maxScrollY())`), on
+    /// navigation exactly the same as any other refetch; `isNavigation`
+    /// there only gates the crossfade animation and the stale-hash
+    /// reset, nothing about scroll position at all. This port had it
+    /// backwards: reset by default, clamp only for the two paths a
+    /// previous fix (LazyList scroll-follow, WebSocket push) had
+    /// explicitly special-cased. `isNavigation` here lets
+    /// NativeScreenViewController pass the real, Android-matching
+    /// default (`preserveScroll: !isNavigation`) instead of one
+    /// hand-picked exception at a time.
+    case fetch(stack: [String], action: String?, isNavigation: Bool)
 }
 
 public enum ScreenNavigation {
@@ -56,7 +74,7 @@ public enum ScreenNavigation {
             if parts.count == 2, let index = Int(parts[1]) {
                 return .clientTabOnly(key: String(parts[0]), index: index)
             }
-            return .fetch(stack: stack, action: nil)
+            return .fetch(stack: stack, action: nil, isNavigation: false)
         }
 
         if action.hasPrefix("toggle:"), let metaJson, let next = nextValue(fromMetaJSON: metaJson) {
@@ -64,7 +82,7 @@ public enum ScreenNavigation {
         }
 
         if action.hasPrefix("navigate:") {
-            return .fetch(stack: stack + [String(action.dropFirst("navigate:".count))], action: nil)
+            return .fetch(stack: stack + [String(action.dropFirst("navigate:".count))], action: nil, isNavigation: true)
         }
 
         // A BottomNavigation tab switch — resets the whole stack to that
@@ -72,12 +90,12 @@ public enum ScreenNavigation {
         // repeatedly doesn't grow an ever-longer back stack the way
         // drilling into a real detail screen should.
         if action.hasPrefix("tab:") {
-            return .fetch(stack: [String(action.dropFirst("tab:".count))], action: nil)
+            return .fetch(stack: [String(action.dropFirst("tab:".count))], action: nil, isNavigation: true)
         }
 
         if action == "back" {
             let newStack = stack.count > 1 ? Array(stack.dropLast()) : stack
-            return .fetch(stack: newStack, action: nil)
+            return .fetch(stack: newStack, action: nil, isNavigation: true)
         }
 
         // Real bug found testing the ecommerce example app's checkout
@@ -94,10 +112,10 @@ public enum ScreenNavigation {
         // entry unconditionally on every request (see its own
         // docblock), so stripping the prefix is the one missing piece.
         if action.hasPrefix("submit:") {
-            return .fetch(stack: stack, action: String(action.dropFirst("submit:".count)))
+            return .fetch(stack: stack, action: String(action.dropFirst("submit:".count)), isNavigation: false)
         }
 
-        return .fetch(stack: stack, action: action)
+        return .fetch(stack: stack, action: action, isNavigation: false)
     }
 
     /// Extracts `meta.next` from a hit region's meta JSON (e.g.

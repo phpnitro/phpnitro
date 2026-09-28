@@ -839,16 +839,30 @@ public final class NativeScreenViewController: UIViewController {
             // icon, etc) — mirrors NativeRenderPocActivity.kt's own
             // `toggle:` branch exactly: write the new value, then refetch
             // the same screen with it included, same as any other field
-            // (see fieldValues' own docblock).
+            // (see fieldValues' own docblock). preserveScroll: true —
+            // see ScreenNavigationResult.fetch's own docblock for the
+            // real bug (a tappable Rating star yanking the whole page
+            // back to the top) this default-inversion fix addresses.
             fieldValues[key] = value
-            fetch(action: nil)
-        case .fetch(let stack, let fetchAction):
+            fetch(action: nil, preserveScroll: true)
+        case .fetch(let stack, let fetchAction, let isNavigation):
             screenStack = stack
-            fetch(action: fetchAction)
+            fetch(action: fetchAction, preserveScroll: !isNavigation)
         }
     }
 
-    private func fetch(action: String?, preserveTextInput: Bool = false, preserveScroll: Bool = false) {
+    // Real bug found testing the ecommerce example app's Rating widget
+    // on a physical device: EVERY call site below that just does
+    // fetch(action: nil) after writing a device result into
+    // fieldValues (camera, mic, scanqr, nfcstop, reminders, apn, …) —
+    // every one a same-screen refetch, never a navigation — used to
+    // default to resetting scroll to the top, same root cause
+    // ScreenNavigationResult.fetch's own docblock documents for
+    // toggle:. preserveScroll now defaults to true (Android's own
+    // setCommands() never resets scroll on ANY refetch, full stop) —
+    // only the one real navigation path (see the `.fetch` case in
+    // handle(action:rect:meta:)) explicitly passes false.
+    private func fetch(action: String?, preserveTextInput: Bool = false, preserveScroll: Bool = true) {
         // canvasView.bounds, NOT UIScreen.main.bounds — PHP positions
         // "fixed" elements (the bottom tab bar, a FAB) assuming the
         // height it's told IS the real drawable height. UIScreen's own
