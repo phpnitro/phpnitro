@@ -816,7 +816,25 @@ public final class NativeScreenViewController: UIViewController {
         // own doc comment for how this was found and why the first
         // fetch had to move there to get a real, laid-out bounds at all.
         let bounds = canvasView.bounds
-        let screen = screenStack.last ?? "home"
+        // Real bug found testing the ecommerce example app on a
+        // physical device: tapping a product (Tappable's own
+        // "navigate:product?id=42") visibly did nothing — ScreenNavigation
+        // .reduce(_:_:) pushes the WHOLE "product?id=42" token onto
+        // screenStack (matches NativeRenderPocActivity.kt's own
+        // `screenStack.add(action.removePrefix("navigate:"))` exactly),
+        // but unlike Android's own fetchDrawCommands() — which splits
+        // that token into a bare `screen` and re-encodes its own query
+        // params separately (see its own `substringBefore('?')`/
+        // `substringAfter('?')` split) — this fetch() used to pass the
+        // ENTIRE "product?id=42" string as the `screen` query param
+        // itself. AutoRouter::discover()'s route map only ever has a
+        // bare "product" key, so the lookup silently missed and fell
+        // back to 'home' — same screen re-rendered, looking like the
+        // tap did nothing at all.
+        let screenToken = screenStack.last ?? "home"
+        let screen = String(screenToken.split(separator: "?", maxSplits: 1)[0])
+        let rawQuery = screenToken.contains("?") ? String(screenToken.split(separator: "?", maxSplits: 1)[1]) : ""
+
         // LazyList's windowed prefetch needs to know where the user
         // actually is in the virtual list to build the right window —
         // harmless for every other screen, which simply never reads it
@@ -828,6 +846,13 @@ public final class NativeScreenViewController: UIViewController {
         // without widening ScreenDataSource's own protocol signature.
         var requestFieldValues = fieldValues
         requestFieldValues["scroll_y"] = String(Double(canvasView.currentScrollYDp))
+        if !rawQuery.isEmpty {
+            for pair in rawQuery.components(separatedBy: "&") {
+                let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
+                guard let key = parts.first, !key.isEmpty else { continue }
+                requestFieldValues[key] = parts.count > 1 ? parts[1] : ""
+            }
+        }
         #if DEBUG
         let fetchStart = Date()
         #endif
