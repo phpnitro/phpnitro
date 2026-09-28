@@ -2775,16 +2775,58 @@ function isAndroidAppInstalled(string $pkg): bool
  * CPhpEmbed/PhpNitroProtocol/PhpNitroNativeEngine/...), never
  * `ios/HostApp/` (the per-project Xcode project: bundle ID, icons,
  * entitlements — a scaffolded project's own customizations, which a
- * wholesale re-copy would silently clobber) nor `ios/vendor` (the
- * large committed `libphp.xcframework` binary, unrelated to a Swift
- * source fix and not worth re-copying every run). `www` skipped for
+ * wholesale re-copy would silently clobber). `www` skipped for
  * the same reason `cmdNew()`'s own copy skips it — that's
  * `cmdBundleIos()`'s build output for THIS project, called right after
  * this, not the framework's own currently-bundled demo content.
+ *
+ * `ios/vendor` (the committed `libphp.xcframework` binary) gets its
+ * own conditional sync right after — see syncIosVendorIfChanged()'s
+ * own docblock for the real bug that made this necessary.
  */
 function syncIosEngineSources(): void
 {
     copyDirectory(PHPX_TOOL_ROOT . '/ios/Sources', PHPX_ROOT . '/ios/Sources', ['www', '.build', '.swiftpm']);
+    syncIosVendorIfChanged();
+}
+
+/**
+ * Real bug found chasing a native PHP fix (statically linking OpenSSL
+ * into `libphp.xcframework`) through an entire debugging session:
+ * `ios/vendor` was deliberately excluded from syncIosEngineSources()'s
+ * own copy as "the large committed binary, not worth re-copying every
+ * run" — but that meant a scaffolded project's own vendored
+ * `libphp.xcframework` NEVER picked up a framework-level update to it,
+ * ever, with no error, no warning, and no visible difference short of
+ * reading file sizes by hand. Every rebuild against a real device kept
+ * silently linking the SAME stale binary from whenever the project was
+ * first scaffolded, no matter how many times the actual fix was
+ * re-verified to compile and link cleanly on its own.
+ *
+ * A cheap mtime+size check (not a full-directory copy every run) keeps
+ * this from re-copying a real ~40MB binary on every single `phpx run`
+ * for the overwhelming common case where it hasn't changed since the
+ * project was scaffolded.
+ */
+function syncIosVendorIfChanged(): void
+{
+    $source = PHPX_TOOL_ROOT . '/ios/vendor';
+    $destination = PHPX_ROOT . '/ios/vendor';
+    $relativeLibphp = '/php/libphp.xcframework/ios-arm64/libphp.a';
+
+    if (!is_file($source . $relativeLibphp)) {
+        return;
+    }
+
+    if (is_file($destination . $relativeLibphp)
+        && filemtime($source . $relativeLibphp) <= filemtime($destination . $relativeLibphp)
+        && filesize($source . $relativeLibphp) === filesize($destination . $relativeLibphp)
+    ) {
+        return;
+    }
+
+    copyDirectory($source, $destination);
+    echo "ios/vendor resynchronisé (libphp.xcframework a changé depuis le scaffold de ce projet)\n";
 }
 
 /**
