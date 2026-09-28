@@ -383,7 +383,7 @@ public final class NativeScreenViewController: UIViewController {
         fieldValues[name] = value
     }
 
-    private func handle(action: String, rect: CGRect, meta: [String: String]? = nil) {
+    private func handle(action: String, rect: CGRect, meta: [String: JSONValue]? = nil) {
         // focus: never reaches ScreenNavigation.reduce (no fetch at all,
         // entirely client-side — same "not funneled through the generic
         // reducer" treatment clientTab: gets) — matches
@@ -424,11 +424,44 @@ public final class NativeScreenViewController: UIViewController {
             canvasView.showVideoOverlay(
                 url: url,
                 rect: rect,
-                loop: meta?["loop"] == "true",
-                muted: meta?["muted"] == "true",
-                showControls: meta?["controls"] == "true",
-                playInBackground: meta?["background"] == "true"
+                loop: meta?["loop"]?.stringValue == "true",
+                muted: meta?["muted"]?.stringValue == "true",
+                showControls: meta?["controls"]?.stringValue == "true",
+                playInBackground: meta?["background"]?.stringValue == "true"
             )
+            return
+        }
+
+        // select:<name> (SelectBox.php) — same "entirely client-side
+        // until a choice is made" shape focus:/video:play: already use,
+        // but the choice itself needs a real system picker: mirrors
+        // NativeRenderPocActivity.kt's own showSelectDialog(), an
+        // AlertDialog listing every option, writing the picked KEY (not
+        // its label) into fieldValues and refetching. Real bug found
+        // testing the ecommerce example app's checkout page ("Choisir
+        // un opérateur mobile money") on a physical device: this whole
+        // action was never wired up on iOS at all — tapping the
+        // SelectBox did nothing, silently (see HitRegion.meta's own
+        // docblock for why `options` couldn't even be READ before that
+        // type was widened to JSONValue).
+        if action.hasPrefix("select:") {
+            let name = String(action.dropFirst("select:".count))
+            guard let options = meta?["options"]?.dictionaryValue else { return }
+            let alert = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
+            for (value, label) in options {
+                alert.addAction(UIAlertAction(title: label.stringValue ?? value, style: .default) { [weak self] _ in
+                    self?.fieldValues[name] = value
+                    self?.fetch(action: nil)
+                })
+            }
+            alert.addAction(UIAlertAction(title: "Annuler", style: .cancel))
+            // iPad presents an actionSheet as a popover and crashes
+            // without a real anchor — the tapped SelectBox's own rect
+            // (already in this view's coordinate space) is exactly that
+            // anchor; harmless on iPhone, which ignores popoverPresentationController entirely.
+            alert.popoverPresentationController?.sourceView = view
+            alert.popoverPresentationController?.sourceRect = rect
+            present(alert, animated: true)
             return
         }
 
@@ -785,7 +818,7 @@ public final class NativeScreenViewController: UIViewController {
             return
         }
 
-        let metaJson = meta.flatMap { try? JSONSerialization.data(withJSONObject: $0) }
+        let metaJson = meta.flatMap { try? JSONEncoder().encode($0) }
             .flatMap { String(data: $0, encoding: .utf8) }
 
         switch ScreenNavigation.reduce(action: action, stack: screenStack, metaJson: metaJson) {
