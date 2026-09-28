@@ -100,7 +100,31 @@ public final class PhpEmbedRuntime {
 
     public init() {}
 
+    /// Real bug found testing VideoPlayer's own download button on a
+    /// physical device: this xcframework's own cross-compiled OpenSSL
+    /// (see ios/vendor/php/README.md) has no root certificate store of
+    /// its own to fall back on, unlike an app linking against the
+    /// platform's Security.framework — every `https://` request failed
+    /// TLS verification, regardless of connectivity.
+    ///
+    /// `zend_alter_ini_entry_chars("openssl.cafile", ...)` was tried
+    /// first and does NOT work here: `php_embed_init()` unconditionally
+    /// overwrites `php_embed_module.ini_entries` with its own
+    /// `HARDCODED_INI` partway through its own startup (see
+    /// sapi/embed/php_embed.c), so anything set on the SAPI module
+    /// beforehand never survives, and altering the (PHP_INI_PERDIR,
+    /// not PHP_INI_USER) entry afterward the way ini_set() would isn't
+    /// actually supported for this modify_type. An environment
+    /// variable sidesteps the whole INI system: PHPX_CACERT_PATH is
+    /// read back with getenv() at the one real call site that needs it
+    /// (e.g. EpisodeRepository::download() in the media example app,
+    /// passed as a stream context's own `ssl.cafile` option) rather
+    /// than a process-wide default every `https://` call would
+    /// otherwise need to agree on.
     public func start() {
+        if let cafile = Bundle.module.url(forResource: "cacert", withExtension: "pem") {
+            setenv("PHPX_CACERT_PATH", cafile.path, 1)
+        }
         phpx_embed_start()
     }
 
