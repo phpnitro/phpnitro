@@ -103,19 +103,147 @@ export CXXFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
 export LDFLAGS="-isysroot $IOS_SDK -mios-version-min=15.0"
 export SQLITE_CFLAGS="-I$IOS_SDK/usr/include"
 export SQLITE_LIBS="-L$IOS_SDK/usr/lib -lsqlite3"
+export OPENSSL_CFLAGS="-I/path/to/openssl-install-device/include"
+export OPENSSL_LIBS="-L/path/to/openssl-install-device/lib -lssl -lcrypto"
 ./configure --host=aarch64-apple-darwin --disable-all --without-pear \
   --disable-cli --disable-cgi --disable-phpdbg --enable-embed=static \
   --without-pcre-jit --enable-session=static \
   --enable-pdo=static --with-pdo-sqlite=static --with-sqlite3=static \
   --enable-filter=static \
-  --enable-mbstring=static --disable-mbregex
+  --enable-mbstring=static --disable-mbregex \
+  --with-openssl=static
 make -j"$(sysctl -n hw.ncpu)"
 ```
 
 Simulator build: same steps, swap every `iphoneos`/`-mios-version-min`
 for `iphonesimulator`/`-mios-simulator-version-min` (and `IOS_SDK`'s own
-`--sdk` accordingly — `SQLITE_CFLAGS`/`SQLITE_LIBS` must point at
-whichever SDK is actually being targeted).
+`--sdk` accordingly — `SQLITE_CFLAGS`/`SQLITE_LIBS`/`OPENSSL_CFLAGS`/
+`OPENSSL_LIBS` must point at whichever SDK/OpenSSL build is actually
+being targeted).
+
+### OpenSSL itself: a separate cross-compile, first
+
+`--with-openssl=static` needs a real `libssl.a`/`libcrypto.a` to link
+against — the iOS SDK has no OpenSSL of its own (`Security.framework`
+isn't a drop-in replacement `ext/openssl`'s C code can link against).
+Built from OpenSSL 3.0.15 (matching Android's own
+`android/php-ndk-patch/Dockerfile`), using its own built-in iOS
+targets:
+
+```sh
+git clone --depth 1 --branch openssl-3.0.15 https://github.com/openssl/openssl.git
+cd openssl
+# Device:
+./Configure ios64-xcrun no-shared no-async no-tests -mios-version-min=15.0 \
+  --prefix=/path/to/openssl-install-device --openssldir=/path/to/openssl-install-device/ssl
+make -j"$(sysctl -n hw.ncpu)" && make install_sw
+# Simulator (Apple Silicon): `iossimulator-xcrun`'s own template has no
+# -arch flag baked in, and passing "-arch arm64" as a separate ./Configure
+# arg gets misparsed as a second target name ("target already defined") —
+# override CC directly instead:
+CC="xcrun -sdk iphonesimulator clang -arch arm64" ./Configure iossimulator-xcrun no-shared no-async no-tests \
+  -mios-simulator-version-min=15.0 \
+  --prefix=/path/to/openssl-install-simulator --openssldir=/path/to/openssl-install-simulator/ssl
+make -j"$(sysctl -n hw.ncpu)" && make install_sw
+```
+
+`OPENSSL_CFLAGS`/`OPENSSL_LIBS` in the PHP `./configure` invocation
+above point at these two `--prefix` directories (device vs simulator).
+
+### Merging OpenSSL into the one committed `libphp.a`
+
+PHP's own `make` links `ext/openssl`'s object files but NOT
+`libssl.a`/`libcrypto.a` into `libphp.a` itself — those stay separate
+static archives PHP only links against at `make` time. Rather than
+ship three separate binaries per architecture (complicating the
+`.xcframework`'s single-binary-per-slice assumption and this whole
+repo's "one committed artifact" convention), `libtool -static` merges
+all three into one self-contained archive per architecture BEFORE
+packaging into the `.xcframework`:
+
+```sh
+libtool -static -o libphp-device.a \
+  build-device/.libs/libphp.a install-device/lib/libssl.a install-device/lib/libcrypto.a
+libtool -static -o libphp-simulator.a \
+  build-simulator/.libs/libphp.a install-simulator/lib/libssl.a install-simulator/lib/libcrypto.a
+```
+(then package these two merged archives into the `.xcframework` exactly as the "Packaging" section below already describes, in place of the plain `libphp.a` each side built on its own).
+
+### A real, non-obvious trap: registered ≠ actually loaded
+
+Linking cleanly is **not** proof `ext/openssl` is actually usable —
+confirmed the hard way, losing real time to it: a first attempt built,
+linked, and ran without any error, yet `extension_loaded('openssl')`
+still returned `false` on a physical device. Two real causes, found in
+this order:
+
+1. **A stale `libphp.xcframework` in the SCAFFOLDED PROJECT, not this
+   monorepo.** `phpx run` only ever resynced `ios/Sources/` into an
+   already-scaffolded project (see `bin/phpx`'s own
+   `syncIosEngineSources()`) — `ios/vendor` was deliberately excluded
+   as "the large committed binary, not worth re-copying every run".
+   That meant a project scaffolded before this xcframework was rebuilt
+   kept silently linking the OLD binary forever, with zero error,
+   warning, or visible difference short of comparing file sizes by
+   hand — every rebuild "worked" and still exhibited the exact
+   pre-fix bug. Now fixed: `syncIosVendorIfChanged()` compares
+   `ios/vendor/php/libphp.xcframework/ios-arm64/libphp.a`'s mtime+size
+   against the framework's own copy and only re-copies the whole
+   `ios/vendor` tree when it actually differs (keeping `phpx run` fast
+   for the overwhelming common case where it hasn't changed).
+2. **A genuinely failed MINIT, swallowed with zero visible output.**
+   Once the sync gap above was fixed and the REAL rebuilt binary
+   finally reached the device, `extension_loaded('openssl')` return
+   `false` a second time — but on a build later found to have
+   *actually* linked correctly. Root-caused by temporarily patching
+   `Zend/zend_API.c`'s `zend_startup_module_ex()` and `ext/openssl`'s
+   own `PHP_MINIT_FUNCTION` with `fprintf(stderr, ...)` calls: any
+   `MINIT` that returns `FAILURE` gets silently `ZEND_HASH_APPLY_REMOVE`d
+   from `module_registry` (see `zend_startup_module_zval()`), and this
+   embed SAPI's own `phpx_embed_start()` (`ios/Sources/CPhpEmbed/
+   phpx_embed.c`) installs its `ub_write` output-capture callback
+   *before* `php_embed_init()` runs its own startup sequence — swallowing
+   whatever `zend_error_noreturn(E_CORE_ERROR, "Unable to start %s
+   module", ...)` would otherwise have printed, into a buffer nothing
+   ever flushes for pre-eval output. (In THIS specific build the actual
+   root cause turned out to be case 1 above, not a real MINIT failure —
+   `openssl` registered fine and `extension_loaded('openssl')` returns
+   `true` once the correct binary is actually linked — but the
+   `ub_write`-before-`php_embed_init()` ordering is a real, separate
+   trap worth knowing about for whichever MINIT genuinely fails next.)
+
+**How to verify this xcframework's own `ext/openssl` for real, not by
+assumption:** `nm -g libphp.a | grep _php_openssl` confirms the
+*symbols* linked in — that alone is not enough. The only real proof is
+`extension_loaded('openssl')` (or `stream_get_transports()` including
+`ssl`/`tls`) evaluated from a build that actually reached the device,
+confirmed via `syncIosVendorIfChanged()`'s own log line ("ios/vendor
+resynchronisé...") or by comparing file sizes/mtimes by hand.
+
+### TLS still needs a real CA bundle — `openssl.cafile` (INI) does NOT work here
+
+Even with `ext/openssl` genuinely loaded, every `https://` request
+still fails TLS verification ("certificate verify failed") without a
+trusted root certificate store — this cross-compiled OpenSSL has none
+of its own, unlike an app linking against the platform's own
+`Security.framework`. The obvious fix — `zend_alter_ini_entry_chars`
+setting `openssl.cafile` — does **not** work in this embed SAPI:
+`php_embed_init()` unconditionally overwrites
+`php_embed_module.ini_entries` with its own `HARDCODED_INI` partway
+through its own startup (`sapi/embed/php_embed.c`), so anything set on
+the SAPI module beforehand never survives, and `openssl.cafile`'s own
+`PHP_INI_PERDIR` modifiability doesn't support an `ini_set()`-style
+change after startup either.
+
+The fix that actually works: `PhpEmbedRuntime.swift`'s `start()` calls
+`setenv("PHPX_CACERT_PATH", ...)` (pointing at the same Mozilla CA
+bundle `android/engine/src/main/assets/cacert.pem` already ships,
+copied into this package's own bundle resources) *before*
+`phpx_embed_start()`, and PHP userland code reads it back with
+`getenv('PHPX_CACERT_PATH')`, passed as a `stream_context_create([
+'ssl' => ['cafile' => ...]])` option per request that needs it — see
+`~/Desktop/phpnitro-exemple/media`'s own `EpisodeRepository::download()`
+for a real, working example.
 
 ## Runtime extensions: not just the bare embed SAPI
 
@@ -173,19 +301,18 @@ guessed up front):
   `--disable-mbregex` removes that dependency entirely instead of
   vendoring `oniguruma` for a feature nothing here calls.
 
-**Known gap, deliberately not addressed here**: `curl_*`
-(`packages/payments/src/Feexpay.php`), `openssl_*`
-(`packages/firebase`, `packages/socialauth`), and `Intl*`
-(`packages/format`) are also real calls in bundled code this xcframework
-can't satisfy yet — unlike `filter`/`mbstring`, these need actual
-third-party static libraries cross-compiled for iOS first (`libcurl`,
-OpenSSL, ICU's data files), the same scale of work
-`android/php-ndk-patch/Dockerfile`'s own OpenSSL 3.0.15 static build
-already had to do for Android (see `android/README.md`'s own
-CURLOPT_POST/openssl wrapper story) — not a `configure` flag away.
-Whichever of those three a screen touches first will surface its own
-`Undefined function`/`Undefined constant` error, same shape as the two
-above, until someone does that vendoring work for iOS too.
+**`openssl_*` (`packages/firebase`, `packages/socialauth`) is now
+supported** — `ext/openssl` is statically linked (see "OpenSSL itself:
+a separate cross-compile, first" above). **Known gap, still
+deliberately not addressed here**: `curl_*`
+(`packages/payments/src/Feexpay.php`) and `Intl*` (`packages/format`)
+are also real calls in bundled code this xcframework can't satisfy
+yet — these need their own third-party static libraries cross-compiled
+for iOS (`libcurl`, ICU's data files), the same scale of work the
+OpenSSL build above already was. Whichever of those two a screen
+touches first will surface its own `Undefined function`/`Undefined
+constant` error, same shape as the ones already documented above,
+until someone does that vendoring work for iOS too.
 
 Consumers must link `-lsqlite3` alongside the already-required
 `-lresolv -liconv -lm` (see `Package.swift`'s own `CPhpEmbed` target)
