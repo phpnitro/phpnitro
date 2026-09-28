@@ -248,7 +248,7 @@ public final class NativeCanvasView: UIView {
         setNeedsDisplay()
     }
 
-    public func setPayload(_ payload: DrawCommandPayload) {
+    public func setPayload(_ payload: DrawCommandPayload, preserveTextInput: Bool = false) {
         self.payload = payload
         vScrollRegionsInfo = payload.commands.compactMap { command in
             guard case .vScroll(let scroll) = command else { return nil }
@@ -269,7 +269,19 @@ public final class NativeCanvasView: UIView {
         // etc); this port simplifies to "any new payload ends the
         // current editing session", safer than trying to reposition a
         // stale overlay against content it was never laid out for.
-        clearTextInput()
+        //
+        // Real bug found testing the social example app's Chat page on
+        // a physical device: an unprompted WebSocket echo landing while
+        // the user was mid-typing hit this exact path and silently
+        // wiped their draft — nobody tapped anything, so "ends the
+        // current editing session" was actively wrong here.
+        // preserveTextInput (set only by that one push-triggered fetch,
+        // see NativeScreenViewController's "wsconnect" case) skips the
+        // teardown so the overlay — and whatever the user was typing
+        // into it — survives.
+        if !preserveTextInput {
+            clearTextInput()
+        }
         clearVideoOverlay()
         clearMapOverlay()
         updateAnimationState()
@@ -299,12 +311,23 @@ public final class NativeCanvasView: UIView {
         let ink = UIColor(red: 0x11 / 255, green: 0x18 / 255, blue: 0x27 / 255, alpha: 1)
         let border = UIColor(red: 0xE5 / 255, green: 0xE7 / 255, blue: 0xEB / 255, alpha: 1)
 
+        // Real regression found testing the social example app's Chat
+        // page on a physical device: text sat flush against the edge
+        // while the field was focused. TextField.php's own static (non-
+        // focused) render already insets by Tokens::SPACE_MD (fixed in
+        // a397d9f) — that fix never reached this overlay, the one
+        // NativeRenderPocActivity.kt's own showTextInput() already
+        // insets via setPadding(12 * density, …). SPACE_MD is already
+        // in points here (no density conversion needed on iOS).
+        let horizontalInset: CGFloat = 12
+
         let textInput: UIView
         if multiline {
             let textView = UITextView(frame: rect)
             textView.text = initialValue
             textView.font = .systemFont(ofSize: 15)
             textView.textColor = ink
+            textView.textContainerInset = UIEdgeInsets(top: 8, left: horizontalInset - 5, bottom: 8, right: horizontalInset - 5)
             textView.delegate = self
             textInput = textView
         } else {
@@ -314,6 +337,10 @@ public final class NativeCanvasView: UIView {
             textField.font = .systemFont(ofSize: 15)
             textField.textColor = ink
             textField.borderStyle = .none
+            textField.leftView = UIView(frame: CGRect(x: 0, y: 0, width: horizontalInset, height: rect.height))
+            textField.leftViewMode = .always
+            textField.rightView = UIView(frame: CGRect(x: 0, y: 0, width: horizontalInset, height: rect.height))
+            textField.rightViewMode = .always
             // Real gap found testing a fresh scaffold: every TextField
             // opened the same plain alphabetic keyboard regardless of
             // content (a phone number field had no numeric keypad) —

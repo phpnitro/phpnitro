@@ -527,7 +527,18 @@ public final class NativeScreenViewController: UIViewController {
                 let outField = parts.count > 2 ? parts[2] : "ws_out"
                 NativeDeviceBridge.connectWebSocket(urlString: url) { [weak self] message in
                     self?.fieldValues[outField] = message
-                    self?.fetch(action: nil)
+                    // Real bug found testing the social example app's
+                    // Chat page on a physical device: typing in the
+                    // message TextField, then an unrelated WebSocket
+                    // echo landing (no tap involved — see this case's
+                    // own docblock) fired this same fetch(action: nil),
+                    // which used to tear down the live text-input
+                    // overlay via setPayload's unconditional
+                    // clearTextInput() — wiping whatever the user was
+                    // mid-typing. preserveTextInput keeps the overlay
+                    // alive across exactly this one "nobody tapped
+                    // anything" fetch path.
+                    self?.fetch(action: nil, preserveTextInput: true)
                 }
             case "wssend":
                 let message = (parts.count > 1 ? parts[1].removingPercentEncoding : nil) ?? ""
@@ -665,7 +676,7 @@ public final class NativeScreenViewController: UIViewController {
         }
     }
 
-    private func fetch(action: String?) {
+    private func fetch(action: String?, preserveTextInput: Bool = false) {
         // canvasView.bounds, NOT UIScreen.main.bounds — PHP positions
         // "fixed" elements (the bottom tab bar, a FAB) assuming the
         // height it's told IS the real drawable height. UIScreen's own
@@ -685,7 +696,7 @@ public final class NativeScreenViewController: UIViewController {
                 switch result {
                 case .success(let payload):
                     self?.errorView.isHidden = true
-                    self?.canvasView.setPayload(payload)
+                    self?.canvasView.setPayload(payload, preserveTextInput: preserveTextInput)
                     #if DEBUG
                     guard let self else { return }
                     self.devTools.update(
