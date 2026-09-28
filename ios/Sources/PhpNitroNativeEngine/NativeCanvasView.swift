@@ -229,13 +229,34 @@ public final class NativeCanvasView: UIView {
     /// are different: those genuinely DO drift out of registration with
     /// scrolled content (the real bug PR #155 first fixed), since
     /// nothing repositions their fixed on-screen rect as content moves
-    /// underneath. A focused TextField has no such drift problem worth
-    /// caring about — losing keyboard focus on scroll (like most iOS
-    /// apps do) is fine; erasing what was typed is not.
-    private func clearOverlaysOnScrollStartIfNeeded() {
+    /// underneath.
+    ///
+    /// "A focused TextField has no such drift problem worth caring
+    /// about" — the claim above — turned out to only be true for a
+    /// TextField sitting in the page's own FIXED (non-scrolling) area,
+    /// like Chat's own message field. Real regression found testing
+    /// the ecommerce example app's review form on a physical device:
+    /// that TextField lives INSIDE a `NestedScroll`'s own scrollable
+    /// content (the whole product-detail screen is one), so it drifts
+    /// out of registration exactly like video/map do — the overlay
+    /// stayed glued to its focus-time screen position while the
+    /// content scrolled underneath, producing two visibly overlapping
+    /// boxes (the stale overlay, and the freshly-painted static
+    /// TextField in its real, scrolled position) — one of them (the
+    /// overlay, a real `UITextField`/`UITextView`) even independently
+    /// draggable via its own internal scrolling. `nested: true` (only
+    /// the vScroll-handoff drag path passes it) tears the text input
+    /// down for real here, same as video/map; the plain outer-page
+    /// path (Chat's own scenario, no nested vScroll involved) keeps
+    /// the resign-only behavior since nothing there actually drifts.
+    private func clearOverlaysOnScrollStartIfNeeded(nested: Bool = false) {
         guard !overlaysClearedThisGesture else { return }
         overlaysClearedThisGesture = true
-        activeTextInput?.resignFirstResponder()
+        if nested {
+            clearTextInput()
+        } else {
+            activeTextInput?.resignFirstResponder()
+        }
         clearVideoOverlay()
         clearMapOverlay()
     }
@@ -842,7 +863,7 @@ public final class NativeCanvasView: UIView {
             let translationY = recognizer.translation(in: self).y
 
             if let key = activeVScrollKey, let info = vScrollRegionsInfo.first(where: { $0.key == key }) {
-                clearOverlaysOnScrollStartIfNeeded()
+                clearOverlaysOnScrollStartIfNeeded(nested: true)
                 let maxOffset = max(0, info.contentHeight - info.viewportHeight)
                 let current = vScrollOffsets[key] ?? 0
                 let next = current - translationY
