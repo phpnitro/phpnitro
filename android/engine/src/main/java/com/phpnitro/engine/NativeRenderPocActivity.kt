@@ -1218,6 +1218,16 @@ class NativeRenderPocActivity : AppCompatActivity() {
                 val text = java.net.URLDecoder.decode(parts.getOrElse(1) { "" }, "UTF-8")
                 val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                 clipboard.setPrimaryClip(android.content.ClipData.newPlainText("PhpNitro", text))
+                // Real bug found testing Clipboard::copyAction() on a
+                // physical device (iOS side, but this branch had the
+                // exact same gap): this handler never showed its own
+                // confirmation, relying entirely on Android's OS-level
+                // "Copied" toast — added only in Android 12, not shown
+                // at all on older OS versions. Showing our own here
+                // makes the confirmation work on every Android version,
+                // matching iOS's own new showToast() call for this same
+                // action.
+                Toast.makeText(this@NativeRenderPocActivity, "Copié dans le presse-papiers", Toast.LENGTH_SHORT).show()
             }
             "clipboardpaste" -> {
                 val outputField = parts.getOrElse(1) { "clipboard_out" }
