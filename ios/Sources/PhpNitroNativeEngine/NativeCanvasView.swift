@@ -192,8 +192,28 @@ public final class NativeCanvasView: UIView {
     /// started a drag — reset at the top of every new gesture.
     private var overlaysClearedThisGesture = false
 
-    private func clearOverlaysOnScrollStartIfNeeded() {
+    /// Real bug found testing the social example app's Chat page on a
+    /// physical device: even after deferring the teardown into
+    /// `.changed` (see clearOverlaysOnScrollStartIfNeeded's own call
+    /// sites), the TextField STILL vanished on a plain "tap elsewhere
+    /// to dismiss the keyboard" — because UIPanGestureRecognizer's own
+    /// ~10pt recognition threshold is already enough movement to reach
+    /// `.changed` with a genuinely nonzero (if tiny) scroll delta, on
+    /// a Chat page whose outer scrollY does have SOME real overflow
+    /// (the assumption that it exactly fills one screen, from this
+    /// method's earlier version, was wrong — confirmed live via
+    /// [DIAG] print tracing while the user reproduced the bug: every
+    /// clearTextInput() fired from exactly this path). Accumulating the
+    /// real drag distance since `.began` and only clearing past a
+    /// deliberate-scroll threshold (not "any nonzero delta") is what
+    /// actually distinguishes a scroll from a tap-with-a-wobble.
+    private var accumulatedDragDistance: CGFloat = 0
+    private let overlayClearDragThreshold: CGFloat = 24
+
+    private func clearOverlaysOnScrollStartIfNeeded(dragDelta: CGFloat) {
         guard !overlaysClearedThisGesture else { return }
+        accumulatedDragDistance += abs(dragDelta)
+        guard accumulatedDragDistance > overlayClearDragThreshold else { return }
         overlaysClearedThisGesture = true
         clearTextInput()
         clearVideoOverlay()
@@ -775,6 +795,7 @@ public final class NativeCanvasView: UIView {
             // defers the actual teardown into `.changed`, only once a
             // real scroll delta is about to be applied (see there).
             overlaysClearedThisGesture = false
+            accumulatedDragDistance = 0
             // Real bug found testing NestedScroll on a physical device:
             // this whole method used to bail out immediately whenever
             // the PAGE had nothing left to scroll (`maxScrollY() <= 0`)
@@ -801,7 +822,7 @@ public final class NativeCanvasView: UIView {
             let translationY = recognizer.translation(in: self).y
 
             if let key = activeVScrollKey, let info = vScrollRegionsInfo.first(where: { $0.key == key }) {
-                clearOverlaysOnScrollStartIfNeeded()
+                clearOverlaysOnScrollStartIfNeeded(dragDelta: translationY)
                 let maxOffset = max(0, info.contentHeight - info.viewportHeight)
                 let current = vScrollOffsets[key] ?? 0
                 let next = current - translationY
@@ -829,7 +850,7 @@ public final class NativeCanvasView: UIView {
 
             let maxScroll = maxScrollY()
             guard maxScroll > 0 else { return }
-            clearOverlaysOnScrollStartIfNeeded()
+            clearOverlaysOnScrollStartIfNeeded(dragDelta: translationY)
             scrollY = (scrollY - translationY).clamped(to: 0...maxScroll)
             checkScrollFollow()
             recognizer.setTranslation(.zero, in: self)
