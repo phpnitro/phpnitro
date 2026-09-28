@@ -114,6 +114,20 @@ let package = Package(
                 .copy("Resources/MaterialIcons-Regular.ttf"),
                 .copy("Resources/FontAwesome-Solid.ttf"),
                 .copy("Resources/Roboto-Regular.ttf"),
+                // Mozilla's own CA bundle, the exact same file
+                // android/engine/src/main/assets/cacert.pem already
+                // ships — a cross-compiled OpenSSL has no root
+                // certificate store of its own to fall back on (unlike
+                // linking against the platform's Security.framework),
+                // so without this, every `https://` request from PHP
+                // fails TLS verification regardless of connectivity —
+                // confirmed the hard way testing VideoPlayer's own
+                // download button on a physical device, the exact same
+                // root cause android/README.md's own OpenSSL story
+                // already documents. Wired via PHPX_CACERT_PATH — see
+                // PhpEmbedRuntime.swift's own docblock for why an env
+                // var, not openssl.cafile (INI).
+                .copy("Resources/certs/cacert.pem"),
                 // public/ + lib/ + packages/*/src + composer.json +
                 // vendor/, staged by `phpx bundle:ios` (never committed —
                 // see .gitignore, same "regenerated at build time"
