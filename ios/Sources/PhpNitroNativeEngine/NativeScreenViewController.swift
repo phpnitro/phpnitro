@@ -183,6 +183,52 @@ public final class NativeScreenViewController: UIViewController {
     }
     #endif
 
+    /// A minimal clone of Android's own OS-level "Copied" toast (see
+    /// this method's one call site, "clipboardcopy", for the real bug
+    /// that led to it) — NOT the general redirect/confetti/snackbar
+    /// system this framework's iOS side still doesn't have (see
+    /// ios/README.md's own tracked gap), just enough of one to give
+    /// Clipboard::copyAction() the confirmation it was silently missing
+    /// on iOS. Self-dismissing, no dependency on anything else on
+    /// screen — safe to fire from any action handler.
+    private func showToast(_ message: String) {
+        let label = UILabel()
+        label.text = message
+        label.textColor = .white
+        label.font = .systemFont(ofSize: 14, weight: .medium)
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        label.backgroundColor = UIColor.black.withAlphaComponent(0.8)
+        label.layer.cornerRadius = 8
+        label.layer.masksToBounds = true
+        label.alpha = 0
+
+        view.addSubview(label)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            label.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -32),
+            label.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 24),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -24),
+        ])
+        label.setContentHuggingPriority(.required, for: .horizontal)
+
+        // Fake padding: UILabel has no insets of its own, and a stray
+        // extra constant here is cheaper than a UIEdgeInsets-aware
+        // subclass for a toast this small.
+        label.text = "  \(message)  "
+
+        UIView.animate(withDuration: 0.2, animations: {
+            label.alpha = 1
+        }, completion: { _ in
+            UIView.animate(withDuration: 0.2, delay: 1.4, options: [], animations: {
+                label.alpha = 0
+            }, completion: { _ in
+                label.removeFromSuperview()
+            })
+        })
+    }
+
     override public func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         // The very first fetch used to fire from viewDidLoad(), before
@@ -351,6 +397,21 @@ public final class NativeScreenViewController: UIViewController {
             case "clipboardcopy":
                 let text = (parts.count > 1 ? parts[1].removingPercentEncoding : nil) ?? ""
                 NativeDeviceBridge.clipboardCopy(text)
+                // Real bug found testing Clipboard::copyAction() on a
+                // physical device: nothing ever confirmed the copy
+                // happened. NativeRenderPocActivity.kt's own
+                // "clipboardcopy" branch has the same gap — it never
+                // shows a Toast either, relying entirely on Android's
+                // OWN system-level "Copied" toast (added in Android 12,
+                // not guaranteed on older OS versions either); iOS has
+                // no equivalent automatic confirmation for
+                // UIPasteboard writes at all, so a tap on "Copier" gave
+                // no feedback whatsoever. showToast() below is a small,
+                // self-contained clone of that same OS-level Toast, not
+                // the full snackbar/toast SYSTEM this framework still
+                // doesn't have on iOS (see ios/README.md's own tracked
+                // gap) — scoped to just this one real, reported symptom.
+                showToast("Copié dans le presse-papiers")
             case "clipboardpaste":
                 let outField = parts.count > 1 ? parts[1] : "clipboard_out"
                 fieldValues[outField] = NativeDeviceBridge.clipboardPaste()
