@@ -376,9 +376,17 @@ public struct DrawCommandPayload: Decodable {
     /// network/parse round trip so a slow frame can be blamed on the
     /// right side.
     public let renderTimeMs: Double?
+    /// Set by any `LazyList` on the screen (`Canvas::requestScrollFollow()`,
+    /// see packages/ui/src/Native/Canvas.php) — absent (defaults to
+    /// false) on every other screen, same "genuinely absent most of the
+    /// time" shape as `sliderRegions` above. NativeRenderPocActivity.kt's
+    /// own `onScrollFollow` reads this same flag to know whether a
+    /// refetch-as-you-scroll loop is even worth wiring up for this
+    /// screen at all.
+    public let scrollFollow: Bool
 
     private enum CodingKeys: String, CodingKey {
-        case commands, hitRegions, contentHeight, sliderRegions, renderTimeMs
+        case commands, hitRegions, contentHeight, sliderRegions, renderTimeMs, scrollFollow
     }
 
     public init(from decoder: Decoder) throws {
@@ -388,6 +396,7 @@ public struct DrawCommandPayload: Decodable {
         contentHeight = try container.decode(Double.self, forKey: .contentHeight)
         sliderRegions = try container.decodeIfPresent([SliderRegion].self, forKey: .sliderRegions) ?? []
         renderTimeMs = try container.decodeIfPresent(Double.self, forKey: .renderTimeMs)
+        scrollFollow = try container.decodeIfPresent(Bool.self, forKey: .scrollFollow) ?? false
     }
 
     /// Which hitRegion (if any) a tap at $point should fire — checked in

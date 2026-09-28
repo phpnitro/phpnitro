@@ -130,6 +130,16 @@ public final class NativeScreenViewController: UIViewController {
         canvasView.hostViewController = self
         canvasView.onAction = { [weak self] action, rect, meta in self?.handle(action: action, rect: rect, meta: meta) }
         canvasView.onFieldValueChanged = { [weak self] name, value in self?.setFieldValue(value, forName: name) }
+        // Real bug found testing the social example app's Fil (LazyList)
+        // page on a physical device: this port never had
+        // NativeRenderPocActivity.kt's own `onScrollFollow` wiring at
+        // all, so scrolling past the first fetch's built window hit
+        // permanent blank sections — see checkScrollFollow()'s own
+        // docblock in NativeCanvasView. `preserveScroll: true` here
+        // matters just as much as the refetch itself: without it,
+        // setPayload's normal "reset to the top" behavior would snap
+        // the user back to y=0 on every single one of these refetches.
+        canvasView.onScrollFollow = { [weak self] _ in self?.fetch(action: nil, preserveScroll: true) }
         #if DEBUG
         canvasView.onInspect = { [weak self] action, rect in self?.showInspectResult(action: action, rect: rect) }
         #endif
@@ -676,7 +686,7 @@ public final class NativeScreenViewController: UIViewController {
         }
     }
 
-    private func fetch(action: String?, preserveTextInput: Bool = false) {
+    private func fetch(action: String?, preserveTextInput: Bool = false, preserveScroll: Bool = false) {
         // canvasView.bounds, NOT UIScreen.main.bounds — PHP positions
         // "fixed" elements (the bottom tab bar, a FAB) assuming the
         // height it's told IS the real drawable height. UIScreen's own
@@ -688,15 +698,26 @@ public final class NativeScreenViewController: UIViewController {
         // fetch had to move there to get a real, laid-out bounds at all.
         let bounds = canvasView.bounds
         let screen = screenStack.last ?? "home"
+        // LazyList's windowed prefetch needs to know where the user
+        // actually is in the virtual list to build the right window —
+        // harmless for every other screen, which simply never reads it
+        // (mirrors NativeRenderPocActivity.kt's own scrollYParam, sent
+        // unconditionally the same way). Never overwrites an explicit
+        // "scroll_y" already in fieldValues (there isn't one — nothing
+        // else in this codebase sets that key), just the simplest way
+        // to fold it into the existing query-string construction
+        // without widening ScreenDataSource's own protocol signature.
+        var requestFieldValues = fieldValues
+        requestFieldValues["scroll_y"] = String(Double(canvasView.currentScrollYDp))
         #if DEBUG
         let fetchStart = Date()
         #endif
-        client.fetchScreen(screen, action: action, width: bounds.width, height: bounds.height, fieldValues: fieldValues) { [weak self] result in
+        client.fetchScreen(screen, action: action, width: bounds.width, height: bounds.height, fieldValues: requestFieldValues) { [weak self] result in
             DispatchQueue.main.async {
                 switch result {
                 case .success(let payload):
                     self?.errorView.isHidden = true
-                    self?.canvasView.setPayload(payload, preserveTextInput: preserveTextInput)
+                    self?.canvasView.setPayload(payload, preserveTextInput: preserveTextInput, preserveScroll: preserveScroll)
                     #if DEBUG
                     guard let self else { return }
                     self.devTools.update(
