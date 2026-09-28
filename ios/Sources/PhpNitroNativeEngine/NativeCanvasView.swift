@@ -100,6 +100,27 @@ public final class NativeCanvasView: UIView {
     /// text-input overlay (see `showTextInput`'s own doc comment).
     public var onFieldValueChanged: ((String, String) -> Void)?
 
+    /// The extension point a third-party PHP package (or app-specific
+    /// widget) uses to add a genuinely new native drawing without
+    /// patching this engine module at all — mirrors
+    /// NativeCanvasView.kt's own `registerCustomCommandHandler()`
+    /// exactly (see its docblock there). `Canvas::custom($type, $data)`
+    /// decodes here as `DrawCommand.custom(type:payload:)`; whoever
+    /// owns this view (NativeScreenViewController, or any other host)
+    /// calls `registerCustomCommandHandler(type:handler:)` once — see
+    /// that same Activity's own "sparkline"/"barChart"/"pieChart"
+    /// registrations for the real, wired example. Real bug found
+    /// testing the health example app on a physical device: this whole
+    /// mechanism never existed on iOS at all, so BarChart/Sparkline/
+    /// PieChart all painted nothing, silently — every OTHER draw
+    /// command type is still built into this engine directly (the
+    /// framework's own primitives); this is only for what isn't.
+    private var customCommandHandlers: [String: (CGContext, [String: JSONValue]) -> Void] = [:]
+
+    public func registerCustomCommandHandler(_ type: String, handler: @escaping (CGContext, [String: JSONValue]) -> Void) {
+        customCommandHandlers[type] = handler
+    }
+
     // TextField.php/PasswordField.php's "focus:" commit destination —
     // one real UITextField/UITextView at a time, mirroring
     // NativeRenderPocActivity.kt's own single-nullable-field
@@ -689,6 +710,7 @@ public final class NativeCanvasView: UIView {
         case .hScroll(let scroll): draw(scroll, in: context)
         case .vScroll(let scroll): draw(scroll, in: context)
         case .slider(let slider): draw(slider, in: context)
+        case .custom(let type, let payload): customCommandHandlers[type]?(context, payload)
         case .unknown: break // Same "an unhandled command is a no-op, not a crash" contract DrawCommand.init(from:) already documents.
         }
     }
