@@ -29,7 +29,10 @@ final class BottomNavigation implements Widget
     private readonly Widget $content;
 
     /**
-     * @param array<int, array{icon: string, label: string, screen: string}> $items
+     * @param array<int, array{icon: string, label: string, screen: string, badgeCount?: int|null}> $items
+     *   `badgeCount` is the same optional-key shape `icon`/`label`/`screen`
+     *   already use — omitted (or null/0) draws no badge at all, the
+     *   common case for every tab that isn't a cart/inbox-style counter.
      */
     public function __construct(float $width, array $items, string $currentScreen, ?Color $activeColor = null)
     {
@@ -39,8 +42,25 @@ final class BottomNavigation implements Widget
             $isActive = $item['screen'] === $currentScreen;
             $color = $isActive ? $active : Tokens::inkMuted();
 
+            $badgeCount = $item['badgeCount'] ?? null;
+            // Same Stack+Positioned+Badge pairing Badge's own docblock
+            // already documents as the intended usage — every piece
+            // already existed (composed of plain primitives, nothing
+            // Canvas::custom()-based), this just wires them together
+            // for the one place a real e-commerce cart tab actually
+            // needs a count: how many items are in it right now,
+            // without opening the cart to find out (mirrors Flutter's
+            // own BottomNavigationBarItem badge, which the user asked
+            // for directly).
+            $icon = $badgeCount !== null && $badgeCount > 0
+                ? new Stack([
+                    new Icon($item['icon'], 22.0, $color->toHex()),
+                    new Positioned(new Badge($badgeCount), top: -6.0, right: -10.0),
+                ])
+                : new Icon($item['icon'], 22.0, $color->toHex());
+
             $tab = new Center(Flex::column([
-                new Icon($item['icon'], 22.0, $color->toHex()),
+                $icon,
                 new Padding(EdgeInsets::only(top: 2.0), new Text($item['label'], Tokens::TEXT_CAPTION, $color->toHex(), bold: $isActive)),
             ], mainAxisAlignment: MainAxisAlignment::CENTER, crossAxisAlignment: CrossAxisAlignment::CENTER));
 
