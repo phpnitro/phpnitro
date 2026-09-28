@@ -105,8 +105,25 @@ public final class EmbeddedScreenDataSource: ScreenDataSource {
                 indexPath = writableWwwURL.appendingPathComponent("public/index.php").path
             }
 
+            // Real bug found testing the ecommerce example app's cart on
+            // a physical device: CartService::add() (backed by
+            // $_SESSION, see its own docblock) silently lost every item
+            // the instant the next screen fetched — public/index.php's
+            // own session_start() has nothing but a NEW, EMPTY
+            // $_COOKIE to work with on every single call here, since
+            // this eval snippet never set one. A real HTTP client
+            // (ScreenClient, Android's OkHttp) carries the Set-Cookie
+            // PHP itself issues back on the next request automatically;
+            // this "no socket, no HTTP round-trip" embed path (see
+            // PhpEmbedRuntime's own docblock) never had anything doing
+            // that job, so PHP started a brand-new session — and threw
+            // away the old one's file — on every fetch. There is only
+            // ever one real "visitor" for this whole app install, so a
+            // single fixed id (not a real per-visit random one) is the
+            // correct fix here, not a real cookie jar.
             let requestPhp = """
             $_SERVER['REQUEST_URI'] = '\(phpSingleQuoted(requestUri))';
+            $_COOKIE['PHPSESSID'] = 'phpnitro-ios-embedded-session';
             parse_str('\(phpSingleQuoted(url.query ?? ""))', $_GET);
             require '\(phpSingleQuoted(indexPath!))';
             """
