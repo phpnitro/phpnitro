@@ -140,6 +140,7 @@ public final class NativeScreenViewController: UIViewController {
         // setPayload's normal "reset to the top" behavior would snap
         // the user back to y=0 on every single one of these refetches.
         canvasView.onScrollFollow = { [weak self] _ in self?.fetch(action: nil, preserveScroll: true) }
+        registerCustomCommandHandlers()
         #if DEBUG
         canvasView.onInspect = { [weak self] action, rect in self?.showInspectResult(action: action, rect: rect) }
         #endif
@@ -173,6 +174,124 @@ public final class NativeScreenViewController: UIViewController {
             devTools.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
         #endif
+    }
+
+    /// The real, wired proof that `Canvas::custom()`/
+    /// `registerCustomCommandHandler()` works end to end on iOS, same
+    /// role NativeRenderPocActivity.kt's own `registerCustomCommandHandlers()`
+    /// plays on Android — `canvasView` itself has no built-in idea what
+    /// a "sparkline" is, only this app-layer registration does. Real
+    /// bug found testing the health example app on a physical device:
+    /// BarChart/Sparkline/PieChart all painted blank white space, since
+    /// this whole extension point never existed on iOS at all (see
+    /// NativeCanvasView.swift's own `registerCustomCommandHandler`
+    /// docblock). Math ported field-for-field from
+    /// NativeRenderPocActivity.kt's own registerCustomCommandHandlers()
+    /// — same min/max normalization, same bar-width/gap formula, same
+    /// -90°-start clockwise pie slices (see draw(_:ArcCommand,in:)'s own
+    /// docblock for why Core Graphics angles get negated here too).
+    private func registerCustomCommandHandlers() {
+        canvasView.registerCustomCommandHandler("sparkline") { context, payload in
+            guard
+                let x = payload["x"]?.doubleValue,
+                let y = payload["y"]?.doubleValue,
+                let w = payload["width"]?.doubleValue,
+                let h = payload["height"]?.doubleValue,
+                let color = payload["color"]?.stringValue.flatMap(UIColor.init(hex:)),
+                let values = payload["values"]?.arrayValue?.compactMap({ $0.doubleValue }),
+                values.count >= 2
+            else { return }
+
+            let minValue = values.min() ?? 0
+            let maxValue = values.max() ?? 0
+            let range = (maxValue - minValue) > 0 ? (maxValue - minValue) : 1.0
+
+            let path = CGMutablePath()
+            for (index, value) in values.enumerated() {
+                let px = x + w * Double(index) / Double(values.count - 1)
+                let py = y + h - h * ((value - minValue) / range)
+                if index == 0 {
+                    path.move(to: CGPoint(x: px, y: py))
+                } else {
+                    path.addLine(to: CGPoint(x: px, y: py))
+                }
+            }
+
+            context.saveGState()
+            context.setStrokeColor(color.cgColor)
+            context.setLineWidth(2.5)
+            context.setLineCap(.round)
+            context.setLineJoin(.round)
+            context.addPath(path)
+            context.strokePath()
+            context.restoreGState()
+        }
+
+        canvasView.registerCustomCommandHandler("barChart") { context, payload in
+            guard
+                let x = payload["x"]?.doubleValue,
+                let y = payload["y"]?.doubleValue,
+                let w = payload["width"]?.doubleValue,
+                let h = payload["height"]?.doubleValue,
+                let gap = payload["gap"]?.doubleValue,
+                let color = payload["color"]?.stringValue.flatMap(UIColor.init(hex:)),
+                let values = payload["values"]?.arrayValue?.compactMap({ $0.doubleValue }),
+                !values.isEmpty
+            else { return }
+
+            let maxValue = (values.max() ?? 0) > 0 ? (values.max() ?? 0) : 1.0
+            let count = values.count
+            let barWidth = (w - gap * Double(count - 1)) / Double(count)
+
+            context.saveGState()
+            context.setFillColor(color.cgColor)
+            for (index, value) in values.enumerated() {
+                let barHeight = max(0, h * (value / maxValue))
+                let left = x + Double(index) * (barWidth + gap)
+                context.fill(CGRect(x: left, y: y + h - barHeight, width: barWidth, height: barHeight))
+            }
+            context.restoreGState()
+        }
+
+        canvasView.registerCustomCommandHandler("pieChart") { context, payload in
+            guard
+                let x = payload["x"]?.doubleValue,
+                let y = payload["y"]?.doubleValue,
+                let diameter = payload["diameter"]?.doubleValue,
+                let values = payload["values"]?.arrayValue?.compactMap({ $0.doubleValue }),
+                let colors = payload["colors"]?.arrayValue?.compactMap({ $0.stringValue }),
+                !values.isEmpty,
+                colors.count >= values.count
+            else { return }
+
+            let total = values.reduce(0, +)
+            guard total > 0 else { return }
+
+            let center = CGPoint(x: x + diameter / 2, y: y + diameter / 2)
+            let radius = diameter / 2
+
+            context.saveGState()
+            var startDegrees = -90.0
+            for (index, value) in values.enumerated() {
+                let sweepDegrees = value / total * 360.0
+                guard let color = UIColor(hex: colors[index]) else { continue }
+
+                let startRadians = -startDegrees * .pi / 180
+                let endRadians = -(startDegrees + sweepDegrees) * .pi / 180
+
+                let slice = CGMutablePath()
+                slice.move(to: center)
+                slice.addArc(center: center, radius: radius, startAngle: startRadians, endAngle: endRadians, clockwise: true)
+                slice.closeSubpath()
+
+                context.setFillColor(color.cgColor)
+                context.addPath(slice)
+                context.fillPath()
+
+                startDegrees += sweepDegrees
+            }
+            context.restoreGState()
+        }
     }
 
     #if DEBUG
