@@ -193,29 +193,28 @@ public final class NativeCanvasView: UIView {
     private var overlaysClearedThisGesture = false
 
     /// Real bug found testing the social example app's Chat page on a
-    /// physical device: even after deferring the teardown into
-    /// `.changed` (see clearOverlaysOnScrollStartIfNeeded's own call
-    /// sites), the TextField STILL vanished on a plain "tap elsewhere
-    /// to dismiss the keyboard" — because UIPanGestureRecognizer's own
-    /// ~10pt recognition threshold is already enough movement to reach
-    /// `.changed` with a genuinely nonzero (if tiny) scroll delta, on
-    /// a Chat page whose outer scrollY does have SOME real overflow
-    /// (the assumption that it exactly fills one screen, from this
-    /// method's earlier version, was wrong — confirmed live via
-    /// [DIAG] print tracing while the user reproduced the bug: every
-    /// clearTextInput() fired from exactly this path). Accumulating the
-    /// real drag distance since `.began` and only clearing past a
-    /// deliberate-scroll threshold (not "any nonzero delta") is what
-    /// actually distinguishes a scroll from a tap-with-a-wobble.
-    private var accumulatedDragDistance: CGFloat = 0
-    private let overlayClearDragThreshold: CGFloat = 24
-
-    private func clearOverlaysOnScrollStartIfNeeded(dragDelta: CGFloat) {
+    /// physical device, across TWO failed attempts at a threshold-based
+    /// fix here (both confirmed still broken via live [DIAG] print
+    /// tracing while the user reproduced it — first "any nonzero
+    /// scroll delta", then a 24pt accumulated-distance threshold,
+    /// neither survived an ordinary tap-to-dismiss-the-keyboard on a
+    /// page that turned out to have real scroll overflow): tying the
+    /// TEXT INPUT overlay's teardown to scrolling AT ALL was the wrong
+    /// idea, not just under-tuned. NativeRenderPocActivity.kt's own
+    /// EditText overlay is NEVER torn down by a scroll — only by
+    /// navigate:/tab:/back/submit: (see setPayload's own
+    /// preserveTextInput docblock, which already ports that same rule
+    /// for the fetch-triggered case). video:play:/map:open:'s overlays
+    /// are different: those genuinely DO drift out of registration with
+    /// scrolled content (the real bug PR #155 first fixed), since
+    /// nothing repositions their fixed on-screen rect as content moves
+    /// underneath. A focused TextField has no such drift problem worth
+    /// caring about — losing keyboard focus on scroll (like most iOS
+    /// apps do) is fine; erasing what was typed is not.
+    private func clearOverlaysOnScrollStartIfNeeded() {
         guard !overlaysClearedThisGesture else { return }
-        accumulatedDragDistance += abs(dragDelta)
-        guard accumulatedDragDistance > overlayClearDragThreshold else { return }
         overlaysClearedThisGesture = true
-        clearTextInput()
+        activeTextInput?.resignFirstResponder()
         clearVideoOverlay()
         clearMapOverlay()
     }
@@ -795,7 +794,6 @@ public final class NativeCanvasView: UIView {
             // defers the actual teardown into `.changed`, only once a
             // real scroll delta is about to be applied (see there).
             overlaysClearedThisGesture = false
-            accumulatedDragDistance = 0
             // Real bug found testing NestedScroll on a physical device:
             // this whole method used to bail out immediately whenever
             // the PAGE had nothing left to scroll (`maxScrollY() <= 0`)
@@ -822,7 +820,7 @@ public final class NativeCanvasView: UIView {
             let translationY = recognizer.translation(in: self).y
 
             if let key = activeVScrollKey, let info = vScrollRegionsInfo.first(where: { $0.key == key }) {
-                clearOverlaysOnScrollStartIfNeeded(dragDelta: translationY)
+                clearOverlaysOnScrollStartIfNeeded()
                 let maxOffset = max(0, info.contentHeight - info.viewportHeight)
                 let current = vScrollOffsets[key] ?? 0
                 let next = current - translationY
@@ -850,7 +848,7 @@ public final class NativeCanvasView: UIView {
 
             let maxScroll = maxScrollY()
             guard maxScroll > 0 else { return }
-            clearOverlaysOnScrollStartIfNeeded(dragDelta: translationY)
+            clearOverlaysOnScrollStartIfNeeded()
             scrollY = (scrollY - translationY).clamped(to: 0...maxScroll)
             checkScrollFollow()
             recognizer.setTranslation(.zero, in: self)
