@@ -80,7 +80,11 @@ public final class NativeCanvasView: UIView {
     /// `NativeRenderPocActivity.kt`'s own `onAction?.invoke(action,
     /// region.rect, meta)`, which always passes the rect too, not just
     /// for `focus:` specifically.
-    public var onAction: ((_ action: String, _ rect: CGRect, _ meta: [String: JSONValue]?) -> Void)?
+    /// `vScrollKey` (added alongside the real bug this fixes — see
+    /// `showTextInput(...vScrollKey:)`'s own docblock) is the nested
+    /// `NestedScroll` this hit region lives inside, or nil for a
+    /// plain page-level region.
+    public var onAction: ((_ action: String, _ rect: CGRect, _ meta: [String: JSONValue]?, _ vScrollKey: String?) -> Void)?
 
     /// Flutter DevTools' "Select Widget Mode", scoped to what's actually
     /// available here — mirrors NativeRenderPocActivity.kt's own
@@ -215,50 +219,57 @@ public final class NativeCanvasView: UIView {
 
     /// Real bug found testing the social example app's Chat page on a
     /// physical device, across TWO failed attempts at a threshold-based
-    /// fix here (both confirmed still broken via live [DIAG] print
-    /// tracing while the user reproduced it — first "any nonzero
-    /// scroll delta", then a 24pt accumulated-distance threshold,
-    /// neither survived an ordinary tap-to-dismiss-the-keyboard on a
-    /// page that turned out to have real scroll overflow): tying the
-    /// TEXT INPUT overlay's teardown to scrolling AT ALL was the wrong
-    /// idea, not just under-tuned. NativeRenderPocActivity.kt's own
-    /// EditText overlay is NEVER torn down by a scroll — only by
-    /// navigate:/tab:/back/submit: (see setPayload's own
-    /// preserveTextInput docblock, which already ports that same rule
-    /// for the fetch-triggered case). video:play:/map:open:'s overlays
-    /// are different: those genuinely DO drift out of registration with
-    /// scrolled content (the real bug PR #155 first fixed), since
-    /// nothing repositions their fixed on-screen rect as content moves
-    /// underneath.
+    /// fix here (first "any nonzero scroll delta", then a 24pt
+    /// accumulated-distance threshold): tying the TEXT INPUT overlay's
+    /// teardown to scrolling AT ALL was the wrong idea, not just
+    /// under-tuned. NativeRenderPocActivity.kt's own EditText overlay is
+    /// NEVER torn down by a scroll — only by navigate:/tab:/back/
+    /// submit: (see setPayload's own preserveTextInput docblock). Only
+    /// the keyboard resigns here; the overlay itself, and whatever the
+    /// user was typing, survives.
     ///
-    /// "A focused TextField has no such drift problem worth caring
-    /// about" — the claim above — turned out to only be true for a
-    /// TextField sitting in the page's own FIXED (non-scrolling) area,
-    /// like Chat's own message field. Real regression found testing
-    /// the ecommerce example app's review form on a physical device:
-    /// that TextField lives INSIDE a `NestedScroll`'s own scrollable
-    /// content (the whole product-detail screen is one), so it drifts
-    /// out of registration exactly like video/map do — the overlay
-    /// stayed glued to its focus-time screen position while the
-    /// content scrolled underneath, producing two visibly overlapping
-    /// boxes (the stale overlay, and the freshly-painted static
-    /// TextField in its real, scrolled position) — one of them (the
-    /// overlay, a real `UITextField`/`UITextView`) even independently
-    /// draggable via its own internal scrolling. `nested: true` (only
-    /// the vScroll-handoff drag path passes it) tears the text input
-    /// down for real here, same as video/map; the plain outer-page
-    /// path (Chat's own scenario, no nested vScroll involved) keeps
-    /// the resign-only behavior since nothing there actually drifts.
-    private func clearOverlaysOnScrollStartIfNeeded(nested: Bool = false) {
+    /// video:play:/map:open:'s overlays are different: they have no
+    /// text to preserve, so they're simply torn down here rather than
+    /// repositioned — the real bug PR #155 first fixed.
+    ///
+    /// A second real bug, found testing the ecommerce example app's
+    /// review form (a TextField inside a `NestedScroll`'s own
+    /// scrollable content, not the page's fixed area like Chat's own
+    /// field): the overlay's screen position never followed that
+    /// NestedScroll's own offset as it scrolled, producing two visibly
+    /// overlapping boxes (the stale overlay at its focus-time position,
+    /// the freshly-painted static TextField in its real, scrolled
+    /// position). Tearing the overlay down there (an earlier attempt at
+    /// this fix) brought back the ORIGINAL Chat-page bug — text vanishing
+    /// on scroll — for exactly the fields that most need to survive it
+    /// (a half-written review). The real fix is
+    /// `repositionActiveTextInputIfNeeded()`, called from every scrollY/
+    /// vScrollOffsets mutation site below: the overlay stays anchored
+    /// to its real logical position, however that position is currently
+    /// scrolled — see `activeTextInputAnchor`'s own docblock.
+    private func clearOverlaysOnScrollStartIfNeeded() {
         guard !overlaysClearedThisGesture else { return }
         overlaysClearedThisGesture = true
-        if nested {
-            clearTextInput()
-        } else {
-            activeTextInput?.resignFirstResponder()
-        }
+        activeTextInput?.resignFirstResponder()
         clearVideoOverlay()
         clearMapOverlay()
+    }
+
+    /// Everything `repositionActiveTextInputIfNeeded()` needs to
+    /// recompute the focused overlay's real screen position at any
+    /// later scrollY/vScrollOffsets value, set once in `showTextInput`
+    /// and cleared in `clearTextInput()`. `baseY` folds together
+    /// whichever combination of scrollY/vScrollOffsets[vScrollKey] was
+    /// in effect AT FOCUS TIME with the overlay's own on-screen y at
+    /// that same moment, so the two later formulas below are its exact
+    /// inverse — see each call site's own comment for the derivation.
+    private var activeTextInputAnchor: (vScrollKey: String?, baseY: CGFloat, x: CGFloat, width: CGFloat, height: CGFloat)?
+
+    private func repositionActiveTextInputIfNeeded() {
+        guard let anchor = activeTextInputAnchor, let input = activeTextInput else { return }
+        let currentOffset = anchor.vScrollKey.flatMap { vScrollOffsets[$0] } ?? 0
+        let y = anchor.baseY - currentOffset - scrollY
+        input.frame = CGRect(x: anchor.x, y: y, width: anchor.width, height: anchor.height)
     }
 
     // MARK: - Page scroll (NativeCanvasView.kt's own scrollY)
@@ -423,7 +434,13 @@ public final class NativeCanvasView: UIView {
     /// command list, just visually covered while focused), styled by
     /// hand from `Tokens.php`'s own constants since none of this is sent
     /// over the wire.
-    public func showTextInput(fieldName: String, initialValue: String, rect: CGRect, multiline: Bool, secure: Bool, keyboardType: String = "text") {
+    /// `vScrollKey` — the `NestedScroll` this field's own hit region
+    /// lives inside, or nil for the page's own fixed/scrollable area
+    /// (see `nestedVScrollHitRegion`'s own docblock for where this
+    /// travels from) — is what lets `activeTextInputAnchor` reposition
+    /// this overlay correctly as EITHER that vScroll's own offset or
+    /// the outer page's scrollY changes later.
+    public func showTextInput(fieldName: String, initialValue: String, rect: CGRect, multiline: Bool, secure: Bool, keyboardType: String = "text", vScrollKey: String? = nil) {
         clearTextInput()
 
         let ink = UIColor(red: 0x11 / 255, green: 0x18 / 255, blue: 0x27 / 255, alpha: 1)
@@ -487,10 +504,26 @@ public final class NativeCanvasView: UIView {
         textInput.becomeFirstResponder()
         activeTextInput = textInput
         activeFieldName = fieldName
+        // See activeTextInputAnchor's own docblock for the derivation:
+        // baseY is chosen so that later recomputing
+        // `baseY - currentOffset - scrollY` reproduces THIS EXACT `rect.y`
+        // right now, when currentOffset/scrollY are whatever they are
+        // at this very moment.
+        let currentOffset = vScrollKey.flatMap { vScrollOffsets[$0] } ?? 0
+        activeTextInputAnchor = (
+            vScrollKey: vScrollKey,
+            baseY: rect.origin.y + currentOffset + scrollY,
+            x: rect.origin.x,
+            width: rect.width,
+            height: rect.height
+        )
     }
 
     private func clearTextInput() {
-        guard let activeTextInput else { return }
+        activeTextInputAnchor = nil
+        guard let activeTextInput else {
+            return
+        }
         activeTextInput.resignFirstResponder()
         activeTextInput.removeFromSuperview()
         self.activeTextInput = nil
@@ -756,14 +789,14 @@ public final class NativeCanvasView: UIView {
         // DrawCommandPayload.region(at:) itself documents, since nested
         // content always paints on top of whatever's behind the
         // NestedScroll's own viewport.
-        if let (contentRect, region) = nestedVScrollHitRegion(atContentPoint: contentPoint) {
+        if let (contentRect, region, vScrollKey) = nestedVScrollHitRegion(atContentPoint: contentPoint) {
             let viewRect = contentRect.offsetBy(dx: 0, dy: -scrollY)
             if inspectMode {
                 inspectMode = false
                 onInspect?(region.action, contentRect)
                 return
             }
-            onAction?(region.action, viewRect, region.meta)
+            onAction?(region.action, viewRect, region.meta, vScrollKey)
             return
         }
 
@@ -784,7 +817,7 @@ public final class NativeCanvasView: UIView {
             return
         }
 
-        onAction?(region.action, viewRect, region.meta)
+        onAction?(region.action, viewRect, region.meta, nil)
     }
 
     /// Mirrors NativeCanvasView.kt's own `handleVScrollTap()`: a nested
@@ -792,8 +825,12 @@ public final class NativeCanvasView: UIView {
     /// from (0, 0) by NestedScroll.php), so the absolute PAGE-content-
     /// space rect is the viewport's own origin, shifted up by the
     /// region's current scroll offset, plus the nested region's local
-    /// offset.
-    private func nestedVScrollHitRegion(atContentPoint contentPoint: CGPoint) -> (rect: CGRect, region: HitRegion)? {
+    /// offset. The returned `key` (the vScroll this region lives inside)
+    /// lets a "focus:" caller reposition its own overlay as THAT
+    /// specific vScroll's own offset changes later — see
+    /// `showTextInput(...vScrollKey:)`'s own docblock for the real bug
+    /// this exists to fix.
+    private func nestedVScrollHitRegion(atContentPoint contentPoint: CGPoint) -> (rect: CGRect, region: HitRegion, key: String)? {
         for info in vScrollRegionsInfo.reversed() {
             guard info.rect.contains(contentPoint) else { continue }
             let offset = vScrollOffsets[info.key] ?? 0
@@ -805,7 +842,7 @@ public final class NativeCanvasView: UIView {
                     height: CGFloat(region.height)
                 )
                 if rect.contains(contentPoint) {
-                    return (rect, region)
+                    return (rect, region, info.key)
                 }
             }
         }
@@ -863,7 +900,7 @@ public final class NativeCanvasView: UIView {
             let translationY = recognizer.translation(in: self).y
 
             if let key = activeVScrollKey, let info = vScrollRegionsInfo.first(where: { $0.key == key }) {
-                clearOverlaysOnScrollStartIfNeeded(nested: true)
+                clearOverlaysOnScrollStartIfNeeded()
                 let maxOffset = max(0, info.contentHeight - info.viewportHeight)
                 let current = vScrollOffsets[key] ?? 0
                 let next = current - translationY
@@ -884,6 +921,7 @@ public final class NativeCanvasView: UIView {
                 } else {
                     vScrollOffsets[key] = next
                 }
+                repositionActiveTextInputIfNeeded()
                 recognizer.setTranslation(.zero, in: self)
                 setNeedsDisplay()
                 return
@@ -894,6 +932,7 @@ public final class NativeCanvasView: UIView {
             clearOverlaysOnScrollStartIfNeeded()
             scrollY = (scrollY - translationY).clamped(to: 0...maxScroll)
             checkScrollFollow()
+            repositionActiveTextInputIfNeeded()
             recognizer.setTranslation(.zero, in: self)
             setNeedsDisplay()
 
@@ -946,6 +985,7 @@ public final class NativeCanvasView: UIView {
         let eased = 1 - (1 - t) * (1 - t)
         scrollY = flingStartValue + (flingTargetValue - flingStartValue) * eased
         checkScrollFollow()
+        repositionActiveTextInputIfNeeded()
         setNeedsDisplay()
 
         if t >= 1 { stopFling() }

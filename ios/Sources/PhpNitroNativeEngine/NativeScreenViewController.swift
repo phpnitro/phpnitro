@@ -128,7 +128,7 @@ public final class NativeScreenViewController: UIViewController {
         // containment against the one UIViewController that actually
         // owns this canvas.
         canvasView.hostViewController = self
-        canvasView.onAction = { [weak self] action, rect, meta in self?.handle(action: action, rect: rect, meta: meta) }
+        canvasView.onAction = { [weak self] action, rect, meta, vScrollKey in self?.handle(action: action, rect: rect, meta: meta, vScrollKey: vScrollKey) }
         canvasView.onFieldValueChanged = { [weak self] name, value in self?.setFieldValue(value, forName: name) }
         // Real bug found testing the social example app's Fil (LazyList)
         // page on a physical device: this port never had
@@ -383,7 +383,7 @@ public final class NativeScreenViewController: UIViewController {
         fieldValues[name] = value
     }
 
-    private func handle(action: String, rect: CGRect, meta: [String: JSONValue]? = nil) {
+    private func handle(action: String, rect: CGRect, meta: [String: JSONValue]? = nil, vScrollKey: String? = nil) {
         // focus: never reaches ScreenNavigation.reduce (no fetch at all,
         // entirely client-side — same "not funneled through the generic
         // reducer" treatment clientTab: gets) — matches
@@ -407,7 +407,7 @@ public final class NativeScreenViewController: UIViewController {
                 }
             }
             let fieldName = String(rest)
-            canvasView.showTextInput(fieldName: fieldName, initialValue: fieldValues[fieldName] ?? "", rect: rect, multiline: multiline, secure: secure, keyboardType: keyboardType)
+            canvasView.showTextInput(fieldName: fieldName, initialValue: fieldValues[fieldName] ?? "", rect: rect, multiline: multiline, secure: secure, keyboardType: keyboardType, vScrollKey: vScrollKey)
             return
         }
 
