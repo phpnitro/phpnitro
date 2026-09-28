@@ -219,6 +219,32 @@ public final class NativeCanvasView: UIView {
         return max(0, CGFloat(payload.contentHeight) - bounds.height)
     }
 
+    /// NativeCanvasView.kt:213's own `currentScrollYDp` — read by
+    /// NativeScreenViewController.fetch() to send `scroll_y` on every
+    /// request, so LazyList knows which window to build server-side.
+    public var currentScrollYDp: CGFloat { scrollY }
+
+    // Real bug found testing the social example app's Fil (LazyList)
+    // page on a physical device: scrolling past the first few screens
+    // of posts hit permanent blank sections, never filled back in.
+    // LazyList's own PHP only builds/paints a window around the
+    // scrollY it was last given (see Canvas::requestScrollFollow(),
+    // packages/ui/src/Native/Canvas.php) — scrolling far enough from
+    // that window needs a refetch with the new scrollY, exactly the
+    // mechanism NativeCanvasView.kt's own checkScrollFollow()/
+    // onScrollFollow already has and this port never ported.
+    private var scrollFollow: Bool = false
+    private var lastFetchedScrollY: CGFloat = 0
+    public var onScrollFollow: ((CGFloat) -> Void)?
+
+    private func checkScrollFollow() {
+        guard scrollFollow, bounds.height > 0 else { return }
+        if abs(scrollY - lastFetchedScrollY) > bounds.height {
+            lastFetchedScrollY = scrollY
+            onScrollFollow?(scrollY)
+        }
+    }
+
     override public init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .white
@@ -248,7 +274,7 @@ public final class NativeCanvasView: UIView {
         setNeedsDisplay()
     }
 
-    public func setPayload(_ payload: DrawCommandPayload, preserveTextInput: Bool = false) {
+    public func setPayload(_ payload: DrawCommandPayload, preserveTextInput: Bool = false, preserveScroll: Bool = false) {
         self.payload = payload
         vScrollRegionsInfo = payload.commands.compactMap { command in
             guard case .vScroll(let scroll) = command else { return nil }
@@ -293,7 +319,24 @@ public final class NativeCanvasView: UIView {
         // (or a genuinely new screen after tab:/navigate:) is worse than
         // losing scroll position on same-screen refetches scroll support
         // doesn't distinguish here yet.
-        scrollY = 0
+        // Real bug found testing the social example app's Fil page:
+        // a scroll-follow refetch (see checkScrollFollow() above) is
+        // the one case where snapping back to the top on every new
+        // payload is actively wrong — the user never stopped
+        // scrolling, they just crossed the threshold that asked PHP
+        // for the next window. Mirrors NativeCanvasView.kt's own
+        // setCommands(), which always clamps the EXISTING scrollY
+        // (`scrollY.coerceIn(0f, maxScrollY())`) rather than resetting
+        // it — this port only does that for scroll-follow, keeping the
+        // "stale scrollY across an unrelated screen" guard (see below)
+        // for every other refetch.
+        if preserveScroll {
+            scrollY = scrollY.clamped(to: 0...maxScrollY())
+        } else {
+            scrollY = 0
+        }
+        scrollFollow = payload.scrollFollow
+        lastFetchedScrollY = scrollY
         stopFling()
         setNeedsDisplay()
     }
@@ -767,6 +810,7 @@ public final class NativeCanvasView: UIView {
                     vScrollOffsets[key] = next.clamped(to: 0...maxOffset)
                     activeVScrollKey = nil
                     scrollY = (scrollY + excess).clamped(to: 0...maxScrollY())
+                    checkScrollFollow()
                 } else {
                     vScrollOffsets[key] = next
                 }
@@ -778,6 +822,7 @@ public final class NativeCanvasView: UIView {
             let maxScroll = maxScrollY()
             guard maxScroll > 0 else { return }
             scrollY = (scrollY - translationY).clamped(to: 0...maxScroll)
+            checkScrollFollow()
             recognizer.setTranslation(.zero, in: self)
             setNeedsDisplay()
 
@@ -829,6 +874,7 @@ public final class NativeCanvasView: UIView {
         // physics/friction simulation neither implementation actually uses.
         let eased = 1 - (1 - t) * (1 - t)
         scrollY = flingStartValue + (flingTargetValue - flingStartValue) * eased
+        checkScrollFollow()
         setNeedsDisplay()
 
         if t >= 1 { stopFling() }
