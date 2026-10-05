@@ -1,4 +1,5 @@
 import PhpNitroProtocol
+import QuartzCore
 import UIKit
 
 /// The iOS counterpart of NativeRenderPocActivity.kt — deliberately the
@@ -41,6 +42,12 @@ public final class NativeScreenViewController: UIViewController {
     /// no explicit queue-hopping, always fires on the main run loop this
     /// view controller already lives on.
     private var pollTimer: Timer?
+
+    /// Mirrors NativeCanvasView.kt's own `activeConfettiView` identity
+    /// guard — `showConfettiOverlay()`'s own delayed removal only ever
+    /// tears down the overlay IT created, never a newer one a second
+    /// `Canvas::triggerConfetti()` might have added in the meantime.
+    private var activeConfettiView: UIView?
 
     private let errorView = ScreenErrorView()
 
@@ -374,6 +381,60 @@ public final class NativeScreenViewController: UIViewController {
                 label.removeFromSuperview()
             })
         })
+    }
+
+    /// `Canvas::triggerConfetti()`'s own consumer — mirrors
+    /// NativeCanvasView.kt's own `showConfettiOverlay()`: a full-screen,
+    /// touch-transparent view holding a `CAEmitterLayer`, self-removing
+    /// after a fixed 3s (same duration Android hardcodes). No confetti
+    /// library is vendored on either platform's iOS side (see this
+    /// feature's own PR for the audit) — a plain solid-color square
+    /// image, tinted per cell via `CAEmitterCell.color`, is enough for a
+    /// convincing particle burst without pulling in a dependency for it.
+    private func showConfettiOverlay() {
+        let confettiView = UIView(frame: view.bounds)
+        confettiView.isUserInteractionEnabled = false
+        confettiView.backgroundColor = .clear
+        view.addSubview(confettiView)
+        activeConfettiView = confettiView
+
+        let particleSize = CGSize(width: 8, height: 8)
+        let particleImage = UIGraphicsImageRenderer(size: particleSize).image { _ in
+            UIColor.white.setFill()
+            UIRectFill(CGRect(origin: .zero, size: particleSize))
+        }.cgImage
+
+        let emitter = CAEmitterLayer()
+        emitter.emitterPosition = CGPoint(x: confettiView.bounds.midX, y: -10)
+        emitter.emitterShape = .line
+        emitter.emitterSize = CGSize(width: confettiView.bounds.width, height: 1)
+
+        let colors: [UIColor] = [.systemRed, .systemBlue, .systemYellow, .systemGreen, .systemPurple, .systemOrange]
+        emitter.emitterCells = colors.map { color in
+            let cell = CAEmitterCell()
+            cell.contents = particleImage
+            cell.color = color.cgColor
+            cell.birthRate = 6
+            cell.lifetime = 4
+            cell.velocity = 180
+            cell.velocityRange = 60
+            cell.emissionLongitude = .pi
+            cell.emissionRange = .pi / 6
+            cell.yAcceleration = 150
+            cell.spin = 3
+            cell.spinRange = 4
+            cell.scale = 0.6
+            cell.scaleRange = 0.3
+            cell.alphaSpeed = -0.3
+            return cell
+        }
+        confettiView.layer.addSublayer(emitter)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self, weak confettiView] in
+            guard let self, let confettiView, self.activeConfettiView === confettiView else { return }
+            confettiView.removeFromSuperview()
+            self.activeConfettiView = nil
+        }
     }
 
     override public func viewDidLayoutSubviews() {
