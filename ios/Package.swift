@@ -83,6 +83,13 @@ let package = Package(
         // fixAspectRatio=false defaults — chosen over TOCropViewController
         // for being pure-Swift and more actively maintained (2026-09-10).
         .package(url: "https://github.com/guoyingtao/Mantis-spm.git", from: "3.1.0"),
+        // The direct iOS counterpart of Android's own
+        // com.airbnb.android:lottie (see engine/build.gradle.kts) —
+        // official Airbnb library, same vendor/format as that Kotlin
+        // dependency, not a from-scratch Bodymovin/JSON animation
+        // engine (see Canvas::lottieRegion()'s own docblock for what
+        // this renders).
+        .package(url: "https://github.com/airbnb/lottie-ios.git", from: "4.6.1"),
     ],
     targets: [
         .target(name: "PhpNitroProtocol", path: "Sources/PhpNitroProtocol"),
@@ -100,6 +107,7 @@ let package = Package(
                 "PhpNitroProtocol",
                 "CPhpEmbed",
                 .product(name: "Mantis", package: "Mantis-spm"),
+                .product(name: "Lottie", package: "lottie-ios"),
             ],
             path: "Sources/PhpNitroNativeEngine",
             // Verbatim copies of the SAME two font files
