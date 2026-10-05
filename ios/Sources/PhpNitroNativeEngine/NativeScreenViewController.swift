@@ -153,6 +153,18 @@ public final class NativeScreenViewController: UIViewController {
         // containment against the one UIViewController that actually
         // owns this canvas.
         canvasView.hostViewController = self
+        // This view controller is the lone VC HostApp's own
+        // UINavigationController ever hosts (see its AppDelegate) —
+        // PhpNitro's own navigation lives entirely in screenStack, never
+        // in a real push/pop stack — so `interactivePopGestureRecognizer`
+        // has nothing to pop and stays permanently inert. Disabled
+        // explicitly rather than left to rely on that always being true,
+        // since the screen-edge gesture just below would otherwise race
+        // it for the same left-edge touches.
+        navigationController?.interactivePopGestureRecognizer?.isEnabled = false
+        let edgePanGesture = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(handleEdgePanGesture(_:)))
+        edgePanGesture.edges = .left
+        view.addGestureRecognizer(edgePanGesture)
         canvasView.onAction = { [weak self] action, rect, meta, vScrollKey in self?.handle(action: action, rect: rect, meta: meta, vScrollKey: vScrollKey) }
         canvasView.onFieldValueChanged = { [weak self] name, value in self?.setFieldValue(value, forName: name) }
         // Real bug found testing the social example app's Fil (LazyList)
@@ -199,6 +211,27 @@ public final class NativeScreenViewController: UIViewController {
             devTools.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
         #endif
+    }
+
+    /// Mirrors OnBackPressedCallback's own pop-if-more-than-one-screen
+    /// guard (NativeRenderPocActivity.kt) by routing through the exact
+    /// same `"back"` action `ScreenNavigation.reduce(_:_:)` already
+    /// handles for the canvas' own drawn back button — no pop logic
+    /// duplicated here, just a second trigger for it. Fires once on
+    /// `.ended` rather than tracking the pan continuously: a real
+    /// follow-the-finger interactive transition would need its own
+    /// `UIViewControllerInteractiveTransitioning`, overkill for a canvas
+    /// that gets fully re-rendered from a fresh fetch either way, not
+    /// animated from one cached frame to another.
+    @objc private func handleEdgePanGesture(_ gesture: UIScreenEdgePanGestureRecognizer) {
+        guard gesture.state == .ended, screenStack.count > 1 else { return }
+        let translation = gesture.translation(in: view).x
+        let velocity = gesture.velocity(in: view).x
+        // Same heuristic UINavigationController's own interactive pop
+        // uses: a long-enough drag OR a fast-enough flick, either one
+        // alone is enough to commit.
+        guard translation > view.bounds.width * 0.33 || velocity > 400 else { return }
+        handle(action: "back", rect: .zero)
     }
 
     /// The real, wired proof that `Canvas::custom()`/
