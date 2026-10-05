@@ -24,6 +24,14 @@ public final class NativeScreenViewController: UIViewController {
     /// rect:)`'s `focus:` branch below) via `setFieldValue(_:forName:)`.
     private var fieldValues: [String: String] = [:]
 
+    /// Mirrors NativeRenderPocActivity.kt's own `lastAppliedHash` —
+    /// `Canvas::stableHash()` of the last payload actually applied to
+    /// this screen, round-tripped as `lastHash` on the NEXT same-screen
+    /// fetch so PHP can reply `{"unchanged":true}` instead of a full
+    /// payload when nothing changed. Reset to nil on a real navigation
+    /// (a different screen has nothing in common to compare against).
+    private var lastAppliedHash: String?
+
     private let errorView = ScreenErrorView()
 
     /// Guards the first fetch, now fired from viewDidLayoutSubviews()
@@ -873,6 +881,19 @@ public final class NativeScreenViewController: UIViewController {
         // own doc comment for how this was found and why the first
         // fetch had to move there to get a real, laid-out bounds at all.
         let bounds = canvasView.bounds
+        // preserveScroll's own false value means exactly what
+        // NativeRenderPocActivity.kt's own `isNavigation` means (see
+        // ScreenNavigationResult.fetch's docblock) — reused here rather
+        // than threading a second, redundant flag through. A real
+        // navigation has nothing in common with the screen
+        // `lastAppliedHash` belongs to, so it's cleared before this
+        // fetch — and, since `isNavigationFetch` also gates sending
+        // `lastHash` below, PHP always gets a full response for it
+        // anyway, not an `{"unchanged":true}` short-circuit.
+        let isNavigationFetch = !preserveScroll
+        if isNavigationFetch {
+            lastAppliedHash = nil
+        }
         // Real bug found testing the ecommerce example app on a
         // physical device: tapping a product (Tappable's own
         // "navigate:product?id=42") visibly did nothing — ScreenNavigation
@@ -913,11 +934,31 @@ public final class NativeScreenViewController: UIViewController {
         #if DEBUG
         let fetchStart = Date()
         #endif
-        client.fetchScreen(screen, action: action, width: bounds.width, height: bounds.height, fieldValues: requestFieldValues) { [weak self] result in
+        client.fetchScreen(screen, action: action, width: bounds.width, height: bounds.height, fieldValues: requestFieldValues, lastHash: isNavigationFetch ? nil : lastAppliedHash) { [weak self] result in
             DispatchQueue.main.async {
                 switch result {
                 case .success(let payload):
                     self?.errorView.isHidden = true
+                    guard let payload else {
+                        // {"unchanged":true} — the current frame already
+                        // IS this screen's real state, nothing to apply.
+                        // See DrawCommandPayload.decodeApplied's own
+                        // docblock for the real bug this branch fixes.
+                        #if DEBUG
+                        guard let self else { return }
+                        self.devTools.update(
+                            screen: screen,
+                            stackDepth: self.screenStack.count,
+                            roundTripMs: Date().timeIntervalSince(fetchStart) * 1000,
+                            phpRenderTimeMs: nil,
+                            commandCount: 0,
+                            hitRegionCount: 0,
+                            wasUnchanged: true
+                        )
+                        #endif
+                        return
+                    }
+                    self?.lastAppliedHash = payload.hash
                     self?.canvasView.setPayload(payload, preserveTextInput: preserveTextInput, preserveScroll: preserveScroll)
                     #if DEBUG
                     guard let self else { return }
