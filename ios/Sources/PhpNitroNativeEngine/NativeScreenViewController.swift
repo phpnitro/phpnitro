@@ -385,6 +385,22 @@ public final class NativeScreenViewController: UIViewController {
         }
     }
 
+    override public func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        // Android has no equivalent of this at all — Configuration
+        // changes recreate the whole Activity there, which re-reads
+        // nightModeFlags from scratch on the resulting fresh fetch.
+        // iOS keeps this view controller alive across a Control
+        // Center dark-mode toggle, so without this the `dark` value
+        // `fetch()` just started sending (see its own doc comment)
+        // would silently go stale until the next UNRELATED refetch —
+        // a real light/dark mismatch, not merely a missed optimization.
+        guard hasFetchedOnce else { return }
+        if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
+            fetch(action: nil)
+        }
+    }
+
     /// For a future TextField overlay (or any other widget with its own
     /// output slot) to call — see `fieldValues`'s own docblock.
     public func setFieldValue(_ value: String, forName name: String) {
