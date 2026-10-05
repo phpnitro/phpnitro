@@ -32,6 +32,16 @@ public final class NativeScreenViewController: UIViewController {
     /// (a different screen has nothing in common to compare against).
     private var lastAppliedHash: String?
 
+    /// Mirrors NativeRenderPocActivity.kt's own `autoNavigateHandler` —
+    /// a single pending timed refetch, never more than one at a time.
+    /// Invalidated unconditionally at the top of every `fetch(...)` call
+    /// (any real navigation, tap, or field update always wins over a
+    /// stale poll), then re-armed from `payload.pollAgain` if the fresh
+    /// response still wants one. `Timer`, not `DispatchWorkItem` — needs
+    /// no explicit queue-hopping, always fires on the main run loop this
+    /// view controller already lives on.
+    private var pollTimer: Timer?
+
     private let errorView = ScreenErrorView()
 
     /// Guards the first fetch, now fired from viewDidLayoutSubviews()
@@ -886,7 +896,16 @@ public final class NativeScreenViewController: UIViewController {
     // setCommands() never resets scroll on ANY refetch, full stop) —
     // only the one real navigation path (see the `.fetch` case in
     // handle(action:rect:meta:)) explicitly passes false.
-    private func fetch(action: String?, preserveTextInput: Bool = false, preserveScroll: Bool = true) {
+    private func fetch(action: String?, preserveTextInput: Bool = false, preserveScroll: Bool = true, isPollFetch: Bool = false) {
+        // Mirrors scheduleTimedRefetch()'s own unconditional
+        // `autoNavigateHandler.removeCallbacksAndMessages(null)` at its
+        // very top — every fetch, whatever triggered it (a real
+        // navigation, a tap, a field update, or the poll timer itself),
+        // invalidates any previously-armed poll first. This is what
+        // keeps a stale poll from ever firing after the user has since
+        // navigated away or triggered an unrelated refetch.
+        pollTimer?.invalidate()
+        pollTimer = nil
         // canvasView.bounds, NOT UIScreen.main.bounds — PHP positions
         // "fixed" elements (the bottom tab bar, a FAB) assuming the
         // height it's told IS the real drawable height. UIScreen's own
@@ -963,7 +982,14 @@ public final class NativeScreenViewController: UIViewController {
         #if DEBUG
         let fetchStart = Date()
         #endif
-        client.fetchScreen(screen, action: action, width: bounds.width, height: bounds.height, fieldValues: requestFieldValues, lastHash: isNavigationFetch ? nil : lastAppliedHash) { [weak self] result in
+        // A poll-triggered refetch never sends `lastHash` — same
+        // `isPoll`-gated omission as fetchDrawCommands()'s own call site
+        // (see that method's own doc comment): the whole point of
+        // polling is to notice `AsyncTask::poll()` moving from pending
+        // to done, which an `{"unchanged":true}` short-circuit would
+        // hide from this view controller entirely.
+        let lastHashForThisFetch = (isNavigationFetch || isPollFetch) ? nil : lastAppliedHash
+        client.fetchScreen(screen, action: action, width: bounds.width, height: bounds.height, fieldValues: requestFieldValues, lastHash: lastHashForThisFetch) { [weak self] result in
             DispatchQueue.main.async {
                 switch result {
                 case .success(let payload):
@@ -989,6 +1015,16 @@ public final class NativeScreenViewController: UIViewController {
                     }
                     self?.lastAppliedHash = payload.hash
                     self?.canvasView.setPayload(payload, preserveTextInput: preserveTextInput, preserveScroll: preserveScroll)
+                    if let afterMs = payload.pollAgain, let self {
+                        // Scheduled fresh off THIS payload, not the one
+                        // `isPollFetch` arrived from — Async re-arms
+                        // pollAgain on every pending paint, so a poll
+                        // chain simply keeps re-scheduling itself here
+                        // until a render finally omits it (task done).
+                        self.pollTimer = Timer.scheduledTimer(withTimeInterval: Double(afterMs) / 1000, repeats: false) { [weak self] _ in
+                            self?.fetch(action: nil, preserveScroll: true, isPollFetch: true)
+                        }
+                    }
                     #if DEBUG
                     guard let self else { return }
                     self.devTools.update(
