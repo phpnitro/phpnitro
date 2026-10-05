@@ -468,6 +468,26 @@ public struct SliderRegion: Decodable {
     public let action: String
 }
 
+/// One entry of the envelope's own top-level `lottieRegions[]` —
+/// mirrors `Canvas::lottieRegion()`'s own stored
+/// `[key, x, y, width, height, url, loop, autoplay]` array exactly
+/// (`packages/ui/src/Native/Canvas.php`), posed by `Lottie.php`'s own
+/// `paint()`. `url` is either a remote `https://...` animation or a
+/// bundled asset path (e.g. `lottie/pulse.json`,
+/// `NativeWidgetsSplashScreen.php`'s own splash animation) — the
+/// distinction is resolved client-side, same as Android's own
+/// `syncLottieOverlays()` (`url.startsWith("http")`).
+public struct LottieRegion: Decodable {
+    public let key: String
+    public let x: Double
+    public let y: Double
+    public let width: Double
+    public let height: Double
+    public let url: String
+    public let loop: Bool
+    public let autoplay: Bool
+}
+
 /// `Canvas::showSnackbar()`'s own `['message' => ..., 'durationMs' => ...]`
 /// — auto-synthesized, unlike `DrawCommandPayload` itself, since this
 /// is never genuinely missing a key the way `sliderRegions`/`snackbar`
@@ -555,9 +575,14 @@ public struct DrawCommandPayload: Decodable {
     /// snackbar are read only once `canvasView.setCommands(...)` has
     /// actually run, never on a redirect or an `"unchanged":true` frame).
     public let snackbar: SnackbarPayload?
+    /// Genuinely absent (decodes to `[]`) on any screen with no
+    /// `Lottie` widget at all — same shape `sliderRegions` already
+    /// uses, for the same reason (a dedicated top-level array, not a
+    /// `HitRegion`).
+    public let lottieRegions: [LottieRegion]
 
     private enum CodingKeys: String, CodingKey {
-        case commands, hitRegions, contentHeight, sliderRegions, renderTimeMs, scrollFollow, hash, pollAgain, redirect, confetti, snackbar
+        case commands, hitRegions, contentHeight, sliderRegions, renderTimeMs, scrollFollow, hash, pollAgain, redirect, confetti, snackbar, lottieRegions
     }
 
     public init(from decoder: Decoder) throws {
@@ -573,6 +598,7 @@ public struct DrawCommandPayload: Decodable {
         redirect = try container.decodeIfPresent(String.self, forKey: .redirect)
         confetti = try container.decodeIfPresent(Bool.self, forKey: .confetti) ?? false
         snackbar = try container.decodeIfPresent(SnackbarPayload.self, forKey: .snackbar)
+        lottieRegions = try container.decodeIfPresent([LottieRegion].self, forKey: .lottieRegions) ?? []
     }
 
     /// Mirrors NativeRenderPocActivity.kt's own raw
