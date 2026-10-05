@@ -357,9 +357,9 @@ public struct ClientPanelCommand: Decodable {
 
 /// Mirrors Canvas::horizontalScroll()'s field set — a "carousel inside a
 /// list" (HorizontalScroll), scrolled along a local drag axis rather than
-/// switching between discrete panels like ClientPanelCommand above.
-/// NativeCanvasView.swift only renders this at a fixed (never dragged)
-/// offset for now — see that file's own hScrollOffsets.
+/// switching between discrete panels like ClientPanelCommand above. The
+/// content is draggable — see `NativeCanvasView.handlePan(_:)`'s own
+/// `pendingHScrollKey`/`activeHScrollKey` axis disambiguation.
 public struct HScrollCommand: Decodable {
     public let key: String
     public let x: Double
