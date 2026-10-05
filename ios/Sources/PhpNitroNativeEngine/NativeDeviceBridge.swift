@@ -353,6 +353,40 @@ public enum NativeDeviceBridge {
         monitor.start(queue: DispatchQueue(label: "phpnitro.connectivity-check"))
     }
 
+    /// `NativeRenderPocActivity.kt`'s own `deviceBridge.isOnline()` reads
+    /// `ConnectivityManager.getNetworkCapabilities(...)` synchronously,
+    /// right there in `fetchDrawCommands()` — no Android equivalent of
+    /// the async-only `isOnline(completion:)` above ever existed to
+    /// begin with. A one-shot `NWPathMonitor` per fetch would (re)learn
+    /// the same thing that monitor's own docblock already warns against
+    /// doing synchronously: the first path update is NOT instant, so a
+    /// screen fetch would have to block on it. This is a single
+    /// long-lived monitor instead, started once and kept running for the
+    /// process' entire lifetime, with its last known status cached for
+    /// `fetch()` (NativeScreenViewController) to read synchronously —
+    /// always on the main thread, both the write (below) and every
+    /// read, so no lock is needed.
+    private static var cachedOnlineStatus = true
+    private static let connectivityMonitor: NWPathMonitor = {
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { path in
+            DispatchQueue.main.async {
+                cachedOnlineStatus = path.status == .satisfied
+            }
+        }
+        monitor.start(queue: DispatchQueue(label: "phpnitro.connectivity-monitor"))
+        return monitor
+    }()
+
+    /// Must be read on the main thread — see `connectivityMonitor`'s own
+    /// docblock. Defaults to `true` until the first path update lands,
+    /// same "assume online" default `public/index.php`'s own
+    /// `$_GET['online'] ?? '1'` fallback already uses server-side.
+    public static var isOnlineCached: Bool {
+        _ = connectivityMonitor
+        return cachedOnlineStatus
+    }
+
     // MARK: - URL launcher
 
     /// Mirrors NativeDeviceBridge.kt's own openWebView() call site's
