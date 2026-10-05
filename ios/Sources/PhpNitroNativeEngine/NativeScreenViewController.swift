@@ -924,6 +924,19 @@ public final class NativeScreenViewController: UIViewController {
         // without widening ScreenDataSource's own protocol signature.
         var requestFieldValues = fieldValues
         requestFieldValues["scroll_y"] = String(Double(canvasView.currentScrollYDp))
+        // Mirrors fetchDrawCommands()'s own dark/locale/online params —
+        // folded into fieldValues rather than widening ScreenDataSource's
+        // own protocol (same reasoning as scroll_y just above: on the
+        // wire these are indistinguishable $_GET keys either way, and
+        // public/index.php already defaults every one of them when
+        // absent, see Tokens::init()/Translator::init()'s own `?? '0'`/
+        // `?? 'fr'` fallbacks and NativeSettingsScreen.php's own
+        // `?? '1'` for online — so this was a real, silent degradation
+        // (always light mode, always 'fr', always assumed online)
+        // rather than a broken request, same as the gap this closes.
+        requestFieldValues["dark"] = view.traitCollection.userInterfaceStyle == .dark ? "1" : "0"
+        requestFieldValues["locale"] = Locale.current.languageCode ?? "fr"
+        requestFieldValues["online"] = NativeDeviceBridge.isOnlineCached ? "1" : "0"
         if !rawQuery.isEmpty {
             for pair in rawQuery.components(separatedBy: "&") {
                 let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
