@@ -25,6 +25,18 @@ class RectCommand:
     radius: Optional[float] = None
     border_color: Optional[str] = None
     border_width: Optional[float] = None
+    # Canvas::rect()'s own elevation/gradientFrom/gradientTo
+    # (packages/ui/src/Native/Canvas.php) — always present on the wire
+    # (see Canvas.php's own array_filter()), but silently dropped right
+    # here until now: decode_command()'s own "rect" branch below never
+    # read these three keys at all, so the Cairo fallback renderer
+    # (canvas.py) never had a chance to paint a shadow or gradient in
+    # the first place, regardless of what _draw_rect() itself does with
+    # them. rust/phpnitro-render/src/raster.rs's own RectCommand (the
+    # Rust renderer this one falls back FROM) already carries all three.
+    elevation: Optional[float] = None
+    gradient_from: Optional[str] = None
+    gradient_to: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -248,6 +260,8 @@ def decode_command(data: dict) -> DrawCommand:
             x=data["x"], y=data["y"], width=data["width"], height=data["height"],
             color=data.get("color"), radius=data.get("radius"),
             border_color=data.get("borderColor"), border_width=data.get("borderWidth"),
+            elevation=data.get("elevation"),
+            gradient_from=data.get("gradientFrom"), gradient_to=data.get("gradientTo"),
         )
     if kind == "text":
         return TextCommand(
