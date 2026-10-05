@@ -1,6 +1,7 @@
 import AVFoundation
 import AVKit
 import CoreLocation
+import Lottie
 import MapKit
 import PhpNitroProtocol
 import QuartzCore
@@ -13,13 +14,14 @@ import UIKit
 /// (docs/proposals/moteur-rendu-natif.md), just against UIKit/Core
 /// Graphics instead of android.graphics.Canvas.
 ///
-/// Not a 1:1 port of NativeCanvasView.kt's full feature set — no scroll
-/// handling, no hero transitions, no Lottie overlay. `focus:`
-/// (showTextInput), `video:play:` (showVideoOverlay), and `map:open:`
-/// (showMapOverlay) below DO use the same "no Canvas concept for this,
-/// overlay a real View" idiom NativeRenderPocActivity.kt's own
-/// showTextInput()/showVideoOverlay()/showMapOverlay() use — everything
-/// else interactive is real, separate follow-up work, not something to
+/// Not a 1:1 port of NativeCanvasView.kt's full feature set — no hero
+/// transitions. `focus:` (showTextInput), `video:play:`
+/// (showVideoOverlay), `map:open:` (showMapOverlay), and `Lottie`
+/// (syncLottieOverlays) below DO use the same "no Canvas concept for
+/// this, overlay a real View" idiom NativeRenderPocActivity.kt's own
+/// showTextInput()/showVideoOverlay()/showMapOverlay()/
+/// syncLottieOverlays() use — everything else interactive is real,
+/// separate follow-up work, not something to
 /// fake here.
 ///
 /// setPayload(_:) triggers `setNeedsDisplay()`; nothing here fetches
@@ -158,6 +160,16 @@ public final class NativeCanvasView: UIView {
     // activeMapView. No API key needed (MapKit, like osmdroid), pan/zoom
     // built in once added — no extra gesture wiring here either.
     private var activeMapView: MKMapView?
+
+    /// Mirrors `NativeRenderPocActivity.kt`'s own `activeLottieViews` —
+    /// multi-slot and KEYED, unlike `activeMapView`/the video overlay
+    /// just above: a `Lottie` widget autoplays continuously the whole
+    /// time it's on screen (no tap needed to show it), and a screen can
+    /// have more than one at once, so this is reconciled against every
+    /// `lottieRegions` the way `syncLottieOverlays()` is, not toggled on
+    /// a single action the way `showVideoOverlay()`/`showMapOverlay()`
+    /// are.
+    private var activeLottieViews: [String: LottieAnimationView] = [:]
 
     /// Drives drawSpinnerCommand()/drawSkeletonCommand()'s own continuous
     /// redraw on Android (a ValueAnimator started/stopped based on
@@ -432,6 +444,7 @@ public final class NativeCanvasView: UIView {
         activeHScrollKey = nil
         sliderValues = [:]
         activeSliderKey = nil
+        syncLottieOverlays(payload.lottieRegions)
         // A new payload just replaced whatever the current overlay (if
         // any) was positioned/typed against — NativeRenderPocActivity.kt
         // only tears its own overlay down on navigate:/tab:/back/submit:,
@@ -708,6 +721,48 @@ public final class NativeCanvasView: UIView {
     private func clearMapOverlay() {
         activeMapView?.removeFromSuperview()
         activeMapView = nil
+    }
+
+    /// Mirrors `NativeRenderPocActivity.kt`'s own `syncLottieOverlays()`
+    /// — called once per `setPayload(_:)`, not on every scroll tick (no
+    /// equivalent of `repositionActiveTextInputIfNeeded()` here; Android
+    /// doesn't reposition its own Lottie overlays mid-scroll either, so
+    /// this keeps parity rather than improving past it). A key already
+    /// active just gets repositioned in place; a key no longer present
+    /// gets torn down; everything else gets created fresh.
+    private func syncLottieOverlays(_ regions: [LottieRegion]) {
+        let liveKeys = Set(regions.map(\.key))
+        for (key, view) in activeLottieViews where !liveKeys.contains(key) {
+            view.removeFromSuperview()
+            activeLottieViews.removeValue(forKey: key)
+        }
+
+        for region in regions {
+            let rect = CGRect(x: region.x, y: region.y - scrollY, width: region.width, height: region.height)
+            if let existing = activeLottieViews[region.key] {
+                existing.frame = rect
+                continue
+            }
+
+            // `url.hasPrefix("http")` — same client-side distinction
+            // Android's own `syncLottieOverlays()` makes between a
+            // remote animation (`setAnimationFromUrl`) and a bundled
+            // asset path (`setAnimation`, relative to `assets/`;
+            // `Bundle.module` is this SPM target's own equivalent).
+            let animationView: LottieAnimationView
+            if region.url.hasPrefix("http"), let url = URL(string: region.url) {
+                animationView = LottieAnimationView(url: url, closure: { _ in }, animationCache: nil)
+            } else {
+                animationView = LottieAnimationView(name: region.url, bundle: .module)
+            }
+            animationView.frame = rect
+            animationView.loopMode = region.loop ? .loop : .playOnce
+            addSubview(animationView)
+            activeLottieViews[region.key] = animationView
+            if region.autoplay {
+                animationView.play()
+            }
+        }
     }
 
     @objc private func textFieldChanged(_ textField: UITextField) {
