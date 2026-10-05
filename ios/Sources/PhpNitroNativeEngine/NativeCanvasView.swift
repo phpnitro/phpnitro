@@ -800,6 +800,22 @@ public final class NativeCanvasView: UIView {
             return
         }
 
+        // Mirrors handleClientPanelTap() on Android: a hitRegion inside
+        // the ACTIVE panel of a ClientPanelCommand (its own embedded
+        // content, e.g. a BottomSheet's own close button) — checked
+        // before the flat top-level array for the same "nested content
+        // always paints on top" reason nested vScroll is checked first.
+        if let (contentRect, region) = nestedClientPanelHitRegion(atContentPoint: contentPoint) {
+            let viewRect = contentRect.offsetBy(dx: 0, dy: -scrollY)
+            if inspectMode {
+                inspectMode = false
+                onInspect?(region.action, contentRect)
+                return
+            }
+            onAction?(region.action, viewRect, region.meta, nil)
+            return
+        }
+
         guard let payload, let region = payload.region(at: point, scrollY: scrollY) else { return }
         let contentRect = CGRect(x: region.x, y: region.y, width: region.width, height: region.height)
         // showTextInput/showVideoOverlay/showMapOverlay all use this
@@ -843,6 +859,34 @@ public final class NativeCanvasView: UIView {
                 )
                 if rect.contains(contentPoint) {
                     return (rect, region, info.key)
+                }
+            }
+        }
+        return nil
+    }
+
+    /// Mirrors NativeCanvasView.kt's own `handleClientPanelTap()`: a
+    /// hitRegion inside the panel whose `index` matches this `key`'s
+    /// current local selection (`clientTabState`) — the same panel
+    /// `draw(_ command: ClientPanelCommand, in:)` actually paints, at
+    /// the same `(command.x, command.y)` content-space offset (an
+    /// inactive sibling panel sharing the same key is skipped outright,
+    /// same as it is for drawing). This is what makes a BottomSheet's
+    /// own close button — embedded inside its clientPanel's own
+    /// `hitRegions`, never the top-level array — tappable at all.
+    private func nestedClientPanelHitRegion(atContentPoint contentPoint: CGPoint) -> (rect: CGRect, region: HitRegion)? {
+        guard let payload else { return nil }
+        for command in payload.commands.reversed() {
+            guard case .clientPanel(let panel) = command, clientTabState[panel.key] == panel.index else { continue }
+            for region in panel.hitRegions.reversed() {
+                let rect = CGRect(
+                    x: CGFloat(panel.x) + CGFloat(region.x),
+                    y: CGFloat(panel.y) + CGFloat(region.y),
+                    width: CGFloat(region.width),
+                    height: CGFloat(region.height)
+                )
+                if rect.contains(contentPoint) {
+                    return (rect, region)
                 }
             }
         }
