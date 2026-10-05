@@ -211,6 +211,24 @@ public final class NativeCanvasView: UIView {
     /// inside of — mirrors NativeCanvasView.kt's own `activeVScroll`.
     private var activeVScrollKey: String?
 
+    /// Mirrors `drawSliderCommand()`'s own `sliderValues` map on
+    /// Android — the thumb's own LOCAL value while being dragged,
+    /// overriding `SliderCommand.value` in `draw(_:SliderCommand,in:)`
+    /// until the next `setPayload(...)` carries a fresh server-authored
+    /// one. Never explicitly cleared on commit (same precedent
+    /// `vScrollOffsets` already sets) — the refetch that follows a
+    /// drag's release always supersedes it anyway, and clearing it here
+    /// first would flash the thumb back to its pre-drag position for
+    /// the brief moment before that response lands.
+    private var sliderValues: [String: Double] = [:]
+
+    /// The slider region (if any) the current pan gesture started
+    /// inside of — mirrors `activeVScrollKey` above, but claims the
+    /// WHOLE gesture outright with no slop/handoff (same as Android's
+    /// own `ACTION_DOWN` commit: the entire track rect IS the gesture,
+    /// nothing to disambiguate against).
+    private var activeSliderKey: String?
+
     /// See handlePan's own `.began` doc comment: overlays are only torn
     /// down once THIS gesture is confirmed to actually move something
     /// (first real scroll delta in `.changed`), not merely for having
@@ -374,6 +392,8 @@ public final class NativeCanvasView: UIView {
         }
         vScrollOffsets = [:]
         activeVScrollKey = nil
+        sliderValues = [:]
+        activeSliderKey = nil
         // A new payload just replaced whatever the current overlay (if
         // any) was positioned/typed against — NativeRenderPocActivity.kt
         // only tears its own overlay down on navigate:/tab:/back/submit:,
@@ -895,6 +915,24 @@ public final class NativeCanvasView: UIView {
 
     // MARK: - Page scroll (drag + fling)
 
+    /// Mirrors `hitTestSlider()` (NativeCanvasView.kt) — `sliderRegions`
+    /// coordinates are already absolute/content-space (see
+    /// `SliderRegion`'s own docblock), so no offset to add beyond what
+    /// `contentPoint` itself already carries.
+    private func sliderRegion(atContentPoint contentPoint: CGPoint) -> SliderRegion? {
+        payload?.sliderRegions.first { region in
+            CGRect(x: region.x, y: region.y, width: region.width, height: region.height).contains(contentPoint)
+        }
+    }
+
+    /// Mirrors `sliderValueForTouch()` (NativeCanvasView.kt) — the exact
+    /// inverse of `draw(_:SliderCommand,in:)`'s own `thumbCx` formula.
+    private func sliderValue(forTouchX touchX: CGFloat, in region: SliderRegion) -> Double {
+        let trackWidth = max(1, CGFloat(region.width) - CGFloat(region.thumbSize))
+        let value = (touchX - CGFloat(region.x) - CGFloat(region.thumbSize) / 2) / trackWidth
+        return Double(value.clamped(to: 0...1))
+    }
+
     private func configurePanRecognizer() {
         let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
         addGestureRecognizer(pan)
@@ -934,9 +972,27 @@ public final class NativeCanvasView: UIView {
             // disambiguate against).
             let point = recognizer.location(in: self)
             let contentPoint = CGPoint(x: point.x, y: point.y + scrollY)
+            // Checked BEFORE vScroll's own claim, same priority
+            // Android's touch dispatch gives it (hitTestSlider() is
+            // checked ahead of vScroll's own pending claim there too) —
+            // commits the whole gesture outright, no slop, exactly
+            // ACTION_DOWN's own immediate `sliderValueForTouch()` commit.
+            if let region = sliderRegion(atContentPoint: contentPoint) {
+                activeSliderKey = region.key
+                sliderValues[region.key] = sliderValue(forTouchX: contentPoint.x, in: region)
+                setNeedsDisplay()
+                return
+            }
             activeVScrollKey = vScrollRegionsInfo.first(where: { $0.rect.contains(contentPoint) })?.key
 
         case .changed:
+            if let key = activeSliderKey, let region = payload?.sliderRegions.first(where: { $0.key == key }) {
+                let touchX = recognizer.location(in: self).x
+                sliderValues[key] = sliderValue(forTouchX: touchX, in: region)
+                setNeedsDisplay()
+                return
+            }
+
             // translation is CUMULATIVE since .began, so this recomputes
             // the offset from a fixed reference each call rather than
             // accumulating a delta — recognizer.setTranslation(_: in:)
@@ -981,6 +1037,21 @@ public final class NativeCanvasView: UIView {
             setNeedsDisplay()
 
         case .ended, .cancelled:
+            // Commit on release — mirrors Slider.php's own docblock
+            // ("the commit on release reuses Checkbox/Toggle's existing
+            // 'toggle:' action") and ACTION_UP's own final
+            // sliderValueForTouch() call. `meta.next` formatted to 3
+            // decimals, same "standing in for a tap's own meta.next"
+            // convention ScreenNavigation.reduce(_:_:metaJson:) already
+            // expects for toggle:.
+            if let key = activeSliderKey, let region = payload?.sliderRegions.first(where: { $0.key == key }) {
+                activeSliderKey = nil
+                let rect = CGRect(x: region.x, y: region.y, width: region.width, height: region.height)
+                let value = sliderValues[key] ?? 0
+                onAction?(region.action, rect.offsetBy(dx: 0, dy: -scrollY), ["next": .string(String(format: "%.3f", value))], nil)
+                return
+            }
+
             // No fling for a nested region (mirrors NativeCanvasView.kt,
             // which only ever flings the outer page) — just release the
             // claim and let its offset sit wherever the drag left it.
@@ -1461,10 +1532,11 @@ public final class NativeCanvasView: UIView {
 
     // Thumb travel is [x + thumbSize/2, x + width - thumbSize/2] — the
     // thumb's CENTER, not its edge, tracks `value` linearly, mirroring
-    // drawSliderCommand()'s own formula exactly so a future drag handler
-    // can invert it the same way hitTestSlider() does on Android. Always
-    // renders at the server-authored `value` — no local drag override
-    // yet, see SliderCommand's own docblock.
+    // drawSliderCommand()'s own formula exactly, inverted the same way
+    // by handlePan's own slider path below (see sliderValues' own
+    // docblock) — `sliderValues[command.key]` overrides the
+    // server-authored `value` while this thumb is actively being
+    // dragged.
     private func draw(_ command: SliderCommand, in context: CGContext) {
         guard let trackColor = UIColor(hex: command.trackColor),
               let activeColor = UIColor(hex: command.activeColor),
@@ -1476,7 +1548,7 @@ public final class NativeCanvasView: UIView {
         let height = CGFloat(command.height)
         let trackHeight = CGFloat(command.trackHeight)
         let thumbSize = CGFloat(command.thumbSize)
-        let value = min(max(CGFloat(command.value), 0), 1)
+        let value = min(max(CGFloat(sliderValues[command.key] ?? command.value), 0), 1)
 
         let trackY = y + (height - trackHeight) / 2
         let thumbCx = x + thumbSize / 2 + (width - thumbSize) * value

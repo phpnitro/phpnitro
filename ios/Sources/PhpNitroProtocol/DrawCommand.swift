@@ -384,11 +384,11 @@ public struct VScrollCommand: Decodable {
     public let hitRegions: [HitRegion]
 }
 
-/// Mirrors Canvas::slider()'s field set (Slider). NativeCanvasView.swift
-/// only renders this at the server-authored `value` for now — dragging
-/// the thumb client-side (drawSliderCommand()'s own `sliderValues` map on
-/// Android) is real, separate follow-up work, same as the scroll
-/// commands above.
+/// Mirrors Canvas::slider()'s field set (Slider). The thumb is
+/// draggable — `NativeCanvasView.handlePan(_:)`'s own slider path
+/// overrides this `value` with a local one (`sliderValues`, mirroring
+/// `drawSliderCommand()`'s own map on Android) while being dragged,
+/// committing via the existing `toggle:` action on release.
 public struct SliderCommand: Decodable {
     public let key: String
     public let x: Double
