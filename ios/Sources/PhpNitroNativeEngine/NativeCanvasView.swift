@@ -1455,12 +1455,18 @@ public final class NativeCanvasView: UIView {
         if let color = command.color, let uiColor = UIColor(hex: color) {
             context.setFillColor(uiColor.cgColor)
             context.fillPath()
-            context.addPath(path)
         }
 
-        if let borderColor = command.borderColor, let uiColor = UIColor(hex: borderColor), (command.borderWidth ?? 0) > 0 {
+        if let borderColor = command.borderColor, let uiColor = UIColor(hex: borderColor), let borderWidth = command.borderWidth, borderWidth > 0 {
+            // Same centered-stroke bleed the rect border above already
+            // documents and insets for (borderWidth/2 past every edge)
+            // — a plain circle was missed when that fix went in. Inset
+            // the STROKE'S OWN path, not the fill path still on the
+            // context from above, same as rect's own `strokeRect`.
+            let strokeRect = rect.insetBy(dx: borderWidth / 2, dy: borderWidth / 2)
+            context.addPath(UIBezierPath(ovalIn: strokeRect).cgPath)
             context.setStrokeColor(uiColor.cgColor)
-            context.setLineWidth(command.borderWidth ?? 1)
+            context.setLineWidth(borderWidth)
             context.strokePath()
         }
 
