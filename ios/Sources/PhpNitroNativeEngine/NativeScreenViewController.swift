@@ -1087,6 +1087,9 @@ public final class NativeScreenViewController: UIViewController {
                     }
                     self?.lastAppliedHash = payload.hash
                     self?.canvasView.setPayload(payload, preserveTextInput: preserveTextInput, preserveScroll: preserveScroll)
+                    if payload.confetti {
+                        self?.showConfettiOverlay()
+                    }
                     if let snackbar = payload.snackbar {
                         self?.showToast(snackbar.message, durationMs: snackbar.durationMs)
                     }
