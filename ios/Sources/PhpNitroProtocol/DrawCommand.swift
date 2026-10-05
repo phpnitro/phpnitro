@@ -338,10 +338,13 @@ public struct SkeletonCommand: Decodable {
 /// NativeCanvasView.swift's own clientTabState) — switching tabs is a
 /// local redraw, never a server round trip, same as
 /// drawClientPanelCommand()'s own `clientTabState`/`clientTabCrossfade`
-/// on Android. `hitRegions` here isn't wired into
-/// DrawCommandPayload.action(at:) yet — nested hit-testing (a tap landing
-/// on a hitRegion inside a client-side panel/scroll) is real, separate
-/// follow-up work.
+/// on Android. `hitRegions` here is NOT reachable through
+/// `DrawCommandPayload.action(at:)`/`region(at:)` (those only ever
+/// search the flat top-level array) — see
+/// `NativeCanvasView.nestedClientPanelHitRegion(atContentPoint:)` for
+/// the real consumer, checked separately before falling back to that
+/// top-level search, same precedent `VScrollCommand`'s own nested
+/// `hitRegions` already set.
 public struct ClientPanelCommand: Decodable {
     public let key: String
     public let index: Int
