@@ -330,15 +330,15 @@ public final class NativeScreenViewController: UIViewController {
     }
     #endif
 
-    /// A minimal clone of Android's own OS-level "Copied" toast (see
-    /// this method's one call site, "clipboardcopy", for the real bug
-    /// that led to it) — NOT the general redirect/confetti/snackbar
-    /// system this framework's iOS side still doesn't have (see
-    /// ios/README.md's own tracked gap), just enough of one to give
-    /// Clipboard::copyAction() the confirmation it was silently missing
-    /// on iOS. Self-dismissing, no dependency on anything else on
-    /// screen — safe to fire from any action handler.
-    private func showToast(_ message: String) {
+    /// Originally a minimal clone of Android's own OS-level "Copied"
+    /// toast (see "clipboardcopy" below for the bug that led to it,
+    /// still this method's only OTHER call site) — now doing double
+    /// duty as `Canvas::showSnackbar()`'s own consumer too (see
+    /// `fetch()`'s own success handler), since the two are visually and
+    /// behaviorally identical (bottom-anchored, self-dismissing,
+    /// fade in/out). `durationMs` defaults to the clipboard toast's
+    /// own original fixed timing, unchanged for that call site.
+    private func showToast(_ message: String, durationMs: Int = 1400) {
         let label = UILabel()
         label.text = message
         label.textColor = .white
@@ -368,7 +368,7 @@ public final class NativeScreenViewController: UIViewController {
         UIView.animate(withDuration: 0.2, animations: {
             label.alpha = 1
         }, completion: { _ in
-            UIView.animate(withDuration: 0.2, delay: 1.4, options: [], animations: {
+            UIView.animate(withDuration: 0.2, delay: Double(durationMs) / 1000, options: [], animations: {
                 label.alpha = 0
             }, completion: { _ in
                 label.removeFromSuperview()
@@ -1026,6 +1026,9 @@ public final class NativeScreenViewController: UIViewController {
                     }
                     self?.lastAppliedHash = payload.hash
                     self?.canvasView.setPayload(payload, preserveTextInput: preserveTextInput, preserveScroll: preserveScroll)
+                    if let snackbar = payload.snackbar {
+                        self?.showToast(snackbar.message, durationMs: snackbar.durationMs)
+                    }
                     if let afterMs = payload.pollAgain, let self {
                         // Scheduled fresh off THIS payload, not the one
                         // `isPollFetch` arrived from — Async re-arms
