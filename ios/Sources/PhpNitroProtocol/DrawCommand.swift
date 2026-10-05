@@ -465,6 +465,16 @@ public struct SliderRegion: Decodable {
     public let action: String
 }
 
+/// `Canvas::showSnackbar()`'s own `['message' => ..., 'durationMs' => ...]`
+/// — auto-synthesized, unlike `DrawCommandPayload` itself, since this
+/// is never genuinely missing a key the way `sliderRegions`/`snackbar`
+/// itself are (PHP always writes both fields together, see
+/// Canvas.php's own showSnackbar()).
+public struct SnackbarPayload: Decodable {
+    public let message: String
+    public let durationMs: Int
+}
+
 /// The envelope Canvas::toJson() wraps every render in. `hitRegions` is
 /// always present (possibly empty), never omitted — Canvas::toJson()'s
 /// own array_filter() only strips null values, and an empty array isn't
@@ -536,9 +546,15 @@ public struct DrawCommandPayload: Decodable {
     /// screen, same "genuinely absent most of the time" shape `scrollFollow`
     /// already uses.
     public let confetti: Bool
+    /// `Canvas::showSnackbar()` — "last call wins" per render, same as
+    /// `autoNavigate`. Unlike `redirect`, this is applied AFTER the
+    /// payload (mirrors `applyResponse()`'s own ordering: confetti/
+    /// snackbar are read only once `canvasView.setCommands(...)` has
+    /// actually run, never on a redirect or an `"unchanged":true` frame).
+    public let snackbar: SnackbarPayload?
 
     private enum CodingKeys: String, CodingKey {
-        case commands, hitRegions, contentHeight, sliderRegions, renderTimeMs, scrollFollow, hash, pollAgain, redirect, confetti
+        case commands, hitRegions, contentHeight, sliderRegions, renderTimeMs, scrollFollow, hash, pollAgain, redirect, confetti, snackbar
     }
 
     public init(from decoder: Decoder) throws {
@@ -553,6 +569,7 @@ public struct DrawCommandPayload: Decodable {
         pollAgain = try container.decodeIfPresent(Int.self, forKey: .pollAgain)
         redirect = try container.decodeIfPresent(String.self, forKey: .redirect)
         confetti = try container.decodeIfPresent(Bool.self, forKey: .confetti) ?? false
+        snackbar = try container.decodeIfPresent(SnackbarPayload.self, forKey: .snackbar)
     }
 
     /// Mirrors NativeRenderPocActivity.kt's own raw
