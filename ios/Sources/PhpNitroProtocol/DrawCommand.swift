@@ -528,9 +528,17 @@ public struct DrawCommandPayload: Decodable {
     /// `NativeScreenViewController.fetch()`'s own success handler for
     /// where this gets consumed.
     public let redirect: String?
+    /// `Canvas::triggerConfetti()` — set by `Confetti`'s own `paint()`
+    /// (`packages/ui/src/Native/Confetti.php`) every render that widget
+    /// is on screen; `Canvas::toJson()` writes it as the literal `true`
+    /// (never `false` — `array_filter()` strips it entirely when the
+    /// widget never fired). Absent (decodes to `false`) on every other
+    /// screen, same "genuinely absent most of the time" shape `scrollFollow`
+    /// already uses.
+    public let confetti: Bool
 
     private enum CodingKeys: String, CodingKey {
-        case commands, hitRegions, contentHeight, sliderRegions, renderTimeMs, scrollFollow, hash, pollAgain, redirect
+        case commands, hitRegions, contentHeight, sliderRegions, renderTimeMs, scrollFollow, hash, pollAgain, redirect, confetti
     }
 
     public init(from decoder: Decoder) throws {
@@ -544,6 +552,7 @@ public struct DrawCommandPayload: Decodable {
         hash = try container.decodeIfPresent(String.self, forKey: .hash)
         pollAgain = try container.decodeIfPresent(Int.self, forKey: .pollAgain)
         redirect = try container.decodeIfPresent(String.self, forKey: .redirect)
+        confetti = try container.decodeIfPresent(Bool.self, forKey: .confetti) ?? false
     }
 
     /// Mirrors NativeRenderPocActivity.kt's own raw
