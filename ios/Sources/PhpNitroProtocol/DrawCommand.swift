@@ -495,9 +495,22 @@ public struct DrawCommandPayload: Decodable {
     /// refetch-as-you-scroll loop is even worth wiring up for this
     /// screen at all.
     public let scrollFollow: Bool
+    /// `Canvas::stableHash()` — present on EVERY real server response
+    /// (`Canvas::toJson()` itself always includes it), but Optional
+    /// here anyway (same "a missing key defaults rather than fails"
+    /// tolerance `sliderRegions`/`renderTimeMs` already use) so the many
+    /// existing hand-written test fixtures across this codebase that
+    /// predate this field don't all need updating just to keep
+    /// decoding. Round-tripped back as `lastHash` on the NEXT
+    /// same-screen fetch — see `decodeApplied(from:)`'s own docblock for
+    /// the real bug (an unconditional full re-parse on every refetch)
+    /// this exists to fix; a nil hash here simply means that particular
+    /// fetch never offers a `lastHash` on its own next request, same as
+    /// never having applied a payload at all.
+    public let hash: String?
 
     private enum CodingKeys: String, CodingKey {
-        case commands, hitRegions, contentHeight, sliderRegions, renderTimeMs, scrollFollow
+        case commands, hitRegions, contentHeight, sliderRegions, renderTimeMs, scrollFollow, hash
     }
 
     public init(from decoder: Decoder) throws {
@@ -508,6 +521,31 @@ public struct DrawCommandPayload: Decodable {
         sliderRegions = try container.decodeIfPresent([SliderRegion].self, forKey: .sliderRegions) ?? []
         renderTimeMs = try container.decodeIfPresent(Double.self, forKey: .renderTimeMs)
         scrollFollow = try container.decodeIfPresent(Bool.self, forKey: .scrollFollow) ?? false
+        hash = try container.decodeIfPresent(String.self, forKey: .hash)
+    }
+
+    /// Mirrors NativeRenderPocActivity.kt's own raw
+    /// `json.contains("\"unchanged\":true")` short-circuit in
+    /// `applyResponse()` — real bug found auditing iOS against Android:
+    /// this framework's own `public/index.php` already replies
+    /// `{"unchanged":true,"hash":...}` instead of a full payload when
+    /// the caller's `lastHash` still matches server-side
+    /// (`Canvas::stableHash()`, deterministic and side-effect-free), but
+    /// nothing on iOS ever SENT a `lastHash` or handled that shape — a
+    /// same-screen refetch that changed nothing at all (the overwhelming
+    /// common case for e.g. a `toggle:`/`submit:` round trip that just
+    /// re-renders the same state) still re-sent, re-parsed, and
+    /// re-painted the full response every time. `nil` here means
+    /// exactly what Android's short-circuit means: leave the current
+    /// frame alone, nothing changed.
+    public static func decodeApplied(from data: Data) throws -> DrawCommandPayload? {
+        struct UnchangedEnvelope: Decodable {
+            let unchanged: Bool?
+        }
+        if try JSONDecoder().decode(UnchangedEnvelope.self, from: data).unchanged == true {
+            return nil
+        }
+        return try JSONDecoder().decode(DrawCommandPayload.self, from: data)
     }
 
     /// Which hitRegion (if any) a tap at $point should fire — checked in
