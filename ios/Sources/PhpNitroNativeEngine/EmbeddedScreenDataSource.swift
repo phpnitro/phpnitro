@@ -71,14 +71,15 @@ public final class EmbeddedScreenDataSource: ScreenDataSource {
         width: Double,
         height: Double,
         fieldValues: [String: String],
-        completion: @escaping (Result<DrawCommandPayload, ScreenFetchError>) -> Void
+        lastHash: String? = nil,
+        completion: @escaping (Result<DrawCommandPayload?, ScreenFetchError>) -> Void
     ) {
         // A throwaway host:port pair purely to reuse ScreenClient.url()'s
         // own query-string construction/encoding — never actually
         // dialed, no network involved below this line.
         guard let url = ScreenClient.url(
             host: "embedded", port: 0, screen: screen, action: action,
-            width: width, height: height, fieldValues: fieldValues
+            width: width, height: height, fieldValues: fieldValues, lastHash: lastHash
         ), let path = url.path.isEmpty ? nil : url.path else {
             completion(.failure(.decoding("invalid embedded request for screen \(screen)")))
             return
@@ -137,13 +138,21 @@ public final class EmbeddedScreenDataSource: ScreenDataSource {
                 completion(.failure(.decoding("non-UTF8 output for screen \(screen)")))
                 return
             }
-            if let payload = try? JSONDecoder().decode(DrawCommandPayload.self, from: data) {
-                completion(.success(payload))
+            // `try?` would flatten `decodeApplied`'s own `DrawCommandPayload?`
+            // (nil meaning "unchanged, not an error") together with a
+            // genuine decode failure into the same plain `nil` (SE-0230's
+            // nested-optional flattening) — indistinguishable from each
+            // other, which would wrongly route an "unchanged" response
+            // into the error-envelope fallback below. A real do/catch
+            // keeps the two apart.
+            do {
+                completion(.success(try DrawCommandPayload.decodeApplied(from: data)))
                 return
+            } catch {
+                let message = (try? JSONDecoder().decode(ServerErrorEnvelope.self, from: data))?.error.message
+                    ?? String(output.prefix(500))
+                completion(.failure(.server(status: 500, message: message)))
             }
-            let message = (try? JSONDecoder().decode(ServerErrorEnvelope.self, from: data))?.error.message
-                ?? String(output.prefix(500))
-            completion(.failure(.server(status: 500, message: message)))
         }
     }
 }

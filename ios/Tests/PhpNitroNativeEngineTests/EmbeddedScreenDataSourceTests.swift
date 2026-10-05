@@ -30,7 +30,7 @@ final class EmbeddedScreenDataSourceTests: XCTestCase {
         let dataSource = EmbeddedScreenDataSource(runtime: runtime)
 
         let expectation = expectation(description: "embedded login fetch completes")
-        var result: Result<DrawCommandPayload, ScreenFetchError>?
+        var result: Result<DrawCommandPayload?, ScreenFetchError>?
 
         dataSource.fetchScreen(
             "login",
