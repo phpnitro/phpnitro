@@ -21,11 +21,12 @@ struct ServerErrorEnvelope: Decodable {
 /// fetchDrawCommands() — deliberately the MINIMAL slice of that method's
 /// contract: fetch one screen, optionally with a tap action, get back a
 /// DrawCommandPayload. Everything else fetchDrawCommands() also does
-/// (screen-stack push/pop, lastHash short-circuiting so an unchanged
-/// screen skips re-parsing, dark/locale/online params, scroll-position
-/// prefetch hints for LazyList, form field values, polling for
-/// Async/Canvas::pollAgain(), confetti/snackbar/redirect side-channels)
-/// is real, separate follow-up work — see ios/README.md.
+/// (dark/locale/online params, scroll-position prefetch hints for
+/// LazyList, form field values, polling for Async/Canvas::pollAgain(),
+/// confetti/snackbar/redirect side-channels) is real, separate
+/// follow-up work — see ios/README.md. lastHash short-circuiting is
+/// NOT in that remaining list anymore — see fetchScreen's own `lastHash`
+/// param.
 public final class ScreenClient {
     private let host: String
     private let port: Int
@@ -63,7 +64,8 @@ public final class ScreenClient {
         action: String?,
         width: Double,
         height: Double,
-        fieldValues: [String: String] = [:]
+        fieldValues: [String: String] = [:],
+        lastHash: String? = nil
     ) -> URL? {
         var components = URLComponents()
         components.scheme = "http"
@@ -78,6 +80,9 @@ public final class ScreenClient {
         ]
         if let action {
             items.append(URLQueryItem(name: "action", value: action))
+        }
+        if let lastHash {
+            items.append(URLQueryItem(name: "lastHash", value: lastHash))
         }
         // Sorted by name — an arbitrary but STABLE order, so the same
         // fieldValues always produce the same URL (matters for tests,
@@ -103,9 +108,10 @@ public final class ScreenClient {
         width: Double,
         height: Double,
         fieldValues: [String: String] = [:],
-        completion: @escaping (Result<DrawCommandPayload, ScreenFetchError>) -> Void
+        lastHash: String? = nil,
+        completion: @escaping (Result<DrawCommandPayload?, ScreenFetchError>) -> Void
     ) {
-        guard let url = Self.url(host: host, port: port, screen: screen, action: action, width: width, height: height, fieldValues: fieldValues) else {
+        guard let url = Self.url(host: host, port: port, screen: screen, action: action, width: width, height: height, fieldValues: fieldValues, lastHash: lastHash) else {
             completion(.failure(.decoding("invalid URL for host \(host):\(port)")))
             return
         }
@@ -135,7 +141,7 @@ public final class ScreenClient {
                 return
             }
             do {
-                completion(.success(try JSONDecoder().decode(DrawCommandPayload.self, from: data)))
+                completion(.success(try DrawCommandPayload.decodeApplied(from: data)))
             } catch {
                 completion(.failure(.decoding(error.localizedDescription)))
             }

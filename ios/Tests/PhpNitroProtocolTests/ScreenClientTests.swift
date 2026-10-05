@@ -90,8 +90,8 @@ final class ScreenClientTests: XCTestCase {
         client.fetchScreen("home", width: 390, height: 844) { result in
             switch result {
             case .success(let payload):
-                XCTAssertEqual(payload.hitRegions.first?.action, "noop")
-                XCTAssertEqual(payload.contentHeight, 100)
+                XCTAssertEqual(payload?.hitRegions.first?.action, "noop")
+                XCTAssertEqual(payload?.contentHeight, 100)
             case .failure(let error):
                 XCTFail("expected success, got \(error)")
             }
