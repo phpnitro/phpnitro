@@ -1,4 +1,5 @@
 import PhpNitroProtocol
+import QuartzCore
 import UIKit
 
 /// The iOS counterpart of NativeRenderPocActivity.kt — deliberately the
@@ -41,6 +42,12 @@ public final class NativeScreenViewController: UIViewController {
     /// no explicit queue-hopping, always fires on the main run loop this
     /// view controller already lives on.
     private var pollTimer: Timer?
+
+    /// Mirrors NativeCanvasView.kt's own `activeConfettiView` identity
+    /// guard — `showConfettiOverlay()`'s own delayed removal only ever
+    /// tears down the overlay IT created, never a newer one a second
+    /// `Canvas::triggerConfetti()` might have added in the meantime.
+    private var activeConfettiView: UIView?
 
     private let errorView = ScreenErrorView()
 
@@ -330,15 +337,15 @@ public final class NativeScreenViewController: UIViewController {
     }
     #endif
 
-    /// A minimal clone of Android's own OS-level "Copied" toast (see
-    /// this method's one call site, "clipboardcopy", for the real bug
-    /// that led to it) — NOT the general redirect/confetti/snackbar
-    /// system this framework's iOS side still doesn't have (see
-    /// ios/README.md's own tracked gap), just enough of one to give
-    /// Clipboard::copyAction() the confirmation it was silently missing
-    /// on iOS. Self-dismissing, no dependency on anything else on
-    /// screen — safe to fire from any action handler.
-    private func showToast(_ message: String) {
+    /// Originally a minimal clone of Android's own OS-level "Copied"
+    /// toast (see "clipboardcopy" below for the bug that led to it,
+    /// still this method's only OTHER call site) — now doing double
+    /// duty as `Canvas::showSnackbar()`'s own consumer too (see
+    /// `fetch()`'s own success handler), since the two are visually and
+    /// behaviorally identical (bottom-anchored, self-dismissing,
+    /// fade in/out). `durationMs` defaults to the clipboard toast's
+    /// own original fixed timing, unchanged for that call site.
+    private func showToast(_ message: String, durationMs: Int = 1400) {
         let label = UILabel()
         label.text = message
         label.textColor = .white
@@ -368,12 +375,66 @@ public final class NativeScreenViewController: UIViewController {
         UIView.animate(withDuration: 0.2, animations: {
             label.alpha = 1
         }, completion: { _ in
-            UIView.animate(withDuration: 0.2, delay: 1.4, options: [], animations: {
+            UIView.animate(withDuration: 0.2, delay: Double(durationMs) / 1000, options: [], animations: {
                 label.alpha = 0
             }, completion: { _ in
                 label.removeFromSuperview()
             })
         })
+    }
+
+    /// `Canvas::triggerConfetti()`'s own consumer — mirrors
+    /// NativeCanvasView.kt's own `showConfettiOverlay()`: a full-screen,
+    /// touch-transparent view holding a `CAEmitterLayer`, self-removing
+    /// after a fixed 3s (same duration Android hardcodes). No confetti
+    /// library is vendored on either platform's iOS side (see this
+    /// feature's own PR for the audit) — a plain solid-color square
+    /// image, tinted per cell via `CAEmitterCell.color`, is enough for a
+    /// convincing particle burst without pulling in a dependency for it.
+    private func showConfettiOverlay() {
+        let confettiView = UIView(frame: view.bounds)
+        confettiView.isUserInteractionEnabled = false
+        confettiView.backgroundColor = .clear
+        view.addSubview(confettiView)
+        activeConfettiView = confettiView
+
+        let particleSize = CGSize(width: 8, height: 8)
+        let particleImage = UIGraphicsImageRenderer(size: particleSize).image { _ in
+            UIColor.white.setFill()
+            UIRectFill(CGRect(origin: .zero, size: particleSize))
+        }.cgImage
+
+        let emitter = CAEmitterLayer()
+        emitter.emitterPosition = CGPoint(x: confettiView.bounds.midX, y: -10)
+        emitter.emitterShape = .line
+        emitter.emitterSize = CGSize(width: confettiView.bounds.width, height: 1)
+
+        let colors: [UIColor] = [.systemRed, .systemBlue, .systemYellow, .systemGreen, .systemPurple, .systemOrange]
+        emitter.emitterCells = colors.map { color in
+            let cell = CAEmitterCell()
+            cell.contents = particleImage
+            cell.color = color.cgColor
+            cell.birthRate = 6
+            cell.lifetime = 4
+            cell.velocity = 180
+            cell.velocityRange = 60
+            cell.emissionLongitude = .pi
+            cell.emissionRange = .pi / 6
+            cell.yAcceleration = 150
+            cell.spin = 3
+            cell.spinRange = 4
+            cell.scale = 0.6
+            cell.scaleRange = 0.3
+            cell.alphaSpeed = -0.3
+            return cell
+        }
+        confettiView.layer.addSublayer(emitter)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self, weak confettiView] in
+            guard let self, let confettiView, self.activeConfettiView === confettiView else { return }
+            confettiView.removeFromSuperview()
+            self.activeConfettiView = nil
+        }
     }
 
     override public func viewDidLayoutSubviews() {
@@ -1013,8 +1074,25 @@ public final class NativeScreenViewController: UIViewController {
                         #endif
                         return
                     }
+                    // Canvas::setRedirect() — must short-circuit BEFORE
+                    // this payload is ever applied to canvasView, same
+                    // as applyResponse()'s own redirect check: mutate
+                    // screenStack in place and refetch as a real
+                    // navigation, never painting this response's own
+                    // commands at all.
+                    if let redirect = payload.redirect, let self, !self.screenStack.isEmpty {
+                        self.screenStack[self.screenStack.count - 1] = redirect
+                        self.fetch(action: nil, preserveScroll: false)
+                        return
+                    }
                     self?.lastAppliedHash = payload.hash
                     self?.canvasView.setPayload(payload, preserveTextInput: preserveTextInput, preserveScroll: preserveScroll)
+                    if payload.confetti {
+                        self?.showConfettiOverlay()
+                    }
+                    if let snackbar = payload.snackbar {
+                        self?.showToast(snackbar.message, durationMs: snackbar.durationMs)
+                    }
                     if let afterMs = payload.pollAgain, let self {
                         // Scheduled fresh off THIS payload, not the one
                         // `isPollFetch` arrived from — Async re-arms

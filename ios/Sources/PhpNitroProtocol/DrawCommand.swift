@@ -465,6 +465,16 @@ public struct SliderRegion: Decodable {
     public let action: String
 }
 
+/// `Canvas::showSnackbar()`'s own `['message' => ..., 'durationMs' => ...]`
+/// — auto-synthesized, unlike `DrawCommandPayload` itself, since this
+/// is never genuinely missing a key the way `sliderRegions`/`snackbar`
+/// itself are (PHP always writes both fields together, see
+/// Canvas.php's own showSnackbar()).
+public struct SnackbarPayload: Decodable {
+    public let message: String
+    public let durationMs: Int
+}
+
 /// The envelope Canvas::toJson() wraps every render in. `hitRegions` is
 /// always present (possibly empty), never omitted — Canvas::toJson()'s
 /// own array_filter() only strips null values, and an empty array isn't
@@ -517,9 +527,34 @@ public struct DrawCommandPayload: Decodable {
     /// `scheduleTimedRefetch()`, which extracts this same field via a raw
     /// regex against the response body rather than decoding it properly.
     public let pollAgain: Int?
+    /// `Canvas::setRedirect()` — set server-side after a real state
+    /// change (e.g. `public/index.php`'s own post-login redirect to
+    /// 'home'), never by a widget's `paint()` the way `autoNavigate`/
+    /// `confetti`/`snackbar` are. Must be handled BEFORE this payload is
+    /// ever applied to `canvasView` — mirrors `applyResponse()`'s own
+    /// `redirect` check, which runs right after the `"unchanged":true`
+    /// short-circuit and `return`s immediately into a fresh `refetch()`
+    /// rather than ever reaching `canvasView.setCommands(...)`. See
+    /// `NativeScreenViewController.fetch()`'s own success handler for
+    /// where this gets consumed.
+    public let redirect: String?
+    /// `Canvas::triggerConfetti()` — set by `Confetti`'s own `paint()`
+    /// (`packages/ui/src/Native/Confetti.php`) every render that widget
+    /// is on screen; `Canvas::toJson()` writes it as the literal `true`
+    /// (never `false` — `array_filter()` strips it entirely when the
+    /// widget never fired). Absent (decodes to `false`) on every other
+    /// screen, same "genuinely absent most of the time" shape `scrollFollow`
+    /// already uses.
+    public let confetti: Bool
+    /// `Canvas::showSnackbar()` — "last call wins" per render, same as
+    /// `autoNavigate`. Unlike `redirect`, this is applied AFTER the
+    /// payload (mirrors `applyResponse()`'s own ordering: confetti/
+    /// snackbar are read only once `canvasView.setCommands(...)` has
+    /// actually run, never on a redirect or an `"unchanged":true` frame).
+    public let snackbar: SnackbarPayload?
 
     private enum CodingKeys: String, CodingKey {
-        case commands, hitRegions, contentHeight, sliderRegions, renderTimeMs, scrollFollow, hash, pollAgain
+        case commands, hitRegions, contentHeight, sliderRegions, renderTimeMs, scrollFollow, hash, pollAgain, redirect, confetti, snackbar
     }
 
     public init(from decoder: Decoder) throws {
@@ -532,6 +567,9 @@ public struct DrawCommandPayload: Decodable {
         scrollFollow = try container.decodeIfPresent(Bool.self, forKey: .scrollFollow) ?? false
         hash = try container.decodeIfPresent(String.self, forKey: .hash)
         pollAgain = try container.decodeIfPresent(Int.self, forKey: .pollAgain)
+        redirect = try container.decodeIfPresent(String.self, forKey: .redirect)
+        confetti = try container.decodeIfPresent(Bool.self, forKey: .confetti) ?? false
+        snackbar = try container.decodeIfPresent(SnackbarPayload.self, forKey: .snackbar)
     }
 
     /// Mirrors NativeRenderPocActivity.kt's own raw
