@@ -344,8 +344,20 @@ fn draw_circle(pixmap: &mut Pixmap, circle: &CircleCommand) {
     }
     if let (Some(border_color), Some(border_width)) = (&circle.border_color, circle.border_width) {
         if border_width > 0.0 {
-            let stroke = stroke_of(border_width as f32);
-            pixmap.stroke_path(&path, &solid_paint(parse_color(border_color)), &stroke, Transform::identity(), None);
+            let border_width = border_width as f32;
+            // tiny-skia centers a stroke on its path, same as every
+            // other renderer here (Cairo/Core Graphics included) — the
+            // fill path's own radius `r` would bleed border_width/2 past
+            // the circle the layout engine actually reserved. Inset,
+            // same fix draw_rect's own border already applies, and the
+            // same formula draw_spinner's own ring radius above already
+            // uses.
+            let mut border_pb = PathBuilder::new();
+            border_pb.push_circle(cx, cy, (r - border_width / 2.0).max(0.0));
+            if let Some(border_path) = border_pb.finish() {
+                let stroke = stroke_of(border_width);
+                pixmap.stroke_path(&border_path, &solid_paint(parse_color(border_color)), &stroke, Transform::identity(), None);
+            }
         }
     }
 }
