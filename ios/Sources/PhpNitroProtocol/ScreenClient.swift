@@ -21,12 +21,12 @@ struct ServerErrorEnvelope: Decodable {
 /// fetchDrawCommands() — deliberately the MINIMAL slice of that method's
 /// contract: fetch one screen, optionally with a tap action, get back a
 /// DrawCommandPayload. Everything else fetchDrawCommands() also does
-/// (dark/locale/online params, scroll-position prefetch hints for
-/// LazyList, form field values, polling for Async/Canvas::pollAgain(),
-/// confetti/snackbar/redirect side-channels) is real, separate
-/// follow-up work — see ios/README.md. lastHash short-circuiting is
-/// NOT in that remaining list anymore — see fetchScreen's own `lastHash`
-/// param.
+/// (polling for Async/Canvas::pollAgain(), confetti/snackbar/redirect
+/// side-channels) is real, separate follow-up work — see
+/// ios/README.md. lastHash short-circuiting, dark/locale/online params,
+/// and scroll-position prefetch hints are NOT in that remaining list
+/// anymore — see fetchScreen's own `lastHash` param and
+/// NativeScreenViewController.fetch()'s own `requestFieldValues`.
 public final class ScreenClient {
     private let host: String
     private let port: Int
