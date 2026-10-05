@@ -517,9 +517,20 @@ public struct DrawCommandPayload: Decodable {
     /// `scheduleTimedRefetch()`, which extracts this same field via a raw
     /// regex against the response body rather than decoding it properly.
     public let pollAgain: Int?
+    /// `Canvas::setRedirect()` — set server-side after a real state
+    /// change (e.g. `public/index.php`'s own post-login redirect to
+    /// 'home'), never by a widget's `paint()` the way `autoNavigate`/
+    /// `confetti`/`snackbar` are. Must be handled BEFORE this payload is
+    /// ever applied to `canvasView` — mirrors `applyResponse()`'s own
+    /// `redirect` check, which runs right after the `"unchanged":true`
+    /// short-circuit and `return`s immediately into a fresh `refetch()`
+    /// rather than ever reaching `canvasView.setCommands(...)`. See
+    /// `NativeScreenViewController.fetch()`'s own success handler for
+    /// where this gets consumed.
+    public let redirect: String?
 
     private enum CodingKeys: String, CodingKey {
-        case commands, hitRegions, contentHeight, sliderRegions, renderTimeMs, scrollFollow, hash, pollAgain
+        case commands, hitRegions, contentHeight, sliderRegions, renderTimeMs, scrollFollow, hash, pollAgain, redirect
     }
 
     public init(from decoder: Decoder) throws {
@@ -532,6 +543,7 @@ public struct DrawCommandPayload: Decodable {
         scrollFollow = try container.decodeIfPresent(Bool.self, forKey: .scrollFollow) ?? false
         hash = try container.decodeIfPresent(String.self, forKey: .hash)
         pollAgain = try container.decodeIfPresent(Int.self, forKey: .pollAgain)
+        redirect = try container.decodeIfPresent(String.self, forKey: .redirect)
     }
 
     /// Mirrors NativeRenderPocActivity.kt's own raw
