@@ -508,9 +508,18 @@ public struct DrawCommandPayload: Decodable {
     /// fetch never offers a `lastHash` on its own next request, same as
     /// never having applied a payload at all.
     public let hash: String?
+    /// `Canvas::pollAgain()` — set by `Async` (packages/ui/src/Native/Async.php)
+    /// on every paint pass while its background `AsyncTask` is still
+    /// pending, asking the client to refetch this same screen again in
+    /// this many ms with no user action involved at all; naturally
+    /// absent once the task resolves (that render simply never calls
+    /// `pollAgain()` again). Mirrors NativeRenderPocActivity.kt's own
+    /// `scheduleTimedRefetch()`, which extracts this same field via a raw
+    /// regex against the response body rather than decoding it properly.
+    public let pollAgain: Int?
 
     private enum CodingKeys: String, CodingKey {
-        case commands, hitRegions, contentHeight, sliderRegions, renderTimeMs, scrollFollow, hash
+        case commands, hitRegions, contentHeight, sliderRegions, renderTimeMs, scrollFollow, hash, pollAgain
     }
 
     public init(from decoder: Decoder) throws {
@@ -522,6 +531,7 @@ public struct DrawCommandPayload: Decodable {
         renderTimeMs = try container.decodeIfPresent(Double.self, forKey: .renderTimeMs)
         scrollFollow = try container.decodeIfPresent(Bool.self, forKey: .scrollFollow) ?? false
         hash = try container.decodeIfPresent(String.self, forKey: .hash)
+        pollAgain = try container.decodeIfPresent(Int.self, forKey: .pollAgain)
     }
 
     /// Mirrors NativeRenderPocActivity.kt's own raw
