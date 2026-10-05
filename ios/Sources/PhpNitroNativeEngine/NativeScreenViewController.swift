@@ -1013,6 +1013,17 @@ public final class NativeScreenViewController: UIViewController {
                         #endif
                         return
                     }
+                    // Canvas::setRedirect() — must short-circuit BEFORE
+                    // this payload is ever applied to canvasView, same
+                    // as applyResponse()'s own redirect check: mutate
+                    // screenStack in place and refetch as a real
+                    // navigation, never painting this response's own
+                    // commands at all.
+                    if let redirect = payload.redirect, let self, !self.screenStack.isEmpty {
+                        self.screenStack[self.screenStack.count - 1] = redirect
+                        self.fetch(action: nil, preserveScroll: false)
+                        return
+                    }
                     self?.lastAppliedHash = payload.hash
                     self?.canvasView.setPayload(payload, preserveTextInput: preserveTextInput, preserveScroll: preserveScroll)
                     if let afterMs = payload.pollAgain, let self {
