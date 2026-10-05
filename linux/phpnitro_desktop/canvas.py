@@ -79,6 +79,91 @@ def _rounded_rect_path(ctx, x: float, y: float, w: float, h: float, r: float) ->
     ctx.close_path()
 
 
+def _draw_elevation_shadow(ctx, x: float, y: float, w: float, h: float, radius: float, elevation: float) -> None:
+    """Drop shadow for `elevation` — Cairo port of raster.rs's own
+    `draw_elevation_shadow()` (itself mirroring NativeCanvasView.kt's
+    `setShadowLayer(elevation * 2.2, 0, elevation * 0.9, ...)`): blur
+    radius scales 2.2x elevation, the offset is vertical-only at 0.9x
+    elevation, alpha scales with elevation up to a cap of 140/255.
+    Cairo has no built-in blur either, same as tiny-skia — this
+    rasterizes the same rounded-rect shape into a small local
+    `ImageSurface` (just the rect's own bounds, padded by the blur
+    radius, not the whole frame), box-blurs its alpha channel in place,
+    then composites it behind the real fill via `set_source_surface`.
+    """
+    if elevation <= 0 or w <= 0 or h <= 0:
+        return
+
+    blur_radius = max(1, round(elevation * 2.2))
+    offset_y = elevation * 0.9
+    shadow_alpha = min(40.0 + elevation * 5.0, 140.0) / 255.0
+
+    pad = blur_radius + 1
+    local_w = math.ceil(w) + pad * 2
+    local_h = math.ceil(h) + pad * 2
+
+    shadow_surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, local_w, local_h)
+    shadow_ctx = cairo.Context(shadow_surface)
+    _rounded_rect_path(shadow_ctx, pad, pad, w, h, radius)
+    shadow_ctx.set_source_rgba(0, 0, 0, shadow_alpha)
+    shadow_ctx.fill()
+    shadow_surface.flush()
+
+    _box_blur_alpha(shadow_surface, blur_radius)
+    shadow_surface.mark_dirty()
+
+    ctx.save()
+    ctx.set_source_surface(shadow_surface, round(x - pad), round(y - pad + offset_y))
+    ctx.paint()
+    ctx.restore()
+
+
+def _box_blur_alpha(surface, radius: int) -> None:
+    """Separable box blur applied to an ARGB32 surface's alpha channel,
+    in place — pure-Python port of raster.rs's own `box_blur_alpha`
+    (same two-pass horizontal-then-vertical average, same edge
+    handling: a window clamped to the surface's bounds rather than
+    padded with transparent border, so `count` shrinks near an edge
+    instead of averaging in zeros). No numpy dependency pulled in for
+    this one fallback-only effect — these buffers are small (a single
+    rect's own bounds, not the whole frame).
+
+    R/G/B stay at 0 throughout (`_draw_elevation_shadow` only ever
+    fills solid black into this surface), so blurring alpha alone is
+    equivalent to blurring the fully premultiplied pixel, same
+    reasoning the Rust version's own docstring gives. `FORMAT_ARGB32`
+    is host-native-endian 32-bit words with alpha in the highest byte —
+    on every little-endian platform this targets (x86_64/aarch64,
+    the only two Linux desktop builds this project ships), that lands
+    at byte offset 3 within each 4-byte pixel.
+    """
+    if radius == 0:
+        return
+
+    width, height, stride = surface.get_width(), surface.get_height(), surface.get_stride()
+    buf = surface.get_data()
+    alpha = [buf[row * stride + col * 4 + 3] for row in range(height) for col in range(width)]
+    blurred = alpha[:]
+
+    for row in range(height):
+        base = row * width
+        for col in range(width):
+            lo, hi = max(0, col - radius), min(width - 1, col + radius)
+            blurred[base + col] = sum(alpha[base + lo:base + hi + 1]) // (hi - lo + 1)
+    alpha, blurred = blurred, alpha
+
+    for col in range(width):
+        column = alpha[col::width]
+        for row in range(height):
+            lo, hi = max(0, row - radius), min(height - 1, row + radius)
+            blurred[row * width + col] = sum(column[lo:hi + 1]) // (hi - lo + 1)
+
+    for row in range(height):
+        base = row * width
+        for col in range(width):
+            buf[row * stride + col * 4 + 3] = min(blurred[base + col], 255)
+
+
 @dataclass
 class RenderState:
     """Threads through a render pass — mirrors NativeCanvasView's own
@@ -157,11 +242,29 @@ def _render_command(ctx, command: DrawCommand, state: RenderState) -> None:
 def _draw_rect(ctx, c: RectCommand) -> None:
     ctx.save()
     radius = c.radius or 0
+
+    if c.elevation:
+        _draw_elevation_shadow(ctx, c.x, c.y, c.width, c.height, radius, c.elevation)
+
     _rounded_rect_path(ctx, c.x, c.y, c.width, c.height, radius)
-    fill = parse_color(c.color)
-    if fill:
-        ctx.set_source_rgba(*fill)
+    # Mirrors raster.rs's own draw_rect(): a gradient takes priority
+    # over a flat color when present (gradient_to falls back to
+    # gradient_from itself — a "gradient" with only one stop is just a
+    # solid fill via a 1-color gradient, not treated as absent); a
+    # border-only box with neither set intentionally paints no fill.
+    if c.gradient_from:
+        gradient = cairo.LinearGradient(c.x, c.y, c.x + c.width, c.y + c.height)
+        from_color = parse_color(c.gradient_from) or (0, 0, 0, 1)
+        to_color = parse_color(c.gradient_to) or from_color
+        gradient.add_color_stop_rgba(0, *from_color)
+        gradient.add_color_stop_rgba(1, *to_color)
+        ctx.set_source(gradient)
         ctx.fill_preserve()
+    else:
+        fill = parse_color(c.color)
+        if fill:
+            ctx.set_source_rgba(*fill)
+            ctx.fill_preserve()
     ctx.new_path()
     border = parse_color(c.border_color)
     border_width = c.border_width or 0
