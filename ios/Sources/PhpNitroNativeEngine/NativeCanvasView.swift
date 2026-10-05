@@ -176,10 +176,36 @@ public final class NativeCanvasView: UIView {
     /// introduced this key.
     private var clientTabState: [String: Int] = [:]
 
-    /// Reserved for future client-side drag support (see HScrollCommand's
-    /// own docblock) — always 0 for now, so every hScroll command renders
-    /// at its server-authored, undragged position.
-    private let hScrollOffsets: [String: CGFloat] = [:]
+    /// Mirrors NativeCanvasView.kt's own mutable `hScrollOffsets` map —
+    /// see `handlePan(_:)`'s own hScroll path for how this gets dragged.
+    private var hScrollOffsets: [String: CGFloat] = [:]
+
+    /// One entry per top-level `hScroll` command in the current payload
+    /// — mirrors `VScrollRegionInfo` above, minus `hitRegions` (nested
+    /// hit-testing inside an hScroll's own content is real, separate
+    /// follow-up work; this only wires up the drag itself).
+    private struct HScrollRegionInfo {
+        let key: String
+        let rect: CGRect
+        let contentWidth: CGFloat
+        let viewportWidth: CGFloat
+    }
+
+    private var hScrollRegionsInfo: [HScrollRegionInfo] = []
+
+    /// The hScroll region a pan gesture started inside of, but whose
+    /// axis hasn't been confirmed yet — mirrors Android's own
+    /// `pendingHScroll` (`NativeCanvasView.kt`): hitting this rect alone
+    /// isn't enough to claim the gesture, since the page/vScroll's own
+    /// vertical scroll must still win a drag that turns out to be
+    /// mostly vertical. Promoted to `activeHScrollKey` (or dropped
+    /// entirely) once `resolveAxis(_:)` decides which way the drag
+    /// actually went — see `handlePan(_:)`'s own `.changed` case.
+    private var pendingHScrollKey: String?
+
+    /// The hScroll region (if any) THIS gesture has been confirmed to
+    /// be dragging horizontally — mirrors Android's own `activeHScroll`.
+    private var activeHScrollKey: String?
 
     /// Real bug found testing NestedScroll (VideoPlayer's containing
     /// list) on a physical device: unlike hScroll above, a vScroll
@@ -392,6 +418,18 @@ public final class NativeCanvasView: UIView {
         }
         vScrollOffsets = [:]
         activeVScrollKey = nil
+        hScrollRegionsInfo = payload.commands.compactMap { command in
+            guard case .hScroll(let scroll) = command else { return nil }
+            return HScrollRegionInfo(
+                key: scroll.key,
+                rect: CGRect(x: scroll.x, y: scroll.y, width: scroll.width, height: scroll.height),
+                contentWidth: CGFloat(scroll.contentWidth),
+                viewportWidth: CGFloat(scroll.width)
+            )
+        }
+        hScrollOffsets = [:]
+        pendingHScrollKey = nil
+        activeHScrollKey = nil
         sliderValues = [:]
         activeSliderKey = nil
         // A new payload just replaced whatever the current overlay (if
@@ -933,6 +971,28 @@ public final class NativeCanvasView: UIView {
         return Double(value.clamped(to: 0...1))
     }
 
+    private enum PanAxis {
+        case horizontal
+        case vertical
+        case undetermined
+    }
+
+    /// Mirrors Android's own touchSlop-based disambiguation in
+    /// `onTouchEvent()`'s `ACTION_MOVE` branch (`abs(totalDeltaX) >
+    /// touchSlop && abs(totalDeltaX) > abs(totalDeltaY)`, and the
+    /// equivalent for Y) — `translation` is the gesture's own CUMULATIVE
+    /// distance since `.began`, not a per-call delta.
+    private func resolveAxis(_ translation: CGPoint) -> PanAxis {
+        let slop: CGFloat = 8
+        if abs(translation.x) > slop, abs(translation.x) > abs(translation.y) {
+            return .horizontal
+        }
+        if abs(translation.y) > slop, abs(translation.y) > abs(translation.x) {
+            return .vertical
+        }
+        return .undetermined
+    }
+
     private func configurePanRecognizer() {
         let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
         addGestureRecognizer(pan)
@@ -984,6 +1044,14 @@ public final class NativeCanvasView: UIView {
                 return
             }
             activeVScrollKey = vScrollRegionsInfo.first(where: { $0.rect.contains(contentPoint) })?.key
+            // Claimed PENDING only — a drag starting inside an hScroll's
+            // own rect still might turn out to be mostly vertical (the
+            // page/vScroll scrolling past it), so the real claim waits
+            // for `resolveAxis(_:)` in `.changed` below, mirroring
+            // Android's own `pendingHScroll`/touchSlop disambiguation
+            // (no equivalent needed for vScroll/page scroll above, which
+            // only ever compete against EACH OTHER — both vertical).
+            pendingHScrollKey = hScrollRegionsInfo.first(where: { $0.rect.contains(contentPoint) })?.key
 
         case .changed:
             if let key = activeSliderKey, let region = payload?.sliderRegions.first(where: { $0.key == key }) {
@@ -997,7 +1065,42 @@ public final class NativeCanvasView: UIView {
             // the offset from a fixed reference each call rather than
             // accumulating a delta — recognizer.setTranslation(_: in:)
             // keeps that reference at the drag's start point.
-            let translationY = recognizer.translation(in: self).y
+            let translation = recognizer.translation(in: self)
+            let translationY = translation.y
+
+            if let key = pendingHScrollKey {
+                switch resolveAxis(translation) {
+                case .horizontal:
+                    activeHScrollKey = key
+                    pendingHScrollKey = nil
+                    // Horizontal wins outright — drop any vertical
+                    // candidate the same `.began` also recorded for this
+                    // same starting point.
+                    activeVScrollKey = nil
+                case .vertical:
+                    pendingHScrollKey = nil
+                case .undetermined:
+                    // Not enough movement yet to tell — do nothing,
+                    // crucially WITHOUT consuming/resetting translation,
+                    // so the next call still sees the full cumulative
+                    // distance from .began to decide with.
+                    return
+                }
+            }
+
+            if let key = activeHScrollKey, let info = hScrollRegionsInfo.first(where: { $0.key == key }) {
+                clearOverlaysOnScrollStartIfNeeded()
+                let maxOffset = max(0, info.contentWidth - info.viewportWidth)
+                let current = hScrollOffsets[key] ?? 0
+                // No page-scroll handoff (unlike vScroll just below) —
+                // there's no outer HORIZONTAL scroll on this page to
+                // hand excess off to, so this simply clamps at either
+                // edge, same as Android's own formula.
+                hScrollOffsets[key] = (current - translation.x).clamped(to: 0...maxOffset)
+                recognizer.setTranslation(.zero, in: self)
+                setNeedsDisplay()
+                return
+            }
 
             if let key = activeVScrollKey, let info = vScrollRegionsInfo.first(where: { $0.key == key }) {
                 clearOverlaysOnScrollStartIfNeeded()
@@ -1051,6 +1154,14 @@ public final class NativeCanvasView: UIView {
                 onAction?(region.action, rect.offsetBy(dx: 0, dy: -scrollY), ["next": .string(String(format: "%.3f", value))], nil)
                 return
             }
+
+            // No fling for hScroll either (same as vScroll just below —
+            // only the outer page ever flings) — release both the
+            // pending and the confirmed claim.
+            pendingHScrollKey = nil
+            let wasHScroll = activeHScrollKey != nil
+            activeHScrollKey = nil
+            guard !wasHScroll else { return }
 
             // No fling for a nested region (mirrors NativeCanvasView.kt,
             // which only ever flings the outer page) — just release the
