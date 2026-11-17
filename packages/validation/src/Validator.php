@@ -118,19 +118,25 @@ final class Validator
         // Every rule except 'required' passes on an empty value — pair
         // with 'required' explicitly if emptiness itself should fail,
         // same convention Laravel's rule chain uses.
-        if ($name !== 'required' && $value === '') {
-            return null;
-        }
-
         return match ($name) {
             'required' => $value === '' ? "{$field} est requis." : null,
-            'email' => filter_var($value, FILTER_VALIDATE_EMAIL) === false ? "{$field} doit être une adresse email valide." : null,
-            'numeric' => !is_numeric($value) ? "{$field} doit être un nombre." : null,
-            'min' => $param !== null && mb_strlen($value) < (int) $param ? "{$field} doit contenir au moins {$param} caractères." : null,
-            'max' => $param !== null && mb_strlen($value) > (int) $param ? "{$field} doit contenir au plus {$param} caractères." : null,
-            'same' => $param !== null && $value !== trim((string) ($this->data[$param] ?? '')) ? "{$field} ne correspond pas à {$param}." : null,
-            'in' => $param !== null && !in_array($value, explode(',', $param), true) ? "{$field} n'est pas une valeur valide." : null,
-            default => null,
+            'email' => $value !== '' && filter_var($value, FILTER_VALIDATE_EMAIL) === false
+                ? "{$field} doit être une adresse email valide."
+                : null,
+            'numeric' => $value !== '' && !is_numeric($value) ? "{$field} doit être un nombre." : null,
+            'min' => $value !== '' && $param !== null && mb_strlen($value) < (int) $param
+                ? "{$field} doit contenir au moins {$param} caractères."
+                : null,
+            'max' => $value !== '' && $param !== null && mb_strlen($value) > (int) $param
+                ? "{$field} doit contenir au plus {$param} caractères."
+                : null,
+            'same' => $value !== '' && $param !== null && $value !== trim((string) ($this->data[$param] ?? ''))
+                ? "{$field} ne correspond pas à {$param}."
+                : null,
+            'in' => $value !== '' && $param !== null && !in_array($value, explode(',', $param), true)
+                ? "{$field} n'est pas une valeur valide."
+                : null,
+            default => throw new \InvalidArgumentException("Règle de validation inconnue : {$name}."),
         };
     }
 }

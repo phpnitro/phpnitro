@@ -102,4 +102,20 @@ final class ValidatorTest extends TestCase
 
         $this->assertTrue($v->fails());
     }
+
+    public function testUnknownRuleIsRejected(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Règle de validation inconnue : emial.');
+
+        Validator::make(['email' => 'demo@example.com'], ['email' => 'emial']);
+    }
+
+    public function testUnknownRuleIsRejectedOnEmptyValueToo(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Règle de validation inconnue : emial.');
+
+        Validator::make(['email' => ''], ['email' => 'emial']);
+    }
 }
