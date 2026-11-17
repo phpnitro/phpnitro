@@ -196,4 +196,53 @@ final class MigratorTest extends TestCase
 
         self::assertSame([], $migrator->rollback());
     }
+
+    public function testFailedMigrationLeavesNoPartialBatch(): void
+    {
+        $this->writeMigration('20260101000000_create_posts.php', <<<'PHP'
+            <?php
+            use Doctrine\DBAL\Connection;
+            use Engine\Database\Migration;
+            return new class extends Migration {
+                public function up(Connection $connection): void
+                {
+                    $connection->executeStatement('CREATE TABLE posts (id INTEGER PRIMARY KEY)');
+                }
+                public function down(Connection $connection): void
+                {
+                    $connection->executeStatement('DROP TABLE posts');
+                }
+            };
+            PHP);
+        $this->writeMigration('20260102000000_fail.php', <<<'PHP'
+            <?php
+            use Doctrine\DBAL\Connection;
+            use Engine\Database\Migration;
+            return new class extends Migration {
+                public function up(Connection $connection): void
+                {
+                    throw new \RuntimeException('boom');
+                }
+                public function down(Connection $connection): void
+                {
+                }
+            };
+            PHP);
+
+        $connection = $this->connection();
+        $migrator = new Migrator($connection, $this->migrationsDir);
+
+        $threw = false;
+        try {
+            $migrator->migrate();
+        } catch (\RuntimeException $e) {
+            $threw = true;
+            self::assertSame('boom', $e->getMessage());
+        }
+        self::assertTrue($threw, 'The failing migration should propagate its exception.');
+
+        self::assertSame([], $migrator->ranMigrations());
+        self::assertCount(2, $migrator->pendingMigrations());
+        self::assertFalse($connection->createSchemaManager()->tablesExist(['posts']));
+    }
 }
