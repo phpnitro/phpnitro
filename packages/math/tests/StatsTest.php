@@ -44,6 +44,12 @@ final class StatsTest extends TestCase
         $this->assertEqualsCanonicalizing([1.0, 2.0], Stats::mode([1, 1, 2, 2]));
     }
 
+    public function testModeKeepsDecimalValues(): void
+    {
+        $this->assertSame([2.5], Stats::mode([1.5, 2.5, 2.5]));
+        $this->assertSame([1.25, 2.75], Stats::mode([1.25, 1.25, 2.75, 2.75]));
+    }
+
     public function testModeEmpty(): void
     {
         $this->assertSame([], Stats::mode([]));
