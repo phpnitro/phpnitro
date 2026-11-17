@@ -24,6 +24,13 @@ final class CharactersTest extends TestCase
         $this->assertSame('él', Characters::substring('héllo', 1, 2));
     }
 
+    public function testSubstringKeepsZeroCharacter(): void
+    {
+        // '0' is falsy in PHP — `?: ''` used to swallow it entirely.
+        $this->assertSame('0', Characters::substring('0123', 0, 1));
+        $this->assertSame('01', Characters::substring('0123', 0, 2));
+    }
+
     public function testReverse(): void
     {
         $this->assertSame('olléh', Characters::reverse('héllo'));
