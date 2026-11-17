@@ -93,9 +93,9 @@ final class Firestore
         }
 
         $url = self::documentUrl($projectId, $collection, $documentId);
-        $payload = json_encode(['fields' => self::encodeFields($fields)], JSON_THROW_ON_ERROR);
 
         try {
+            $payload = json_encode(['fields' => self::encodeFields($fields)], JSON_THROW_ON_ERROR);
             $response = file_get_contents($url, false, stream_context_create([
                 'http' => [
                     'method' => 'PATCH',
