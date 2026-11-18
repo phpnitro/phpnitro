@@ -622,6 +622,13 @@ public final class NativeScreenViewController: UIViewController {
             switch parts.first {
             case "vibrate":
                 NativeDeviceBridge.vibrate(milliseconds: parts.count > 1 ? Int(parts[1]) ?? 200 : 200)
+            case "confetti":
+                // Confetti::triggerAction()'s manual "replay" button —
+                // the same self-removing full-screen CAEmitterLayer
+                // overlay the automatic Canvas::triggerConfetti() path
+                // uses below. Entirely client-side, no fetch, like
+                // vibrate above.
+                showConfettiOverlay()
             case "torch":
                 let outField = parts.count > 1 ? parts[1] : "torch_out"
                 fieldValues[outField] = NativeDeviceBridge.toggleTorch() ? "on" : "off"
