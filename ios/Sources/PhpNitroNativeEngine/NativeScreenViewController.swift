@@ -614,9 +614,9 @@ public final class NativeScreenViewController: UIViewController {
         // PHP can render it — `fetch(action: nil)` already sends every
         // non-empty fieldValues entry (see ScreenClient's own docblock),
         // so that's the whole "includeFields" equivalent here, no
-        // separate flag needed. Only these forty-eight exist so far
-        // (2026-09-10) of Android's ~40 — see NativeDeviceBridge.swift's
-        // own docblock on why this is starting small.
+        // separate flag needed. See NativeDeviceBridge.swift's own
+        // docblock for why this started small; the maintained list of
+        // ported device:* actions lives in ios/README.md.
         if action.hasPrefix("device:") {
             let parts = action.dropFirst("device:".count).components(separatedBy: ":")
             switch parts.first {
