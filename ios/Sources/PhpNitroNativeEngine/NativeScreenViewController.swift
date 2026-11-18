@@ -614,14 +614,21 @@ public final class NativeScreenViewController: UIViewController {
         // PHP can render it — `fetch(action: nil)` already sends every
         // non-empty fieldValues entry (see ScreenClient's own docblock),
         // so that's the whole "includeFields" equivalent here, no
-        // separate flag needed. Only these forty-eight exist so far
-        // (2026-09-10) of Android's ~40 — see NativeDeviceBridge.swift's
-        // own docblock on why this is starting small.
+        // separate flag needed. See NativeDeviceBridge.swift's own
+        // docblock for why this started small; the maintained list of
+        // ported device:* actions lives in ios/README.md.
         if action.hasPrefix("device:") {
             let parts = action.dropFirst("device:".count).components(separatedBy: ":")
             switch parts.first {
             case "vibrate":
                 NativeDeviceBridge.vibrate(milliseconds: parts.count > 1 ? Int(parts[1]) ?? 200 : 200)
+            case "confetti":
+                // Confetti::triggerAction()'s manual "replay" button —
+                // the same self-removing full-screen CAEmitterLayer
+                // overlay the automatic Canvas::triggerConfetti() path
+                // uses below. Entirely client-side, no fetch, like
+                // vibrate above.
+                showConfettiOverlay()
             case "torch":
                 let outField = parts.count > 1 ? parts[1] : "torch_out"
                 fieldValues[outField] = NativeDeviceBridge.toggleTorch() ? "on" : "off"
@@ -782,6 +789,16 @@ public final class NativeScreenViewController: UIViewController {
                 let outField = parts.count > 3 ? parts[3] : "save_out"
                 fieldValues[outField] = NativeDeviceBridge.saveFile(fileName: fileName, content: content)
                 fetch(action: nil)
+            case "openfile":
+                // OpenFile::openAction() — every segment rawurlencode()'d
+                // by PHP, so a ':' inside content cannot split the action.
+                // Fire-and-forget like openurl: the OS menu itself is the
+                // feedback, no field write / refetch (Android does the
+                // same ACTION_VIEW with no output field).
+                let fileName = (parts.count > 1 ? parts[1].removingPercentEncoding : nil) ?? "document.txt"
+                let mimeType = (parts.count > 2 ? parts[2].removingPercentEncoding : nil) ?? "text/plain"
+                let content = (parts.count > 3 ? parts[3].removingPercentEncoding : nil) ?? ""
+                NativeDeviceBridge.openFile(fileName: fileName, mimeType: mimeType, content: content, from: self)
             case "restartapp":
                 // RestartApp.php's own docblock: Android relaunches its
                 // launcher Intent then kills the process outright — no

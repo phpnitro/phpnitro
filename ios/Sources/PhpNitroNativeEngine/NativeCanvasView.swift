@@ -180,12 +180,10 @@ public final class NativeCanvasView: UIView {
     private var displayLink: CADisplayLink?
 
     /// `key -> selected panel index`, seeded once from whichever panel
-    /// has `initiallyActive == true` and never overwritten by a later
-    /// render for the same key — mirrors NativeCanvasView.kt's own
-    /// `clientTabState`. No tap-to-switch-tab wiring yet (see
-    /// ClientPanelCommand's own docblock), so this only ever reflects
-    /// whatever PHP marked active on the most recent render that
-    /// introduced this key.
+    /// has `initiallyActive == true` when a key first appears (later
+    /// renders never overwrite an existing key), then updated locally by
+    /// `setClientTab(_:index:)` on a `clientTab:key:index` tap — no fetch,
+    /// exactly like NativeCanvasView.kt's own `clientTabState`.
     private var clientTabState: [String: Int] = [:]
 
     /// Mirrors NativeCanvasView.kt's own mutable `hScrollOffsets` map —
