@@ -789,6 +789,16 @@ public final class NativeScreenViewController: UIViewController {
                 let outField = parts.count > 3 ? parts[3] : "save_out"
                 fieldValues[outField] = NativeDeviceBridge.saveFile(fileName: fileName, content: content)
                 fetch(action: nil)
+            case "openfile":
+                // OpenFile::openAction() — every segment rawurlencode()'d
+                // by PHP, so a ':' inside content cannot split the action.
+                // Fire-and-forget like openurl: the OS menu itself is the
+                // feedback, no field write / refetch (Android does the
+                // same ACTION_VIEW with no output field).
+                let fileName = (parts.count > 1 ? parts[1].removingPercentEncoding : nil) ?? "document.txt"
+                let mimeType = (parts.count > 2 ? parts[2].removingPercentEncoding : nil) ?? "text/plain"
+                let content = (parts.count > 3 ? parts[3].removingPercentEncoding : nil) ?? ""
+                NativeDeviceBridge.openFile(fileName: fileName, mimeType: mimeType, content: content, from: self)
             case "restartapp":
                 // RestartApp.php's own docblock: Android relaunches its
                 // launcher Intent then kills the process outright — no

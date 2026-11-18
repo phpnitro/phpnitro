@@ -901,6 +901,71 @@ public enum NativeDeviceBridge {
         }
     }
 
+    /// Strips any directory component from a caller-supplied file name —
+    /// the direct iOS equivalent of Android's
+    /// `File(URLDecoder.decode(name)).name` guard in the `openfile` branch.
+    /// A name like "../../../etc/passwd" must never reach
+    /// `appendingPathComponent` as-is: appending it to the Documents URL
+    /// would walk straight out of the app sandbox. Degenerate names (empty,
+    /// "." / "..") fall back to a safe default. Pure — no UIKit, no
+    /// filesystem — so it is unit-testable without a host app.
+    public static func safeFileName(_ fileName: String) -> String {
+        let last = (fileName as NSString).lastPathComponent
+        guard !last.isEmpty, last != ".", last != ".." else {
+            return "document.txt"
+        }
+        return last
+    }
+
+    /// Retained for the lifetime of one open-in menu, same reasoning as
+    /// FilePickerDelegate above: UIDocumentInteractionController's
+    /// delegate is weak, so an unretained delegate would be deallocated
+    /// the moment openFile returns — silently turning the menu into a
+    /// no-op. Holding the controller alongside it also keeps it alive
+    /// while the menu is on screen.
+    private final class OpenInDelegate: NSObject, UIDocumentInteractionControllerDelegate {
+        func documentInteractionControllerDidDismissOpenInMenu(_ controller: UIDocumentInteractionController) {
+            NativeDeviceBridge.pendingOpenIn = nil
+        }
+    }
+
+    private static var pendingOpenIn: (UIDocumentInteractionController, OpenInDelegate)?
+
+    /// Mirrors NativeDeviceBridge.kt's own `openfile`: write the small
+    /// demo payload into this app's Documents directory (same place as
+    /// saveFile above — iOS has no Android-style FileProvider content URI
+    /// to hand across apps, UIDocumentInteractionController is the direct
+    /// equivalent of ACTION_VIEW + FLAG_GRANT_READ_URI_PERMISSION), then
+    /// let the OS offer the apps that can handle the MIME type.
+    @discardableResult
+    public static func openFile(
+        fileName: String,
+        mimeType: String,
+        content: String,
+        from presenter: UIViewController
+    ) -> Bool {
+        guard let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return false
+        }
+        let safeName = safeFileName(fileName)
+        let fileURL = documentsURL.appendingPathComponent(safeName)
+        do {
+            try content.write(to: fileURL, atomically: true, encoding: .utf8)
+        } catch {
+            return false
+        }
+
+        let delegate = OpenInDelegate()
+        let controller = UIDocumentInteractionController(url: fileURL)
+        controller.delegate = delegate
+        controller.name = safeName
+        if let type = UTType(mimeType: mimeType) {
+            controller.contentType = type
+        }
+        pendingOpenIn = (controller, delegate)
+        return controller.presentOpenInMenu(from: presenter.view.bounds, in: presenter.view, animated: true)
+    }
+
     // MARK: - App links (deep link)
 
     /// Mirrors NativeDeviceBridge.kt's own applink — Android reads the
