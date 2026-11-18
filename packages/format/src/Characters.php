@@ -47,7 +47,9 @@ final class Characters
             return mb_substr($text, $start, $length);
         }
 
-        return grapheme_substr($text, $start, $length) ?: '';
+        $substring = grapheme_substr($text, $start, $length);
+
+        return $substring === false ? '' : $substring;
     }
 
     public static function reverse(string $text): string

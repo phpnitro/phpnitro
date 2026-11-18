@@ -63,13 +63,16 @@ final class Stats
 
         $counts = [];
         foreach ($values as $value) {
-            $counts[$value] = ($counts[$value] ?? 0) + 1;
+            // PHP truncates float array keys to ints — 1.5 and 1.9 would
+            // share a bucket before the mode is even computed.
+            $key = json_encode($value, JSON_THROW_ON_ERROR);
+            $counts[$key] = ($counts[$key] ?? 0) + 1;
         }
 
         $maxCount = max($counts);
 
         return array_map(
-            static fn (string $value): float => (float) $value,
+            static fn (int|string $key): float => (float) json_decode((string) $key, true, 512, JSON_THROW_ON_ERROR),
             array_keys(array_filter($counts, static fn (int $count): bool => $count === $maxCount)),
         );
     }

@@ -30,6 +30,9 @@ use Doctrine\DBAL\Connection;
  * is modeled on (Laravel, Rails) settles on, rather than letting a
  * project get into an inconsistent partial state by rolling back
  * something with later migrations still depending on it.
+ *
+ * A batch runs inside one transaction: a failing migration leaves no
+ * tracking row (and no DDL, on databases with transactional DDL) behind.
  */
 final class Migrator
 {
@@ -79,15 +82,17 @@ final class Migrator
         }
 
         $batch = $this->nextBatchNumber();
-        foreach ($pending as $file) {
-            $migration = $this->load($file);
-            $migration->up($this->connection);
-            $this->connection->insert(self::TABLE, [
-                'migration' => $file,
-                'batch' => $batch,
-                'run_at' => date('Y-m-d H:i:s'),
-            ]);
-        }
+        $this->connection->transactional(function () use ($pending, $batch): void {
+            foreach ($pending as $file) {
+                $migration = $this->load($file);
+                $migration->up($this->connection);
+                $this->connection->insert(self::TABLE, [
+                    'migration' => $file,
+                    'batch' => $batch,
+                    'run_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
+        });
 
         return $pending;
     }
@@ -113,11 +118,13 @@ final class Migrator
             [$lastBatch],
         );
 
-        foreach ($toRollback as $file) {
-            $migration = $this->load($file);
-            $migration->down($this->connection);
-            $this->connection->delete(self::TABLE, ['migration' => $file]);
-        }
+        $this->connection->transactional(function () use ($toRollback): void {
+            foreach ($toRollback as $file) {
+                $migration = $this->load($file);
+                $migration->down($this->connection);
+                $this->connection->delete(self::TABLE, ['migration' => $file]);
+            }
+        });
 
         return $toRollback;
     }

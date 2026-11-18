@@ -116,7 +116,9 @@ final class AppleSignIn extends OAuthProvider
         ], JSON_THROW_ON_ERROR));
 
         $signingInput = "{$header}.{$claims}";
-        openssl_sign($signingInput, $derSignature, $privateKey, OPENSSL_ALGO_SHA256);
+        if (!openssl_sign($signingInput, $derSignature, $privateKey, OPENSSL_ALGO_SHA256)) {
+            throw new \RuntimeException('Unable to sign Apple client secret with the provided private key');
+        }
 
         return "{$signingInput}." . self::base64UrlEncode(self::derToJoseSignature($derSignature));
     }

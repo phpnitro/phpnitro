@@ -176,11 +176,11 @@ final class SupabaseClient
             'ignore_errors' => true,
         ];
 
-        if ($data !== []) {
-            $options['content'] = json_encode($data, JSON_THROW_ON_ERROR);
-        }
-
         try {
+            if ($data !== []) {
+                $options['content'] = json_encode($data, JSON_THROW_ON_ERROR);
+            }
+
             $response = file_get_contents(
                 rtrim($this->projectUrl, '/') . $path,
                 false,
